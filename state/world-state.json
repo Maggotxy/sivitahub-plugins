@@ -76,6 +76,12 @@
       "fact": "构建不自包含：8 处 compileOnly(files(...)) 指向 server/runtime/plugins 与 server/vendor，而这两条路径被 .gitignore 忽略 ⇒ 干净克隆必然编不过；其中 2 个 jar 是 Sivita 自改版（MyPet-4.0.0-Sivita.jar、worldguard-bukkit-7.0.18-Sivita.jar），公开源不存在",
       "source": "grep -rn 'files(' --include=build.gradle.kts；.gitignore 的 server/runtime/ server/vendor/",
       "level": "[S]"
+    },
+    {
+      "id": "E-010",
+      "fact": "第一波已派发：7 个 NPC 任务并行（max-inflight 7），分支 agent/W1-A0-fetch-deps、agent/W1-P1-gapmatrix、agent/W1-A1..A5 全部建出，基点 02486f1",
+      "source": "GET /xzqkjmnbvc2026/sivitahub/-/git/branches",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -111,7 +117,7 @@
   "open_questions_for_human": [
     "跨 Phase 抢跑是否批准：G-001（防御失效）与 G-002（Kill Switch）属 Phase 0 范畴，但 G-101/G-107 属 Phase 1 —— 是否允许 Phase 0 与 Phase 1 并行？"
   ],
-  "next_action": "① 本地从 lamb 取回 8 个 jar，把 2 个自改版作为 vendor 二进制入库 ② 派 NPC 写 scripts/fetch-deps.sh 拉其余 6 个公开 jar 并改 build.gradle.kts 指向 libs/ ③ 门转绿后再派 W1-A1..A5",
+  "next_action": "等第一波 PR；逐个用 compare 的 path 字段验收 + 读 .cnb/agent-out/<id>.json 的 evidence，自己复核 grep 后合入；每波合完触发 api_trigger_gate",
   "updated_by": "WorkBuddy AI（本地调度）",
-  "updated_at": "2026-10-02T03:45:00Z"
+  "updated_at": "2026-10-02T04:00:00Z"
 }
