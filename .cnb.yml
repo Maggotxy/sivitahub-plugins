@@ -69,13 +69,23 @@
           set -e
           chmod +x scripts/*.sh scripts/*.py
           sh scripts/selftest-gates.sh
-      - name: DDL 消费者门禁（G-301）
+      - name: DDL 门禁（G-301 消费者 + G-302 注册，双向）
         script: |
           set -e
           # 每一次 clone 出来的 gradlew 权限位都可能丢（实测：本地 checkout 后
           # `./gradlew` 报 Permission denied，退化成 TEST_EXIT=126 / SECONDS=0）。
           # 这里统一兜底，避免门禁因为一个文件模式位而整段假红。
           chmod +x gradlew scripts/*.sh scripts/*.py
+          # 同一个脚本里有三节判据，都是退出码判据（任一节红 → 整门红）：
+          #   §1/§3-5 G-301 消费者：DDL 里的表必须有真实 SQL 消费者
+          #   §6      G-303 指令引用：语言包承诺的 /cmd 必须被某个 plugin.yml 注册
+          #   §7      G-302 注册（W5-A1 新增）：src/main 里出现的每个 rpg_* 表名
+          #           必须在 DDL 真相源里有 CREATE TABLE —— W4-A2 踩的坑就是
+          #           「代码写了 INSERT INTO 一张不存在的表」，编译与单测（自带 H2
+          #           夹具）全绿，真机启动后任何授予经验都以 Table not found 回滚。
+          # 第 7 节的负向对照（证明它会红）跑在上一 stage：
+          #   scripts/selftest-gates.sh §4 —— 缺表 → RED、显式豁免 → GREEN 可审计。
+          # 注意：脚本跑在 sh(dash) 下，不要用 bash 专有语法。
           sh scripts/check-ddl-consumers.sh
       - name: 素材门禁（W7-A1）
         script: |

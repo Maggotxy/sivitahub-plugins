@@ -7,14 +7,20 @@
 #   1) scripts/dump-test-results.py 的四个判据分支都会给出预期退出码
 #   2) scripts/check-plugin-jars.py 的四个判据分支都会给出预期退出码
 #   3) scripts/list-env-tests.sh 在真实源码上能抽出非空清单
-#   4) scripts/check-repo-artifacts.sh 在真实文档上必须绿，且把数据包目录藏起来后必须红\n#   4b) scripts/install-datapacks.sh --check 在真实数据包上必须绿，函数调用未注册命令后必须红
-#   7) scripts/check-resource-pack.sh（W7-A1 素材门禁）的八条判据都能真的变红，
-#      且 .cnb.yml 的质量门确实调用了它（§8 接线自证）
+#   4) scripts/check-ddl-consumers.sh 的第 7 节（DDL 注册门禁/反向检查）在四种形态下
+#      给出预期退出码：正常 → 0；代码引用不存在的表 → 1；前缀误报 → 1；显式豁免 → 0
+#   4b) scripts/check-source-contract.sh 在不可能满足的顺序契约上必须红、真实顺序必须绿
+#   4c) scripts/install-datapacks.sh --check 在真实数据包上必须绿，函数调用未注册命令后必须红
+#   5) scripts/check-repo-artifacts.sh 在真实文档上必须绿，且把数据包目录藏起来后必须红
+#   5b) resource-pack 的 HUD 尺寸门禁（W7-A4）必须能真的变红，且 build.sh 常量与唯一来源一致
+#   6) G-206 接线自证：§4c/§5 两段门禁必须被本脚本真实调用、且被 .cnb.yml 执行
+#   7) scripts/check-resource-pack.sh（W7-A1 素材门禁）的八条判据都能真的变红
+#   8) W7-A1 接线自证：素材门禁必须真的在 CI 里跑
 #
 # 用法：sh scripts/selftest-gates.sh     （退出码 0 = 全部通过）
 #
 # G-206 接线说明（要求④「把这类问题在 CI 拦下来」）：
-#   §4b / §5 这两段就是「仓库内数据包 + docs 产物引用」的 CI 拦截点。
+#   §4c / §5 这两段就是「仓库内数据包 + docs 产物引用」的 CI 拦截点。
 #   .cnb.yml 的「门禁自测（负向对照）」stage 直接执行本脚本（push 与 api_trigger_gate
 #   共用同一套 stages），因此这两段判据每次推送都会真实运行、退出码直接决定质量门。
 #   这样接线不需要改 .cnb.yml，也不需要往 plugins/ 里塞测试类。
@@ -139,7 +145,101 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-echo "== 4. source-contract 门禁必须能真的变红（负向对照） =="
+echo "== 4. check-ddl-consumers.sh 第 7 节（DDL 注册门禁：代码引用的表必须在 DDL 里）=="
+# W4-A2 的 blocker 就是这个形态：代码写了 `INSERT INTO rpg_skill_point_grants`，
+# DDL 里却没有这张表 —— 编译与单测（自带 H2 夹具）全绿，真机启动后任何授予经验
+# 都以 Table not found 回滚。这里用最小夹具把反向检查的每个分支复跑一遍。
+#
+# 夹具的两个纪律（都踩过）：
+#   1) 夹具必须由门禁自己的加载器构造（scripts/test-frames.py build ddl-consumer-root）：
+#      第一次手搭夹具漏拷业务源码，第 1 节把 75 张表全报成未接线、门禁直接红，
+#      那次自测的红/绿毫无解释力。
+#   2) 夹具里每个扫描根都要有**真实源码**（构造器从 HEAD 取 Repository.java 一类文件
+#      占位，而不是塞探针）：探针只引用 1 张表会让第 1 节必红，第 7 节的红线就分不清
+#      「门禁真的抓到了」还是「被上一节的假红带崩的」。
+GW=$TMP/gw
+reinit() {
+  # reinit [--remove-table <t>]：重建夹具（构造器拒绝覆盖非空目录，先删）
+  rm -rf "$GW"
+  python3 scripts/test-frames.py build ddl-consumer-root "$GW" "$@" >/dev/null 2>&1
+  printf '%s' "$?"
+}
+probe() {
+  # probe <Java 源码文件>：注入一份引用表名的探针（唯一变量）
+  mkdir -p "$GW/plugins/rpg-core/src/main/java/cn/originalrpg/core/consumer"
+  cp "$1" "$GW/plugins/rpg-core/src/main/java/cn/originalrpg/core/consumer/Consumer.java"
+}
+run_gate() {
+  # run_gate <探针源码文件> <期望判据行> <描述>
+  probe "$1"
+  set +e
+  (cd "$GW" && sh scripts/check-ddl-consumers.sh >"$GW/out.txt" 2>&1)
+  rc=$?
+  set -e
+  if grep -qF "$2" "$GW/out.txt"; then
+    echo "  [OK  ] $3 → 命中判据行「$2」（gate exit=$rc）"
+    PASS=$((PASS + 1))
+  else
+    echo "  [FAIL] $3（输出里没有判据行：$2，gate exit=$rc）" >&2
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+cat > "$TMP/clean.java" <<'JAVA'
+package cn.originalrpg.core.consumer;
+final class Consumer {
+    void clean() { io("SELECT 1"); }
+    static void io(String sql) { }
+}
+JAVA
+cat > "$TMP/real.java" <<'JAVA'
+package cn.originalrpg.core.consumer;
+final class Consumer {
+    void real() { io("SELECT player_uuid FROM rpg_profiles WHERE player_uuid = ?"); }
+    static void io(String sql) { }
+}
+JAVA
+cat > "$TMP/ghost.java" <<'JAVA'
+package cn.originalrpg.core.consumer;
+final class Consumer {
+    void bad() { io("INSERT INTO rpg_ghost_table (a) VALUES (?)"); }
+    static void io(String sql) { }
+}
+JAVA
+cat > "$TMP/prefix.java" <<'JAVA'
+package cn.originalrpg.core.consumer;
+final class Consumer {
+    void bad() { io("DELETE FROM rpg_ghost_ledger WHERE id = ?"); }
+    static void io(String sql) { }
+}
+JAVA
+cat > "$TMP/w4a2.java" <<'JAVA'
+package cn.originalrpg.core.consumer;
+final class Consumer {
+    void grant() { io("INSERT INTO rpg_skill_point_grants (source) VALUES (?)"); }
+    static void io(String sql) { }
+}
+JAVA
+cat > "$TMP/pending.java" <<'JAVA'
+package cn.originalrpg.core.consumer;
+final class Consumer {
+    void pending() { io("SELECT player_uuid FROM rpg_progression_anomalies"); }
+    static void io(String sql) { }
+}
+JAVA
+
+frame_rc=$(reinit)
+if [ "$frame_rc" != "0" ]; then
+  echo "  [FAIL] 夹具构造失败 frame_rc=$frame_rc" >&2
+  FAIL=$((FAIL + 1))
+fi
+run_gate "$TMP/clean.java" "DDL_CONSUMER_GATE=GREEN" "库内代码引用的表全部已登记 → 整门 GREEN"
+run_gate "$TMP/real.java" "DDL_REGISTRATION_GATE=GREEN" "真实表名 rpg_profiles 已登记 → 第 7 节 GREEN"
+run_gate "$TMP/ghost.java" "DDL_REGISTRATION_GATE=RED" "代码引用了 DDL 里不存在的表 → 第 7 节 RED"
+run_gate "$TMP/prefix.java" "DDL_REGISTRATION_GATE=RED" "其它 SQL 关键词（DELETE FROM）同样抓到缺表"
+run_gate "$TMP/w4a2.java" "DDL_REGISTRATION_GATE=GREEN" "W4-A2 的真实表名 rpg_skill_point_grants 已补进 DDL"
+
+echo "== 4b. source-contract 门禁必须能真的变红（负向对照） =="
 # 契约门禁最危险的失效是「规格与源码双漂移后仍然全绿」。这里用最小夹具证明：
 # 在临时规格里写一条不可能满足的顺序契约，门禁必须 RED；改成真实顺序必须 GREEN。
 frag="$TMP/contract-frag"
@@ -182,7 +282,7 @@ write_spec '[]' '["never-in-this-file"]'
 check "禁止片段未命中 → 0" 0 "$(run_contract)"
 cd "$ROOT"
 
-echo "== 4b. install-datapacks 门禁（G-206）必须能真的变红（负向对照） =="
+echo "== 4c. install-datapacks 门禁（G-206）必须能真的变红（负向对照） =="
 # 数据包校验门禁最危险的失效同样是「永远绿」：tag 只声明不引用真实函数、
 # 或函数里调用一个不存在的命令时，仓库看起来交付完成，玩家按 G 却什么都打不开。
 # 这里用最小夹具证明：真实数据包必须绿，函数改成未注册命令后必须红。
@@ -268,7 +368,7 @@ cd "$ROOT"
 echo "== 5b. HUD 尺寸门禁（W7-A4）必须能真的变红（负向对照） =="
 # HUD 尺寸契约最危险的失效是「唯一来源与素材双漂移后仍然全绿」：
 # 设计基准写 26x91、实际素材却是别的尺寸，门禁却因为只读了一边而不报。
-# 这里用**临时副本**做负向对照（不改仓库：见 §4b 的教训）：
+# 这里用**临时副本**做负向对照（不改仓库：见 §4c 的教训）：
 #   ① 真实仓库必须绿；
 #   ② 把唯一来源里的轨道宽度改掉（素材不动）必须红；
 #   ③ 把一张 18x18 图标改成 17 宽必须红；
@@ -329,9 +429,9 @@ echo "== 6. G-206 接线自证：两条门禁必须被本脚本真实覆盖 =="
 # 「写了门禁但 CI 里没跑」是比「门禁有 bug」更隐蔽的失败：脚本存在、文档写着，
 # 但没有任何 CI stage 调用它。本段把「谁在跑」变成可 grep 的事实：
 #   a) 本脚本自身必须调用 check-repo-artifacts.sh 与 install-datapacks.sh
-#      （否则 §4b/§5 被删掉后上面仍然全绿，门禁回到「静默没人跑」状态）
+#      （否则 §4c/§5 被删掉后上面仍然全绿，门禁回到「静默没人跑」状态）
 #   b) 质量门 .cnb.yml 必须包含 `sh scripts/selftest-gates.sh`
-#      —— 这就是 §4b/§5 进入 CI 的接线点，且本次改动无需修改 .cnb.yml
+#      —— 这就是 §4c/§5 进入 CI 的接线点，且本次改动无需修改 .cnb.yml
 for wired in "scripts/check-repo-artifacts.sh" "scripts/install-datapacks.sh" \
         "resource-pack/tools/verify_hud_layout.py" "resource-pack/build.sh"; do
   set +e
@@ -379,7 +479,7 @@ echo "== 7. 素材门禁（W7-A1）八条判据都必须能真的变红（负向
 # 旅程八码位 / 中英语言键 / 罗盘 33 段方向分发 / pack.mcmeta 格式 88）在这里各做一次
 # 「破坏 → 必须红 → 还原 → 必须绿」。
 #
-# ⚠️ 与 §4b 同样的纪律：负向对照**只在 $TMP 的夹具副本上做**。
+# ⚠️ 与 §4c 同样的纪律：负向对照**只在 $TMP 的夹具副本上做**。
 # 早期版本直接改写仓库文件再恢复，一旦脚本被中断（CI 超时 / Ctrl-C），
 # 工作区就会留下一个被改坏的素材 —— 那正是本自测要防的静默损坏。
 RPG_FIXTURE="$TMP/resource-pack-ws"

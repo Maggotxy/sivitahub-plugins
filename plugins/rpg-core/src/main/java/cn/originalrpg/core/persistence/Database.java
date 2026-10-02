@@ -395,6 +395,19 @@ public final class Database implements AutoCloseable {
                 )
                 """,
                 """
+                CREATE TABLE IF NOT EXISTS rpg_skill_point_grants (
+                    source VARCHAR(96) NOT NULL,
+                    idempotency_key VARCHAR(96) NOT NULL,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    points INTEGER NOT NULL,
+                    ascension INTEGER NOT NULL,
+                    from_local_level INTEGER NOT NULL,
+                    to_local_level INTEGER NOT NULL,
+                    granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (source, idempotency_key)
+                )
+                """,
+                """
                 CREATE TABLE IF NOT EXISTS rpg_admin_test_profiles (
                     player_uuid VARCHAR(36) PRIMARY KEY,
                     archetype VARCHAR(24) NOT NULL,
@@ -887,6 +900,7 @@ public final class Database implements AutoCloseable {
                 "CREATE INDEX IF NOT EXISTS idx_rpg_skill_book_player_limit ON rpg_skill_book_uses (player_uuid, limit_group)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_energy_quota_period ON rpg_energy_recovery_quotas (source_id, period_key)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_skill_mutation_player ON rpg_skill_mutation_receipts (player_uuid, settled_at)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_skill_point_grants_player ON rpg_skill_point_grants (player_uuid, granted_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_hidden_path_audit_player ON rpg_hidden_path_audit (player_uuid, created_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_incident_compensations_player "
                         + "ON rpg_incident_compensations (player_uuid, applied_at)",
