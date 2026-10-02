@@ -34,7 +34,10 @@ final class EquipmentAsyncLifecycleContractTest {
         assertTrue(salvage.contains("operations.stage(player, request)"));
         assertTrue(salvage.contains("player.saveData()"));
         assertTrue(salvage.contains("operations.submit(player, request"));
-        assertTrue(salvage.contains("List<String> rejected = List.of(operations.itemPayload(original))"));
+        // 出站交付副本必须绑定本操作：载荷经 payload(item, operationId) 生成，
+        // 使托管中物品的标记随副本一起进入邮箱。
+        assertTrue(salvage.contains(
+                "List<String> rejected = List.of(EquipmentOperationCoordinator.payload(original, operationId))"));
         assertTrue(salvage.contains("Bukkit.getPlayer(player.getUniqueId()) == player"));
     }
 

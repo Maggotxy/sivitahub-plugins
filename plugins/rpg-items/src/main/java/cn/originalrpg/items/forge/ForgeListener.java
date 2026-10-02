@@ -565,7 +565,9 @@ public final class ForgeListener implements Listener, CommandExecutor, Equipment
         if (catalystConsumed > 0) escrow.add(amountCopy(catalyst, catalystConsumed));
         if (imprint.isPresent()) escrow.add(amountCopy(imprintItem, 1));
         if (blueprint.isPresent()) escrow.add(amountCopy(blueprintItem, 1));
-        List<String> rejected = escrow.stream().map(EquipmentOperationCoordinator::payload).toList();
+        // 交付副本保留本操作的标记，防止托管资产被复制成两份可再次操作的物品。
+        List<String> rejected = escrow.stream()
+                .map(item -> EquipmentOperationCoordinator.payload(item, operationId)).toList();
         RandomGenerator operationRandom = RandomGeneratorFactory.<RandomGenerator>of("L64X128MixRandom")
                 .create(EquipmentOperationEnvelope.deterministicSeed(operationId, "forge"));
         boolean success = operationRandom.nextDouble() <= successChance;
@@ -574,7 +576,7 @@ public final class ForgeListener implements Listener, CommandExecutor, Equipment
         if (success) {
             result = createForgedItem(base, player, catalystLuck, imprint, blueprint,
                     coreResonance, starterForge, operationRandom, operationId);
-            committed = List.of(EquipmentOperationCoordinator.payload(result));
+            committed = List.of(EquipmentOperationCoordinator.payload(result, operationId));
         } else {
             committed = List.of();
         }
