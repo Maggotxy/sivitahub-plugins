@@ -12,6 +12,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,20 +45,22 @@ final class CommunityGovernanceMessagesTest {
 
             // 审批状态机每一条状态都有对应文案，玩家不会看到裸键。
             for (CommunityApprovalOutcome.Status status : CommunityApprovalOutcome.Status.values()) {
-                String key = "governance." + status.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+                String key = "governance." + status.name().toLowerCase(Locale.ROOT).replace('_', '-');
                 assertText(community, key, locale);
             }
 
             // 命令与事件监听器引用的固定集合。
-            for (String key : List.of("help", "disabled", "role-unknown", "action-unknown", "assign-self",
-                    "role-line", "role-approver", "role-domain", "role-member", "moderator", "non-moderator",
-                    "pending", "pending-hint", "approval-entry", "effective", "submitted", "no-pending",
-                    "success", "already-approved", "self-approval", "duplicate", "invalid", "not-member",
-                    "not-allowed", "no-pending-action", "target-not-member")) {
-                String full = key.startsWith("governance.") ? key : "governance." + key;
-                assertText(community, full, locale);
+            for (String key : List.of("help", "governance.disabled", "governance.role-unknown", "governance.action-unknown",
+                    "governance.assign-self", "governance.role-approver", "governance.role-domain",
+                    "governance.role-member", "governance.moderator", "governance.non-moderator",
+                    "governance.pending", "governance.pending-hint", "governance.approval-entry",
+                    "governance.effective", "governance.submitted", "governance.role-rejected")) {
+                assertText(community, key, locale);
             }
-            assertText(community, "help", locale);
+            // 命令层真实渲染出来的键：直接问 handler，手写清单漏项就会被这里抓住。
+            for (String key : renderedKeys()) {
+                assertText(community, key.substring("community.".length()), locale);
+            }
         }
     }
 
@@ -75,13 +78,35 @@ final class CommunityGovernanceMessagesTest {
         assertEquals("community.role-grant", CommunityGovernanceAction.ROLE_GRANT.key());
     }
 
+    /**
+     * 命令层在「未启用」与「角色展示」两条路径上真实渲染的文案键。
+     *
+     * <p>开关关闭时唯一的输出就是 disabled；角色展示是只读路径，未启用也可用。</p>
+     */
+    private static List<String> renderedKeys() {
+        // 返回的键都是 community.* 形式；下面去掉前缀后查 community 段。
+        CommunityGovernanceHandler handler = new CommunityGovernanceHandler(null, null, null, false);
+        List<String> keys = new java.util.ArrayList<>(handler
+                .approve(null, CommunityGovernanceAction.COMMUNITY_PROJECT)
+                .toCompletableFuture().join().keys());
+        keys.addAll(handler.deny(null, CommunityGovernanceAction.COMMUNITY_PROJECT)
+                .toCompletableFuture().join().keys());
+        keys.addAll(handler.assign(null, null, "key").toCompletableFuture().join().keys());
+        keys.addAll(handler.approve(null, null).toCompletableFuture().join().keys());
+        keys.addAll(handler.roleLookup(null).keys());
+        keys.addAll(handler.roleLookup("not-a-role").keys());
+        assertTrue(keys.contains("community.governance.disabled"), "未启用时必须渲染 disabled");
+        assertTrue(keys.contains("community.governance.role-line"), "角色展示必须渲染 role-line");
+        return keys;
+    }
+
     /** displayKey 返回 community.* 形式的完整键；本测试的根已经是 community 段。 */
     private static String stripCommunityPrefix(String key) {
         return key.startsWith("community.") ? key.substring("community.".length()) : key;
     }
 
     private static String statusKey(CommunityApprovalOutcome.Status status) {
-        return "governance." + status.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+        return "governance." + status.name().toLowerCase(Locale.ROOT).replace('_', '-');
     }
 
     private static void assertText(Map<String, Object> community, String path, String locale) {

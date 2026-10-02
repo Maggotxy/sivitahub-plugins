@@ -196,16 +196,29 @@ class JdbcCommunityGovernanceTest {
         assertFalse(can(builder, CommunityRolePower.Capability.APPROVE));
         assertFalse(can(member, CommunityRolePower.Capability.SUBMIT_APPROVAL));
 
-        // 非治理角色投批被服务层拒绝，且不写审计记录。
+        // MEMBER 有提交权都没有：投批必须被拒，且不写审计记录。
         CommunityOperationResult ignored = communities.create(
                 player(9), "Other", "OTH", 10, 1, BigDecimal.ZERO, BigDecimal.ZERO, "create-other")
                 .toCompletableFuture().join();
         assertNotEquals(CommunityOperationResult.Status.INVALID, ignored.status());
         CommunityApprovalOutcome rejected = communities
-                .approve(builder, CommunityGovernanceAction.COMMUNITY_PROJECT, "way-project")
+                .approve(member, CommunityGovernanceAction.COMMUNITY_PROJECT, "way-project")
                 .toCompletableFuture().join();
         assertEquals(CommunityApprovalOutcome.Status.NOT_ALLOWED, rejected.status());
         assertEquals(0, approvalRows(CommunityGovernanceAction.COMMUNITY_PROJECT.key()));
+
+        // BUILDER 可以发起工程（提交即第一票），但不能投出第二票：
+        // 同一名 BUILDER 再调一次必须报 ALREADY_APPROVED，而不是把票算成两票。
+        CommunityApprovalOutcome submittedByBuilder = communities
+                .approve(builder, CommunityGovernanceAction.COMMUNITY_PROJECT, "way-project")
+                .toCompletableFuture().join();
+        assertEquals(CommunityApprovalOutcome.Status.SUCCESS, submittedByBuilder.status());
+        assertFalse(submittedByBuilder.effective());
+        CommunityApprovalOutcome twiceByBuilder = communities
+                .approve(builder, CommunityGovernanceAction.COMMUNITY_PROJECT, "way-project")
+                .toCompletableFuture().join();
+        assertEquals(CommunityApprovalOutcome.Status.ALREADY_APPROVED, twiceByBuilder.status());
+        assertEquals(1, approvalRows(CommunityGovernanceAction.COMMUNITY_PROJECT.key()));
     }
 
     @Test
@@ -228,6 +241,63 @@ class JdbcCommunityGovernanceTest {
                 .toCompletableFuture().join();
         assertEquals(CommunityApprovalOutcome.Status.SUCCESS, byBuilder.status());
         assertEquals(1, byBuilder.approvals().size());
+        assertEquals(1, approvalRows(CommunityGovernanceAction.COMMUNITY_PROJECT.key()));
+    }
+
+    // ---------------------------------------------------------------
+    // G-103 ② 提交资格与审批资格是两条不同的判定
+    // ---------------------------------------------------------------
+
+    @Test
+    void submissionNeedsTheActionRoleButTheSecondVoteNeedsApproveCapability() throws Exception {
+        UUID owner = player(15);
+        createCommunity(owner, "Wayfarers", "WAY");
+        UUID builder = join(owner, "WAY", CommunityRole.BUILDER);
+        UUID recruiter = join(owner, "WAY", CommunityRole.RECRUITER);
+        UUID member = join(owner, "WAY");
+        String subject = CommunityGovernanceAction.COMMUNITY_PROJECT.key();
+
+        // BUILDER 能发起工程（提交即第一票），但没有 canApprove()。
+        assertEquals(CommunityApprovalOutcome.Status.SUCCESS,
+                communities.submit(builder, CommunityGovernanceAction.COMMUNITY_PROJECT, subject, "project-1")
+                        .toCompletableFuture().join().status());
+        assertFalse(CommunityRolePower.can(CommunityRole.BUILDER,
+                CommunityRolePower.Capability.APPROVE));
+
+        // RECRUITER / MEMBER 都没有 APPROVE，投第二票必须被拒且不写票。
+        assertEquals(CommunityApprovalOutcome.Status.NOT_ALLOWED, communities
+                .approve(recruiter, CommunityGovernanceAction.COMMUNITY_PROJECT, subject)
+                .toCompletableFuture().join().status());
+        assertEquals(CommunityApprovalOutcome.Status.NOT_ALLOWED, communities
+                .approve(member, CommunityGovernanceAction.COMMUNITY_PROJECT, subject)
+                .toCompletableFuture().join().status());
+        assertEquals(1, approvalRows(CommunityGovernanceAction.COMMUNITY_PROJECT.key()));
+
+        // TREASURER 有 APPROVE → 第二票成立，动作生效。
+        UUID treasurer = join(owner, "WAY", CommunityRole.TREASURER);
+        CommunityApprovalOutcome effective = communities
+                .approve(treasurer, CommunityGovernanceAction.COMMUNITY_PROJECT, subject)
+                .toCompletableFuture().join();
+        assertEquals(CommunityApprovalOutcome.Status.SUCCESS, effective.status());
+        assertTrue(effective.effective());
+    }
+
+    @Test
+    void aDomainRoleCannotBeTheSecondVoteForItsOwnAction() throws Exception {
+        UUID owner = player(15);
+        createCommunity(owner, "Wayfarers", "WAY");
+        UUID builder = join(owner, "WAY", CommunityRole.BUILDER);
+        String subject = CommunityGovernanceAction.COMMUNITY_PROJECT.key();
+
+        // 工程由 BUILDER 发起；BUILDER 的第二票是重复票，不是「双批成立」。
+        assertEquals(CommunityApprovalOutcome.Status.SUCCESS, communities
+                .submit(builder, CommunityGovernanceAction.COMMUNITY_PROJECT, subject, "project-1")
+                .toCompletableFuture().join().status());
+        CommunityApprovalOutcome again = communities
+                .approve(builder, CommunityGovernanceAction.COMMUNITY_PROJECT, subject)
+                .toCompletableFuture().join();
+        assertEquals(CommunityApprovalOutcome.Status.ALREADY_APPROVED, again.status());
+        assertFalse(again.effective(), "同一个人不能凑两次批准");
         assertEquals(1, approvalRows(CommunityGovernanceAction.COMMUNITY_PROJECT.key()));
     }
 

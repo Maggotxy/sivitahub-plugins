@@ -2,6 +2,7 @@ package cn.originalrpg.core.persistence;
 
 import cn.originalrpg.api.event.CommunityApprovalSubmittedEvent;
 import cn.originalrpg.api.event.CommunityGovernanceActionEffectiveEvent;
+import cn.originalrpg.api.event.CommunityRoleRejectionEvent;
 import cn.originalrpg.api.model.CommunityApprovalOutcome;
 import cn.originalrpg.api.model.CommunityContributionResult;
 import cn.originalrpg.api.model.CommunityGovernanceAction;
@@ -68,7 +69,15 @@ public final class JdbcCommunityService
     }
 
     public JdbcCommunityService(DataSource dataSource, Executor executor, MechanismRegistry mechanisms) {
-        this(dataSource, executor, mechanisms, false, null);
+        this(dataSource, executor, mechanisms, false);
+    }
+
+    /** 治理开关关闭时的既有签名：同样必须把事件交给 Bukkit，否则治理事件会被静默吞掉。 */
+    public JdbcCommunityService(
+            DataSource dataSource, Executor executor, MechanismRegistry mechanisms, boolean governanceEnabled
+    ) {
+        this(dataSource, executor, mechanisms, governanceEnabled,
+                event -> org.bukkit.Bukkit.getPluginManager().callEvent(event));
     }
 
     public JdbcCommunityService(
@@ -704,39 +713,14 @@ public final class JdbcCommunityService
             String subject,
             String idempotencyKey
     ) {
-        if (actor == null || action == null) {
-            return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.INVALID, CommunityGovernanceAction.ROLE_GRANT));
+        // 前置校验与事务体都走同一条路径，避免两处实现漂移。
+        // subject 必须先归一化再传入：decide() 拿到的应当是真正的目标（工程=动作键），
+        // 否则 roleQualified() 会因为拿不到动作而直接拒绝提交。
+        if (action == null) {
+            return CompletableFuture.completedFuture(
+                    approval(CommunityApprovalOutcome.Status.INVALID, CommunityGovernanceAction.ROLE_GRANT));
         }
-        if (!governanceEnabled) {
-            return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.DISABLED, CommunityGovernanceAction.ROLE_GRANT));
-        }
-        String cleanSubject = action == CommunityGovernanceAction.ROLE_GRANT
-                ? (subject == null ? null : subject.strip())
-                : action.key();
-        if (cleanSubject == null || cleanSubject.isBlank() || !validKey(idempotencyKey)) {
-            return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.INVALID, CommunityGovernanceAction.ROLE_GRANT));
-        }
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            MemberRow member = lockMemberRow(connection, actor);
-            if (member == null) return approval(CommunityApprovalOutcome.Status.NOT_MEMBER, action);
-            if (!CommunityRolePower.can(member.role(), CommunityRolePower.Capability.SUBMIT_APPROVAL)
-                    || !roleQualified(member.role(), action)) {
-                return approval(CommunityApprovalOutcome.Status.NOT_ALLOWED, action);
-            }
-            if (!approvals(connection, member.communityId(), action, cleanSubject).isEmpty()) {
-                return approval(CommunityApprovalOutcome.Status.DUPLICATE, action);
-            }
-            UUID approvalId = UUID.randomUUID();
-            if (!insertApproval(connection, approvalId, member.communityId(), actor, action,
-                    cleanSubject, actor, idempotencyKey)) {
-                return approval(CommunityApprovalOutcome.Status.DUPLICATE, action);
-            }
-            List<CommunityApprovalOutcome.GrantedApproval> recorded = approvals(
-                    connection, member.communityId(), action, cleanSubject);
-            publish(new CommunityApprovalSubmittedEvent(member.communityId(), actor, action, cleanSubject));
-            return new CommunityApprovalOutcome(CommunityApprovalOutcome.Status.SUCCESS, action,
-                    Optional.of(cleanSubject), recorded, actor, requiredApprovals());
-        }));
+        return decide(actor, action, cleanSubject(action, subject), null, null, idempotencyKey);
     }
 
     @Override
@@ -759,10 +743,11 @@ public final class JdbcCommunityService
             UUID actor, CommunityGovernanceAction action, String subject
     ) {
         if (actor == null || action == null) {
-            return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.INVALID, CommunityGovernanceAction.ROLE_GRANT));
+            return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.INVALID,
+                    action == null ? CommunityGovernanceAction.ROLE_GRANT : action));
         }
         if (!governanceEnabled) {
-            return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.DISABLED, CommunityGovernanceAction.ROLE_GRANT));
+            return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.DISABLED, action));
         }
         return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
             MemberRow member = lockMemberRow(connection, actor);
@@ -889,6 +874,12 @@ public final class JdbcCommunityService
         if (!governanceEnabled) {
             return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.DISABLED, action));
         }
+        // ROLE_GRANT 必须带幂等键（提交/生效都要写审计）；其余动作没有幂等键也可以提交。
+        if (action == CommunityGovernanceAction.ROLE_GRANT
+                && (idempotencyKey == null || !validKey(idempotencyKey))) {
+            return CompletableFuture.completedFuture(
+                    approval(CommunityApprovalOutcome.Status.INVALID, action));
+        }
         CommunityRole assignedRole = null;
         if (action == CommunityGovernanceAction.ROLE_GRANT) {
             assignedRole = CommunityRolePower.assignable(roleName).orElse(null);
@@ -917,12 +908,14 @@ public final class JdbcCommunityService
                 return new CommunityApprovalOutcome(CommunityApprovalOutcome.Status.ALREADY_APPROVED, action,
                         Optional.of(finalSubject), existing, actor, requiredApprovals());
             }
+            if (existing.isEmpty()) {
+                // 还没有人投票：这次调用是提交（提交即第一票）。
+                // 提交资格 = SUBMIT_APPROVAL ∪ 动作前置角色（例如工程需要 BUILDER），
+                // 不能用 APPROVE 判定，否则领域角色永远发不起本领域动作。
+                return submitOnConnection(connection, actorRow, action, finalSubject, idempotencyKey);
+            }
             if (!CommunityRolePower.can(actorRow.role(), CommunityRolePower.Capability.APPROVE)) {
                 return approval(CommunityApprovalOutcome.Status.NOT_ALLOWED, action);
-            }
-            if (existing.isEmpty()) {
-                // 还没有人投票：第一个治理角色用这次调用发起动作（提交即第一票）。
-                return submitOnConnection(connection, actorRow, action, finalSubject, idempotencyKey);
             }
             UUID requester = requesterOf(connection, actorRow.communityId(), action, finalSubject);
             if (requester != null && requester.equals(actor)) {
@@ -943,26 +936,39 @@ public final class JdbcCommunityService
                 return new CommunityApprovalOutcome(CommunityApprovalOutcome.Status.SUCCESS, action,
                         Optional.of(finalSubject), recorded, actor, requiredApprovals());
             }
+            boolean roleApplied = false;
             if (action == CommunityGovernanceAction.ROLE_GRANT) {
-                applyRoleGrant(connection, actorRow.communityId(), roleTarget, finalRole);
+                roleApplied = applyRoleGrant(connection, actorRow.communityId(), roleTarget, finalRole);
             }
             deleteApprovals(connection, actorRow.communityId(), action, finalSubject);
             publish(new CommunityGovernanceActionEffectiveEvent(actorRow.communityId(), actor, action,
                     finalSubject, roleTarget, finalRole));
+            if (!roleApplied) {
+                // 双批通过但角色没落地（目标被移出社群 / 目标角色不可任命）。
+                // 发一条显式事件让运营人工重放，而不是静默丢弃这次审批结果。
+                publish(new CommunityRoleRejectionEvent(actorRow.communityId(), actor, action,
+                        finalSubject, roleTarget, finalRole));
+            }
             return new CommunityApprovalOutcome(CommunityApprovalOutcome.Status.SUCCESS, action,
                     Optional.of(finalSubject), recorded, actor, requiredApprovals());
         }));
     }
 
-    private void applyRoleGrant(
+    /**
+     * 应用双批通过的角色变更。
+     *
+     * <p>返回该角色是否真的被写入。不写入的情况：目标不存在、目标属于别的社群、
+     * 被任命的角色本身是治理角色或 OWNER。</p>
+     */
+    private boolean applyRoleGrant(
             Connection connection, UUID communityId, UUID target, CommunityRole role
     ) throws SQLException {
         if (target == null || role == null || role == CommunityRole.OWNER || role.canApprove()) {
-            return;
+            return false;
         }
         MemberRow targetRow = memberRow(connection, target);
-        if (targetRow == null || !targetRow.communityId().equals(communityId)) return;
-        updateRole(connection, communityId, target, role);
+        if (targetRow == null || !targetRow.communityId().equals(communityId)) return false;
+        return updateRole(connection, communityId, target, role);
     }
 
     /** 动作的真实前置角色：工程要 BUILDER、活动要 EVENT_HOST；无前置即治理成员即可。 */
@@ -1356,7 +1362,8 @@ public final class JdbcCommunityService
         }
     }
 
-    private void updateRole(
+    /** 返回角色是否真的被改写，便于审批路径区分「已生效」与「前置不满足」。 */
+    private boolean updateRole(
             Connection connection, UUID communityId, UUID playerId, CommunityRole role
     ) throws SQLException {
         try (PreparedStatement update = connection.prepareStatement("""
@@ -1365,7 +1372,7 @@ public final class JdbcCommunityService
             update.setString(1, role.name());
             update.setString(2, communityId.toString());
             update.setString(3, playerId.toString());
-            update.executeUpdate();
+            return update.executeUpdate() > 0;
         }
     }
 

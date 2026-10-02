@@ -2901,6 +2901,7 @@ community:
     approval-entry: "{player} · {role}"
     effective: "Governance action {action} reached two approvals and is now effective."
     submitted: "{player} submitted governance action {action}; one more governance role must approve."
+    role-rejected: "Governance action {action} passed the two-approval gate, but the role change was not applied (precondition unmet); recorded for manual replay."
     no-pending: "There is no pending governance action."
     success: "Governance action {action} recorded ({count}/{required} approvals)."
     effective-ok: "Two approvals reached; the action is effective."

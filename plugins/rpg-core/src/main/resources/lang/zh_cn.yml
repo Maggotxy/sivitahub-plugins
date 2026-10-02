@@ -2901,6 +2901,7 @@ community:
     approval-entry: "{player} · {role}"
     effective: "治理动作 {action} 已由 {player} 完成双批并生效。"
     submitted: "{player} 提交了治理动作 {action}，还需要一名治理角色批准。"
+    role-rejected: "治理动作 {action} 已双批通过，但角色变更未能落地（前置不满足），已记录待人工重放。"
     no-pending: "当前没有待处理动作。"
     success: "治理动作 {action} 已记录（{count}/{required} 票）。"
     effective-ok: "双批已达成，动作生效。"

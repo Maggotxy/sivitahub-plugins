@@ -2,6 +2,7 @@ package cn.originalrpg.community;
 
 import cn.originalrpg.api.event.CommunityApprovalSubmittedEvent;
 import cn.originalrpg.api.event.CommunityGovernanceActionEffectiveEvent;
+import cn.originalrpg.api.event.CommunityRoleRejectionEvent;
 import cn.originalrpg.api.event.CommunityEventCompletedEvent;
 import cn.originalrpg.api.model.CommunityApprovalOutcome;
 import cn.originalrpg.api.model.CommunityGovernanceAction;
@@ -42,25 +43,27 @@ final class CommunityGovernanceListener implements Listener {
         this.messages = messages;
     }
 
-    /** 副本完成 → 为每个参与者提交一次社群工程审批（幂等键按副本 + 玩家去重）。 */
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onCommunityEventCompleted(CommunityEventCompletedEvent event) {
-        if (!governance.enabled()) return;
+    /**
+     * 副本完成 → 为每个参与者提交一次社群动作审批（幂等键按副本 + 玩家去重）。
+     *
+     * <p>返回本次真正提交的动作数量，便于行为级测试直接断言。</p>
+     */
+    int submitEventApprovals(CommunityEventCompletedEvent event) {
+        // 接线但不启用：服务未安装或开关关闭时不得触达服务层。
+        if (governance == null || !governance.enabled()) return 0;
         Set<UUID> recipients = event.participantIds();
-        if (recipients.isEmpty()) return;
+        if (recipients.isEmpty()) return 0;
+        int submitted = 0;
         for (UUID recipientId : recipients) {
             String key = "community-event-" + event.source() + "-" + recipientId;
-            governance.can(recipientId, CommunityRolePower.Capability.SUBMIT_APPROVAL)
-                    .thenCompose(allowed -> {
-                        if (!allowed) {
-                            return java.util.concurrent.CompletableFuture
-                                    .completedFuture(CommunityApprovalOutcome.of(
-                                            CommunityApprovalOutcome.Status.NOT_ALLOWED,
-                                            CommunityGovernanceAction.COMMUNITY_EVENT));
-                        }
-                        return governance.submit(recipientId, CommunityGovernanceAction.COMMUNITY_EVENT,
-                                CommunityGovernanceAction.COMMUNITY_EVENT.key(), key);
-                    })
+            if (!CommunityRolePower.can(event.roleOf(recipientId),
+                    CommunityRolePower.Capability.SUBMIT_APPROVAL)) {
+                // 领域前置不满足的参与者不发起动作。
+                continue;
+            }
+            submitted++;
+            governance.submit(recipientId, CommunityGovernanceAction.COMMUNITY_EVENT,
+                            CommunityGovernanceAction.COMMUNITY_EVENT.key(), key)
                     .whenComplete((outcome, error) -> plugin.onMain(() -> {
                         if (error != null || outcome == null) return;
                         if (outcome.recorded()) {
@@ -68,6 +71,12 @@ final class CommunityGovernanceListener implements Listener {
                         }
                     }));
         }
+        return submitted;
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onCommunityEventCompleted(CommunityEventCompletedEvent event) {
+        submitEventApprovals(event);
     }
 
     /** 第二票达成 → 通知社群里的治理角色动作已生效。 */
@@ -77,6 +86,21 @@ final class CommunityGovernanceListener implements Listener {
             online.sendMessage(Component.text(messages.text(online, "community.governance.effective",
                     Map.of("action", event.action().key(),
                             "player", name(event.actor()))), NamedTextColor.GREEN));
+        }
+    }
+
+    /**
+     * 双批通过但角色没落地 → 通知在线治理角色，人工重放。
+     *
+     * <p>发布者：{@code JdbcCommunityService.decide()}。没有这条消费，
+     * 「审批耗完但角色没变」对玩家就是不可观测的。</p>
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onRoleRejection(CommunityRoleRejectionEvent event) {
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            online.sendMessage(Component.text(messages.text(online, "community.governance.role-rejected",
+                    Map.of("action", event.action().key(),
+                            "player", name(event.actor()))), NamedTextColor.RED));
         }
     }
 
