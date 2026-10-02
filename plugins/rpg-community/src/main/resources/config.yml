@@ -3,6 +3,10 @@ config-version: 1
 community:
   # Communities are social and organizational. They never grant direct combat statistics.
   capacity: 40
+  # Phase 6 治理「接线但不启用」：七角色能力判定与双批审批已接线，
+  # 只有在显式打开后才会写入 rpg_community_approvals 或变更角色。
+  governance:
+    enabled: false
   creation-cost: "10000.00"
   minimum-creator-effective-level: 15
   invite-expiry-hours: 24

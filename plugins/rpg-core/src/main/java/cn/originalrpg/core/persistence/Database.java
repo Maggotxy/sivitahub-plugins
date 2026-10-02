@@ -1022,6 +1022,15 @@ public final class Database implements AutoCloseable {
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
+                // Phase 6 双批审批需要按「动作 + 目标 + 批准人」聚合；旧表按单条记录加列，
+                // 三条 ALTER 只新增列，不删除也不改写既有列，向后兼容。
+                "ALTER TABLE rpg_community_approvals ADD COLUMN IF NOT EXISTS requester_uuid VARCHAR(36)",
+                "ALTER TABLE rpg_community_approvals ADD COLUMN IF NOT EXISTS subject VARCHAR(64)",
+                "ALTER TABLE rpg_community_approvals ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(96)",
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_rpg_community_approvals_unique
+                    ON rpg_community_approvals (community_id, action, subject, actor_uuid)
+                """,
                 """
                 CREATE TABLE IF NOT EXISTS rpg_session_leases (
                     player_uuid VARCHAR(36) PRIMARY KEY,

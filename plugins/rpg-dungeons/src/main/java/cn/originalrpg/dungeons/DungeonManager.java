@@ -1,6 +1,7 @@
 package cn.originalrpg.dungeons;
 
 import cn.originalrpg.api.event.AuthenticatedPlayerRevokedEvent;
+import cn.originalrpg.api.event.CommunityEventCompletedEvent;
 import cn.originalrpg.api.event.DungeonCompletedEvent;
 import cn.originalrpg.api.model.SeasonExpeditionCompletion;
 import cn.originalrpg.api.model.DungeonRewardDelivery;
@@ -699,6 +700,11 @@ final class DungeonManager implements Listener {
                     NamedTextColor.LIGHT_PURPLE)));
         }
         Bukkit.getPluginManager().callEvent(new DungeonCompletedEvent(intent.dungeon, intent.recipientIds));
+        // Phase 6：同一次完成同时作为社群治理动作（community.event）的真实触发点。
+        // 参与者角色由消费方（rpg-community）按社群成员表判定，这里不传角色，
+        // 因此事件默认按 MEMBER 处理 —— 不会因为「拿不到角色」而放宽前置。
+        Bukkit.getPluginManager().callEvent(
+                new CommunityEventCompletedEvent(intent.dungeon, intent.recipientIds, intent.victor));
         long delay = Math.max(3L, plugin.getConfig().getLong("completion-return-delay-seconds", 8L));
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!DungeonSessionRules.isCurrentSession(

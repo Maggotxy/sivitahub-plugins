@@ -17,6 +17,8 @@ import cn.originalrpg.api.service.PetRevivalService;
 import cn.originalrpg.api.service.ClassBranchService;
 import cn.originalrpg.api.service.DungeonEntryService;
 import cn.originalrpg.api.service.DungeonRewardService;
+import cn.originalrpg.api.service.CommunityGovernanceService;
+import cn.originalrpg.api.service.CommunityRoleAssignmentService;
 import cn.originalrpg.api.service.CommunityService;
 import cn.originalrpg.api.service.ChapterService;
 import cn.originalrpg.api.service.CommissionEvidenceService;
@@ -230,8 +232,12 @@ public final class RpgCorePlugin extends JavaPlugin {
                     database.dataSource(), databaseExecutor, activeSeasonId);
             JdbcSeasonSettlementService seasonSettlements = new JdbcSeasonSettlementService(
                     database.dataSource(), databaseExecutor, mechanisms);
+            // Phase 6 治理「接线但不启用」：开关默认关，命令与事件消费者仍在位。
+            boolean communityGovernanceEnabled = getConfig()
+                    .getBoolean("community.governance-enabled", false);
             JdbcCommunityService communities = new JdbcCommunityService(
-                    database.dataSource(), databaseExecutor, mechanisms);
+                    database.dataSource(), databaseExecutor, mechanisms, communityGovernanceEnabled,
+                    event -> Bukkit.getPluginManager().callEvent(event));
             var recoveredEntries = StartupGate.await(
                     dungeonEntries.recoverAll(), startupTimeout, "Dungeon reservation recovery gate");
             if (recoveredEntries.reservations() > 0) {
@@ -281,6 +287,10 @@ public final class RpgCorePlugin extends JavaPlugin {
                     SeasonSettlementService.class, seasonSettlements, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
                     CommunityService.class, communities, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
+                    CommunityGovernanceService.class, communities, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
+                    CommunityRoleAssignmentService.class, communities, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
                     ChapterService.class, chapters, this, ServicePriority.Normal);
             PersistenceMetricsService persistenceMetrics = () -> database.metrics(databaseExecutor);

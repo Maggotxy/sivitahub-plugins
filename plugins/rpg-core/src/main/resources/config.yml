@@ -123,3 +123,8 @@ chapters:
     resonance: {sequence: 1, maximum-open-ascension: 1}
     convergence: {sequence: 2, maximum-open-ascension: 2}
     transcendence: {sequence: 3, maximum-open-ascension: 3}
+
+community:
+  # Phase 6 社群治理「接线但不启用」：七角色能力判定与双批审批已接线，
+  # 开关默认关闭；打开后 governance 服务才会写 rpg_community_approvals 或变更角色。
+  governance-enabled: false
