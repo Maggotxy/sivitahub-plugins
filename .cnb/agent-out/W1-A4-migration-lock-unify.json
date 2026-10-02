@@ -13,7 +13,7 @@
     "docs/ARCHITECTURE.md",
     ".cnb/agent-out/W1-A4-migration-lock-unify.json"
   ],
-  "pr_url": "<填 PR 链接>",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/6",
   "risks": [
     "本轮相对上一轮的修复点：上一轮状态为 success 但缺日志、无证据。本轮重做了实现并补齐可复核证据：(a) 工具侧改用双参数加锁（原来是单 bigint，两把锁不同，确实漏锁）；(b) 工具侧新增可配置等待上限（原来无任何上限）；(c) 新增锁 key 契约测试（原来没有）；(d) 订正 ARCHITECTURE 描述。",
     "锁参数不可避免地在 RpgCore 与工具两处各存一份（两个独立构建单元无法共享编译期常量）。已用 MigrationAdvisoryLockTest 双向断言缓解：既断言硬编码期望值 6001422851361490737，也直接读取 plugins/rpg-core/.../Database.java 核对常量 0x53495649 / 0x52504731 与双参数用法；任一侧单方面改动都会失败关闭。",
