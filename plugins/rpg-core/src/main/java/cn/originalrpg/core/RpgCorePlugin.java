@@ -21,6 +21,8 @@ import cn.originalrpg.api.service.CommunityService;
 import cn.originalrpg.api.service.ChapterService;
 import cn.originalrpg.api.service.CommissionEvidenceService;
 import cn.originalrpg.api.service.SeasonExpeditionService;
+import cn.originalrpg.api.service.SeasonMeritWalletService;
+import cn.originalrpg.api.service.SeasonSettlementService;
 import cn.originalrpg.api.service.AdminTestService;
 import cn.originalrpg.api.service.AdminIncidentCompensationService;
 import cn.originalrpg.api.service.AscensionService;
@@ -49,6 +51,8 @@ import cn.originalrpg.core.persistence.JdbcCommunityService;
 import cn.originalrpg.core.persistence.JdbcChapterService;
 import cn.originalrpg.core.persistence.JdbcCommissionEvidenceService;
 import cn.originalrpg.core.persistence.JdbcSeasonExpeditionService;
+import cn.originalrpg.core.persistence.JdbcSeasonMeritWalletService;
+import cn.originalrpg.core.persistence.JdbcSeasonSettlementService;
 import cn.originalrpg.core.persistence.JdbcNodeLease;
 import cn.originalrpg.core.persistence.JdbcAdminTestService;
 import cn.originalrpg.core.persistence.JdbcAdminIncidentCompensationService;
@@ -196,6 +200,11 @@ public final class RpgCorePlugin extends JavaPlugin {
                     Math.clamp(getConfig().getInt("season-expedition.weekly-honor", 100), 0, 1_000),
                     Math.clamp(getConfig().getInt("season-expedition.server-first-bonus", 50), 0, 1_000),
                     mechanisms);
+            String activeSeasonId = getConfig().getString("chapters.season-id", "launch-1");
+            JdbcSeasonMeritWalletService seasonMerits = new JdbcSeasonMeritWalletService(
+                    database.dataSource(), databaseExecutor, activeSeasonId);
+            JdbcSeasonSettlementService seasonSettlements = new JdbcSeasonSettlementService(
+                    database.dataSource(), databaseExecutor, mechanisms);
             JdbcCommunityService communities = new JdbcCommunityService(
                     database.dataSource(), databaseExecutor, mechanisms);
             var recoveredEntries = StartupGate.await(
@@ -242,6 +251,10 @@ public final class RpgCorePlugin extends JavaPlugin {
             getServer().getServicesManager().register(
                     SeasonExpeditionService.class, seasonExpeditions, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
+                    SeasonMeritWalletService.class, seasonMerits, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
+                    SeasonSettlementService.class, seasonSettlements, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
                     CommunityService.class, communities, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
                     ChapterService.class, chapters, this, ServicePriority.Normal);
@@ -249,7 +262,8 @@ public final class RpgCorePlugin extends JavaPlugin {
             getServer().getServicesManager().register(PersistenceMetricsService.class, persistenceMetrics,
                     this, ServicePriority.Normal);
 
-            RpgCommand command = new RpgCommand(this, profiles, activityEconomy, chapters, messages);
+            RpgCommand command = new RpgCommand(
+                    this, profiles, activityEconomy, chapters, messages, seasonMerits, seasonSettlements);
             PluginCommand rpg = Objects.requireNonNull(getCommand("rpg"), "rpg command");
             rpg.setExecutor(command);
             LanguageCommand languageCommand = new LanguageCommand(messages);
