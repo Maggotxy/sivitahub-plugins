@@ -14,6 +14,11 @@
     docker:
       image: eclipse-temurin:25-jdk
     stages:
+      - name: DDL 消费者门禁（G-301）
+        script: |
+          set -e
+          chmod +x scripts/check-ddl-consumers.sh
+          sh scripts/check-ddl-consumers.sh
       - name: compile
         script: |
           set -e

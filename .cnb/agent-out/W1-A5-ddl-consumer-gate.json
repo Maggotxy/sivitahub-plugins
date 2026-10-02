@@ -1,0 +1,20 @@
+{
+  "task_id": "W1-A5-ddl-consumer-gate",
+  "status": "success",
+  "summary": "新增 scripts/check-ddl-consumers.sh：从 Database.java 的 CREATE TABLE IF NOT EXISTS 抽取 75 张表名，在 plugins/*/src/main 与 tools/*/src/main 下检测真实 SQL 消费者（排除 DDL 定义与 SchemaManifest 声明点），未接线且未豁免则非零退出。已接入 .cnb.yml push 流水线的 DDL 消费者门禁 stage（编译前）。当前 75 张表中 67 张已接线，8 张为已登记的未来预留豁免。",
+  "changed_files": [
+    ".cnb.yml",
+    "scripts/check-ddl-consumers.sh",
+    ".cnb/agent-out/W1-A5-ddl-consumer-gate.json"
+  ],
+  "pr_url": "待创建",
+  "risks": [
+    "消费检测基于 SQL 关键字正则（SELECT/INSERT/UPDATE/DELETE/MERGE），非静态类型分析；若消费者用动态拼接表名（如字符串变量）会漏判。当前仓库未发现该写法。",
+    "豁免清单 8 条以注释形式写明理由，但仍需人工在后续 Phase 落地时移除豁免、接入真实消费者。",
+    "门禁只覆盖 Database.java 这一个 DDL 真相源；若未来建表语句迁出该文件，需同步更新 DDL_FILE 解析路径。"
+  ],
+  "next_steps": [
+    "Phase 4/5/6/8 落地时，为 rpg_market_buy_orders / rpg_community_approvals / rpg_season_settlements / rpg_support_credit_* / rpg_progression_anomalies / rpg_outbox / rpg_session_leases 接入消费者并删除对应 EXEMPT 条目。",
+    "可扩展：把枚举/状态机/注册点也纳入同类「声明无消费者」门禁。"
+  ]
+}
