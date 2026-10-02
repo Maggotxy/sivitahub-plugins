@@ -19,7 +19,7 @@
     "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSeasonSettlementWiringTest.java",
     "tools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java"
   ],
-  "pr_url": "PR_URL_PLACEHOLDER",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/20",
   "evidence": {
     "grep": [
       {
