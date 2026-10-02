@@ -121,5 +121,5 @@
     "决定两个开关名是否收敛为一个；决定 Phase 6 何时真正开启（默认关期间对玩家不可见）",
     "补 admin-test 命令与世界内 /community roles 的运营文档；把双批审批接入 15 场景经济仿真器 [M]；在真实 PostgreSQL 上验证迁移重放与并发双批 [R]"
   ],
-  "pr_url": ""
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/21"
 }
