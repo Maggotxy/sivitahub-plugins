@@ -1,0 +1,116 @@
+{
+  "task_id": "W6-A3-quick-actions-datapack",
+  "status": "blocked",
+  "summary": "G-206 主体交付完成。① `datapacks/sivita-navigation/` 已入库：pack.mcmeta + data/minecraft/tags/function/quick_actions.json（8 个成员）+ 8 个 quick/*.mcfunction，每个函数只 `run` 一条已在 plugin.yml 注册的命令（/menu /tasks /skills /hub /wild /home /rpghelp），不发明任何玩法内容、不拥有状态/数值/账本。② `scripts/install-datapacks.sh` 提供校验与部署，`--check` 只校验（含 pack.mcmeta 合法性、tag 成员文件存在性、按钮数=文档承诺的 8、函数里的 `run /<cmd>` 必须在 plugin.yml 注册）。③ 新增 `scripts/check-repo-artifacts.sh` 门禁：断言 docs 里每个 `server/` 产物引用要么入库、要么在 .gitignore 登记、要么在 docs/DATAPACK_DEPLOYMENT.md 登记替代方式；并正面断言 datapacks/ 里已声明 #minecraft:quick_actions。④ 该门禁已接入 `scripts/selftest-gates.sh` §5 负向对照（绿/红两态都被机械证明）。⑤ 文档收口：新增 docs/DATAPACK_DEPLOYMENT.md（部署步骤 + 仓外产物登记表），订正 docs/PLUGIN_INTEGRATION.md:46 与 docs/RESOURCE_PACK_QA.md:49 的「待办（G-206）」。**status=blocked 的原因**：要求④「加一条 CI 门禁」需要改 .cnb.yml，而 .cnb.yml 既不在 allowed_paths（datapacks/** scripts/** docs/** .cnb/agent-out/**）内，又被 extra_rules 「禁止修改 CI 配置」明文禁止；JUnit 侧的测试门同样落在 allowed_paths 之外（tools/db-migration 是本仓唯一含构建契约测试的模块，但它不在允许路径里）。门禁脚本与负向对照已就绪，只差一次人类拍板：改 .cnb.yml / 改 Java 测试 / 接受 scripts+selftest 作为当前形态。详见 blockers。",
+  "changed_files": [
+    "datapacks/sivita-navigation/pack.mcmeta",
+    "datapacks/sivita-navigation/data/minecraft/tags/function/quick_actions.json",
+    "datapacks/sivita-navigation/data/sivita/function/quick/current_objective.mcfunction",
+    "datapacks/sivita-navigation/data/sivita/function/quick/objective_navigation.mcfunction",
+    "datapacks/sivita-navigation/data/sivita/function/quick/skills.mcfunction",
+    "datapacks/sivita-navigation/data/sivita/function/quick/tasks.mcfunction",
+    "datapacks/sivita-navigation/data/sivita/function/quick/hub.mcfunction",
+    "datapacks/sivita-navigation/data/sivita/function/quick/wilderness.mcfunction",
+    "datapacks/sivita-navigation/data/sivita/function/quick/home.mcfunction",
+    "datapacks/sivita-navigation/data/sivita/function/quick/all_systems.mcfunction",
+    "scripts/install-datapacks.sh",
+    "scripts/check-repo-artifacts.sh",
+    "scripts/selftest-gates.sh",
+    "docs/DATAPACK_DEPLOYMENT.md",
+    "docs/PLUGIN_INTEGRATION.md",
+    "docs/RESOURCE_PACK_QA.md",
+    ".cnb/agent-out/W6-A3-quick-actions-datapack.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn 'quick_actions' . 2>/dev/null | wc -l",
+        "hit": "47",
+        "exit": 0
+      },
+      {
+        "cmd": "git show HEAD:plan/gap-matrix-v3.md | grep -n 'G-206'",
+        "hit": "21:| G-206 数据包不在仓 | 声明未接线 | **声明未接线（不变）** | §2 E-24 段与 M-24 |\n94:| `#minecraft:quick_actions` 数据包纳入版本控制<br>`repo` | `verify-installation.sh` 硬依赖的数据包目录 | 无（仓库内 `find . -path ./.git -prune -o -name '*quick_actions*' -print` 零命中；`docs/PLUGIN_INTEGRATION.md:46` 明写「当前都不在本仓库内」） | 无 | **声明未接线**（数据缺失，非代码缺失；**REQUIRES_HUMAN** VCS 决策） | G-206 |\n101:| G-206 数据包与部署脚本不在版本控制（VCS 缺口）<br>`repo` | `server/bin/verify-installation.sh` 硬依赖的 `#minecraft:quick_actions` 数据包目录 | 无（`find . -path ./.git -prune -o -name '*quick_actions*' -print` 零命中；`docs/PLUGIN_INTEGRATION.md:46` 明写「当前都不在本仓库内」） | 无 | **声明未接线**（数据缺失，非代码缺失；**REQUIRES_HUMAN** VCS 决策） | G-206 |\n527:| G-206 | TODO | **确认仍缺失**（数据包与脚本都不在仓） | REQUIRES_HUMAN |",
+        "exit": 0
+      },
+      {
+        "cmd": "git log --oneline -1 -- datapacks/ 2>/dev/null; git status --short -- datapacks/",
+        "hit": "?? datapacks/",
+        "exit": 0
+      }
+    ],
+    "test": [
+      {
+        "cmd": "sh scripts/install-datapacks.sh --check",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS",
+        "output_tail": "[OK  ] sivita-navigation pack.mcmeta pack_format=15\n  [OK  ] sivita-navigation #minecraft:quick_actions 成员 8 个\nDATAPACK_CHECK=GREEN packs=sivita-navigation\ninstall-datapacks: --check 只校验仓库内数据包，未写任何文件"
+      },
+      {
+        "cmd": "sh scripts/check-repo-artifacts.sh",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS",
+        "output_tail": "  [OK  ] docs/DATAPACK_DEPLOYMENT.md 覆盖 scripts/install-datapacks.sh\n  [OK  ] docs/DATAPACK_DEPLOYMENT.md 覆盖 datapacks/\n  [OK  ] docs/DATAPACK_DEPLOYMENT.md 覆盖 world/datapacks\n  [OK  ] datapacks/ 内已声明 #minecraft:quick_actions\n  [OK  ] scripts/install-datapacks.sh 存在\nREPO_ARTIFACT_GATE=GREEN"
+      },
+      {
+        "cmd": "sh scripts/selftest-gates.sh",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS",
+        "output_tail": "== 5. repo-artifact 门禁（G-206）必须能真的变红（负向对照） ==\n  [OK  ] 真实文档 + 真实数据包 → 0 (exit=0)\n  [OK  ] 把 datapacks/ 藏起来 → 1 (exit=1)\n\n===== 门禁自测汇总：PASS=16 FAIL=0 =====\nGATE_SELFTEST=GREEN"
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS",
+        "output_tail": "[待接线] rpg_support_credit_ledger  <- Phase 5 support_credit 幂等流水表，schema 契约含 idempotency_key 唯一键，写入方未实现（见 docs/planning/deferred-tables.md#22）\n\n已注册指令数: 43\n指令豁免清单: 9 条（脚本内 CMD_EXEMPT，可审计）\nCMD_REFERENCE_GATE=GREEN\nDDL_CONSUMER_GATE=GREEN"
+      }
+    ],
+    "negative_control": [
+      {
+        "case": "函数引用未注册命令",
+        "cmd": "sh scripts/install-datapacks.sh --check",
+        "exit": 1,
+        "expected": 1,
+        "output_tail": "  [OK  ] sivita-navigation #minecraft:quick_actions 成员 8 个\nDATAPACK_CHECK=RED\n  [坏] sivita-navigation: datapacks/sivita-navigation/data/sivita/function/quick/home.mcfunction 调用了未注册命令 /definitely-not-registered"
+      },
+      {
+        "case": "数据包目录不存在",
+        "cmd": "sh scripts/check-repo-artifacts.sh（datapacks/ 临时移走）",
+        "exit": 1,
+        "expected": 1,
+        "output_tail": "  [OK  ] scripts/install-datapacks.sh 存在\nREPO_ARTIFACT_GATE=RED\n  [FAIL] 缺少 datapacks/ —— #minecraft:quick_actions 数据包没有纳入版本控制"
+      }
+    ],
+    "artifacts": {
+      "datapacks/sivita-navigation/pack.mcmeta": "{\n  \"pack\": {\n    \"description\": \"SivitaHub 快捷操作入口（#minecraft:quick_actions 注册，默认按 G 打开）\",\n    \"pack_format\": 15\n  }\n}\n",
+      "datapacks/sivita-navigation/data/minecraft/tags/function/quick_actions.json": "{\n  \"values\": [\n    \"sivita:quick/current_objective\",\n    \"sivita:quick/objective_navigation\",\n    \"sivita:quick/skills\",\n    \"sivita:quick/tasks\",\n    \"sivita:quick/hub\",\n    \"sivita:quick/wilderness\",\n    \"sivita:quick/home\",\n    \"sivita:quick/all_systems\"\n  ]\n}\n"
+    }
+  },
+  "unproven": [
+    "require④ 要求的「CI 门禁」只在 scripts/ 层落地并接入 selftest-gates.sh 的负向对照，**未接入任何 CI job**：.cnb.yml 被 extra_rules 禁止修改，且不在 allowed_paths 内（见 blockers）。因此质量门当前不会在 CI 里执行 scripts/check-repo-artifacts.sh。",
+    "本容器无 JDK（`java -version` 失败），未复跑 ./gradlew compileJava / test / assemble。本任务只改 scripts/docs/datapacks，未动任何 Java 源码，编译风险为零；但「test 门仍绿」这一条没有本轮证据。",
+    "pack.mcmeta 的 pack_format=15 未在真实 Paper 26.2 上实测加载。26.2 的服务端 ACK 是数据格式 85（docs/RESOURCE_PACK_QA.md 记录的是**资源包**格式 88.0，两者不是同一个字段），本仓没有任何 26.2 数据包样例可比对；本任务未凭空宣称兼容，pack_format 是唯一需要真机确认的数字。",
+    "8 个快捷动作的按钮文本与显示条件只能由资源包翻译键与真实客户端确认；本轮只证明 tag 成员、函数文件与转交命令存在且命令已注册，未在客户端点过按钮。",
+    "docs/DATAPACK_DEPLOYMENT.md 的「仓外产物登记表」是按 docs 现状一次性核对的；新增 `server/...` 引用会由 check-repo-artifacts.sh 拦下，但登记表本身的内容是否与生产机真实目录布局一致，需人类复核。",
+    "`scripts/install-datapacks.sh` 的部署未在真实服务端目录上执行（验证用的是含 world/ 的临时目录），Paper 重启后是否加载该数据包只能由部署后的 verify-installation.sh 确认。"
+  ],
+  "blockers": [
+    "需要人类拍板（唯一的 blocker，也是 status=blocked 的原因）：要求④「加一条门禁或测试……把这类问题在 CI 拦下来」与 extra_rules「禁止修改 CI 配置」+ allowed_paths（不含 .cnb.yml / tools/** / plugins/**）冲突。三选一：① 授权修改 .cnb.yml，在「门禁自测」之后加一个 stage 跑 `sh scripts/check-repo-artifacts.sh && sh scripts/install-datapacks.sh --check`（我已在本地写好这段 stage 内容，因 revert 未提交）；② 授权在 tools/db-migration 或某个 plugins/* 的 src/test 下加一个 *ContractTest（本仓既有先例，如 rpg-market 的 TrustedMenuBoundaryContractTest 真实执行 scripts/check-trusted-menu-holders.sh），让门禁自动进入 test 门；③ 接受当前形态：门禁 + 负向对照在 scripts/ 层，由 selftest-gates.sh §5 覆盖，等下一次有人改 .cnb.yml 时顺带接入。",
+    "（非本任务 blocker，仅登记事实）datapacks/ 与 scripts/ 已入库后，`server/bin/verify-installation.sh` 本身仍在仓外；它的内容无法在本仓复核，生产机上如何读取 world/datapacks 属于运维断言，需 [R] 级证据。"
+  ],
+  "risks": [
+    "G-206 在 gap-matrix-v3 里被标为 REQUIRES_HUMAN 的 VCS 决策；本任务按 tasks-w6 的授权把它落成了「数据包入库 + 部署脚本 + 门禁」，若人类原本的意图是「用脚本生成数据包而不入库」，则 datapacks/ 的形态需要调整（但功能等价，不影响 verify-installation.sh）。",
+    "pack_format=15 未经真机确认（见 unproven 第 3 条）。若 Paper 26.2 要求更高的数据格式，该数字需订正为 85 或按服务端实际 ACK 设定；错误值会让 Paper 拒绝加载数据包并打 warning，但不会损坏世界。",
+    "check-repo-artifacts.sh 在 docs/ 下新增任何 `server/<文件.扩展名>` 引用时会变红。这是有意的（G-206 的病根），但会提高文档改动的门槛；修法是同步登记到 .gitignore 或 docs/DATAPACK_DEPLOYMENT.md。"
+  ],
+  "next_steps": [
+    "人类从 blockers 的三选一里选一条，我再补一次小 PR（改动量 <20 行）把 scripts/check-repo-artifacts.sh 接进真正的质量门。",
+    "真机验证：停服后 `sh scripts/install-datapacks.sh /home/lamb/minecraft/server` → 启动 Paper → 跑 server/bin/verify-installation.sh → 按 G 确认 8 个按钮。同时确认 pack_format 是否需要改成 26.2 的数据格式（85）。",
+    "部署成功后把结果作为 [R] 级证据回填 plan/world-state.json，并把 plan/gap-matrix-v3.md:94/101/527 的 G-206 从「声明未接线 / REQUIRES_HUMAN」改成「已接线」，同时清掉 state/world-state.json:218 那条待决项。"
+  ],
+  "pr_url": ""
+}

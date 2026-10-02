@@ -7,6 +7,7 @@
 #   1) scripts/dump-test-results.py 的四个判据分支都会给出预期退出码
 #   2) scripts/check-plugin-jars.py 的四个判据分支都会给出预期退出码
 #   3) scripts/list-env-tests.sh 在真实源码上能抽出非空清单
+#   4) scripts/check-repo-artifacts.sh 在真实文档上必须绿，且把数据包目录藏起来后必须红
 #
 # 用法：sh scripts/selftest-gates.sh     （退出码 0 = 全部通过）
 set -eu
@@ -171,6 +172,31 @@ check "禁止片段命中 → 1" 1 "$(run_contract)"
 
 write_spec '[]' '["never-in-this-file"]'
 check "禁止片段未命中 → 0" 0 "$(run_contract)"
+cd "$ROOT"
+
+echo "== 5. repo-artifact 门禁（G-206）必须能真的变红（负向对照） =="
+# 这条门禁要拦的是「docs 引用了仓库里不存在的 server/ 产物」。
+# 最危险的失效是「写了就等于绿」——所以在真实文档上跑一次（必须绿），
+# 再把 datapacks/ 目录临时藏起来跑一次（必须红）。
+set +e
+(cd "$ROOT" && sh scripts/check-repo-artifacts.sh >"$TMP/artifact-green.txt" 2>&1)
+artifact_green=$?
+set -e
+check "真实文档 + 真实数据包 → 0" 0 "$artifact_green"
+
+if [ "$artifact_green" -ne 0 ]; then
+  echo "  --- 绿跑输出尾部 ---" >&2
+  tail -n 20 "$TMP/artifact-green.txt" >&2
+fi
+
+mv "$ROOT/datapacks" "$TMP/datapacks-hidden"
+set +e
+(cd "$ROOT" && sh scripts/check-repo-artifacts.sh >"$TMP/artifact-red.txt" 2>&1)
+artifact_red=$?
+set -e
+mv "$TMP/datapacks-hidden" "$ROOT/datapacks"
+check "把 datapacks/ 藏起来 → 1" 1 "$artifact_red"
+
 cd "$ROOT"
 
 echo ""
