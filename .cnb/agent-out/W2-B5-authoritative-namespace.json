@@ -15,7 +15,7 @@
     "plugins/rpg-items/build.gradle.kts",
     ".cnb/agent-out/W2-B5-authoritative-namespace.json"
   ],
-  "pr_url": "PENDING",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/18",
   "constitution_basis": [
     "C-001 单一权威状态：物品的权威状态只能来自本服命名空间；出现外来命名空间标记即不属权威状态，按未签名处理（fail-closed），不引入任何第二套状态源。",
     "AGENTS.md §1.1 / L-002：不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本 —— 本次只加命名空间判定，无新增状态机。",
