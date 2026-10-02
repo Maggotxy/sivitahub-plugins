@@ -1,0 +1,290 @@
+dungeons:
+  ancient-ruins:
+    enabled: true
+    minimum-party-size: 1
+    maximum-party-size: 4
+    energy-cost: 20
+    minimum-effective-level: 5
+    world: dungeon_ancient_ruins
+    x: 0.5
+    y: 80.0
+    z: 0.5
+    yaw: 0.0
+    pitch: 0.0
+    hidden-ticket-chance: 0.20
+    hidden-ticket-pity: 5
+    rewards:
+      material: {type: AMETHYST_SHARD, amount: 8, name-key: dungeon.items.ruins-inscription-core, model: dungeon_core}
+      hidden-ticket: {name-key: dungeon.items.ruins-seal-ticket, model: hidden_ticket}
+    waves:
+      01-awakened:
+        type: ZOMBIE
+        archetype: ruins-runebound
+        skill: ruin-lunge
+        skill-damage: 5.0
+        count: 6
+        health: 36.0
+        attack-damage: 6.0
+      02-archers:
+        type: SKELETON
+        archetype: ruins-echo-sentinel
+        skill: echo-seal
+        skill-damage: 5.5
+        count: 5
+        health: 44.0
+        attack-damage: 7.0
+    boss:
+      type: ZOMBIE
+      health: 240.0
+      attack-damage: 10.0
+      rpg-experience: 800
+      abilities: {interval-ticks: 170, telegraph-ticks: 36, phase-reduction-ticks: 20, damage: 7.0}
+  ancient-ruins-hidden:
+    enabled: true
+    minimum-party-size: 1
+    maximum-party-size: 4
+    energy-cost: 30
+    minimum-effective-level: 15
+    ticket-id: ancient-ruins-hidden
+    world: dungeon_ancient_ruins_hidden
+    x: 0.5
+    y: 80.0
+    z: 0.5
+    yaw: 0.0
+    pitch: 0.0
+    rewards:
+      material: {type: ECHO_SHARD, amount: 12, name-key: dungeon.items.sealed-echo-core, model: mutation_core}
+      skill-book: {id: ancient-echo, name-key: dungeon.items.sealed-echo-book, model: ancient_echo_skill_book}
+    waves:
+      01-oathbound:
+        type: HUSK
+        archetype: ruins-runebound
+        skill: ruin-lunge
+        skill-damage: 8.0
+        count: 7
+        health: 70.0
+        attack-damage: 10.0
+      02-sentinels:
+        type: WITHER_SKELETON
+        archetype: ruins-echo-sentinel
+        skill: echo-seal
+        skill-damage: 9.0
+        count: 5
+        health: 90.0
+        attack-damage: 13.0
+    boss:
+      type: WITHER_SKELETON
+      health: 600.0
+      attack-damage: 18.0
+      rpg-experience: 6000
+      abilities: {interval-ticks: 130, telegraph-ticks: 32, phase-reduction-ticks: 20, damage: 10.0}
+  sulfur-depths:
+    enabled: true
+    minimum-party-size: 1
+    maximum-party-size: 4
+    energy-cost: 24
+    minimum-effective-level: 12
+    world: dungeon_sulfur_depths
+    x: 0.5
+    y: 80.0
+    z: 0.5
+    yaw: 0.0
+    pitch: 0.0
+    hidden-ticket-chance: 0.18
+    hidden-ticket-pity: 5
+    rewards:
+      material: {type: SULFUR, amount: 10, name-key: dungeon.items.sulfur-crystal-core, model: dungeon_core}
+      hidden-ticket: {name-key: dungeon.items.cinnabar-heart-ticket, model: hidden_ticket}
+    waves:
+      01-fumes:
+        type: CAVE_SPIDER
+        archetype: sulfur-fume-crawler
+        skill: fume-vent
+        skill-damage: 6.0
+        count: 6
+        health: 48.0
+        attack-damage: 7.0
+      02-cubes:
+        type: SULFUR_CUBE
+        archetype: sulfur-slag-mote
+        skill: slag-mortar
+        skill-damage: 6.5
+        count: 5
+        health: 58.0
+        attack-damage: 8.0
+    boss:
+      type: SULFUR_CUBE
+      health: 360.0
+      attack-damage: 12.0
+      rpg-experience: 3300
+      abilities: {interval-ticks: 155, telegraph-ticks: 34, phase-reduction-ticks: 18, damage: 8.0}
+  sulfur-depths-hidden:
+    enabled: true
+    minimum-party-size: 1
+    maximum-party-size: 4
+    energy-cost: 32
+    minimum-effective-level: 20
+    ticket-id: sulfur-depths-hidden
+    world: dungeon_sulfur_depths_hidden
+    x: 0.5
+    y: 80.0
+    z: 0.5
+    yaw: 0.0
+    pitch: 0.0
+    rewards:
+      material: {type: CINNABAR, amount: 14, name-key: dungeon.items.cinnabar-heart-core, model: mutation_core}
+      skill-book: {id: cinnabar-revelation, name-key: dungeon.items.cinnabar-revelation-book, model: cinnabar_revelation_skill_book}
+    waves:
+      01-cinnabar:
+        type: BOGGED
+        archetype: sulfur-fume-crawler
+        skill: fume-vent
+        skill-damage: 8.5
+        count: 7
+        health: 82.0
+        attack-damage: 10.0
+      02-eruption:
+        type: SULFUR_CUBE
+        archetype: sulfur-slag-mote
+        skill: slag-mortar
+        skill-damage: 9.5
+        count: 6
+        health: 105.0
+        attack-damage: 12.0
+    boss:
+      type: BREEZE
+      health: 760.0
+      attack-damage: 20.0
+      rpg-experience: 10000
+      abilities: {interval-ticks: 120, telegraph-ticks: 30, phase-reduction-ticks: 18, damage: 11.0}
+  storm-vault:
+    enabled: true
+    minimum-party-size: 1
+    maximum-party-size: 4
+    energy-cost: 28
+    minimum-effective-level: 22
+    world: dungeon_storm_vault
+    x: 0.5
+    y: 80.0
+    z: 0.5
+    yaw: 0.0
+    pitch: 0.0
+    hidden-ticket-chance: 0.16
+    hidden-ticket-pity: 6
+    rewards:
+      material: {type: BREEZE_ROD, amount: 12, name-key: dungeon.items.storm-conductor-core, model: dungeon_core}
+      hidden-ticket: {name-key: dungeon.items.static-core-ticket, model: hidden_ticket}
+    waves:
+      01-bogged:
+        type: BOGGED
+        archetype: storm-conductor
+        skill: static-link
+        skill-damage: 8.0
+        count: 7
+        health: 88.0
+        attack-damage: 11.0
+      02-breeze:
+        type: BREEZE
+        archetype: storm-gust-wisp
+        skill: gust-flank
+        skill-damage: 8.5
+        count: 5
+        health: 112.0
+        attack-damage: 13.0
+    boss:
+      type: BREEZE
+      health: 620.0
+      attack-damage: 18.0
+      rpg-experience: 10000
+      abilities: {interval-ticks: 140, telegraph-ticks: 32, phase-reduction-ticks: 20, damage: 9.0}
+  storm-vault-hidden:
+    enabled: true
+    minimum-party-size: 1
+    maximum-party-size: 4
+    energy-cost: 36
+    minimum-effective-level: 28
+    ticket-id: storm-vault-hidden
+    world: dungeon_storm_vault_hidden
+    x: 0.5
+    y: 80.0
+    z: 0.5
+    yaw: 0.0
+    pitch: 0.0
+    rewards:
+      material: {type: HEAVY_CORE, amount: 16, name-key: dungeon.items.silent-oath-core, model: mutation_core}
+      skill-book: {id: silent-thunder, name-key: dungeon.items.silent-thunder-book, model: silent_thunder_skill_book}
+    waves:
+      01-tempest:
+        type: BREEZE
+        archetype: storm-gust-wisp
+        skill: gust-flank
+        skill-damage: 10.5
+        count: 7
+        health: 132.0
+        attack-damage: 14.0
+      02-oathbound:
+        type: WITHER_SKELETON
+        archetype: storm-conductor
+        skill: static-link
+        skill-damage: 11.5
+        count: 6
+        health: 145.0
+        attack-damage: 16.0
+    boss:
+      type: WITHER_SKELETON
+      health: 980.0
+      attack-damage: 24.0
+      rpg-experience: 20000
+      abilities: {interval-ticks: 110, telegraph-ticks: 28, phase-reduction-ticks: 16, damage: 13.0}
+completion-return-delay-seconds: 8
+# Boss rewards are written as one atomic all-party intent on a dedicated
+# single writer before any database settlement or dungeon-complete side effect.
+reward-journal:
+  queue-capacity: 96
+  shutdown-drain-millis: 3000
+session-timeout-minutes: 30
+season-expedition:
+  enabled: true
+  # Rotation boundaries are Monday 00:00 in this zone. A run crossing the
+  # boundary remains a normal dungeon clear but cannot settle the old week.
+  timezone: Asia/Shanghai
+  rotation-epoch-monday: '2026-08-03'
+  # 0 keeps the launch season slice testable. Raising this to 1/2/3 gates it
+  # behind the matching database-authoritative chapter sequence.
+  minimum-chapter-sequence: 0
+party:
+  maximum-size: 4
+  invitation-seconds: 60
+  ready-distance: 24.0
+  boss-health-per-extra-player: 0.65
+  boss-damage-per-extra-player: 0.12
+  wave-health-per-extra-player: 0.35
+  wave-damage-per-extra-player: 0.08
+instance-pool:
+  # Disposable flat worlds are prepared before players need them. Arena blocks
+  # are written over several ticks, then the world is recycled after a run.
+  # One complete arena per type gives every route an immediate first entry
+  # without keeping a second idle copy of all six routes in memory. Additional
+  # instances are built under the TPS guard when a route is already occupied.
+  warm-per-dungeon: 1
+  # Six warm worlds plus up to ten active/queued builds remains inside the
+  # single-node memory budget while still allowing real party concurrency.
+  maximum-worlds: 16
+  maximum-queued-entries: 64
+  queue-timeout-seconds: 45
+  blocks-per-tick: 384
+  # The arena is only 64x64. A dedicated 4/3 profile avoids retaining or
+  # sending the global 7/4 radius for empty flat chunks.
+  view-distance: 4
+  simulation-distance: 3
+  # Pause non-critical world preparation while the main thread is pressured.
+  build-minimum-tps: 18.5
+visual-effects:
+  enabled: true
+  receiver-radius: 64.0
+  boss-warning-delay-ticks: 30
+  sound-volume: 0.80
+  particles:
+    normal: 24
+    pressure: 10
+    critical: 3

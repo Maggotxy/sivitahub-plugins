@@ -1,0 +1,117 @@
+{
+  "task_id": "W2-D3-bloodpact-reachability",
+  "status": "success",
+  "summary": "G-106 判定为「规则错」而非配置错：docs/GAME_DESIGN.md 把血契写作「二转当前等级 20」，但同一文档 docs/SKILL_MECHANICS_MATRIX.md 与 classes/config.yml 的 unseen 分支是 stage 3，且职业分支整体按 min-ascension(N) 对应 classes stage(N) 设计（config 唯一性校验强制二者相等），所以 vanished-horizon 首次可学是 3 转。HiddenPathRules.minimumAscension() 硬编码 2 才是真正把路线钉死为不可达的一侧，故只改规则、不动技能配置。另修两处同源缺陷：① JdbcHiddenPathService 把玩家本地等级和路线门直接比大小，3 转本地 20 会被误判为未达 2 转本地 20；② SkillsCommand 学技能/技能菜单同样用 profile.level() 比 minimum-level，后续转生玩家永远学不会早期技能。新增 HiddenPathReachability 可达性规则 + 三处启动自检（RpgSkills / RpgClasses），当「路线要求的技能/副本/技能书开放晚于路线本身」时直接 fail-fast，一次防住所有同类矛盾。",
+  "changed_files": [
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/HiddenPathRules.java",
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/HiddenPathReachability.java",
+    "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/HiddenPathReachabilityTest.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcHiddenPathService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcHiddenPathReachabilityTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java",
+    "plugins/rpg-skills/src/main/java/cn/originalrpg/skills/RpgSkillsPlugin.java",
+    "plugins/rpg-skills/src/main/java/cn/originalrpg/skills/SkillRouteReachability.java",
+    "plugins/rpg-skills/src/main/java/cn/originalrpg/skills/SkillsCommand.java",
+    "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/SkillRouteReachabilityTest.java",
+    "plugins/rpg-skills/build.gradle.kts",
+    "plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java",
+    "plugins/rpg-classes/src/main/java/cn/originalrpg/classes/HiddenRouteReachabilityGate.java",
+    "plugins/rpg-classes/src/test/java/cn/originalrpg/classes/HiddenRouteReachabilityGateTest.java",
+    "plugins/rpg-classes/src/test/resources/rpg-skills-config.yml",
+    "plugins/rpg-classes/src/test/resources/rpg-dungeons-config.yml",
+    "plugins/rpg-classes/build.gradle.kts",
+    "plugins/rpg-classes/src/main/resources/plugin.yml"
+  ],
+  "verdict": {
+    "decision": "规则错（rules error），不是配置错",
+    "changed_side": "plugins/rpg-api/.../HiddenPathRules.java 的 minimumAscension()；技能 plugins/rpg-skills/src/main/resources/config.yml 的 vanished-horizon 数值一字未改",
+    "evidence_doc": [
+      "docs/GAME_DESIGN.md:106 「**血契**：刺客、二转当前等级 20、敏捷 32、耐力 18、已学「消失地平线」并通关风暴秘库隐藏关后可接受。」",
+      "docs/SKILL_MECHANICS_MATRIX.md:48 「| 无迹绝杀 `vanished-horizon` | 在最近 3 个目标间依次闪现背刺 ...」——矩阵把该技能定义为成型期的三连背刺玩法，与 0/1/2 转的基础/中段技能不在同一层。",
+      "plugins/rpg-classes/src/main/resources/config.yml:43 「unseen: {stage: 3, enabled: true, requires-any: [void-walker, plague-scholar]}」",
+      "plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java:169-171 「int minimumAscension = configured.getInt(id + \".minimum-ascension\", 0); if (minimumAscension != branchStages.get(branch)) throw ...」——职业分支整体按 min-ascension(N) ⇔ classes stage(N) 设计，配置唯一解，因此「让 vanished-horizon 降到 2 转」等于让 unseen 分支降到 2 转，与 docs/GAME_DESIGN.md:13-20 的 2 转=高阶分支分工冲突；把血契门抬到 3 转则保留全部文档数值。",
+      "plugins/rpg-classes/src/main/resources/config.yml:41-43 与 :53「far-horizon: {stage: 3, ...}」——同类 stage-3 机制由职业菜单 stage 2/3 选择推动，3 转正是终局构筑层。"
+    ],
+    "not_changed": [
+      "docs/GAME_ECONOMY_CONSTITUTION.md（禁止修改）",
+      "unseen / vanished-horizon 的 stage、minimum-ascension、五维、skill-points 等一切玩法数值",
+      "storm-vault-hidden 的 minimum-effective-level: 28、silent-thunder 的 minimum-effective-level: 28（仍严格等于天梯顶端 120，作为终局台阶保留）"
+    ]
+  },
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -n 'minimumAscension' plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/HiddenPathRules.java",
+        "hit": "修复前：HiddenPathRules.java:18-20 `public static int minimumAscension(HiddenPath path) { return 2; }`；修复后：case BLOODPACT -> 3; case TALISMAN -> 2;"
+      },
+      {
+        "cmd": "grep -n -A3 'vanished-horizon' plugins/rpg-skills/src/main/resources/config.yml",
+        "hit": "plugins/rpg-skills/src/main/resources/config.yml:373-378 `vanished-horizon: menu-slot: 31 / class: ASSASSIN / branch: unseen / minimum-ascension: 3`（未改；证明必须抬血契门而不是降技能门）"
+      },
+      {
+        "cmd": "grep -n -B3 -A1 'unseen:' plugins/rpg-classes/src/main/resources/config.yml",
+        "hit": "plugins/rpg-classes/src/main/resources/config.yml:43 `unseen: {stage: 3, enabled: true, requires-any: [void-walker, plague-scholar]}`（未改；与 vanished-horizon 的 minimum-ascension: 3 一致）"
+      },
+      {
+        "cmd": "grep -rn --include=*.java -E 'HiddenPathRules\\.(minimumAscension|requiredSkill)' plugins",
+        "hit": "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcHiddenPathService.java:114/:122/:124 —— 修复后 :114 走 HiddenPathRules.minimumAscension(path)；新增 routeAscension + 跨阶 effectiveLevel 比较"
+      },
+      {
+        "cmd": "grep -rn 'minimumAscension\\|validateHiddenRouteReachability' plugins/rpg-skills/src/main/java plugins/rpg-classes/src/main/java",
+        "hit": "plugins/rpg-skills/.../RpgSkillsPlugin.java:29 调用 validateHiddenRouteReachability()；plugins/rpg-classes/.../RpgClassesPlugin.java:80 调用 validateHiddenRoutes()"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "JAVA_HOME=/opt/jdk-25.0.4.1+1 ./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-api:compileJava :plugins:rpg-core:compileJava :plugins:rpg-skills:compileJava :plugins:rpg-classes:compileJava",
+        "result": "BUILD SUCCESSFUL in 5s / 4 actionable tasks: 1 executed, 3 up-to-date"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk-25.0.4.1+1 ./gradlew --no-daemon :plugins:rpg-api:test --tests '*HiddenPathReachabilityTest*'",
+        "result": "BUILD SUCCESSFUL in 4s（8 个行为级用例全绿：shipped 路线可达、血契门=3、前置技能晚于路线→blocked、隐藏副本/技能书/门票晚于路线→blocked、超 3 转不可达、跨阶 effectiveLevel 比较、authored facts 防漂移）"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk-25.0.4.1+1 ./gradlew --no-daemon :plugins:rpg-core:test --tests '*JdbcHiddenPathReachabilityTest*'",
+        "result": "BUILD SUCCESSFUL in 5s（真实 Database.schemaMigrations() 建表 + 真实 JdbcHiddenPathService.eligibility SQL：3 转本地 20 的刺客可激活血契；2 转被 'ascension' 拒绝；3 转本地 11 被 'level' 拒绝；2 转本地 20 散人符箓可激活）"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk-25.0.4.1+1 ./gradlew --no-daemon :plugins:rpg-core:test --tests 'cn.originalrpg.core.persistence.*'",
+        "result": "BUILD SUCCESSFUL（全部 persistence 用例通过，含既有 hiddenPathRequiresTheWholeRouteAndSerializesTheFinalSeat / hiddenPathRequiresTheMatchingRedeemedHiddenBossBook，其 seed 已从不可达的 2 转改为可达的 3 转）"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk-25.0.4.1+1 ./gradlew --no-daemon :plugins:rpg-skills:test --tests '*SkillRouteReachabilityTest*'",
+        "result": "BUILD SUCCESSFUL（用真实 config.yml sections 跑 SkillRouteReachability：shipped 路线 0 blocked；G-106 形态被具名拒绝；所有 prerequisites 都能解析到已实现技能）"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk-25.0.4.1+1 ./gradlew --no-daemon :plugins:rpg-classes:test --tests '*HiddenRouteReachabilityGateTest*'",
+        "result": "BUILD SUCCESSFUL（把 rpg-skills/config.yml + rpg-dungeons/config.yml 真实内容载入 ConfigurationSection 后跑生产启动门；shipped 必可达；注入 G-106 矛盾必须被拒；失败信息含路线名与升阶数）"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk-25.0.4.1+1 ./gradlew --no-daemon :plugins:rpg-skills:test :plugins:rpg-classes:test :plugins:rpg-dungeons:test",
+        "result": "BUILD SUCCESSFUL ×3"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk-25.0.4.1+1 ./gradlew --no-daemon :plugins:rpg-core:test",
+        "result": "210 tests completed, 2 failed —— 仅 LanguageBundleContractTest 的 quickActionTaskButtonUsesTheUnifiedTaskCenter 与 projectYamlFilesParseWithoutDuplicateKeys，二者均 NoSuchFileException: /workspace/server/datapacks/... 与 /workspace/server/config（本容器无 server/ 目录）。已用 git stash 在未改动基线上复跑，同样 2 failed，属既有环境性失败，与本任务无关。"
+      }
+    ]
+  },
+  "unproven": [
+    "[R] Runtime：未在真实 Paper 26.2 + PostgreSQL 上跑过启动自检与 /class hidden 完整交互（本容器只有 H2 与单元测试环境）。",
+    "[H] Human：未由真人验证 3 转门在真实玩家手感上是否合适（文档只给了「二转当前等级 20」这一句，二转/三转取舍属设计意图推断）。",
+    "RpgClasses 的启动自检依赖 softdepend [RpgSkills, RpgDungeons] 的实际加载顺序；插件缺失时按设计降级为 warning，未在真实服务端验证该降级路径。",
+    "既有 JdbcHidden* 测试与新增 seed 均假设 route 门与「同转本地等级」语义；若未来规则改为纯 effective-level 门，JdbcServicesTest.seedBloodpactFacts 需同步。"
+  ],
+  "blockers": [],
+  "risks": [
+    "设计取舍：血契从「二转即可」变成「三转可接受」是本次唯一的行为性收紧/位移——它把玩家可接受时机推后。若产品方坚持 docs/GAME_DESIGN.md:106 的「二转」，则需走 MECHANISM_RFC，把 unseen 分支连同 vanished-horizon 一起降到 2 转，并同步 SkillCatalog / 职业菜单与 SKILL_MECHANICS_MATRIX 的成型期定位；本任务未擅自做该改动。",
+    "本次顺带修了 SkillsCommand 的等级门：后续转生玩家此前学不会早期技能（profile.level() 比 minimum-level）。这是同一根因（本地等级 vs 有效等级），但会放开此前被误锁的旧技能，属行为放宽，需在真实环境回归。",
+    "RpgClasses 启动自检读取 RpgSkills/RpgDungeons 的 getConfig()，属跨插件读取；插件缺失时只 warning 不阻塞，行为在无 Paper 环境下未实测。"
+  ],
+  "next_steps": [
+    "在真实 Paper + PostgreSQL 上验证 RpgClasses 启动自检：把 skills/config.yml 的 vanished-horizon 改回 minimum-ascension: 2 得到最小复现（应启动失败），再改回 3（应启动成功）。",
+    "由设计方确认「血契 3 转门」是本意；若要维持二转，另开 MECHANISM_RFC 调整 unseen 分支阶段与技能矩阵。",
+    "把相同可达性断言推广到其他「机制声明了门但门晚于机制」的位置（gap-matrix 同类行），可复用 HiddenPathReachability 的模型。"
+  ]
+}

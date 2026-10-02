@@ -25,6 +25,7 @@ public final class RpgSkillsPlugin extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         validateCatalog();
+        validateHiddenRouteReachability();
         ProfileService profiles = Objects.requireNonNull(
                 getServer().getServicesManager().load(ProfileService.class), "ProfileService");
         SkillService skillService = Objects.requireNonNull(
@@ -207,6 +208,21 @@ public final class RpgSkillsPlugin extends JavaPlugin {
                 throw new IllegalStateException("Skill book " + id + " has an invalid point range");
             }
         }
+    }
+
+    /**
+     * G-106 regression guard: a hidden route may not require a skill which only
+     * opens at a later ascension than the route itself.
+     */
+    private void validateHiddenRouteReachability() {
+        ConfigurationSection skills = getConfig().getConfigurationSection("skills");
+        if (skills == null) return;
+        java.util.Map<cn.originalrpg.api.model.HiddenPath, java.util.Set<String>> unattainable =
+                SkillRouteReachability.unattainableRoutes(skills);
+        if (unattainable.isEmpty()) return;
+        java.util.Map.Entry<cn.originalrpg.api.model.HiddenPath, java.util.Set<String>> first =
+                unattainable.entrySet().iterator().next();
+        throw new IllegalStateException(SkillRouteReachability.describe(first.getKey(), first.getValue()));
     }
 
     private void validateSkillLeveling() {

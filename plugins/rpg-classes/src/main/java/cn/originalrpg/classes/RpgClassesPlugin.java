@@ -18,6 +18,7 @@ import cn.originalrpg.api.model.ClassBranchResult;
 import cn.originalrpg.api.model.AscensionEvidence;
 import cn.originalrpg.api.model.AscensionResult;
 import cn.originalrpg.api.rules.ProgressionRules;
+import cn.originalrpg.api.rules.HiddenPathRules;
 import cn.originalrpg.api.rules.AscensionRules;
 import cn.originalrpg.api.service.AscensionService;
 import cn.originalrpg.api.service.HiddenPathService;
@@ -45,7 +46,9 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
@@ -76,6 +79,7 @@ public final class RpgClassesPlugin extends JavaPlugin implements CommandExecuto
     public void onEnable() {
         saveDefaultConfig();
         validateBranchGraph();
+        validateHiddenRoutes();
         profiles = Objects.requireNonNull(getServer().getServicesManager().load(ProfileService.class), "ProfileService");
         messages = Objects.requireNonNull(getServer().getServicesManager().load(MessageService.class), "MessageService");
         branches = Objects.requireNonNull(
@@ -122,6 +126,37 @@ public final class RpgClassesPlugin extends JavaPlugin implements CommandExecuto
             graph.put(owner, Map.copyOf(nodes));
         }
         ClassBranchGraph.validate(Map.copyOf(graph));
+    }
+
+    /**
+     * Hidden routes are only reachable when every gate they name already exists
+     * at the route's own ascension. The route facts live in three plugins, so
+     * this reads them off the live configurations; a contradiction fails
+     * startup instead of shipping a route no player can ever accept.
+     *
+     * <p>The documented build stays untouched: the check does not weaken the
+     * required skill, it refuses a route whose prerequisite opens later than
+     * the route itself.
+     */
+    private void validateHiddenRoutes() {
+        Plugin skillsPlugin = getServer().getPluginManager().getPlugin("RpgSkills");
+        Plugin dungeonsPlugin = getServer().getPluginManager().getPlugin("RpgDungeons");
+        if (!(skillsPlugin instanceof JavaPlugin skills) || !(dungeonsPlugin instanceof JavaPlugin dungeons)) {
+            getLogger().warning("Hidden-route reachability check skipped: RpgSkills/RpgDungeons are unavailable");
+            return;
+        }
+        ConfigurationSection skillRoot = skills.getConfig().getConfigurationSection("skills");
+        ConfigurationSection bookRoot = skills.getConfig().getConfigurationSection("skill-books");
+        ConfigurationSection dungeonRoot = dungeons.getConfig().getConfigurationSection("dungeons");
+        if (skillRoot == null || bookRoot == null || dungeonRoot == null) {
+            throw new IllegalStateException("Hidden-route reachability check needs skills, skill-books and dungeons");
+        }
+        java.util.Map<HiddenPath, java.util.Set<String>> unattainable =
+                HiddenRouteReachabilityGate.unattainableRoutes(skillRoot, bookRoot, dungeonRoot);
+        if (!unattainable.isEmpty()) {
+            java.util.Map.Entry<HiddenPath, java.util.Set<String>> first = unattainable.entrySet().iterator().next();
+            throw new IllegalStateException(HiddenRouteReachabilityGate.describe(first.getKey(), first.getValue()));
+        }
     }
 
     @Override

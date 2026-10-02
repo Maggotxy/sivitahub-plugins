@@ -6,6 +6,7 @@ import cn.originalrpg.api.model.HiddenPathActivationResult;
 import cn.originalrpg.api.model.HiddenPathEligibility;
 import cn.originalrpg.api.model.HiddenPathProfile;
 import cn.originalrpg.api.rules.HiddenPathRules;
+import cn.originalrpg.api.rules.ProgressionRules;
 import cn.originalrpg.api.service.HiddenPathService;
 
 import javax.sql.DataSource;
@@ -111,8 +112,22 @@ public final class JdbcHiddenPathService implements HiddenPathService {
             missing.add("profile");
         } else {
             if (profile.archetype() != HiddenPathRules.archetype(path)) missing.add("archetype");
-            if (profile.ascension() < HiddenPathRules.minimumAscension(path)) missing.add("ascension");
-            if (profile.level() < HiddenPathRules.minimumLevel(path)) missing.add("level");
+            int routeAscension = HiddenPathRules.minimumAscension(path);
+            if (profile.ascension() < routeAscension) missing.add("ascension");
+            // Level is a LOCAL level since Phase 1. The route gate is authored
+            // as "this ascension, local level X", so it can only be evaluated on
+            // the ladder of the ascension which locks it. A stage-3 player at
+            // local 10 already sits above a stage-3 local-20 gate, while a
+            // stage-2 player at local 30 does not.
+            if (profile.ascension() == routeAscension) {
+                if (profile.level() < Math.min(HiddenPathRules.minimumLevel(path), ProgressionRules.LOCAL_LEVEL_CAP)) {
+                    missing.add("level");
+                }
+            } else if (ProgressionRules.effectiveLevel(profile.ascension(), profile.level())
+                    < ProgressionRules.effectiveLevel(routeAscension, HiddenPathRules.minimumLevel(path))) {
+                // Any other stage is only comparable through effective levels.
+                missing.add("level");
+            }
             for (Map.Entry<String, Integer> requirement : attributes(path).entrySet()) {
                 if (profile.attribute(requirement.getKey()) < requirement.getValue()) {
                     missing.add("attribute." + requirement.getKey().toLowerCase(java.util.Locale.ROOT));

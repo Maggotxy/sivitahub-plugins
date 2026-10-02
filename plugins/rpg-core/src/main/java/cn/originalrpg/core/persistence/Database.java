@@ -120,6 +120,19 @@ public final class Database implements AutoCloseable {
     }
 
     public void migrate() {
+        try (Connection connection = dataSource.getConnection()) {
+            executeMigrations(connection, List.of(schemaMigrations()), postgres, migrationLockTimeoutMs);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Database migration failed", exception);
+        }
+    }
+
+    /**
+     * The complete additive schema pass. Kept separate from {@link #migrate()}
+     * so tests can build the production schema without a live Paper server;
+     * {@link #migrate()} wraps it in the network fencing transaction.
+     */
+    static String[] schemaMigrations() {
         String[] migrations = {
                 """
                 CREATE TABLE IF NOT EXISTS rpg_profiles (
@@ -1021,12 +1034,7 @@ public final class Database implements AutoCloseable {
                 "CREATE INDEX IF NOT EXISTS idx_rpg_equipment_lifecycle_audit_item"
                         + " ON rpg_equipment_lifecycle_audit (item_id, created_at)",
         };
-
-        try (Connection connection = dataSource.getConnection()) {
-            executeMigrations(connection, List.of(migrations), postgres, migrationLockTimeoutMs);
-        } catch (SQLException exception) {
-            throw new IllegalStateException("Database migration failed", exception);
-        }
+        return migrations;
     }
 
     /**
