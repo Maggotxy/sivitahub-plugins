@@ -120,7 +120,7 @@
     },
     "limitation": "本容器无 JDK（command -v java 无输出、/usr/lib/jvm 不存在）⇒ compile/test/assemble 不能本地复跑，只能用 CNB 门运行记录（sn=cnb-kb4-1k3uk7cro 与交叉印证 sn=cnb-q2d-1k3uj566m）。"
   },
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/53",
   "risks": [
     "G-303-SCSTALE 与 G-ENV-PENDING 本轮判为假缺口并撤掉；若上一轮 v5 的结论已被用作后续决策依据，需以本文件为准回滚该依据。",
     "门禁对「存在 spec key 但不存在的 method」会空跑并打印 SOURCE_CONTRACT_GATE=GREEN exit=0（本轮实测 SOURCE_CONTRACT_CHECKS=0）。现状安全（27 个包装器 method 全部存在，mismatches=0），但将来若改测试方法名而不同步改规格，会静默空跑。建议加入「method 非空且匹配 0 条 check ⇒ 非零退出」的加固（本轮未实施，超出最小改动范围）。",
