@@ -1,0 +1,71 @@
+{
+  "_comment": "第七波：素材层收口 —— 素材门禁 / P2 行为按文档承诺值落地 / 修 W5-A1 冲突 / HUD 实现对齐设计基准。",
+  "tasks": [
+    {
+      "id": "W7-A1-asset-gate",
+      "mode": "implement",
+      "goal": "把**素材门禁**接进 CI。resource-pack/ 已在 2026-10-02 入库，但它的校验只在生产机的 build.sh 里跑，CNB 侧完全没有素材门禁 —— 素材可以坏着进 main 而没人知道。\n\n仓内现成的校验器（都在 `resource-pack/tools/`，先读它们搞清各自的入参与判据）：\n- `ValidateTextures.java` / `ValidateHudAtlas.java` / `PngFingerprint.java`（Java，需编译后运行）\n- `build.sh`（26KB，闭包 + 纹理 + HUD 图集 + 字体码位 + 语言键 + SHA/UUID，但它依赖生产机环境与 Paper）\n- `runtime-item-models.txt`（81 个 `originalrpg:*` 模型键的权威清单）\n\n要求：\n① 写 `scripts/check-resource-pack.sh`（POSIX sh，跑在 CNB 的 sh/dash 下），**不依赖生产机、不依赖 Paper**，至少覆盖：\n   a) `runtime-item-models.txt`（去注释后）与 `resource-pack/assets/originalrpg/items/*.json` **一一对应**\n   b) 每个 item 定义能**闭包**到存在的 model → texture（孤儿模型/纹理要报出来）\n   c) 所有物品 PNG 为 **32×32** 且透明通道为二值（alpha 只有 0 或 255）\n   d) HUD 图集尺寸与 `font/hud.json` 的 **U+E000..U+E00A 十一码位**严格一致（README 说图集固定 99×9、11 枚 9×9 字形）\n   e) `font/journey.json` 的 **U+E100..U+E107 八码位**与八张旅程图严格一致\n   f) `lang/en_us.json` 与 `lang/zh_cn.json` 的键集合一致\n   g) 每个 `models/item/traveler_compass_*.json` 与 26.2 的 33 段方向分发一致（先读现有模型再定判据）\n② 把 `scripts/check-resource-pack.sh` 接进 `.cnb.yml` 的质量门（放在 DDL 门禁旁边）。\n   **注意**：PNG 解析在 dash 下用 `python3`（准备下载器 stage 已装）；不要用 ImageMagick。\n③ **每条判据都要做一次负向对照**：故意破坏一个文件（例如把某张 PNG 改成 16×16、把 HUD 图集裁掉一列、删一个 items 定义、改一个 lang 键），确认门禁变红，再还原。把「破坏 → 变红 → 还原」的命令与结果写进证据。\n④ 若某条判据你判断**无法在没有 Paper 的环境里可靠判定**，不要硬写：在 PR 里说明并给出替代（例如只做静态可判定的子集）。\n⑤ 现有 validator 的判据与你的脚本重叠时，**以脚本为准并在 PR 里说明差异**（不要复制粘贴两套会漂移的逻辑）。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 质量门 `.cnb.yml`：准备下载器 → 门禁自测 → DDL 消费者门禁 → compile → test → assemble；判据全是退出码\n- **resource-pack/ 已入库**（2026-10-02）：assets/（81 个 items 定义 + models + textures + font + lang）、tools/（GenerateTextures / GenerateHudAtlas / GenerateSkillHudAtlas / GenerateCompassFrames / ValidateTextures / ValidateHudAtlas / PngFingerprint / 各类模型生成器）、ai/（美术生产线）、build.sh、pack.mcmeta、runtime-item-models.txt。ai/.venv 与 ai/output 不入库\n- 编译期第三方 jar 在 libs/ 与 libs/vendor/；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 最高约束；AGENTS.md 执行边界；L-009 已授权跨 Phase 并行\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        ".cnb.yml",
+        "scripts/**",
+        "resource-pack/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "不要改任何 plugins/ 下的 Java 源码。不要改 resource-pack/assets/ 下的素材内容（只读校验）。"
+    },
+    {
+      "id": "W7-A2-p2-behaviors-decided",
+      "mode": "implement",
+      "goal": "把 P2 那批「文档已订正为实测值、但行为与文档承诺不符」的项**按文档承诺值落地**。\n人类已授权由本地做设计裁决，本次裁决原则：**文档里的承诺值就是设计意图，把行为改到承诺值**；只有做不到的才改文档并说明。逐条如下（每条先自己 grep 复核再动手）：\n\n1) **G-209 星弹预警窗口**：文档承诺 0.4–0.8s，实测 `telegraph-ticks` 28–36 tick ≈1.4–1.8s。把 `plugins/rpg-dungeons/src/main/resources/config.yml` 里相关 `telegraph-ticks` 调到 8–16 tick（0.4–0.8s），并确认 `DungeonManager` 的读取路径与预警表现（`CombatVisuals` / `SkillVisuals`）能跟上这个窗口；如果调快会让预警来不及被看见（即表现层有硬下限），**在 PR 里给出实测依据**并取「表现层能保证的最快值」+ 同步文档。\n2) **G-208 商人往返净损耗**：文档承诺 10%，实际 YAML 可调到 5%。把 `minimum-roundtrip-loss` 的**配置下限**收敛到文档承诺值（或在 `EconomyCommand` 里对低于承诺的值 fail-closed 拒绝启动），并加一条行为级测试：把配置设成 0.05 时必须被拒/被夹到 0.10。\n3) **G-207 血月/袭击「每日最多 3 场」**：文档写了但代码没有显式实现（只是上限除法的副作用）。在 `rpg-world` 里**显式实现**每日事件计数上限（配置键 + 计数器 + 跨日重置 + 落库或内存一致性说明），并加行为级测试：同一天第 4 场必须被拒。\n4) **G-205 外观价格标错模块**：把外观价格表移到正确的模块（先 grep 确认现在在哪、文档说应该在哪），并确保 `rpg-cosmetics` 读的是同一份。\n5) **G-203 legacy 隐藏前置**：`LegacyBlueprintRules.eligibility()` 的 `RARE_TRAIT_REQUIRED` 是文档没写的隐藏前置。二选一并说明理由：把它写进文档，或去掉这个前置。\n6) **G-202 稀有/史诗槽上限随基材上浮**：文档写固定区间，代码随基材上浮。把文档改成「随基材上浮」并给出公式（因为这是设计上的有意行为），或把代码改成固定区间（若判断固定区间才是意图）。\n7) **G-201 装备签名 schema**：文档称 4、实际 5 —— 若 W2-C1 已订正就跳过，复核一遍即可。\n\n要求：每条都要有**行为级测试**（不是只改 YAML），并在 PR 里逐条给出「文档原文 → 改前行为 → 改后行为 → 依据」。跑 `./gradlew --no-daemon test` 确认全绿。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 质量门 `.cnb.yml`：准备下载器 → 门禁自测 → DDL 消费者门禁 → compile → test → assemble；判据全是退出码\n- **resource-pack/ 已入库**（2026-10-02）：assets/（81 个 items 定义 + models + textures + font + lang）、tools/（GenerateTextures / GenerateHudAtlas / GenerateSkillHudAtlas / GenerateCompassFrames / ValidateTextures / ValidateHudAtlas / PngFingerprint / 各类模型生成器）、ai/（美术生产线）、build.sh、pack.mcmeta、runtime-item-models.txt。ai/.venv 与 ai/output 不入库\n- 编译期第三方 jar 在 libs/ 与 libs/vendor/；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 最高约束；AGENTS.md 执行边界；L-009 已授权跨 Phase 并行\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-dungeons/**",
+        "plugins/rpg-economy/**",
+        "plugins/rpg-cosmetics/**",
+        "plugins/rpg-world/**",
+        "plugins/rpg-items/**",
+        "plugins/rpg-market/**",
+        "docs/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。改完自己跑相关模块 compileJava + test 并把命令与输出写进证据文件。"
+    },
+    {
+      "id": "W7-A3-resolve-w5a1-conflict",
+      "mode": "implement",
+      "goal": "你的工作分支上有一个**已存在的 PR（#39，`agent/W5-A1-ddl-registration-gate`）**，但它与 `main` 冲突（`mergeable_state=conflict`），合不进去。\n\n要做的事（严格按顺序）：\n1) `git fetch origin main` 然后 `git merge origin/main`（**用 merge，不要 rebase、不要 force push**）\n2) 解决冲突。**两边语义都要保留**：这个 PR 做的是「补 `rpg_skill_point_grants` 的 DDL 登记 + 新增『src/main 引用的表名必须存在于 DDL』的反向门禁」；main 上后来合入了 W5-A2（测试收敛）、W6-A3（datapacks + scripts）、W6-A4（G-106）等，冲突大概率在 `.cnb.yml` 与 `scripts/`。\n3) 解决后**必须**跑：`:plugins:rpg-core:test`、`sh scripts/check-ddl-consumers.sh`、`sh scripts/selftest-gates.sh`（若存在），并把命令与结果写进证据。\n4) `git commit` 后 `git push origin HEAD`（推到当前分支，让已开的 PR 更新）。\n5) 在 PR 描述里追加「冲突解决说明」：改了什么、为什么这样解、跑了哪些测试。\n⚠️ 如果你发现这个 PR 的改动**已经被 main 上的其他提交覆盖**（例如 DDL 登记已被别人补过），那就把冲突解决成「等价于 main 的状态」并在 PR 里说明，让 PR 变成空改动后合入。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 质量门 `.cnb.yml`：准备下载器 → 门禁自测 → DDL 消费者门禁 → compile → test → assemble；判据全是退出码\n- **resource-pack/ 已入库**（2026-10-02）：assets/（81 个 items 定义 + models + textures + font + lang）、tools/（GenerateTextures / GenerateHudAtlas / GenerateSkillHudAtlas / GenerateCompassFrames / ValidateTextures / ValidateHudAtlas / PngFingerprint / 各类模型生成器）、ai/（美术生产线）、build.sh、pack.mcmeta、runtime-item-models.txt。ai/.venv 与 ai/output 不入库\n- 编译期第三方 jar 在 libs/ 与 libs/vendor/；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 最高约束；AGENTS.md 执行边界；L-009 已授权跨 Phase 并行\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/**",
+        "tools/**",
+        "scripts/**",
+        ".cnb.yml",
+        "docs/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只解决冲突，不要顺手改无关代码。不要 rebase / 不要 force push。"
+    },
+    {
+      "id": "W7-A4-hud-implementation-alignment",
+      "mode": "implement",
+      "goal": "让 HUD 的**实现**与设计基准对齐。\n\n现在有两份互相独立的东西：\n1) 设计基准 `docs/reference/hud-layout-v2.png` + `docs/hud-imagegen-prompt-v2.md` 末尾的 implementation note：\n   **26×91 逻辑像素右侧轨、4 个原生 18×18 语义图标、独立的 29×26 职业徽章、1×87 垂直法力填充**，   原版十字准星/ActionBar/聊天/血/饥饿/经验/9 格热栏全部保留且不被遮挡。\n2) 资源包里的 `assets/betterhud/`（HUD 布局与图集）与插件侧 `GameplayHudService` / `HudGlyphs` / `SkillHudProjection` / `MenuLoreLayout` 等实现。\n\n要求：\n① 先把两边的**实际尺寸与码位**核出来（grep + 读 BetterHud 的 YAML/图片配置 + 读 `font/hud.json`），列一张对照表：设计基准值 vs 实现实际值 vs 差值。\n② 把**实现对齐到设计基准**（改 BetterHud 布局 YAML / 图集切图参数 / 插件侧常量），凡是要改 `resource-pack/assets/betterhud/` 的都改，并保证 `resource-pack/build.sh` 的校验仍能通过。\n③ **加一条可机械判定的门禁**：把「右侧轨 = 26×91、图标 = 4×(18×18)、徽章 = 29×26、法力条 = 1×87」这些数字从**唯一来源**（建议放一个 `hud-layout.json` 或常量类）读出来，并断言实现与之一致。门禁接进 `.cnb.yml` 或加一条单测（你选更稳的那种，并说明理由）。\n④ 若某项设计基准值**在当前实现里做不到**（例如原版 ActionBar 的占用使 91 像素高会与聊天重叠），不要硬改：在 PR 里给出实测依据，取可行值并**同步更新 `docs/hud-imagegen-prompt-v2.md` 的 implementation note**。\n⑤ 保留「资源包未成功加载时逐玩家回退到原版符号」的行为（`HudGlyphs.available()`），不要为了对齐而破坏它。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 质量门 `.cnb.yml`：准备下载器 → 门禁自测 → DDL 消费者门禁 → compile → test → assemble；判据全是退出码\n- **resource-pack/ 已入库**（2026-10-02）：assets/（81 个 items 定义 + models + textures + font + lang）、tools/（GenerateTextures / GenerateHudAtlas / GenerateSkillHudAtlas / GenerateCompassFrames / ValidateTextures / ValidateHudAtlas / PngFingerprint / 各类模型生成器）、ai/（美术生产线）、build.sh、pack.mcmeta、runtime-item-models.txt。ai/.venv 与 ai/output 不入库\n- 编译期第三方 jar 在 libs/ 与 libs/vendor/；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 最高约束；AGENTS.md 执行边界；L-009 已授权跨 Phase 并行\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-api/**",
+        "plugins/rpg-integrations/**",
+        "plugins/rpg-skills/**",
+        "resource-pack/assets/betterhud/**",
+        "resource-pack/assets/originalrpg/font/**",
+        "docs/hud-imagegen-prompt-v2.md",
+        "docs/reference/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。改完自己跑相关模块 compileJava + test 并把命令与输出写进证据文件。"
+    }
+  ]
+}
