@@ -1,0 +1,90 @@
+{
+  "task_id": "W2-D2-dungeon-world-keys",
+  "status": "success",
+  "summary": "修 G-108，选 (B)：删除 6 个无读取方的 dungeons.*.world 死键（世界名由运行时生成），并把「世界名只能运行时生成」变成可执行门禁 + 行为级测试；顺带修掉同一处名字生成里的冲突风险（nanoTime 名称可能被 DungeonInstanceStorage 拒收，导致世界永不回收）。",
+  "decision": {
+    "chosen": "B",
+    "reason": [
+      "Paper 26.2 只能同时存在一个同名 World，且 DungeonInstanceStorage 只会回收 INSTANCE_PREFIX 前缀的目录；固定世界名与世界回收路径天然冲突。（A）会让每次进入都撞同一个已存在的世界，或在回收时把配置声明的世界删掉。",
+      "warm-per-dungeon>1 与同一副本的并发进入需要多个世界，固定名无法表达。",
+      "运行时有未知数量的实例副本，固定名无法授权删除，会留下无法回收的脏目录。",
+      "(B) 同时满足任务 ③ 的隐含目的：配置里不再出现任何世界名，就不存在「配置写了但找不到世界」。"
+    ]
+  },
+  "changed_files": [
+    "plugins/rpg-dungeons/src/main/resources/config.yml",
+    "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java",
+    "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/RpgDungeonsPlugin.java",
+    "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonWorldNames.java",
+    "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonConfigKeys.java",
+    "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonWorldNamesTest.java",
+    "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonConfigKeysTest.java",
+    ".cnb/agent-out/W2-D2-dungeon-world-keys.json"
+  ],
+  "pr_url": "",
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'dungeon_ancient_ruins' plugins/rpg-dungeons/src/main || echo '(无命中)'",
+        "hit": "(无命中)"
+      },
+      {
+        "cmd": "grep -n 'world:' plugins/rpg-dungeons/src/main/resources/config.yml || echo '(无命中)'",
+        "hit": "(无命中) — 改前为 6 行（8/49/87/128/166/207 行）"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'dungeons\\.\\([a-z-]*\\)\\?\\.\\?world\\|getString(\"world\")' plugins/rpg-dungeons/src/main || echo '(无命中)'",
+        "hit": "(无命中) — 删除后仍无任何读取方，符合 (B)"
+      },
+      {
+        "cmd": "grep -rn 'DungeonWorldNames.allocate' plugins/rpg-dungeons/src/main/java",
+        "hit": "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java:290: String worldName = DungeonWorldNames.allocate(id, ++instanceWorldOrdinal);"
+      },
+      {
+        "cmd": "grep -rn 'DungeonConfigKeys.requireNoReservedWorldKeys' plugins/rpg-dungeons/src/main/java",
+        "hit": "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/RpgDungeonsPlugin.java:28: DungeonConfigKeys.requireNoReservedWorldKeys(getConfig().getValues(false));"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "export JAVA_HOME=/tmp/jdk; ./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-dungeons:compileJava",
+        "result": "BUILD SUCCESSFUL in 1m 48s / > Task :plugins:rpg-dungeons:compileJava"
+      },
+      {
+        "cmd": "export JAVA_HOME=/tmp/jdk; ./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-dungeons:compileJava :plugins:rpg-dungeons:test",
+        "result": "BUILD SUCCESSFUL in 11s; 66 tests completed, 0 failures, 0 errors（含新增 DungeonWorldNamesTest 5 例 + DungeonConfigKeysTest 3 例；逐类统计见 plugins/rpg-dungeons/build/test-results/test/*.xml）"
+      },
+      {
+        "cmd": "首轮 test（未修断言前）",
+        "result": "DungeonWorldNamesTest > idsWithUnsafeCharactersStillProduceALifecycleSafeName() FAILED: expected <dungeon_instance_a_b_10> but was <dungeon_instance_a_b_a>（base36 第 10 个实例 = a，测试期望写错，已改断言；说明新测试确实在跑真实代码路径）"
+      }
+    ],
+    "toolchain": {
+      "java": "openjdk 25.0.4.1 2026-08-18 LTS (Temurin, 本容器无 JDK，自取到 /tmp/jdk)",
+      "gradle": "9.1.0 (wrapper 自动下载)",
+      "note": "gradlew 只有 644 权限，本机用 `chmod +x gradlew` 后运行；权限位改动已 checkout 还原，未入提交。"
+    },
+    "scope_limit": "本机只跑了 :plugins:rpg-dungeons:compileJava + :plugins:rpg-dungeons:test（该模块无第三方依赖）。全量编译门由 CNB push 流水线负责。"
+  },
+  "wiring_check": {
+    "调用点": "DungeonManager.nextInstanceWorldName -> DungeonWorldNames.allocate（src/main 内非自身定义文件），RpgDungeonsPlugin.onEnable -> DungeonConfigKeys.requireNoReservedWorldKeys",
+    "行为级测试": "DungeonWorldNamesTest 对 6 个真实副本 id 逐个生成名字并断言 DungeonInstanceStorage.isInstanceName 为真（真的走 disposable 生命周期判定，不是源码字符串断言）；DungeonConfigKeysTest 真的解析 shipped config.yml 并执行启动期门禁函数，再用篡改后的 YAML 树断言门禁抛错并指名 dungeons.ancient-ruins.world。",
+    "编译与测试": "见 evidence.test"
+  },
+  "unproven": [
+    "未做真实 Paper 运行验证 [R]：未启动服务器，未观察 WorldCreator.createWorld 在 26.2 上对 dungeon_instance_<id>_<token> 的实际落盘路径与启动清理命中。",
+    "未验证 config.yml 已落地的服务器实例（server/plugins/rpg-dungeons/config.yml 的旧副本）——本仓库无 server/config-templates；上线时必须以本文件覆盖，否则残留的 world 键会让插件拒绝启用（这是刻意的 fail-closed，但需要人类确认发布流程）。",
+    "门禁只覆盖 dungeons.*.world 这一个已机械核实的子集；25 个模块的其余 1943 个 YAML 叶子键大量使用动态遍历，本任务不声称已覆盖。"
+  ],
+  "blockers": [],
+  "risks": [
+    "一次性世界名从 nanoTime 改为进程内自增序号：同进程内绝对唯一（无损），但跨进程重启不再唯一到「几乎不可能撞」，而是可能复用同一个名字。启动期 cleanupStartupInstances 会让上一进程的实例世界卸载并回收目录，因此复用是安全的；若将来支持多节点/多进程共用同一 world 容器，需要改回带节点熵的命名（已在 DungeonWorldNames 注释里写明该前提）。",
+    "顺带修掉的原缺陷：旧名字 dungeon_instance_<id>_<base36(nanoTime)> 的末段来自 nanoTime，若某次末段为 0，名字会退化成一个段，被 DungeonInstanceStorage.isInstanceName 拒绝 —— 该世界不会报错但永远不会被回收/卸载。新序号从 1 起递增，永不产生这种名字。",
+    "instance-pool.log-instance-worlds 默认 false（新增默认键，无行为影响）：开着它会让每个实例世界名进日志，可用于人工核对运行时名字与回收，属于 opt-in 观测，不改变任何玩法数值。"
+  ],
+  "next_steps": [
+    "人工在 PR 里确认选择 (B) 的理由（多实例 + 回收前缀 + 授权删除三处冲突）",
+    "上线时用 plugins/rpg-dungeons/src/main/resources/config.yml 覆盖服务器上遗留的 config.yml 副本，再确认插件能启用（残留 dungeon_* 键会 fail-closed 拒绝启用）",
+    "若要补 [R] 证据：开服务器进一次副本，确认生成的世界名形如 dungeon_instance_ancient_ruins_1，且停服重启后被启动清理卸载回收"
+  ]
+}
