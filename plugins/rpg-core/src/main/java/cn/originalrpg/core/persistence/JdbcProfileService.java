@@ -535,6 +535,10 @@ public final class JdbcProfileService implements ProfileService {
     private PlayerProfile loadOrCreate(Connection connection, UUID playerId, boolean lock) throws SQLException {
         PlayerProfile existing = select(connection, playerId, lock);
         if (existing != null) {
+            // Phase 1 写入口：档案能被 ProgressionRules 唯一解释才是正常状态；
+            // 读不懂的档案（老口径 level>30、越界转数、负经验）必须留下一行人工复核记录，
+            // 否则这类档案会静默被 ceil 成合法值，后面再也查不出原始证据。
+            recordAnomalyIfUninterpretable(connection, existing);
             return existing;
         }
         try (PreparedStatement insert = connection.prepareStatement("""
@@ -579,6 +583,42 @@ public final class JdbcProfileService implements ProfileService {
                         attributes
                 );
             }
+        }
+    }
+
+    /**
+     * 用同一份 {@link ProgressionAnomalyService} 判定口径记录异常，保证「检测规则」只有一处实现。
+     * 只读路径因此带一次条件写，但只在真的读到异常档案时才写行（正常档案零写放大）。
+     */
+    private void recordAnomalyIfUninterpretable(Connection connection, PlayerProfile profile) throws SQLException {
+        String reason = ProgressionRules.classifyAnomaly(
+                profile.ascension(), profile.level(), profile.experience());
+        if (reason == null) return;
+        // 与 JdbcProgressionAnomalyService 同一口径：H2 的 PostgreSQL 兼容模式不支持
+        // 带冲突目标的 upsert，所以改成「已存在则 UPDATE，否则 INSERT」，两库等价。
+        try (PreparedStatement update = connection.prepareStatement("""
+                UPDATE rpg_progression_anomalies
+                SET ascension = ?, level = ?, experience = ?, reason = ?, detected_at = CURRENT_TIMESTAMP
+                WHERE player_uuid = ?
+                """)) {
+            update.setInt(1, profile.ascension());
+            update.setInt(2, profile.level());
+            update.setLong(3, profile.experience());
+            update.setString(4, reason);
+            update.setString(5, profile.playerId().toString());
+            if (update.executeUpdate() == 1) return;
+        }
+        try (PreparedStatement insert = connection.prepareStatement("""
+                INSERT INTO rpg_progression_anomalies
+                (player_uuid, ascension, level, experience, reason)
+                VALUES (?, ?, ?, ?, ?)
+                """)) {
+            insert.setString(1, profile.playerId().toString());
+            insert.setInt(2, profile.ascension());
+            insert.setInt(3, profile.level());
+            insert.setLong(4, profile.experience());
+            insert.setString(5, reason);
+            insert.executeUpdate();
         }
     }
 

@@ -44,17 +44,20 @@ fi
 # 禁止拿豁免掩盖本该接线的漏接；禁止静默删除豁免条目。
 # 逐条判定与 grep 证据见 docs/planning/deferred-tables.md。
 EXEMPT=$(cat <<'EXEMPT_EOF'
-PENDING|rpg_support_credit_accounts|Phase 5 独立 support_credit 账本余额表，落库先行、验签订单服务未接线（宪法 C-012 物理隔离）|docs/planning/deferred-tables.md#21
-PENDING|rpg_support_credit_ledger|Phase 5 support_credit 幂等流水表，schema 契约含 idempotency_key 唯一键，写入方未实现|docs/planning/deferred-tables.md#22
-PENDING|rpg_market_buy_orders|Phase 4 市场 V2 买单簿，API 模型 MarketOrder 已存在，撮合事务未实现（C-009 单一托管）|docs/planning/deferred-tables.md#23
-PENDING|rpg_progression_anomalies|Phase 1 旧档案无法唯一映射时的人工复核清单，迁移写入口未实现，需 [H] 门禁|docs/planning/deferred-tables.md#24
 EXEMPT_EOF
 )
-# W2 已完成接线、应删除的旧豁免（保留一行注释说明为什么删，便于审计追溯）：
-#   rpg_outbox              -> JdbcOutboxRegistry / OutboxDispatcher   (W2-D5)
-#   rpg_session_leases      -> JdbcSessionLease                        (W2-B6/W2-D5)
-#   rpg_community_approvals -> JdbcCommunityService                    (W2-D4, G-103)
-#   rpg_season_settlements  -> JdbcSeasonSettlementService             (W2-D1, G-101)
+# 已接线、应删除的旧豁免（保留一行注释说明为什么删，便于审计追溯）：
+#   rpg_outbox                  -> JdbcOutboxRegistry / OutboxDispatcher   (W2-D5)
+#   rpg_session_leases          -> JdbcSessionLease                        (W2-B6/W2-D5)
+#   rpg_community_approvals     -> JdbcCommunityService                    (W2-D4, G-103)
+#   rpg_season_settlements      -> JdbcSeasonSettlementService             (W2-D1, G-101)
+#   rpg_support_credit_accounts -> JdbcSupportCreditService                (W6-A1, C-012 独立账本余额)
+#   rpg_support_credit_ledger   -> JdbcSupportCreditService                (W6-A1, 幂等流水)
+#   rpg_market_buy_orders       -> JdbcMarketBuyOrderService               (W6-A1, Phase 4 买单簿, C-009 单一托管)
+#   rpg_progression_anomalies   -> JdbcProgressionAnomalyService           (W6-A1, Phase 1 异常写入口, [H] 复核出口)
+#
+# 现在 EXEMPT 为空：DDL 表数 79 全部有 src/main 真实消费者。新增豁免必须在本脚本
+# 登记分类 + 理由 + 文档锚点，并在 docs/planning/deferred-tables.md 开一节写明判定证据。
 
 # ---- 1. 从 DDL 抽取表名 ----
 TABLES=$(grep -oE 'CREATE TABLE IF NOT EXISTS[[:space:]]+rpg_[a-z_]+' "$DDL_FILE" \
@@ -262,16 +265,20 @@ echo "CMD_REFERENCE_GATE=GREEN"
 
 # 可审计豁免清单：分类|表名|理由|文档锚点
 #   PENDING   待接线：表已按设计落库，写入方/消费者在其后的 Phase
-#               （逐条判定见 docs/planning/deferred-tables.md）
-#   INDEXONLY DDL 自带消费：表只服务 DDL 内部的 CREATE INDEX 语句，
-#               业务代码不需要（也不应该）按名字引用它
+#   INDEXONLY DDL 自带消费：表只服务 DDL 内部的 CREATE INDEX 语句
+#
+# W6-A1（d738e71「接线最后 4 张 PENDING 表并清空门禁豁免」）已把下列表全部接上
+# 真实 src/main 消费者，反向豁免随之作废（保留一行注释便于审计追溯）：
+#   rpg_support_credit_accounts -> JdbcSupportCreditService            (W6-A1, C-012)
+#   rpg_support_credit_ledger   -> JdbcSupportCreditService            (W6-A1, 幂等流水)
+#   rpg_market_buy_orders       -> JdbcMarketBuyOrderService           (W6-A1, Phase 4)
+#   rpg_progression_anomalies   -> JdbcProgressionAnomalyService       (W6-A1, Phase 1)
+#   rpg_chapter_history         -> JdbcChapterService (INSERT INTO)    (既有)
+#
+# 现在清单为空：反向扫描到的每个 rpg_* 表名都必须能在 DDL 里精确命中。
+# 与第 1 节的正向 EXEMPT 同一口径 —— 豁免只把「不接线」变成可审计状态，不是放行。
 DDL_TABLE_EXEMPT_FILE=$(mktemp)
 cat > "$DDL_TABLE_EXEMPT_FILE" <<'DDL_TABLE_EXEMPT_EOF'
-PENDING|rpg_support_credit_accounts|Phase 5 独立 support_credit 账本余额表，落库先行、验签订单服务未接线（宪法 C-012）|docs/planning/deferred-tables.md#21
-PENDING|rpg_support_credit_ledger|Phase 5 support_credit 幂等流水表，schema 契约含 idempotency_key，写入方未实现|docs/planning/deferred-tables.md#22
-PENDING|rpg_market_buy_orders|Phase 4 市场 V2 买单簿，API 模型 MarketOrder 已存在，撮合事务未实现|docs/planning/deferred-tables.md#23
-PENDING|rpg_progression_anomalies|Phase 1 旧档案无法唯一映射时的人工复核清单，迁移写入口未实现|docs/planning/deferred-tables.md#24
-INDEXONLY|rpg_chapter_history|只被 DDL 内 `uq_rpg_chapter_history_revision` 索引消费，运行时读侧无 SQL 消费者，删表需单独评审|docs/planning/deferred-tables.md#0
 DDL_TABLE_EXEMPT_EOF
 
 # 代码扫描范围：全部 src/main（含测试源码？不含 —— 门禁要拦的是真机会执行的代码；

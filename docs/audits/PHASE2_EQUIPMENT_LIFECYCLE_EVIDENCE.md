@@ -71,3 +71,9 @@
 - [H] 未做真人回归：绑定装备挂牌被拒、市场购买领取后归属变更、冻结装备全链路只读、核实后解冻可再流通，均需游戏内人工确认。
 - 已知结构债（本轮未动）：`rpg_equipment_operations.item_id` 无指向 `rpg_equipment_states` 的外键；`FORGE` 从不落 `CREATED` 行（`operationOutcome` 明确拒绝该 kind），故账本是「按需入场」的覆盖层，只能约束已经过它的身份；克隆/`/give` 一个已签名 NBT 会产生携带同一 `item_id` 的多个实物，而账本按身份单行裁决（`uq_rpg_market_open_item` 只挡双挂牌，不挡重复实物）。（原第三条债 `isTrustedInventory` 命名空间前缀放行已于本轮以 `TrustedMenuHolder` 清偿。）
 - SACRIFICED / SEASON_ATTUNED 为预留态，尚无生产转移入口（专用 `/sacrifice`、赛季调谐属 Phase 4+ 退出路径工作）。RESTORED 自本轮起有生产入口（`rpgadmin equipment restore`）。
+- **W6-A2 更新**：SEASON_ATTUNED 已接线，触发者是换季结算而非玩家指令 ——
+  `SeasonSettlementService`（`JdbcSeasonSettlementService`）在 SETTLING 阶段调用
+  `SeasonAttunementService`（`JdbcSeasonAttunementService`），后者经唯一状态机
+  `EquipmentStateLedger#attune` 落 `SEASON_ATTUNED`，产物经市场邮箱交还原持有者；
+  复用 Kill Switch `season.settlement.enabled`，配置 `season-attunement.enabled` 默认关。
+  装备插件（rpg-items）的 plugin.yml / config.yml 仍然零入口。SACRIFICED 仍为预留态。

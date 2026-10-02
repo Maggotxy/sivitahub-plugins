@@ -9,7 +9,10 @@ import cn.originalrpg.api.service.CurrencyExchangeService;
 import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.ProfileService;
 import cn.originalrpg.api.service.PersistenceMetricsService;
+import cn.originalrpg.api.service.MarketBuyOrderService;
 import cn.originalrpg.api.service.MarketService;
+import cn.originalrpg.api.service.ProgressionAnomalyService;
+import cn.originalrpg.api.service.SupportCreditService;
 import cn.originalrpg.api.service.SkillService;
 import cn.originalrpg.api.service.MerchantService;
 import cn.originalrpg.api.service.PetProgressService;
@@ -25,6 +28,7 @@ import cn.originalrpg.api.service.CommissionEvidenceService;
 import cn.originalrpg.api.service.SeasonExpeditionService;
 import cn.originalrpg.api.service.SeasonMeritWalletService;
 import cn.originalrpg.api.service.SeasonSettlementService;
+import cn.originalrpg.api.service.SeasonAttunementService;
 import cn.originalrpg.api.service.AdminTestService;
 import cn.originalrpg.api.service.AdminIncidentCompensationService;
 import cn.originalrpg.api.service.AscensionService;
@@ -41,7 +45,10 @@ import cn.originalrpg.core.persistence.JdbcActivityEconomyService;
 import cn.originalrpg.core.persistence.JdbcCommerceService;
 import cn.originalrpg.core.persistence.JdbcCurrencyExchangeService;
 import cn.originalrpg.core.persistence.JdbcProfileService;
+import cn.originalrpg.core.persistence.JdbcMarketBuyOrderService;
 import cn.originalrpg.core.persistence.JdbcMarketService;
+import cn.originalrpg.core.persistence.JdbcProgressionAnomalyService;
+import cn.originalrpg.core.persistence.JdbcSupportCreditService;
 import cn.originalrpg.core.persistence.JdbcSkillService;
 import cn.originalrpg.core.persistence.JdbcMerchantService;
 import cn.originalrpg.core.persistence.JdbcPetProgressService;
@@ -55,6 +62,7 @@ import cn.originalrpg.core.persistence.JdbcCommissionEvidenceService;
 import cn.originalrpg.core.persistence.JdbcSeasonExpeditionService;
 import cn.originalrpg.core.persistence.JdbcSeasonMeritWalletService;
 import cn.originalrpg.core.persistence.JdbcSeasonSettlementService;
+import cn.originalrpg.core.persistence.JdbcSeasonAttunementService;
 import cn.originalrpg.core.persistence.JdbcNodeLease;
 import cn.originalrpg.core.persistence.JdbcOutboxRegistry;
 import cn.originalrpg.core.persistence.JdbcSessionLease;
@@ -197,6 +205,15 @@ public final class RpgCorePlugin extends JavaPlugin {
             YamlMessageService messages = new YamlMessageService(this);
             JdbcMarketService market = new JdbcMarketService(
                     database.dataSource(), databaseExecutor, startingBalance, mechanisms);
+            // Phase 4 买单簿：与卖单共用同一套托管账簿（C-009），因此同受市场熔断约束。
+            JdbcMarketBuyOrderService buyOrders = new JdbcMarketBuyOrderService(
+                    database.dataSource(), databaseExecutor, startingBalance, mechanisms);
+            // Phase 1 成长异常清单：写入口 + 人工复核出口（[H] 门禁）。
+            JdbcProgressionAnomalyService progressionAnomalies =
+                    new JdbcProgressionAnomalyService(database.dataSource(), databaseExecutor);
+            // Phase 5 support_credit 独立账本（C-012 物理隔离）。
+            JdbcSupportCreditService supportCredit =
+                    new JdbcSupportCreditService(database.dataSource(), databaseExecutor);
             JdbcEquipmentOperationService equipmentOperations = new JdbcEquipmentOperationService(
                     database.dataSource(), databaseExecutor, startingBalance);
             JdbcEquipmentLedgerAuditService equipmentLedger = new JdbcEquipmentLedgerAuditService(
@@ -230,8 +247,19 @@ public final class RpgCorePlugin extends JavaPlugin {
             String activeSeasonId = getConfig().getString("chapters.season-id", "launch-1");
             JdbcSeasonMeritWalletService seasonMerits = new JdbcSeasonMeritWalletService(
                     database.dataSource(), databaseExecutor, activeSeasonId);
+            // W6-A2：C-008 第五条退出路径（赛季调谐）的触发者是换季结算。
+            // L-009 默认关：关闭时连服务都不装配，结算的调谐步骤一次查询都不做。
+            boolean seasonAttunementEnabled = getConfig()
+                    .getBoolean("season-attunement.enabled", false);
+            JdbcSeasonAttunementService seasonAttunements = seasonAttunementEnabled
+                    ? new JdbcSeasonAttunementService(database.dataSource(), databaseExecutor, mechanisms)
+                    : null;
             JdbcSeasonSettlementService seasonSettlements = new JdbcSeasonSettlementService(
-                    database.dataSource(), databaseExecutor, mechanisms);
+                    database.dataSource(), databaseExecutor, mechanisms, seasonAttunements);
+            if (seasonAttunements != null) {
+                getServer().getServicesManager().register(
+                        SeasonAttunementService.class, seasonAttunements, this, ServicePriority.Normal);
+            }
             // Phase 6 治理「接线但不启用」：开关默认关，命令与事件消费者仍在位。
             boolean communityGovernanceEnabled = getConfig()
                     .getBoolean("community.governance-enabled", false);
@@ -255,6 +283,12 @@ public final class RpgCorePlugin extends JavaPlugin {
                     this, ServicePriority.Normal);
             getServer().getServicesManager().register(MessageService.class, messages, this, ServicePriority.Normal);
             getServer().getServicesManager().register(MarketService.class, market, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
+                    MarketBuyOrderService.class, buyOrders, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
+                    ProgressionAnomalyService.class, progressionAnomalies, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
+                    SupportCreditService.class, supportCredit, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
                     EquipmentOperationService.class, equipmentOperations, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
@@ -298,7 +332,8 @@ public final class RpgCorePlugin extends JavaPlugin {
                     this, ServicePriority.Normal);
 
             RpgCommand command = new RpgCommand(
-                    this, profiles, activityEconomy, chapters, messages, seasonMerits, seasonSettlements);
+                    this, profiles, activityEconomy, chapters, messages, seasonMerits, seasonSettlements,
+                    supportCredit);
             PluginCommand rpg = Objects.requireNonNull(getCommand("rpg"), "rpg command");
             rpg.setExecutor(command);
             LanguageCommand languageCommand = new LanguageCommand(messages);

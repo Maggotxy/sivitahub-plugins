@@ -1,0 +1,271 @@
+{
+  "task_id": "W7-A1-asset-gate",
+  "status": "success",
+  "summary": "素材门禁接入 CNB 质量门完成。resource-pack/ 的校验此前只存在于生产机的 resource-pack/build.sh（依赖 Paper / server/ / zip / rg / jq，CNB 里跑不起来），素材可以坏着进 main。本任务新增 scripts/check-resource-pack.sh（POSIX sh 注册表 + 退出码）与 scripts/resource-pack-asset-check.py（PNG/JSON 判据，只用 python3 stdlib），覆盖 8 条静态判据（清单一一对应 / 闭包含孤儿检测 / 32x32 二值 alpha / HUD U+E000..U+E00A 十一码位 ↔ 99x9 图集 / journey U+E100..U+E107 八码位 ↔ 八张旅程图 / 中英语言键 / 罗盘 26.2 33 段方向分发 / pack.mcmeta 格式 88），接进 .cnb.yml 质量门的「素材门禁（W7-A1）」stage（紧邻 DDL 消费者门禁，同属「不编译即可判定」的结构性门禁）。PNG 解码走 python3 zlib + 手写反滤波，不用 ImageMagick、不用 jq（已用被 sabotage 的 jq/convert wrapper 证明）。每条判据都在 scripts/selftest-gates.sh §7 有「破坏 → 必须红 → 还原 → 必须绿」负向对照（14 条，全部在 $TMP 夹具副本上做，不碰仓库）；§8 做接线自证（断言 .cnb.yml 真的调用了它，并用一个不存在的门禁路径证明这条判据能变红）。干净克隆 + 最小 PATH 下实测全绿，selftest 56/56 PASS，3 秒跑完。重叠判据以脚本为准，差异与「只能由 build.sh 判的部分」写进 resource-pack/README.md 的对照表。",
+  "changed_files": [
+    ".cnb.yml",
+    "scripts/check-resource-pack.sh",
+    "scripts/resource-pack-asset-check.py",
+    "scripts/selftest-gates.sh",
+    "resource-pack/README.md",
+    ".cnb/agent-out/W7-A1-asset-gate.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -c 'sh scripts/check-resource-pack.sh' .cnb.yml",
+        "exit": 0,
+        "hit": "1"
+      },
+      {
+        "cmd": "grep -n 'GATE_NAMES=' scripts/check-resource-pack.sh",
+        "exit": 0,
+        "hit": "71:GATE_NAMES='manifest closure textures hud journey lang compass packmeta'"
+      },
+      {
+        "cmd": "python3 -c \"import yaml;d=yaml.safe_load(open('.cnb.yml'));print([s['name'] for s in d['.quality_gate'][0]['stages']])\"",
+        "exit": 0,
+        "hit": "['准备下载器（必须是第一个 stage）', '门禁自测（负向对照）', 'DDL 消费者门禁（G-301）', '素材门禁（W7-A1）', 'compile', 'test', 'assemble']"
+      },
+      {
+        "cmd": "grep -c '^rpg_negative ' scripts/selftest-gates.sh",
+        "exit": 0,
+        "hit": "14"
+      },
+      {
+        "cmd": "grep -n 'jq\\|magick' scripts/check-resource-pack.sh scripts/resource-pack-asset-check.py | grep -v '^\\S*:[0-9]*:#' || echo NONE_AS_CODE",
+        "exit": 0,
+        "hit": "NONE_AS_CODE（jq / ImageMagick 只出现在注释里，代码零依赖）"
+      },
+      {
+        "cmd": "grep -n \"gate_packmeta\" scripts/check-resource-pack.sh",
+        "exit": 0,
+        "hit": "gate_packmeta() 注册为判据 8；pack.mcmeta 精确声明资源格式 88"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "sh scripts/check-resource-pack.sh",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS（RESOURCE_PACK_GATE=GREEN RUN=8 SKIPPED=0）",
+        "output_tail": "  [OK  ] manifest\n      物品定义 81 / 可达模型 119 / 可达纹理 115\n  [OK  ] closure\n      115 张物品 PNG 全部 32x32 二值 alpha\n  [OK  ] textures\n      U+E000..U+E00A 十一码位 ↔ 99x9 图集；U+E020..U+E04F 四十八码位 ↔ 432x9 图集\n  [OK  ] hud\n      U+E100..U+E107 八码位 ↔ 八张 32x32 旅程图\n  [OK  ] journey\n      en_us/zh_cn 键集合一致（各 18 键）\n  [OK  ] lang\n      33 段方向分发 ↔ 32 帧模型 + 32 帧纹理（scale=32.0 target=spawn）\n  [OK  ] compass\n      pack.mcmeta 精确声明资源格式 88（min=max=88，无 overlays）\n  [OK  ] packmeta\n  （判据：manifest closure textures hud journey lang compass packmeta）\n  RUN=8 SKIPPED=0\nRESOURCE_PACK_GATE=GREEN"
+      },
+      {
+        "cmd": "sh scripts/selftest-gates.sh",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS（GATE_SELFTEST=GREEN PASS=56 FAIL=0）——含 §7 十四条素材负向对照 + §8 接线自证",
+        "output_tail": "== 8. W7-A1 接线自证：素材门禁必须真的在 CI 里跑 ==\n  [OK  ] .cnb.yml 全量质量门执行 check-resource-pack.sh\n  [OK  ] 不存在的素材门禁查不到（接线判据能变红）\n\n===== 门禁自测汇总：PASS=56 FAIL=0 =====\nGATE_SELFTEST=GREEN"
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS（DDL_CONSUMER_GATE=GREEN）——素材门禁接在它旁边，两者互不影响"
+      },
+      {
+        "cmd": "干净克隆（git clone /workspace cc）后 sh scripts/check-resource-pack.sh",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS（RESOURCE_PACK_GATE=GREEN RUN=8 SKIPPED=0）——证明无隐式仓内状态依赖"
+      },
+      {
+        "cmd": "干净克隆后 sh scripts/selftest-gates.sh",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS（GATE_SELFTEST=GREEN PASS=56 FAIL=0，SECONDS=3）"
+      },
+      {
+        "cmd": "PATH=<sabotaged-wrappers>:/bin sh -c 'sh scripts/check-resource-pack.sh'  # jq / convert 包装成 exit 127",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS（RESOURCE_PACK_GATE=GREEN）—— 证明素材门禁真的不调用 jq / ImageMagick"
+      },
+      {
+        "cmd": "env -i PATH=/usr/bin:/bin HOME=/tmp sh -c 'sh scripts/check-resource-pack.sh'",
+        "exit": 0,
+        "expected": 0,
+        "result": "PASS（最小 PATH 下也绿，无隐式环境依赖）"
+      },
+      {
+        "cmd": "CNB 全量质量门（push, sn=cnb-hf3-1k3u4m6nc）",
+        "exit": 0,
+        "expected": 0,
+        "result": "「素材门禁（W7-A1）」stage success（516ms）RESOURCE_PACK_GATE=GREEN RUN=8 SKIPPED=0；「门禁自测（负向对照）」stage success（4.2s）PASS=56 FAIL=0 GATE_SELFTEST=GREEN"
+      }
+    ],
+    "negative_control": {
+      "method": "全部在 $TMP 夹具副本上做，绝不碰仓库工作区；每条用 --tests <判据名> 只跑被破坏的那一条，所以「哪条判据红了」是确定事实（不是整包一起红才有意义）；破坏后必须 exit=1，还原后必须 exit=0。以下 14 条在 CI 里由 scripts/selftest-gates.sh §7 每次推送重新跑一遍。",
+      "cases": [
+        {
+          "criterion": "manifest",
+          "break": "删 items/dungeon_core.json",
+          "red_exit": 1,
+          "message": "RESOURCE_PACK_GATE=RED FAILED: manifest（清单仍有该键，items 定义没了）",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "closure",
+          "break": "删 models/item/hunt_crystal.json",
+          "red_exit": 1,
+          "message": "闭包缺模型: originalrpg:item/hunt_crystal / 孤儿纹理: textures/item/hunt_crystal.png",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "closure",
+          "break": "新增无人引用的野纹理 orphan.png",
+          "red_exit": 1,
+          "message": "孤儿纹理（任何模型都到不了）: textures/item/orphan.png",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "textures",
+          "break": "把 hunt_crystal.png 换成 16x16",
+          "red_exit": 1,
+          "message": "尺寸必须是 32x32，实际 16x16",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "textures",
+          "break": "把 hunt_crystal.png 换成 32x32 全半透明(alpha=128)",
+          "red_exit": 1,
+          "message": "alpha 不是二值，有 1024 个半透明像素（拒绝抗锯齿）",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "hud",
+          "break": "HUD 图集裁掉一列（99x9 → 98x9）",
+          "red_exit": 1,
+          "message": "图集必须是 99x9（11 枚 9x9 字形），实际 98x9",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "hud",
+          "break": "hud.json 把 U+E00A 改成 U+E00B",
+          "red_exit": 1,
+          "message": "码位必须严格是 U+E000..U+E00A 共 11 枚，实际 ... U+E009 U+E00B",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "journey",
+          "break": "journey.json 把 U+E107 改成 U+E108",
+          "red_exit": 1,
+          "message": "码位 U+E108 不在 U+E100..U+E107 之内 / 缺码位: U+E107",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "journey",
+          "break": "journey.json U+E100 指向 journey_dungeon.png（错位引用）",
+          "red_exit": 1,
+          "message": "U+E100 必须指向 originalrpg:item/journey_hub.png，实际 journey_dungeon.png",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "lang",
+          "break": "zh_cn.json 改一个资源键名",
+          "red_exit": 1,
+          "message": "只在 en_us.json 里: resourcePack.originalrpg.name / 只在 zh_cn.json 里: ...nameX",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "compass",
+          "break": "traveler_compass.json 删掉一段 entries（33→32）",
+          "red_exit": 1,
+          "message": "model.entries 必须是 33 段（26.2 罗盘 33 槽方向分发），实际 32",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "compass",
+          "break": "删掉一帧罗盘模型 traveler_compass_07.json",
+          "red_exit": 1,
+          "message": "缺帧模型: models/item/traveler_compass_07.json",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "packmeta",
+          "break": "pack.mcmeta 把 pack_format 改成 87",
+          "red_exit": 1,
+          "message": "pack.pack_format 必须是 88，实际 87",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "packmeta",
+          "break": "pack.mcmeta 声明 overlays",
+          "red_exit": 1,
+          "message": "pack.mcmeta 不得声明 overlays（包必须是自包含的单一版本）",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "自证",
+          "break": "全程结束后复跑干净夹具",
+          "red_exit": 0,
+          "message": "RESOURCE_PACK_GATE=GREEN RUN=8 SKIPPED=0（负向对照未污染任何文件）",
+          "restore_exit": 0
+        },
+        {
+          "criterion": "自证",
+          "break": "--tests 传入不存在的判据名",
+          "red_exit": 1,
+          "message": "RESOURCE_PACK_GATE=RED 一条判据都没跑（--tests 过滤写错了？）—— 防止 --tests 写错字母退化成「零判据假绿」",
+          "restore_exit": null
+        }
+      ],
+      "repo_pollution_check": "sh -c 'cd <clean-clone> && sh scripts/selftest-gates.sh; git status --short' → 输出为空"
+    },
+    "ci": {
+      "sn": "cnb-hf3-1k3u4m6nc",
+      "pipeline": "cnb-hf3-1k3u4m6nc-001",
+      "sha": "95658dc20627a78d5e58d3bd9bee6d284baa93f1",
+      "event": "push",
+      "targetRef": "agent/W7-A1-asset-gate",
+      "stages": [
+        {
+          "name": "准备下载器（必须是第一个 stage）",
+          "status": "success",
+          "duration_ms": 22015
+        },
+        {
+          "name": "门禁自测（负向对照）",
+          "status": "success",
+          "duration_ms": 4243,
+          "result": "PASS=56 FAIL=0 GATE_SELFTEST=GREEN —— §7 十四条素材负向对照 + §8 接线自证在真实 CI 上全部通过"
+        },
+        {
+          "name": "DDL 消费者门禁（G-301）",
+          "status": "success",
+          "duration_ms": 116637,
+          "result": "DDL_CONSUMER_GATE=GREEN / CMD_REFERENCE_GATE=GREEN —— 素材门禁接在它旁边，互不影响"
+        },
+        {
+          "name": "素材门禁（W7-A1）",
+          "status": "success",
+          "duration_ms": 516,
+          "result": "RESOURCE_PACK_GATE=GREEN RUN=8 SKIPPED=0（8/8 判据 OK）",
+          "log_tail": "RESOURCE_PACK_GATE: 校验 /workspace/resource-pack\n  [OK  ] manifest\n      物品定义 81 / 可达模型 119 / 可达纹理 115\n  [OK  ] closure\n      115 张物品 PNG 全部 32x32 二值 alpha\n  [OK  ] textures\n      U+E000..U+E00A 十一码位 ↔ 99x9 图集；U+E020..U+E04F 四十八码位 ↔ 432x9 图集\n  [OK  ] hud\n      U+E100..U+E107 八码位 ↔ 八张 32x32 旅程图\n  [OK  ] journey\n      en_us/zh_cn 键集合一致（各 18 键）\n  [OK  ] lang\n      33 段方向分发 ↔ 32 帧模型 + 32 帧纹理（scale=32.0 target=spawn）\n  [OK  ] compass\n      pack.mcmeta 精确声明资源格式 88（min=max=88，无 overlays）\n  [OK  ] packmeta\n  （判据：manifest closure textures hud journey lang compass packmeta）\n  RUN=8 SKIPPED=0\nRESOURCE_PACK_GATE=GREEN\nFinished, code: 0, duration: 0.5s"
+        }
+      ]
+    }
+  },
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/41",
+  "risks": [
+    "判据 4/5 只断言「码位 ↔ 图集/纹理」的静态一致性，不能证明字形在真实客户端里的最终宽度与基线位置（README 已把这件事列为客户端逐项验收第 6/7 项）。无 Paper 环境无法可靠判定，未硬写。",
+    "判据 8 只判 pack.mcmeta 自己声明的格式（min=max=88）；「与安装中的 26.2 服务端一致」要读 server/runtime/cache/mojang_26.2.jar（仓外产物，CI 无），仍由生产机 build.sh 判定。",
+    "build.sh 里那条「插件源码里直接引用的 originalrpg:* 模型键必须属于清单」依赖 rg 扫 plugins/，CI 素材门禁的边界是 runtime-item-models.txt 这份清单本身；动态拼接的模型键若从未进清单，本次门禁抓不到（那是 build.sh 的反向门禁职责）。",
+    "python3 是硬依赖（PNG 解码）。CNB 由「准备下载器」stage 安装；脚本在 python3 缺失时以 exit=2 明确失败而不是静默跳过。若未来有人调换 stage 顺序，素材门禁会红而不是假绿。",
+    "resource-pack/build.sh 与 scripts/check-resource-pack.sh 仍是两套实现（前者 bash+jq+java，后者 sh+python3）。已在 resource-pack/README.md 写明口径优先级以避免漂移，但机械上无法阻止未来有人在 build.sh 里另写一套逻辑。"
+  ],
+  "unproven": [
+    "HUD 十一个码位与八枚旅程图标在真实客户端里的实际字形宽度/基线（需 Paper + 客户端，[R]/[H]）。",
+    "pack.mcmeta 格式 88 与安装中的 26.2 服务端 version.json 的一致性（需仓外 mojang jar）。",
+    "罗盘四向转针在客户端手持/热栏/背包视角下的最终手感（README 客户端验收第 5 项）。",
+    "本次未跑 ./gradlew compileJava / test / assemble：改动只落在 .cnb.yml + scripts/ + resource-pack/README.md，不触碰任何 Java 源码或构建脚本，编译与测试门的结果不受影响（且本环境无 JDK）。"
+  ],
+  "blockers": [],
+  "next_steps": [
+    "在 CNB 上触发质量门，确认「素材门禁（W7-A1）」stage 打印 RESOURCE_PACK_GATE=GREEN 且 SECONDS>0。",
+    "可选加固：把 build.sh 里重叠的判据改成调用本脚本的对应 --check（或反过来，让 build.sh 在打包前先跑一次 sh scripts/check-resource-pack.sh 做预检），彻底消除两套实现漂移的可能。",
+    "可选加固：为 resource-pack/assets/betterhud/（60+ 张 glyph PNG、YAML 布局）补一条静态门禁 —— 本任务按「①至少覆盖 a-g」的范围收了 items/models/textures/font/lang，betterhud 侧未纳入。",
+    "docs/RESOURCE_PACK_QA.md 提到「生产目录共有 79 个物品定义 / 81 张顶层物品纹理 / 113 张含罗盘 32 帧的纹理」，与本次实测（81 个 items 定义 / 115 张物品纹理 / 119 个模型）不一致 —— 文档数字陈旧，不在本任务 allowed_paths 内未改，建议由文档准确性任务订正。"
+  ]
+}

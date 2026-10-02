@@ -1102,6 +1102,23 @@ public final class Database implements AutoCloseable {
                 """,
                 "CREATE INDEX IF NOT EXISTS idx_rpg_equipment_lifecycle_audit_item"
                         + " ON rpg_equipment_lifecycle_audit (item_id, created_at)",
+                // W6-A2：C-008 第五条退出路径「赛季调谐」的落库记录。
+                // 幂等键唯一：换季结算重放同一结算 id 时命中唯一键，不二次推进状态。
+                """
+                CREATE TABLE IF NOT EXISTS rpg_season_attunements (
+                    id VARCHAR(36) PRIMARY KEY,
+                    idempotency_key VARCHAR(96) UNIQUE NOT NULL,
+                    season_id VARCHAR(32) NOT NULL,
+                    item_id VARCHAR(36) NOT NULL,
+                    owner_uuid VARCHAR(36) NOT NULL,
+                    state VARCHAR(24) NOT NULL,
+                    action VARCHAR(24) NOT NULL,
+                    reason VARCHAR(160) NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_rpg_season_attunements_owner"
+                        + " ON rpg_season_attunements (season_id, owner_uuid)",
         };
 
         try (Connection connection = dataSource.getConnection()) {

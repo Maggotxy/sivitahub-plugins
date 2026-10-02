@@ -92,7 +92,8 @@ public final class SchemaManifest {
             "rpg_session_leases",
             "rpg_outbox",
             "rpg_equipment_states",
-            "rpg_equipment_lifecycle_audit"
+            "rpg_equipment_lifecycle_audit",
+            "rpg_season_attunements"
     );
 
     private static final Map<String, List<List<String>>> UNIQUE_KEYS = buildUniqueKeys();
@@ -132,6 +133,8 @@ public final class SchemaManifest {
         keys.put("rpg_merit_ledger", List.of(List.of("idempotency_key")));
         keys.put("rpg_market_listings", List.of(List.of("open_item_identity")));
         keys.put("rpg_equipment_operations", List.of(List.of("debit_key")));
+        // W6-A2：赛季调谐的幂等键 —— 换季结算重放命中唯一键，不二次推进状态。
+        keys.put("rpg_season_attunements", List.of(List.of("idempotency_key")));
         keys.put("rpg_merchant_ledger", List.of(List.of("idempotency_key")));
         keys.put("rpg_pet_bond_ledger", List.of(List.of("idempotency_key")));
         keys.put("rpg_pet_revival_intents", List.of(
@@ -205,6 +208,7 @@ public final class SchemaManifest {
         indexes.put("rpg_community_project_rewards", List.of(List.of("community_id", "period_key")));
         indexes.put("rpg_equipment_states", List.of(List.of("owner_uuid", "state")));
         indexes.put("rpg_equipment_lifecycle_audit", List.of(List.of("item_id", "created_at")));
+        indexes.put("rpg_season_attunements", List.of(List.of("season_id", "owner_uuid")));
         indexes.put("rpg_season_settlement_transitions", List.of(List.of("settlement_id", "created_at")));
         // Phase 8：单实例多服前置。两张表与它们的运行索引同批落库（Database.java 建表语句尾部），
         // 迁移前必须登记，否则 H2 → PostgreSQL 会静默搬进一个丢掉热路径索引的库。

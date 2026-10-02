@@ -9,7 +9,7 @@ softdepend: [GriefPrevention]
 commands:
   market:
     description: Escrow market for equipment and high-value items.
-    usage: /market [list [page]|sell [price]|mine|buy <listing-id>|cancel <listing-id>|claim|stall <create|remove>]
+    usage: /market [list [page]|sell [price]|mine|buy <listing-id>|cancel <listing-id>|buyorder <place|list|cancel>|claim|stall <create|remove>]
     permission: rpg.market
 permissions:
   rpg.market:

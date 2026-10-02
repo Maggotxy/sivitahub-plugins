@@ -37,7 +37,11 @@ public final class DestroyRules {
      */
     public static boolean outcomeIsTerminal(EquipmentOperationKind kind) {
         if (!descendsToTerminal(kind)) return false;
+        // W6-A2：SEASON_ATTUNEMENT 不是玩家操作，没有「持有态种子」，结果态由
+        // 换季结算侧的 EquipmentStateLedger#attune 写入，也不属于「分解到底」。
+        // 这里显式排除，免得将来有人误把它接进销毁的终态口径。
         EquipmentLifecycle.State from = EquipmentLifecycle.seedForOperation(kind);
+        if (from == null) return false;
         EquipmentLifecycle.State outcome = EquipmentLifecycle.afterOperation(kind, from);
         return outcome != null && EquipmentLifecycle.descendsToTerminalExit(from, outcome);
     }

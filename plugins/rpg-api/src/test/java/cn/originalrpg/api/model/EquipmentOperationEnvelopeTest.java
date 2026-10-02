@@ -89,7 +89,10 @@ class EquipmentOperationEnvelopeTest {
                         EquipmentOperationKind.SALVAGE,
                         // W3-A3：DESTROY 只允许追加在末尾，既有序号是 PDC 恢复
                         // 信封的持久化语义，改一个位置就会把在途操作解码成另一个操作。
-                        EquipmentOperationKind.DESTROY
+                        EquipmentOperationKind.DESTROY,
+                        // W6-A2：赛季调谐同样只追加在末尾，且它不是玩家操作
+                        // （触发者是换季结算），因此不会有恢复信封携带它。
+                        EquipmentOperationKind.SEASON_ATTUNEMENT
                 },
                 EquipmentOperationKind.values());
     }

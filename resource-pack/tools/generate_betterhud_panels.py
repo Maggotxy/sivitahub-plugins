@@ -155,20 +155,22 @@ def skill_panel() -> None:
 
 
 def selected_frame() -> None:
-    image = Image.new("RGBA", (21, 21), (0, 0, 0, 0))
+    # 与 docs/reference/hud-layout.json 的 slot.iconBox 同格：21x21 比槽位宽 3px，
+    # 会压到相邻槽之间的 4px 间隙。
+    image = Image.new("RGBA", (18, 18), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     # Four corner brackets read as selection without becoming a fifth frame.
     gold = (246, 194, 78, 255)
     light = (255, 232, 139, 255)
     for lines in (
-        ((0, 0, 5, 0), (0, 0, 0, 5)),
-        ((15, 0, 20, 0), (20, 0, 20, 5)),
-        ((0, 20, 5, 20), (0, 15, 0, 20)),
-        ((15, 20, 20, 20), (20, 15, 20, 20)),
+        ((0, 0, 4, 0), (0, 0, 0, 4)),
+        ((13, 0, 17, 0), (17, 0, 17, 4)),
+        ((0, 17, 4, 17), (0, 13, 0, 17)),
+        ((13, 17, 17, 17), (17, 13, 17, 17)),
     ):
         draw.line(lines[0], fill=gold)
         draw.line(lines[1], fill=gold)
-    draw.line((5, 1, 15, 1), fill=light)
+    draw.line((5, 1, 12, 1), fill=light)
     save(image, "sivita_skill_selected.png")
 
 
@@ -206,7 +208,18 @@ def class_badge() -> None:
     save(image, "sivita_class_badge.png")
 
 
+def padded(image: Image.Image, width: int = 18, height: int = 18) -> Image.Image:
+    """把窄画布居中放进契约尺寸，透明留白而不是拉伸像素。"""
+    if image.size == (width, height):
+        return image
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    canvas.alpha_composite(image, ((width - image.width) // 2, (height - image.height) // 2))
+    return canvas
+
+
 def icon_canvas(accent: tuple[int, int, int, int]) -> tuple[Image.Image, ImageDraw.ImageDraw]:
+    # 语义图标画布 = docs/reference/hud-layout.json 的 icon 宽高；内容仍画在 16px 内圈，
+    # 左右各留 1px 透明，使 18px 的图标与 29px 的职业徽章共用同一套留白规则。
     image = Image.new("RGBA", (18, 18), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     draw.polygon(((4, 1), (13, 1), (16, 4), (16, 13), (13, 16), (4, 16), (1, 13), (1, 4)),
@@ -379,9 +392,9 @@ def semantic_icons() -> None:
     these independent 18px images so each class and skill keeps a crisp shape.
     """
     for class_id in CLASSES:
-        save(class_icon(class_id), f"sivita_icon_class_{class_id}.png")
+        save(padded(class_icon(class_id)), f"sivita_icon_class_{class_id}.png")
     for skill_id in SKILLS:
-        save(skill_icon(skill_id), f"sivita_icon_skill_{skill_id}.png")
+        save(padded(skill_icon(skill_id)), f"sivita_icon_skill_{skill_id}.png")
 
     base = Image.open(HUD_ATLAS).convert("RGBA")
     if base.size[1] != 9 or base.size[0] < 9 * 9:

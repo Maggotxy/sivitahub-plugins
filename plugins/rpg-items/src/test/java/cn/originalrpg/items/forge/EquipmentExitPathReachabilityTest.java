@@ -13,25 +13,26 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * C-008 逐路径可达性合同：声明出的每条退出路径，要么有 src/main 生产入口，
  * 要么被明确断言为「当前无入口」并说明了理由。
  *
- * <p>W3-A3 的验收点就在这里：{@code DESTROYED} 这条路径必须真的接了线，
- * 而 {@code SEASON_ATTUNED} 属于赛季终局内容，当前 Phase 下确实没有触发者——
- * 测试断言的是「没有」，不是假装它有。</p>
+ * <p>W3-A3 的验收点在这里：{@code DESTROYED} 必须有 src/main 生产入口。
+ * W6-A2 之后 {@code SEASON_ATTUNED} 也接了线，但触发者是换季结算，不是玩家指令：
+ * 因此在 rpg-items 里它的正确形态是「仍然零入口」，玩家可见面必须继续为空。</p>
  */
 class EquipmentExitPathReachabilityTest {
     private static final Path ROOT = repositoryRoot();
 
-    /** C-008 里「调谐」这条退出路径在当前 Phase 下唯一允许出现的位置：状态机自身。 */
+    /** C-008 里「调谐」这条退出路径在装备插件里唯一允许出现的位置：状态机自身（经 rpg-api 依赖）。 */
     private static final String LIFECYCLE_ONLY =
             "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java";
 
     @Test
-    void destroyedHasAProductionEntryPointAndSeasonAttunementStillDoesNot() throws IOException {
+    void destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin() throws IOException {
         List<String> producers = productionReferences("DESTROYED");
         assertTrue(producers.stream().anyMatch(path -> path.contains("/forge/DestroyCommand.java")),
                 "DESTROYED 必须有 src/main 生产入口，实际命中：" + producers);
@@ -43,33 +44,39 @@ class EquipmentExitPathReachabilityTest {
         assertTrue(delivery.stream().anyMatch(path -> path.contains("/forge/DestroyCommand.java")),
                 "销毁指令必须显式走邮箱通道，实际命中：" + delivery);
 
-        // 赛季调谐至今没有任何 src/main 消费者：只命中状态机自身。
-        assertEquals(List.of(LIFECYCLE_ONLY), productionReferences("SEASON_ATTUNED"),
-                "SEASON_ATTUNED 若出现新消费者，必须同时补上内容管线接线与测试");
-        // 连注释里提及也不许出现：状态机的 TODO 是唯一允许的登记处。
-        assertEquals(List.of(LIFECYCLE_ONLY), productionReferences("赛季调谐"),
-                "赛季调谐未接线，不得先在 rpg-items 里写出占位分支或占位配置");
+        // W6-A2：赛季调谐已接线，但触发者是换季结算（rpg-core/EquipmentStateLedger#attune），
+        // 因此 rpg-items 里它仍然零出现。
+        assertFalse(productionReferences("SEASON_ATTUNED").stream()
+                        .anyMatch(path -> path.startsWith("plugins/rpg-items/")),
+                "赛季调谐没有玩家入口：装备插件里不得出现 SEASON_ATTUNED 分支");
+        assertFalse(productionReferences("赛季调谐").stream()
+                        .anyMatch(path -> path.startsWith("plugins/rpg-items/")),
+                "赛季调谐不在装备插件里落地：状态机的接线登记是唯一允许的提及处");
+        // 消费者在 rpg-core：触发者必须是换季结算，且经唯一权威状态机写入。
+        assertTrue(productionReferences("SEASON_ATTUNED").stream()
+                        .anyMatch(path -> path.endsWith("/EquipmentStateLedger.java")),
+                "赛季调谐必须有真实消费者：" + productionReferences("SEASON_ATTUNED"));
     }
 
     @Test
     void seasonAttunementHasNeitherCommandNorConfigurationSurface() throws IOException {
-        // 「没有触发者」必须在玩家可见面上也成立：没有指令、没有 config 键、
+        // 「没有玩家入口」必须在玩家可见面上也成立：没有指令、没有 config 键、
         // 没有插件注册。只断言 Java 标识符会漏掉「顺手加个 /attune 占位指令」。
         String pluginYml = Files.readString(ROOT.resolve("plugins/rpg-items/src/main/resources/plugin.yml"),
                 StandardCharsets.UTF_8);
         for (String forbidden : List.of("attune", "attunement", "赛季调谐")) {
             assertFalse(pluginYml.toLowerCase(java.util.Locale.ROOT).contains(forbidden.toLowerCase(
                             java.util.Locale.ROOT)),
-                    "rpg-items/plugin.yml 不得为未接线的赛季调谐注册指令：" + forbidden);
+                    "赛季调谐的触发者是换季结算，不得为它注册玩家指令：" + forbidden);
         }
         String config = Files.readString(ROOT.resolve("plugins/rpg-items/src/main/resources/config.yml"),
                 StandardCharsets.UTF_8);
         assertFalse(config.contains("attun"),
-                "rpg-items/config.yml 不得为未接线的赛季调谐预留配置键");
+                "rpg-items/config.yml 不得为赛季调谐预留配置键（开关在 rpg-core）");
         String bootstrap = Files.readString(ROOT.resolve(
                 "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java"), StandardCharsets.UTF_8);
         assertFalse(bootstrap.contains("Attun"),
-                "未接线功能不得在插件启动路径里注册消费者");
+                "赛季调谐的触发者在 rpg-core，装备插件启动路径不得注册任何消费者");
     }
 
     @Test
@@ -86,30 +93,46 @@ class EquipmentExitPathReachabilityTest {
         assertTrue(wired.get("SALVAGED"), "分解必须已接线");
         assertTrue(wired.get("LEGACY_EXTRACTED"), "传承必须已接线");
         assertTrue(wired.get("DESTROYED"), "明确销毁必须已接线");
-        // SACRIFICED 与 SEASON_ATTUNED 允许未接线，但必须是「唯一命中状态机自身」，
-        // 而不是散落在一个半成品实现里。
-        assertFalse(wired.get("SEASON_ATTUNED"), "赛季调谐当前无入口（见 EquipmentLifecycle 的 TODO）");
+        // SACRIFICED 仍是预留态；SEASON_ATTUNED 已在 rpg-core 接线（消费者是
+        // 换季结算与状态机账本），但装备插件里依然零出现（玩家零入口）。
+        assertTrue(wired.get("SEASON_ATTUNED"),
+                "赛季调谐必须已有真实触发者（换季结算），否则 C-008 的第五条退出路径仍是纸面条款");
+        assertFalse(productionReferences("SEASON_ATTUNED").stream()
+                        .anyMatch(path -> path.startsWith("plugins/rpg-items/")),
+                "赛季调谐不得在 rpg-items 里出现消费者（触发者是换季结算）");
         assertEquals(List.of(LIFECYCLE_ONLY), productionReferences("SACRIFICED"));
     }
 
-    /** 该状态在本仓 src/main 里是否存在非状态机自身的消费者。 */
+    /**
+     * 该状态在本仓 src/main 里是否存在非状态机自身的消费者。
+     *
+     * <p>W6-A2 起赛季调谐的消费者在 rpg-core（换季结算 + 状态机账本），
+     * 因此这里看的是全仓，而不是只看装备插件：只看装备插件会把「已经接线」
+     * 误判成「没接线」。</p>
+     */
     private static boolean wiredIn(String state) throws IOException {
         return productionReferences(state).stream().anyMatch(path -> !path.equals(LIFECYCLE_ONLY));
     }
 
     @Test
     void seasonAttunementHasNoPersistedProducerInTheEquipmentPlugin() throws IOException {
-        // 状态机不会为 SEASON_ATTUNED 生成任何结果态，因此它无法被任何玩家操作触发。
+        // 没有任何 EquipmentOperationKind 会把装备推进 SEASON_ATTUNED：调谐由换季
+        // 结算侧直接消费状态机写入，不经过玩家操作的 outbox，也没有持有态种子。
         for (EquipmentOperationKind kind : EquipmentOperationKind.values()) {
-            EquipmentLifecycle.State outcome = EquipmentLifecycle.afterOperation(
-                    kind, EquipmentLifecycle.seedForOperation(kind));
-            assertFalse(outcome == EquipmentLifecycle.State.SEASON_ATTUNED,
-                    kind + " 不应把装备直接推进赛季调谐：该路径尚无生产入口");
+            EquipmentLifecycle.State seed = EquipmentLifecycle.seedForOperation(kind);
+            if (kind == EquipmentOperationKind.SEASON_ATTUNEMENT) {
+                assertNull(seed, "赛季调谐不是玩家操作，不得有可推断的种子态");
+                assertNull(EquipmentLifecycle.afterOperation(kind, EquipmentLifecycle.State.BOUND),
+                        "赛季调谐不得经玩家操作 outbox 产出结果态");
+            }
+            assertFalse(EquipmentLifecycle.afterOperation(kind, seed)
+                            == EquipmentLifecycle.State.SEASON_ATTUNED,
+                    kind + " 不应把装备直接推进赛季调谐：触发者只能是换季结算");
         }
         String source = Files.readString(ROOT.resolve(
                 "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java"), StandardCharsets.UTF_8);
         assertFalse(source.contains("SEASON_ATTUNED"),
-                "rpg-items 里不得出现未接线的赛季调谐分支");
+                "rpg-items 里不得出现赛季调谐分支（触发者在 rpg-core）");
     }
 
     @Test

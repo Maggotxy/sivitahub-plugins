@@ -87,6 +87,35 @@
           #   scripts/selftest-gates.sh §4 —— 缺表 → RED、显式豁免 → GREEN 可审计。
           # 注意：脚本跑在 sh(dash) 下，不要用 bash 专有语法。
           sh scripts/check-ddl-consumers.sh
+      - name: 素材门禁（W7-A1）
+        script: |
+          set -e
+          # resource-pack/ 在 2026-10-02 入库，但它的校验只存在于生产机的
+          # resource-pack/build.sh 里 —— 那一版依赖 Paper / server/ / zip / rg / jq，
+          # 在 CNB 里跑不起来。结果是**素材可以坏着进 main 而没有任何人知道**：
+          # 删一个 items 定义、把某张 PNG 改成 16x16、把 HUD 图集裁掉一列、
+          # 改一个 lang 键，都要等生产机下一次 build.sh 才被发现。
+          #
+          # 本 stage 是仓内静态子集，放在 DDL 门禁旁边（都属于「不做任何编译就能
+          # 判定」的结构性门禁，早失败早修）：
+          #   1. runtime-item-models.txt 与 items/*.json 一一对应
+          #   2. item 定义 → model → texture 闭包（孤儿模型 / 孤儿纹理都要报）
+          #   3. 物品 PNG 全部 32x32 且 alpha 只有 0/255
+          #   4. font/hud.json U+E000..U+E00A 十一码位 ↔ 99x9 图集
+          #   5. font/journey.json U+E100..U+E107 八码位 ↔ 八张旅程图
+          #   6. en_us.json 与 zh_cn.json 键集合一致
+          #   7. traveler_compass 的 26.2 33 段方向分发 ↔ 32 帧模型 / 纹理
+          #
+          # 依赖：只用 POSIX sh + python3（PNG 解码与 JSON 解析走 stdlib）。
+          # **不用 jq、不用 ImageMagick** —— eclipse-temurin 镜像里没有，
+          # 也不该为素材门禁引入新依赖。python3 由最上面的「准备下载器」stage 装。
+          #
+          # 这些判据自身也被「门禁自测（负向对照）」stage 覆盖：
+          # scripts/selftest-gates.sh §7 对每条判据各做一次
+          # 「破坏 → 必须红 → 还原 → 必须绿」，所以它们不会退化成恒绿假门禁。
+          chmod +x scripts/*.sh scripts/*.py
+          sh scripts/check-resource-pack.sh
+
       - name: compile
         script: |
           set -e
