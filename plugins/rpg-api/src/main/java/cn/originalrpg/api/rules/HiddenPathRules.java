@@ -15,8 +15,17 @@ public final class HiddenPathRules {
         };
     }
 
+    /**
+     * 血契（BLOODPACT）的前置技能 {@code vanished-horizon} 是刺客三转汇合分支
+     * {@code unseen} 的技术（分支 stage 3，与技能门由 validateCatalog 强制相等），
+     * 路线门低于前置门就会永久不可达（G-106）。因此血契与前置一起定在三转。
+     * 符箓（TALISMAN）的前置 {@code rune-reversal} 挂在二转分支 rune-scholar，保持二转。
+     */
     public static int minimumAscension(HiddenPath path) {
-        return 2;
+        return switch (path) {
+            case BLOODPACT -> 3;
+            case TALISMAN -> 2;
+        };
     }
 
     public static int minimumLevel(HiddenPath path) {

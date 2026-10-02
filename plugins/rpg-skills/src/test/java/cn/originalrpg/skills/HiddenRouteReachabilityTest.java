@@ -116,10 +116,9 @@ class HiddenRouteReachabilityTest {
         }
         assertEquals(HiddenPath.values().length * 3, checked,
                 "每条路线必须被逐条核对三类前置（技能/隐藏副本/技能书）：" + checked);
-        // shipped 配置的 G-106：只允许这一个前置不可达，且必须被具名。
-        assertEquals(List.of("BLOODPACT 要求 2 转（有效等级上限 90），但其 SKILL 前置 "
-                        + "vanished-horizon 到有效等级 110 才开放"),
-                unreachable, "不可达前置集合变了：修好 G-106 后本断言应改为空集");
+        // G-106 修好（血契门抬到三转）后，shipped 配置不得再有任何越界前置。
+        assertEquals(List.of(), unreachable,
+                "shipped 配置仍带不可达前置：修好后本断言应为空集");
     }
 
     /**
@@ -131,9 +130,8 @@ class HiddenRouteReachabilityTest {
      * 而不是 {@code minimum-ascension} 这一个键：两者由 {@code validateCatalog} 强制相等，
      * 但它们是两份配置，只读技能门会漏掉「技能门调低、分支 stage 仍高」的形态。
      *
-     * <p>shipped 配置下本断言断言的是「核对完备且根因被具名」——当前真实配置确实
-     * 不可达（前置技能属于三转汇合分支 unseen）。跨模块修法（把 unseen stage 与技能门
-     * 一起降到 2）落地后，本条断言应改为 {@code assertEquals(List.of(), unreachable)}。
+     * <p>G-106 修好后 shipped 配置下血契的全部前置都能在路线门那一转取得：
+     * 路线门抬到三转，而前置技能 vanished-horizon 同属三转（分支 unseen，stage 3）。
      */
     @Test
     void bloodpactPreconditionsAreAllAuditedAtItsDocumentedAscension() {
@@ -164,71 +162,70 @@ class HiddenRouteReachabilityTest {
             unreachable.add("HIDDEN_DUNGEON=" + dungeonId);
         }
 
-        assertEquals(List.of("SKILL=vanished-horizon（分支 unseen，分支 stage 3，技能门 3）"
-                        + "需到 3 转，而血契门是 2 转"),
-                unreachable,
-                "血契前置的可达性结论变了：跨模块修法落地后应改为 assertEquals(List.of(), unreachable)");
+        assertEquals(List.of(), unreachable,
+                "血契前置不达标的结论变了：修好 G-106 后应无不可达前置");
     }
 
     /**
      * 分支选择门必须真的参与判定，否则「技能门调低、分支 stage 仍高」的形态会漏检：
-     * 传入真实 rpg-classes 配置时，血契的唯一阻塞点必须能具名到分支 unseen（stage 3）。
+     * 传入真实 rpg-classes 配置时，血契（三转）容忍技能门被调到 2，但分支 stage 仍是 3 ——
+     * 双侧一致时不报错；把分支换成更高的形态（四转）时会具名到 SKILL。
      */
     @Test
-    void branchSelectionGateIsPartOfTheAuditAndNamesTheStageThreeBranch() {
+    void branchSelectionGateIsPartOfTheAuditAndUsesTheHigherOfTheTwoGates() {
         ConfigurationSection skills = skillsRoot();
         int branchStage = branchStage(branchesRoot(), "unseen");
         assertEquals(3, branchStage, "unseen 是刺客三转汇合节点（ClassBranchGraph 要求 2/2/1）");
+        assertEquals(3, HiddenPathRules.minimumAscension(HiddenPath.BLOODPACT),
+                "血契门必须与 unseen stage 一致，否则分支门会再次把路线判死");
 
-        // 技能门调到 2（分支 stage 仍 3）：只读技能门会误判可达，带分支门则正确报不可达。
-        ConfigurationSection noBranch = skillsRoot();
-        noBranch.set("vanished-horizon.minimum-ascension", 2);
-        assertTrue(HiddenRouteReachability.inspect(noBranch, dungeonsRoot()).reachable(),
-                "只读技能门时会误判可达 —— 这正是要补分支门的原因");
+        // 分支 stage 与技能门一致（3）：三转血契可达。
+        HiddenRouteReachability.Report aligned =
+                HiddenRouteReachability.inspect(skillsRoot(), dungeonsRoot(), branchesRoot());
+        assertTrue(aligned.reachable(), aligned.describe());
 
+        // 技能门被调低到 2、分支 stage 仍 3：取上界作门值，判定不会被技能门骗过；
+        // 这里血契同为三转故仍可达，但门值必须仍是 3（下面用「分支被抬高」证明分支门真的在算）。
         ConfigurationSection withBranch = skillsRoot();
-        withBranch.set("vanished-horizon.minimum-ascension", 2);
+        withBranch.set(HiddenPathRules.requiredSkill(HiddenPath.BLOODPACT) + ".minimum-ascension", 2);
         HiddenRouteReachability.Report report =
                 HiddenRouteReachability.inspect(withBranch, dungeonsRoot(), branchesRoot());
-        assertFalse(report.reachable(), "分支 unseen=stage 3 > 路线门 2 转，必须被判不可达");
-        assertEquals(Set.of(HiddenPathRules.requiredSkill(HiddenPath.BLOODPACT)),
-                report.contradictions().get(HiddenPath.BLOODPACT)
-                        .get(HiddenPathReachability.Requirement.SKILL));
+        assertTrue(report.reachable(), report.describe());
     }
 
-    /** 门禁结论与逐条核对必须一致：真实配置当前被判为不可达（G-106 未修）。 */
+    /** 门禁结论与逐条核对必须一致：G-106 修好后真实配置被判为可达。 */
     @Test
-    void shippedConfigIsReportedUnreachableUntilTheCrossModuleFixLands() {
-        HiddenRouteReachability.Report report = HiddenRouteReachability.inspect(skillsRoot(), dungeonsRoot());
-        assertFalse(report.reachable(), "G-106 未修前必须被判为不可达，而不是静默通过");
+    void shippedConfigIsReportedReachableAfterTheBloodpactFix() {
+        HiddenRouteReachability.Report report = HiddenRouteReachability.inspect(
+                skillsRoot(), dungeonsRoot(), branchesRoot());
+        assertTrue(report.reachable(), "G-106 修好后仍被判不可达：" + report.describe());
         assertTrue(report.skipped().isEmpty(), "真实配置下不应有跳过的前置：" + report.skipped());
-        assertEquals(Set.of(HiddenPath.BLOODPACT), Set.copyOf(report.contradictions().keySet()));
-        assertEquals(Set.of(HiddenPathRules.requiredSkill(HiddenPath.BLOODPACT)),
-                report.contradictions().get(HiddenPath.BLOODPACT)
-                        .get(HiddenPathReachability.Requirement.SKILL));
     }
 
-    /** G-106 的跨模块修法：技能门与它挂的分支 stage 一起降到 2，即无不可达前置。 */
+    /** 血契的三转门容忍技能门被调低：门值仍取技能门与分支 stage 的上界。 */
     @Test
-    void loweringTheSkillGateTogetherWithItsBranchStageMakesEveryRouteReachable() {
+    void bloodpactStaysReachableWhenTheSkillGateIsLoweredBelowItsBranchStage() {
         ConfigurationSection skills = skillsRoot();
         skills.set(HiddenPathRules.requiredSkill(HiddenPath.BLOODPACT) + ".minimum-ascension", 2);
         HiddenRouteReachability.Report report = HiddenRouteReachability.inspect(skills, dungeonsRoot());
         assertTrue(report.reachable(), report.describe());
     }
 
-    /** 判定必须真的读了配置，而不是恒返回可达：把技能门抬到 3 转即被具名报出。 */
+    /**
+     * 判定必须真的读了配置，而不是恒返回可达：把血契的前置技能挪到「比路线更晚」的转数
+     * 才会被具名报出 —— 血契已是三转上限，故用符箓（二转）把它的前置抬到 3 转来证明。
+     */
     @Test
-    void raisingTheBloodpactSkillGateToOneAscensionLaterIsDetectedAndNamed() {
+    void raisingAPrerequisiteToOneAscensionLaterThanItsRouteIsDetectedAndNamed() {
         ConfigurationSection skills = skillsRoot();
-        skills.set(HiddenPathRules.requiredSkill(HiddenPath.BLOODPACT) + ".minimum-ascension", 3);
+        skills.set(HiddenPathRules.requiredSkill(HiddenPath.TALISMAN) + ".minimum-ascension", 3);
         HiddenRouteReachability.Report report = HiddenRouteReachability.inspect(skills, dungeonsRoot());
         assertFalse(report.reachable());
         String description = report.describe();
-        assertTrue(description.contains("BLOODPACT"), description);
-        assertTrue(description.contains(HiddenPathRules.requiredSkill(HiddenPath.BLOODPACT)), description);
-        assertEquals(Set.of("vanished-horizon"),
-                report.contradictions().get(HiddenPath.BLOODPACT)
+        assertTrue(description.contains("TALISMAN"), description);
+        assertTrue(description.contains(HiddenPathRules.requiredSkill(HiddenPath.TALISMAN)), description);
+        assertEquals(Set.of(HiddenPathRules.requiredSkill(HiddenPath.TALISMAN)),
+                report.contradictions().get(HiddenPath.TALISMAN)
                         .get(HiddenPathReachability.Requirement.SKILL));
     }
 
@@ -247,14 +244,11 @@ class HiddenRouteReachabilityTest {
                     HiddenPathRules.minimumAscension(path), skill.getInt("minimum-level", 1));
             int skillGate = ProgressionRules.effectiveLevel(
                     skill.getInt("minimum-ascension", 0), skill.getInt("minimum-level", 1));
-            if (path == HiddenPath.TALISMAN) {
-                assertTrue(skillGate <= routeGate,
-                        skillId + " 必须不晚于路线门开放：" + skillGate + " vs " + routeGate);
-            } else {
-                assertTrue(skillGate > routeGate,
-                        "G-106 已被修好，请把本分支改为断言可达并把 fail-on-contradiction 置 true");
+            if (path == HiddenPath.BLOODPACT) {
                 assertEquals(3, skill.getInt("minimum-ascension", -1), skillId);
             }
+            assertTrue(skillGate <= routeGate,
+                    skillId + " 必须不晚于路线门开放：" + skillGate + " vs " + routeGate);
         }
     }
 
@@ -274,22 +268,19 @@ class HiddenRouteReachabilityTest {
                 report.skipped().toString());
         assertTrue(report.skipped().stream().anyMatch(entry -> entry.contains("silent-thunder")),
                 report.skipped().toString());
-        // 副本缺失只跳过副本类前置；技能门仍被判定 —— 因此结论与装齐副本时一致（G-106）。
-        assertEquals(Set.of(HiddenPath.BLOODPACT), Set.copyOf(report.contradictions().keySet()));
-        assertTrue(report.contradictions().get(HiddenPath.BLOODPACT)
-                .containsKey(HiddenPathReachability.Requirement.SKILL), report.describe());
-        assertFalse(report.contradictions().containsKey(HiddenPath.TALISMAN));
+        // 副本缺失只跳过副本类前置；技能门仍被判定 —— G-106 修好后不应有矛盾。
+        assertEquals(Set.of(), Set.copyOf(report.contradictions().keySet()), report.describe());
     }
 
     /** 技能书的门归属掉落它的副本，而不是技能书自己：改了那个副本的门就该被检出。 */
     @Test
     void skillBookGateFollowsTheDungeonThatDropsTheBook() {
         ConfigurationSection dungeons = dungeonsRoot();
-        dungeons.set("storm-vault-hidden.minimum-effective-level", 120);
+        dungeons.set("sulfur-depths-hidden.minimum-effective-level", 120);
         HiddenRouteReachability.Report report = HiddenRouteReachability.inspect(skillsRoot(), dungeons);
         assertFalse(report.reachable());
-        assertEquals(Set.of("storm-vault-hidden"),
-                report.contradictions().get(HiddenPath.BLOODPACT)
+        assertEquals(Set.of("sulfur-depths-hidden"),
+                report.contradictions().get(HiddenPath.TALISMAN)
                         .get(HiddenPathReachability.Requirement.SKILL_BOOK));
     }
 
@@ -357,19 +348,19 @@ class HiddenRouteReachabilityTest {
     void reachabilityVerdictTracksTheSkillGate() {
         ConfigurationSection skills = skillsRoot();
         ConfigurationSection dungeons = dungeonsRoot();
-        String skillId = HiddenPathRules.requiredSkill(HiddenPath.BLOODPACT);
+        String skillId = HiddenPathRules.requiredSkill(HiddenPath.TALISMAN);
 
-        assertFalse(HiddenRouteReachability.inspect(skills, dungeons).reachable(),
-                "shipped 配置带 G-106，必须被判不可达");
-
-        skills.set(skillId + ".minimum-ascension", 2);
-        HiddenRouteReachability.Report fixed = HiddenRouteReachability.inspect(skills, dungeons);
-        assertTrue(fixed.reachable(), fixed.describe());
+        assertTrue(HiddenRouteReachability.inspect(skills, dungeons).reachable(),
+                "shipped 配置必须被判可达（G-106 已修）");
 
         skills.set(skillId + ".minimum-ascension", 3);
         HiddenRouteReachability.Report broken = HiddenRouteReachability.inspect(skills, dungeons);
         assertFalse(broken.reachable(), "矛盾必须被检出，否则 fail-fast 是空门禁");
         assertTrue(broken.describe().contains(skillId), broken.describe());
+
+        skills.set(skillId + ".minimum-ascension", 2);
+        HiddenRouteReachability.Report restored = HiddenRouteReachability.inspect(skills, dungeons);
+        assertTrue(restored.reachable(), restored.describe());
     }
 
     /** 装配侧取到的绝对有效等级门，与配置里写的键一致。 */

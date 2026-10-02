@@ -25,16 +25,14 @@ hud:
 # 有效等级天梯上兼容，否则路线永久不可达 —— 这是「声明了但拿不到」的整类矛盾。
 # fail-on-contradiction: true 表示矛盾直接让 RpgSkills 启动失败（fail-fast），
 # 而不是让一条拿不到的路线静默上线。
-# 当前为 false 的唯一原因：shipped 配置仍带 G-106（血契路线门=二转，但它要求的前置技能
-# vanished-horizon 是刺客三转汇合节点技术，见下方 skills.vanished-horizon 的完整证据链）。
-# 判定结论是「隐藏路线前置选错技能」（不是该技能数值错）；修法必须跨模块 ——
-# 改 rpg-classes 的分支图，或改 HiddenPathRules.requiredSkill 并同步 rpg-core 行为测试与文档，
-# 两者都在 plugins/rpg-skills 之外。因此在修法落地前保持告警，避免把服务器挡在启动之外。
-# 判据已升级为「技能门 + 分支选择门」双读：分支 stage 高于路线门也会被拦住
+# G-106 已修：血契路线门抬到三转（HiddenPathRules.minimumAscension=3），与其前置技能
+# vanished-horizon 所属刺客三转汇合分支 unseen（stage 3）一致，故置 fail-fast，
+# 今后同类矛盾会直接挡住启动。这是本地按人类授权做出的设计裁决，可回滚（见 PR「如需回滚」）。
+# 判据为「技能门 + 分支选择门」双读：分支 stage 高于路线门也会被拦住
 # （见 HiddenRouteReachability.branchStage，测试 branchSelectionGateIsPartOfTheAudit...）。
 hidden-route-reachability:
   enabled: true
-  fail-on-contradiction: false
+  fail-on-contradiction: true
 
 # All repeated skill mechanics share one heartbeat. Damage/healing cadence is
 # retained under pressure; only optional visual density is reduced first.
@@ -386,25 +384,19 @@ skills:
     mana-cost: 40
     cooldown-seconds: 32
     requirements: {AGILITY: 19, INTELLIGENCE: 16, STAMINA: 8}
-  # G-106（未修；W3-A1 复核后判定=隐藏路线前置选错技能，不是本技能数值错）：
-  # 血契要求已学本技能（HiddenPathRules.requiredSkill），而血契路线的门是二转
-  # （HiddenPathRules.minimumAscension=2，docs/GAME_DESIGN.md:106「血契：刺客、二转…
-  # 已学「消失地平线」…」；ROADMAP.md:27 同）。
-  # 但本技能是刺客的**三转汇合节点**技能，不是二转技能，证据链：
+  # G-106（已修，设计裁决=把血契路线门抬到三转，本技能数值不变）：
+  # 血契要求已学本技能（HiddenPathRules.requiredSkill），而本技能是刺客的**三转汇合节点**
+  # 技能，证据链：
   #   ① 本值 3 与分支 stage 3 由 RpgSkillsPlugin.validateCatalog() 强制相等（两份配置一致）；
   #   ② plugins/rpg-classes ClassBranchGraph 强制每职业 2/2/1 个 stage 1/2/3 启用分支，
   #      刺客的 stage-3 分支正是 unseen（requires-any [void-walker, plague-scholar] = 两条二转汇合）；
   #   ③ 六职业 menu-slot 31 全为三转汇合技（本技能 slot=31），对称不可单破；
-  #   ④ lang/zh_cn.yml:1666 分支说明「unseen: 虚步与毒理在此汇合；无迹绝杀…」把本技能钉在 unseen；
+  #   ④ lang/zh_cn.yml 分支说明「unseen: 虚步与毒理在此汇合；无迹绝杀…」把本技能钉在 unseen；
   #   ⑤ docs/CONTENT_DEPTH_AUDIT.md:9/23「三转…允许两条二转路线汇合的终局节点」「起手+进阶+
   #      一转+对应二转+三转汇合」——本技能是三转位；docs/SKILL_MECHANICS_MATRIX.md 列序同。
-  # 反证「直接把本值降到 2」不可行：validateCatalog 不变式会拒绝启动（技能门必须 == 分支 stage），
-  # 而把 unseen 一起降到 2 会让刺客变成 2/3/0，违反 ClassBranchGraph 的 2/2/1（且 rpg-classes 与
-  # lang 分支说明均在 rpg-skills/rpg-api 之外）。rpg-core 的 JdbcServicesTest 又已按「二转 + 已学
-  # 本技能即可激活」做行为断言，反向抬路线门到 3 会让那两条测试变红。
-  # 结论：修法必须跨模块（改 rpg-classes 分支图或改 HiddenPathRules.requiredSkill 并同步 rpg-core
-  # 测试与文档），本任务 allowed_paths 覆盖不到，因此本值保持 3、只留判定与依据，
-  # 由 rpg-skills 的可达性自检把矛盾具名报出（含分支选择门）。
+  # 因此修法是「本值保持 3、血契路线门同步到 3」（HiddenPathRules.minimumAscension(BLOODPACT)=3），
+  # 不动 ClassBranchGraph 的 2/2/1。反证「直接把本值降到 2」不可行：validateCatalog 不变式会拒绝
+  # 启动（技能门必须 == 分支 stage），而把 unseen 一起降到 2 会让刺客变成 2/3/0，违反 2/2/1。
   vanished-horizon:
     menu-slot: 31
     class: ASSASSIN

@@ -3134,7 +3134,7 @@ hidden-path:
   requirement:
     profile: "角色档案"
     archetype: "对应的基础职业"
-    ascension: "二转"
+    ascension: "对应转数（符箓二转、血契三转）"
     level: "当前转 20 级"
     attribute.agility: "敏捷要求"
     attribute.stamina: "耐力要求"
