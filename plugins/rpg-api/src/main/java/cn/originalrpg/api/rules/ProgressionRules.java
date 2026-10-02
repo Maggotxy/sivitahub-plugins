@@ -1,5 +1,7 @@
 package cn.originalrpg.api.rules;
 
+import java.util.UUID;
+
 public final class ProgressionRules {
     public static final int LEVELS_PER_ASCENSION = 30;
     /** Local cap per ascension stage (1..30). Effective cap is MAX_ASCENSION*30+30 = 120. */
@@ -13,8 +15,13 @@ public final class ProgressionRules {
      */
     public static final int LOCAL_LEVELS_PER_SKILL_POINT = 3;
 
-    /** 本地里程碑档位 id；转生换段后同一 id 在新段重新累计，跨段不吞点也不多发。 */
-    private static final String SKILL_POINT_SOURCE = "local-milestone:%d:%d";
+    /**
+     * 本地里程碑档位 id；转生换段后同一 id 在新段重新累计，跨段不吞点也不多发。
+     *
+     * <p>幂等键**必须**包含玩家：档位 id 只描述「哪一段的第几档」，
+     * 不含玩家时不同玩家会互相把对方的档位判定成「已发」而永久吞点。
+     */
+    private static final String SKILL_POINT_SOURCE = "local-milestone:%s:%d:%d";
 
     /**
      * Stage total experience budgets (sum of 29 transitions per stage).
@@ -104,17 +111,22 @@ public final class ProgressionRules {
     }
 
     /**
-     * 里程碑档位 id（幂等依据）。
-     * 同一 (转, 本地里程碑) 只会对应一个 id；跨段后重新从 0 开始，
-     * 因此重放/跨段都不会拿到同一个 id 重复发点。
+     * 里程碑档位 id（幂等依据，唯一实现）。
+     *
+     * <p>键 = (玩家, 转, 本地里程碑)。语义是「这个玩家在这一段的这一档已经发过点了」，
+     * 与该档位是被哪一条结算跨过的**无关** —— 这是幂等成立的前提：
+     * 若把业务 receipt 混进键里，同一档位换一条 receipt 跨过就会再发一次点
+     * （实测：本地 4→6 与 1→6 都过第 6 档，会重复发）。
+     * 跨段后转号变化 ⇒ 新段档位是新键，不吞点。
      */
-    public static String skillPointMilestoneSource(int ascension, int localLevel) {
+    public static String skillPointMilestoneSource(UUID playerId, int ascension, int localLevel) {
+        java.util.Objects.requireNonNull(playerId, "playerId");
         requireAscension(ascension);
         if (localLevel < 1 || localLevel > LOCAL_LEVEL_CAP) {
             throw new IllegalArgumentException("localLevel must be between 1 and " + LOCAL_LEVEL_CAP);
         }
         return SKILL_POINT_SOURCE.formatted(
-                ascension, localLevel / LOCAL_LEVELS_PER_SKILL_POINT);
+                playerId, ascension, localLevel / LOCAL_LEVELS_PER_SKILL_POINT);
     }
 
     private static void requireAscension(int ascension) {

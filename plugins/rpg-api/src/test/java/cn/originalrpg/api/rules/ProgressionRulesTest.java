@@ -2,6 +2,8 @@ package cn.originalrpg.api.rules;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -166,18 +168,26 @@ class ProgressionRulesTest {
     }
 
     @Test
-    void milestoneSourceIdsAreStageScopedAndStableForReplay() {
-        assertEquals("local-milestone:0:0", ProgressionRules.skillPointMilestoneSource(0, 1));
-        assertEquals("local-milestone:0:0", ProgressionRules.skillPointMilestoneSource(0, 2));
-        assertEquals("local-milestone:0:1", ProgressionRules.skillPointMilestoneSource(0, 3));
-        assertEquals("local-milestone:1:0", ProgressionRules.skillPointMilestoneSource(1, 1));
-        assertEquals("local-milestone:1:0", ProgressionRules.skillPointMilestoneSource(1, 2));
-        // 跨段（0转30 -> 1转1）档位 id 变了 ⇒ 新段里程碑不会被旧段幂等键挡住
-        assertFalse(ProgressionRules.skillPointMilestoneSource(0, 30)
-                .equals(ProgressionRules.skillPointMilestoneSource(1, 1)));
-        // 同 (转, 里程碑) 重放得到同一个 id ⇒ 幂等依据稳定
-        assertEquals(ProgressionRules.skillPointMilestoneSource(3, 15),
-                ProgressionRules.skillPointMilestoneSource(3, 15));
+    void milestoneSourceIdsArePlayerStageScopedAndStableForReplay() {
+        UUID player = UUID.fromString("11111111-2222-3333-4444-555555555555");
+        UUID other = UUID.fromString("99999999-8888-7777-6666-555555555555");
+
+        // 档位键只由 (玩家, 转, 档位序号) 决定
+        assertEquals("local-milestone:" + player + ":0:0",
+                ProgressionRules.skillPointMilestoneSource(player, 0, 1));
+        assertEquals("local-milestone:" + player + ":0:0",
+                ProgressionRules.skillPointMilestoneSource(player, 0, 2));
+        assertEquals("local-milestone:" + player + ":0:1",
+                ProgressionRules.skillPointMilestoneSource(player, 0, 3));
+        // 跨段（0转30 -> 1转1）档位键变了 ⇒ 新段里程碑不会被旧段幂等键挡住
+        assertFalse(ProgressionRules.skillPointMilestoneSource(player, 0, 30)
+                .equals(ProgressionRules.skillPointMilestoneSource(player, 1, 1)));
+        // 同 (玩家, 转, 档位) 重放得到同一个键 ⇒ 幂等依据稳定
+        assertEquals(ProgressionRules.skillPointMilestoneSource(player, 3, 15),
+                ProgressionRules.skillPointMilestoneSource(player, 3, 15));
+        // 档位键必须含玩家：不含玩家时两个玩家会互相把对方的档位判成「已发」而永久吞点
+        assertFalse(ProgressionRules.skillPointMilestoneSource(player, 0, 3)
+                .equals(ProgressionRules.skillPointMilestoneSource(other, 0, 3)));
     }
 
     @Test
@@ -191,7 +201,8 @@ class ProgressionRulesTest {
                 () -> ProgressionRules.skillPointsForStage(ProgressionRules.MAX_ASCENSION + 1));
         assertThrows(IllegalArgumentException.class, () -> ProgressionRules.cumulativeSkillPoints(0, 0));
         assertThrows(IllegalArgumentException.class,
-                () -> ProgressionRules.skillPointMilestoneSource(0, 0));
+                () -> ProgressionRules.skillPointMilestoneSource(
+                        java.util.UUID.randomUUID(), 0, 0));
     }
 
     @Test

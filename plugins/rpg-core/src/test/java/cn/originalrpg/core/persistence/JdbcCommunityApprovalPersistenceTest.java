@@ -68,12 +68,14 @@ class JdbcCommunityApprovalPersistenceTest {
                     """);
             statement.execute("""
                     CREATE TABLE rpg_skill_point_grants (
-                        source VARCHAR(96) NOT NULL, idempotency_key VARCHAR(96) NOT NULL,
-                        player_uuid VARCHAR(36) NOT NULL, points INTEGER NOT NULL,
-                        ascension INTEGER NOT NULL, from_local_level INTEGER NOT NULL,
+                        milestone_key VARCHAR(160) PRIMARY KEY,
+                        receipt VARCHAR(96) NOT NULL,
+                        player_uuid VARCHAR(36) NOT NULL,
+                        points INTEGER NOT NULL,
+                        ascension INTEGER NOT NULL,
+                        milestone_index INTEGER NOT NULL,
                         to_local_level INTEGER NOT NULL,
-                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (source, idempotency_key)
+                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )
                     """);
             statement.execute("""
