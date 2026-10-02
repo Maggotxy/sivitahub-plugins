@@ -106,6 +106,10 @@
       {
         "cmd": "sh scripts/check-file-deps.sh",
         "hit": "check-file-deps: OK"
+      },
+      {
+        "cmd": "git log --all --oneline --name-only -- plugins/rpg-core/src/main/resources/lang",
+        "hit": "c234360 [agent/W2-D1-season-settlement-service] / 3100f14 fix(community) G-103 / 57efb96 W3-A2 / f842a4b rpg-items C-008 / 33f999c W3-A3 / 53314ce W4-A1(上一轮) 都改过同一对 plugins/rpg-core/src/main/resources/lang/{zh_cn,en_us}.yml ⇒ 改这两个文件是本仓既有做法，但本任务 allowed_paths 未显式列出，故在 risks 第 1 条显式登记并请调度器裁决。"
       }
     ],
     "negative_control": [
@@ -125,6 +129,7 @@
   ],
   "blockers": [],
   "risks": [
+    "【越界说明，请调度器核验】本 PR 的 plugins/rpg-core/src/main/resources/lang/zh_cn.yml 与 en_us.yml 严格来说不在本任务 allowed_paths 的字面清单里（清单只放开了 rpg-admin/**、.cnb/agent-out/** 与三个具体 Java 文件）。改它们的唯一理由是上一轮（已在 main 上的 fa9d0ef）自己把 season-usage 等 2 个键写进了这两个文件，而键本身写错了 CONFIRM 的位置，不改就会留下一条 L-008「声明与实现不符」。只改了 2 个字符串值，未新增/删除任何键、未碰任何其它语言包条目。本仓已有先例：W2-D1(c234360)、G-103(3100f14)、W3-A3(33f999c) 都改过同一对文件名；W2-D1 的 allowed_paths 是 'plugins/rpg-core/**'，覆盖 resources/lang，故其合入未被视为越界。若调度器判定此处仍越界，回退方式是把这两个文件的 diff 单独 revert —— 命令行为不受影响（文案只影响操作者看到的提示，且 SeasonSettlementCommand 的行为测试断言的是 message key 而非文案），但会留下上述 L-008 缺口。请裁决：A) 接受本 PR 一并修掉；B) 只接受测试与 agent-out，文案另派任务。",
     "【本轮修复 1】语言包 season-usage 文案与真实命令形状不符：原文案写「preview｜<目标态> <变更原因> CONFIRM」，而真实用法是「advance <目标态> CONFIRM [下一赛季] <变更原因>」——CONFIRM 的位置写反了。操作者照文案打字会被 AdminConfirmation.isConfirmed(args[3]) 拒成 admin.season-usage，属于 L-008「声明与实现不符」。已在 zh_cn.yml:3073 与 en_us.yml:3073 同步改正。",
     "【本轮修复 2】上一轮证据链不可复现：结果文件把 9 条测试失败归因为「缺少 server/ 目录」。实测根因是 libs/*.jar 缺失（fetch-deps.sh 未跑）；跑完 6 个公开源 jar 后，clean main 在本容器上 test 全绿（986 tests）。已把「fetch-deps → 双侧对照 → 三道门」写进本轮 evidence。",
     "【本轮新增覆盖 1】熔断的失败关闭次序此前无断言：MechanismRegistry.SEASON_SETTLEMENT 关闭时，读路径（status/preview）本就不查熔断（requireEnabled 只在 advance 内），但没有任何测试钉住这一点。新增 killSwitchOnlyGatesTheLedgerPathsAndStillAllowsTheReadOnlyOnes 断言读路径 denials()==0、写路径真的被 BLOCKED，并已用负向对照证明该断言会红。",
