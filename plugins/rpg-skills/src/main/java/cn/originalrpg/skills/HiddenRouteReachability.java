@@ -24,8 +24,11 @@ import java.util.Set;
  * 判定与回归测试共用同一份来源清单，因此新增前置不会只改一处。
  *
  * <ul>
- *   <li>技能门：{@code skills.<id>.minimum-ascension} + {@code skills.<id>.minimum-level}
- *       （已由 {@code validateCatalog} 强制与本分支 stage 一致）。</li>
+ *   <li>技能门：{@code skills.<id>.minimum-ascension} + {@code skills.<id>.minimum-level}，
+ *       以及分支选择门 {@code branches.<owner>.<branch>.stage}
+ *       （RpgClasses 侧，{@code profile.ascension() >= stage} 才选得中该分支）。
+ *       技能门已由 {@code validateCatalog} 强制等于分支 stage，但两者是两份配置：
+ *       只读技能门会漏掉「技能门被调低、分支 stage 仍是高转」的不可达形态。</li>
  *   <li>副本门 / 技能书门：{@code dungeons.<id>.minimum-effective-level}（绝对有效等级），
  *       属 rpg-dungeons 的 softdepend，缺失时跳过并记录，不阻塞启动。</li>
  * </ul>
@@ -64,13 +67,21 @@ public final class HiddenRouteReachability {
      * @param dungeonRoot RpgDungeons 的 {@code dungeons} 段；可为 null（插件未安装）
      */
     public static Report inspect(ConfigurationSection skillRoot, ConfigurationSection dungeonRoot) {
+        return inspect(skillRoot, dungeonRoot, null);
+    }
+
+    /**
+     * @param branchRoot  RpgClasses 的 {@code branches} 段；可为 null 时退化为只读技能门
+     */
+    public static Report inspect(ConfigurationSection skillRoot, ConfigurationSection dungeonRoot,
+                                 ConfigurationSection branchRoot) {
         Objects.requireNonNull(skillRoot, "skillRoot");
         Map<HiddenPath, Map<HiddenPathReachability.Requirement, Set<String>>> contradictions =
                 new java.util.EnumMap<>(HiddenPath.class);
         List<String> skipped = new ArrayList<>();
         for (HiddenPath path : HiddenPath.values()) {
             List<HiddenPathReachability.Precondition> preconditions =
-                    preconditions(path, skillRoot, dungeonRoot, skipped);
+                    preconditions(path, skillRoot, dungeonRoot, branchRoot, skipped);
             Map<HiddenPathReachability.Requirement, Set<String>> blockers =
                     HiddenPathReachability.unattainableDetails(path, preconditions);
             if (!blockers.isEmpty()) contradictions.put(path, blockers);
@@ -81,11 +92,11 @@ public final class HiddenRouteReachability {
     /** 按来源清单逐个装配；缺哪个键就记哪个键，不猜。 */
     private static List<HiddenPathReachability.Precondition> preconditions(
             HiddenPath path, ConfigurationSection skillRoot, ConfigurationSection dungeonRoot,
-            List<String> skipped) {
+            ConfigurationSection branchRoot, List<String> skipped) {
         List<HiddenPathReachability.Precondition> preconditions = new ArrayList<>();
         for (HiddenPathPreconditionPlan.Slot slot : HiddenPathPreconditionPlan.slots(path)) {
             switch (slot.source()) {
-                case SKILL -> addSkill(slot, skillRoot, preconditions, skipped);
+                case SKILL -> addSkill(slot, skillRoot, branchRoot, preconditions, skipped);
                 case DUNGEON -> addDungeon(slot, dungeonRoot, preconditions, skipped);
             }
         }
@@ -94,17 +105,36 @@ public final class HiddenRouteReachability {
 
     private static void addSkill(
             HiddenPathPreconditionPlan.Slot slot, ConfigurationSection skillRoot,
-            List<HiddenPathReachability.Precondition> preconditions, List<String> skipped) {
+            ConfigurationSection branchRoot, List<HiddenPathReachability.Precondition> preconditions,
+            List<String> skipped) {
         ConfigurationSection skill = skillRoot.getConfigurationSection(slot.lookupKey());
         if (skill == null) {
             skipped.add("skills." + slot.lookupKey());
             return;
         }
+        int skillAscension = skill.getInt("minimum-ascension", 0);
+        // 分支选择门：RpgClasses 的 branches.<owner>.<branch>.stage，玩家转数 >= stage 才选得中。
+        // 技能门与它必须相等（validateCatalog 不变式），但两份配置可能被分头改动，
+        // 因此这里取两者上界作门值 —— 任一侧抬高都会让前置更晚开放、被判不可达。
+        int branchStage = branchStage(skill, branchRoot);
         preconditions.add(new HiddenPathReachability.Precondition(
                 slot.slot(),
-                skill.getInt("minimum-ascension", 0),
+                Math.max(skillAscension, branchStage),
                 skill.getInt("minimum-level", 1),
                 slot.requirement()));
+    }
+
+    /** 技能所挂分支的 stage；技能无 branch、branchRoot 缺失或分支未声明时返回 0（不抬高门）。 */
+    private static int branchStage(ConfigurationSection skill, ConfigurationSection branchRoot) {
+        String branch = skill.getString("branch", "");
+        if (branch.isBlank() || branchRoot == null) return 0;
+        for (String owner : branchRoot.getKeys(false)) {
+            ConfigurationSection ownerBranches = branchRoot.getConfigurationSection(owner);
+            if (ownerBranches == null || !ownerBranches.isConfigurationSection(branch)) continue;
+            return Math.clamp(ownerBranches.getInt(branch + ".stage", 0), 0,
+                    ProgressionRules.MAX_ASCENSION);
+        }
+        return 0;
     }
 
     /**

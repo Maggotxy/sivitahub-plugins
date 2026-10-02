@@ -226,7 +226,13 @@ public final class RpgSkillsPlugin extends JavaPlugin {
         ConfigurationSection dungeons = dungeonPlugin instanceof JavaPlugin dungeonsPlugin
                 ? dungeonsPlugin.getConfig().getConfigurationSection("dungeons")
                 : null;
-        HiddenRouteReachability.Report report = HiddenRouteReachability.inspect(skills, dungeons);
+        // 分支选择门（RpgClasses 硬依赖）：技能门必须与它相等，但它是另一份配置，
+        // 因此一并读入，避免「技能门调低、分支 stage 仍是高转」这种漏检形态。
+        org.bukkit.plugin.Plugin classPlugin = getServer().getPluginManager().getPlugin("RpgClasses");
+        ConfigurationSection branches = classPlugin instanceof JavaPlugin classesPlugin
+                ? classesPlugin.getConfig().getConfigurationSection("branches")
+                : null;
+        HiddenRouteReachability.Report report = HiddenRouteReachability.inspect(skills, dungeons, branches);
         if (!report.skipped().isEmpty()) {
             getLogger().warning("隐藏路线可达性自检跳过部分前置：" + report.skipped());
         }

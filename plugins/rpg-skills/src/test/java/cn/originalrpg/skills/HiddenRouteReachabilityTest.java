@@ -37,6 +37,10 @@ class HiddenRouteReachabilityTest {
     private static final Path DUNGEONS_CONFIG =
             Path.of("..", "rpg-dungeons", "src", "main", "resources", "config.yml");
 
+    /** 分支选择门来自 RpgClasses（硬依赖）；技能门必须与它相等，但那是另一份配置。 */
+    private static final Path CLASSES_CONFIG =
+            Path.of("..", "rpg-classes", "src", "main", "resources", "config.yml");
+
     private static ConfigurationSection skillsRoot() {
         try (InputStream input = HiddenRouteReachabilityTest.class.getClassLoader()
                 .getResourceAsStream("config.yml")) {
@@ -58,6 +62,26 @@ class HiddenRouteReachabilityTest {
                 .getConfigurationSection("dungeons");
         assertTrue(dungeons != null, "rpg-dungeons config.yml 必须有 dungeons 段");
         return dungeons;
+    }
+
+    private static ConfigurationSection branchesRoot() {
+        File file = CLASSES_CONFIG.toFile();
+        assertTrue(file.isFile(), "rpg-classes config.yml 必须存在于 " + file.getAbsolutePath());
+        ConfigurationSection branches = YamlConfiguration.loadConfiguration(file)
+                .getConfigurationSection("branches");
+        assertTrue(branches != null, "rpg-classes config.yml 必须有 branches 段");
+        return branches;
+    }
+
+    /** 在 branches.<owner>.<branch> 里找分支 id 的 stage；找不到返回 0。 */
+    private static int branchStage(ConfigurationSection branches, String branch) {
+        if (branch == null || branch.isBlank()) return 0;
+        for (String owner : branches.getKeys(false)) {
+            ConfigurationSection ownerBranches = branches.getConfigurationSection(owner);
+            if (ownerBranches == null || !ownerBranches.isConfigurationSection(branch)) continue;
+            return ownerBranches.getInt(branch + ".stage", 0);
+        }
+        return 0;
     }
 
     /**
@@ -96,6 +120,80 @@ class HiddenRouteReachabilityTest {
         assertEquals(List.of("BLOODPACT 要求 2 转（有效等级上限 90），但其 SKILL 前置 "
                         + "vanished-horizon 到有效等级 110 才开放"),
                 unreachable, "不可达前置集合变了：修好 G-106 后本断言应改为空集");
+    }
+
+    /**
+     * 任务要求④：把真实的三份配置（rpg-skills 技能门 + rpg-classes 分支选择门 +
+     * rpg-dungeons 副本门）装成完整前置集合，逐条核对血契的**全部**前置能否在
+     * {@link HiddenPathRules#minimumAscension(HiddenPath)} 要求的那一转下取得。
+     *
+     * <p>「取得」的真实判据是 {@code profile.ascension() >= 分支 stage}（RpgClasses 菜单门），
+     * 而不是 {@code minimum-ascension} 这一个键：两者由 {@code validateCatalog} 强制相等，
+     * 但它们是两份配置，只读技能门会漏掉「技能门调低、分支 stage 仍高」的形态。
+     *
+     * <p>shipped 配置下本断言断言的是「核对完备且根因被具名」——当前真实配置确实
+     * 不可达（前置技能属于三转汇合分支 unseen）。跨模块修法（把 unseen stage 与技能门
+     * 一起降到 2）落地后，本条断言应改为 {@code assertEquals(List.of(), unreachable)}。
+     */
+    @Test
+    void bloodpactPreconditionsAreAllAuditedAtItsDocumentedAscension() {
+        ConfigurationSection skills = skillsRoot();
+        ConfigurationSection branches = branchesRoot();
+        ConfigurationSection dungeons = dungeonsRoot();
+        int routeAscension = HiddenPathRules.minimumAscension(HiddenPath.BLOODPACT);
+
+        List<String> unreachable = new ArrayList<>();
+
+        String skillId = HiddenPathRules.requiredSkill(HiddenPath.BLOODPACT);
+        ConfigurationSection skill = skills.getConfigurationSection(skillId);
+        assertTrue(skill != null, "血契前置技能必须在 catalog 里：" + skillId);
+        String branch = skill.getString("branch", "");
+        int stage = branchStage(branches, branch);
+        int skillGate = Math.max(skill.getInt("minimum-ascension", 0), stage);
+        if (skillGate > routeAscension) {
+            unreachable.add("SKILL=" + skillId + "（分支 " + branch + "，分支 stage " + stage
+                    + "，技能门 " + skill.getInt("minimum-ascension", 0) + "）需到 " + skillGate
+                    + " 转，而血契门是 " + routeAscension + " 转");
+        }
+
+        String dungeonId = HiddenPathRules.requiredDungeon(HiddenPath.BLOODPACT);
+        ConfigurationSection dungeon = dungeons.getConfigurationSection(dungeonId);
+        assertTrue(dungeon != null, "隐藏副本必须在 rpg-dungeons 配置里：" + dungeonId);
+        if (HiddenPathReachability.ascensionOf(dungeon.getInt("minimum-effective-level", 1))
+                > routeAscension) {
+            unreachable.add("HIDDEN_DUNGEON=" + dungeonId);
+        }
+
+        assertEquals(List.of("SKILL=vanished-horizon（分支 unseen，分支 stage 3，技能门 3）"
+                        + "需到 3 转，而血契门是 2 转"),
+                unreachable,
+                "血契前置的可达性结论变了：跨模块修法落地后应改为 assertEquals(List.of(), unreachable)");
+    }
+
+    /**
+     * 分支选择门必须真的参与判定，否则「技能门调低、分支 stage 仍高」的形态会漏检：
+     * 传入真实 rpg-classes 配置时，血契的唯一阻塞点必须能具名到分支 unseen（stage 3）。
+     */
+    @Test
+    void branchSelectionGateIsPartOfTheAuditAndNamesTheStageThreeBranch() {
+        ConfigurationSection skills = skillsRoot();
+        int branchStage = branchStage(branchesRoot(), "unseen");
+        assertEquals(3, branchStage, "unseen 是刺客三转汇合节点（ClassBranchGraph 要求 2/2/1）");
+
+        // 技能门调到 2（分支 stage 仍 3）：只读技能门会误判可达，带分支门则正确报不可达。
+        ConfigurationSection noBranch = skillsRoot();
+        noBranch.set("vanished-horizon.minimum-ascension", 2);
+        assertTrue(HiddenRouteReachability.inspect(noBranch, dungeonsRoot()).reachable(),
+                "只读技能门时会误判可达 —— 这正是要补分支门的原因");
+
+        ConfigurationSection withBranch = skillsRoot();
+        withBranch.set("vanished-horizon.minimum-ascension", 2);
+        HiddenRouteReachability.Report report =
+                HiddenRouteReachability.inspect(withBranch, dungeonsRoot(), branchesRoot());
+        assertFalse(report.reachable(), "分支 unseen=stage 3 > 路线门 2 转，必须被判不可达");
+        assertEquals(Set.of(HiddenPathRules.requiredSkill(HiddenPath.BLOODPACT)),
+                report.contradictions().get(HiddenPath.BLOODPACT)
+                        .get(HiddenPathReachability.Requirement.SKILL));
     }
 
     /** 门禁结论与逐条核对必须一致：真实配置当前被判为不可达（G-106 未修）。 */
