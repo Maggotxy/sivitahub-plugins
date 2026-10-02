@@ -41,6 +41,10 @@ public final class RpgEconomyPlugin extends JavaPlugin {
                 getServer().getServicesManager().load(CommerceService.class), "CommerceService");
         CommissionEvidenceTracker commissionEvidence = new CommissionEvidenceTracker(
                 this, commissionEvidenceService);
+        // G-208：配置把承诺的 10% 往返净损耗降到更低值时直接拒绝启动，
+        // 而不是等玩家第一次打开商人菜单才抛异常（那时已经算"运行期惊喜"）。
+        MerchantPricing.requiredMinimumRoundtripLoss(
+                getConfig().getDouble("black-market.minimum-roundtrip-loss", 0.10));
         ShopIntegrityValidator.Report shopIntegrity = ShopIntegrityValidator.validate(this);
         if (shopIntegrity.findings().isEmpty()) {
             getLogger().info("Shop integrity checks passed: no supply, recipe, commission, or buyback loop detected.");

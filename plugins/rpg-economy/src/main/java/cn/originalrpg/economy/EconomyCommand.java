@@ -592,8 +592,9 @@ final class EconomyCommand implements CommandExecutor, TabCompleter, Listener {
         if (base.signum() <= 0 || minimum.signum() <= 0 || maximum.compareTo(minimum) < 0) return null;
         BigDecimal configuredBuyback = BigDecimal.valueOf(
                 Math.clamp(section.getDouble("buyback-ratio", 0.55), 0.01, 0.80));
-        BigDecimal minimumRoundtripLoss = BigDecimal.valueOf(Math.clamp(plugin.getConfig().getDouble(
-                "black-market.minimum-roundtrip-loss", 0.10), 0.05, 0.50));
+        // G-208：文档把 10% 写成承诺值，配置低于承诺即 fail-closed（不再 clamp 到 0.05）。
+        BigDecimal minimumRoundtripLoss = MerchantPricing.requiredMinimumRoundtripLoss(
+                plugin.getConfig().getDouble("black-market.minimum-roundtrip-loss", 0.10));
         BigDecimal buybackRatio = MerchantPricing.safeBuybackRatio(
                 configuredBuyback, minimum, maximum, minimumRoundtripLoss);
         return new MerchantOffer(id, material, amount, section.getString("marker", "none"),

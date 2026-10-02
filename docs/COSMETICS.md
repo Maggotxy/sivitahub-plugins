@@ -8,8 +8,8 @@
 
 | 维度 | 可选内容 | 解锁方式 |
 |---|---|---|
-| 轨迹形状 | 关闭、轻风尾迹、共鸣双翼、星坠彗尾 | 轻风免费；双翼 480 星辉；彗尾 960 星辉（价格由 `rpg-commerce` 的 `CommerceCatalogPolicy` + `rpg-commerce/config.yml` 的 `points` 定义，`rpg-cosmetics` 只渲染，不收费） |
-| 共鸣配色 | 余烬、青芽、奥术、潮汐、幻彩 | 四种基础配色免费；幻彩与幻彩共鸣的 1600 星辉永久解锁共用（同理由 `rpg-commerce` 定价） |
+| 轨迹形状 | 关闭、轻风尾迹、共鸣双翼、星坠彗尾 | 轻风免费；双翼 480 星辉；彗尾 960 星辉。定价唯一事实源是 `rpg-commerce`：`CommerceCatalogPolicy.PRODUCTS` 的价格底线 + `rpg-commerce/config.yml` 的 `points`；`rpg-cosmetics` 只渲染、不收费，但会在启动时按 `CosmeticCatalog` 与 commerce 配置逐条对账商品 id / 凭证 marker / 星辉价格，不一致即点名报错（G-205） |
+| 共鸣配色 | 余烬、青芽、奥术、潮汐、幻彩 | 四种基础配色免费；幻彩与幻彩共鸣的 1600 星辉永久解锁共用（同理由 `rpg-commerce` 定价，并由 `CosmeticCatalog` 对账） |
 
 因此当前有 15 种有效飞行组合，而不是 15 套重复代码。`/trail` 负责形状和配色，`/aura` 负责地面光环，两者都可从 `/menu` 的视觉页面进入。轨迹凭证账号绑定，通过持久化邮箱交付；凭证使用不可穿戴、不会飞行消耗的原版材料，防止误操作。
 

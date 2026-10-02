@@ -26,6 +26,9 @@ boundaries:
   end: {world: world_the_end, center-x: 0, center-z: 0, diameter: 2400, warning-distance: 48}
 blood-moon:
   every-nights: 7
+  # G-207：每日事件场次上限，是第一类约束而不是日额度除法的副作用。
+  # 0 表示不限制；跨日自动重置。计数器只做节流，不参与任何货币/物品结算。
+  maximum-events-per-day: 3
   bonus-drop-chance: 0.08
   # Lv.1-4 players can learn the event and earn its drops without facing rare
   # stat shells or active monster skills before their first build exists.

@@ -1170,8 +1170,10 @@ final class DungeonManager implements Listener {
             state.pending = selection.pattern();
             state.center = boss.getLocation().clone();
             prepareBossSkill(boss, state);
-            long warningTicks = Math.clamp(plugin.getConfig().getLong(
-                    "dungeons." + id + ".boss.abilities.telegraph-ticks", 36L), 20L, 80L);
+            // G-209：下限由表现层可读性决定，不是随手夹一个值（见 BossAttackRules 的说明）。
+            long warningTicks = BossAttackRules.readableTelegraphTicks(
+                    plugin.getConfig().getLong(
+                            "dungeons." + id + ".boss.abilities.telegraph-ticks", 36L));
             state.impactTick = mechanicsTick + warningTicks;
             boss.getWorld().getPlayers().forEach(player -> player.sendActionBar(Component.text(messages.text(
                     player, "dungeon.boss-skill." + state.skill.key(), Map.of(

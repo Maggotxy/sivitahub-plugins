@@ -37,7 +37,7 @@ dungeons:
       health: 240.0
       attack-damage: 10.0
       rpg-experience: 800
-      abilities: {interval-ticks: 170, telegraph-ticks: 36, phase-reduction-ticks: 20, damage: 7.0}
+      abilities: {interval-ticks: 170, telegraph-ticks: 20, phase-reduction-ticks: 20, damage: 7.0}
   ancient-ruins-hidden:
     enabled: true
     minimum-party-size: 1
@@ -75,7 +75,7 @@ dungeons:
       health: 600.0
       attack-damage: 18.0
       rpg-experience: 6000
-      abilities: {interval-ticks: 130, telegraph-ticks: 32, phase-reduction-ticks: 20, damage: 10.0}
+      abilities: {interval-ticks: 130, telegraph-ticks: 20, phase-reduction-ticks: 20, damage: 10.0}
   sulfur-depths:
     enabled: true
     minimum-party-size: 1
@@ -114,7 +114,7 @@ dungeons:
       health: 360.0
       attack-damage: 12.0
       rpg-experience: 3300
-      abilities: {interval-ticks: 155, telegraph-ticks: 34, phase-reduction-ticks: 18, damage: 8.0}
+      abilities: {interval-ticks: 155, telegraph-ticks: 20, phase-reduction-ticks: 18, damage: 8.0}
   sulfur-depths-hidden:
     enabled: true
     minimum-party-size: 1
@@ -152,7 +152,7 @@ dungeons:
       health: 760.0
       attack-damage: 20.0
       rpg-experience: 10000
-      abilities: {interval-ticks: 120, telegraph-ticks: 30, phase-reduction-ticks: 18, damage: 11.0}
+      abilities: {interval-ticks: 120, telegraph-ticks: 20, phase-reduction-ticks: 18, damage: 11.0}
   storm-vault:
     enabled: true
     minimum-party-size: 1
@@ -191,7 +191,7 @@ dungeons:
       health: 620.0
       attack-damage: 18.0
       rpg-experience: 10000
-      abilities: {interval-ticks: 140, telegraph-ticks: 32, phase-reduction-ticks: 20, damage: 9.0}
+      abilities: {interval-ticks: 140, telegraph-ticks: 20, phase-reduction-ticks: 20, damage: 9.0}
   storm-vault-hidden:
     enabled: true
     minimum-party-size: 1
@@ -229,7 +229,7 @@ dungeons:
       health: 980.0
       attack-damage: 24.0
       rpg-experience: 20000
-      abilities: {interval-ticks: 110, telegraph-ticks: 28, phase-reduction-ticks: 16, damage: 13.0}
+      abilities: {interval-ticks: 110, telegraph-ticks: 20, phase-reduction-ticks: 16, damage: 13.0}
 completion-return-delay-seconds: 8
 # Boss rewards are written as one atomic all-party intent on a dedicated
 # single writer before any database settlement or dungeon-complete side effect.

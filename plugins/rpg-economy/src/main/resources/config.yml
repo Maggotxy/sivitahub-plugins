@@ -6,7 +6,10 @@ caps:
   # Raids are renewable and can be automated, so they must not share the
   # intentionally large one-time advancement pool. Three full victories reach
   # this independent database-backed daily ceiling.
-  RAID: {gold: "1800.00", merit: 24}
+  # G-207：显式的每日场次上限，与金币/功勋额度并行生效。
+  # 0 表示不限制。「每日三场」曾经只是 1800/600 与 24/8 的除法结果，
+  # 现在由 maximum-events-per-day 直接承担，改额度不会再悄悄改变场次上限。
+  RAID: {gold: "1800.00", merit: 24, maximum-events-per-day: 3}
   GUIDE: {gold: "1000.00", merit: 20}
 # Ordinary kills retain a unique idempotency key, but up to 64 of them share
 # one account lock and database transaction. Work is spread across ticks so a
@@ -159,6 +162,8 @@ black-market:
   visible-offers: 3
   # Even the cheapest purchase in one period must lose at least this fraction against
   # the highest possible buyback in another period. This closes stockpiling arbitrage.
+  # G-208：0.10 是对玩家的承诺值，不是默认值。低于 0.10 的配置会让插件拒绝启动
+  # （MerchantPricing.requiredMinimumRoundtripLoss），不要再把它当成可调下限。
   minimum-roundtrip-loss: 0.10
   offers:
     mutation-shards:
