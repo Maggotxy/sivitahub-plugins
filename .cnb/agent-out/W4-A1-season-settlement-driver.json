@@ -140,5 +140,6 @@
     "如需要，为换季单开权限节点（当前与 incident/chapter 同源命令级 rpg.admin）。",
     "由调度器在本分支上触发 api_trigger_gate，补齐 CNB 流水线侧的 [T] 证据。"
   ],
-  "pr_url": "（本轮回填）"
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/36",
+  "pr_title": "[agent/W4-A1-season-settlement-driver] 接通 C-010 换季九态的运营驱动入口（G-101 剩余半条）"
 }
