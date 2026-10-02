@@ -14,7 +14,7 @@
     "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentAsyncLifecycleContractTest.java",
     ".cnb/agent-out/W2-B7-delivery-copy-consumer.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/11",
   "risks": [
     "Behaviour test 无法直接构造真实 ItemStack：rpg-items 的 testCompileClasspath 上完全没有 paper-api（rpg-api 只在自身 build.gradle.kts 里声明 testImplementation，Gradle 不会把它传递到依赖方；rpg-items 自身只有 compileOnly）。实测 `:plugins:rpg-items:dependencies --configuration testCompileClasspath` 无任何 paper/bukkit 条目，且写一个 new ItemStack(Material.STONE,1) 的探针测试直接编译失败（package org.bukkit does not exist）。因此本任务把打标记的决策逻辑抽成不依赖 Bukkit 的纯规则类 DeliveryCopyRules，用真实执行的单元测试覆盖其语义；接线部分用源码位置断言守卫。若要求「必须在真实 ItemStack 上断言 mark/clone 关系」，需要给 plugins/rpg-items/build.gradle.kts 加 testImplementation(paper-api) —— 该文件不在本任务 allowed_paths（plugins/rpg-items/** 包含它，但加测试依赖属于构建面改动，需人类确认是否接受）。",
     "DeliveryCopyRulesTest 只能验证规则语义与调用形态，不能验证「带标记副本确实在游戏内不可用」。不可用性依赖 EquipmentSecurity.inspect()/isAuthentic() 对 rpgcore:equipment_operation 的既有判定（EquipmentSecurity.java:103/148）与 AuthoritativeItemProcessingListener.onMarkedOperationItemClick 的取消逻辑，这两处在本次改动前已存在且未被修改，但没有 Runtime 级验证（[R] 缺失）。",
