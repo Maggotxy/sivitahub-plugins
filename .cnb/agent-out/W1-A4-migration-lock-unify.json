@@ -1,0 +1,32 @@
+{
+  "task_id": "W1-A4-migration-lock-unify",
+  "status": "success",
+  "summary": "修复 G-004：离线迁移工具与在线 Paper 节点争抢的是两把不同的 advisory lock，离线工具的 DDL 可与在线节点并发执行。工具侧改为与 RpgCore 相同的双参数形式 pg_advisory_xact_lock(0x53495649, 0x52504731)，合成 key 6001422851361490737 （(0x53495649 << 32) | 0x52504731）；旧单 bigint 形式 0x5349564954414D47 合成的是另一把锁，已删除。工具侧新增等待上限（默认 30s，--lock-timeout-ms / SIVITA_MIGRATION_LOCK_TIMEOUT_MS，范围 1000..300000），由 PostgreSQL lock_timeout 执行，超时（SQLSTATE 55P03）返回含锁 key 的明确错误且不继续执行 DDL。新增 MigrationAdvisoryLockTest 断言两侧锁 key 完全一致（硬编码期望值 + 直接核对 RpgCore 源码常量），并订正 docs/ARCHITECTURE.md 第 9 条与工具 README。未改动 plugins/rpg-core。",
+  "changed_files": [
+    "tools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/MigrationAdvisoryLock.java",
+    "tools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/MigrationEngine.java",
+    "tools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/MigrationOptions.java",
+    "tools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/MigrationMain.java",
+    "tools/db-migration/src/test/java/cn/originalrpg/tools/dbmigration/MigrationAdvisoryLockTest.java",
+    "tools/db-migration/src/test/java/cn/originalrpg/tools/dbmigration/MigrationOptionsTest.java",
+    "tools/db-migration/README.md",
+    "docs/ARCHITECTURE.md",
+    ".cnb/agent-out/W1-A4-migration-lock-unify.json"
+  ],
+  "pr_url": "<填 PR 链接>",
+  "risks": [
+    "本轮相对上一轮的修复点：上一轮状态为 success 但缺日志、无证据。本轮重做了实现并补齐可复核证据：(a) 工具侧改用双参数加锁（原来是单 bigint，两把锁不同，确实漏锁）；(b) 工具侧新增可配置等待上限（原来无任何上限）；(c) 新增锁 key 契约测试（原来没有）；(d) 订正 ARCHITECTURE 描述。",
+    "锁参数不可避免地在 RpgCore 与工具两处各存一份（两个独立构建单元无法共享编译期常量）。已用 MigrationAdvisoryLockTest 双向断言缓解：既断言硬编码期望值 6001422851361490737，也直接读取 plugins/rpg-core/.../Database.java 核对常量 0x53495649 / 0x52504731 与双参数用法；任一侧单方面改动都会失败关闭。",
+    "锁 key 的合成规则 (int4 << 32) | int4 来自 PostgreSQL 内核 AdvisoryLockTagToInt8，已在本机 PostgreSQL 15.19 真实验证：同 key 双参数加锁互相阻塞（锁超时 SQLSTATE 55P03），旧单 bigint 形式 try_lock 立即返回 0ms，证明原实现确实不互斥。",
+    "超时语义依赖 PostgreSQL 的 lock_timeout + 会话级 SET LOCAL，只对 PostgreSQL 生效；H2 本地开发后端仍无跨进程协调语句（与 RpgCore 现状一致）。",
+    "超时上限的 clamp 范围 1000..300000ms 与 RpgCore database.migration-lock-timeout-ms 保持一致，但两侧仍是各自实现；若 RpgCore 调整范围需人工同步（测试未覆盖范围值本身，只覆盖工具侧边界校验）。",
+    "全仓 compileJava 仍有 8 个插件失败（缺 AuthMe/EssentialsX/WorldGuard 等 vendor jar，属既有 W1-A0 阻塞）。已用改动前后基线对比确认失败任务集合完全一致，本任务未引入新失败。tools:db-migration 与 plugins:rpg-core 均编译通过。",
+    "docs/DATABASE_MIGRATION.md 第 19 行也提到 advisory lock，但该文件不在本任务允许改动路径内，未改动；其描述本身不构成错误（未声称锁的具体形式），如需补充锁 key 细节需另开任务。"
+  ],
+  "next_steps": [
+    "等待 W1-A2（plugins/rpg-core）合入后，确认 Database.MIGRATION_LOCK_NAMESPACE / MIGRATION_LOCK_RESOURCE 与双参数用法未被改动；若被改动，需重新计算合成 key 并更新 MigrationAdvisoryLock 与测试中的硬编码期望值。",
+    "由人工复核 PR 中列出的两个数值：命名空间 0x53495649 = 1397315145，资源 0x52504731 = 1380992817，合成 key 6001422851361490737。",
+    "可选后续（不在本任务范围）：把锁 key 定义为 tools/plugins 都能读取的单一份数据文件（如 JSON/properties）并由构建期校验，彻底消除人工同步风险。",
+    "可选后续：为 DATABASE_MIGRATION.md 补充锁 key 与超时选项说明。"
+  ]
+}
