@@ -5,12 +5,20 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 0,
+  "round": 1,
   "max_round": 12,
   "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
   "gate": {
     "definition_of_done": "src/main 里有真实调用点 + 行为级测试 + 全量编译门绿 + .cnb/agent-out/<id>.json 带 evidence.grep/evidence.test",
-    "excluded": ["推算", "应该", "等价于", "只有单元测试无消费者", "文档已更新", "已建 DDL 表", "已定义枚举"],
+    "excluded": [
+      "推算",
+      "应该",
+      "等价于",
+      "只有单元测试无消费者",
+      "文档已更新",
+      "已建 DDL 表",
+      "已定义枚举"
+    ],
     "compile_gate": "每个子工程 BUILD_EXIT=0 且 SECONDS>0"
   },
   "evidence": [
@@ -56,13 +64,27 @@
       "source": "本仓 .cnb.yml 编译门（首次触发后回填实测 sn 与 BUILD_EXIT）",
       "level": "[S]",
       "status": "pending_first_run"
+    },
+    {
+      "id": "E-008",
+      "fact": "编译门首次真实运行：能在 CNB 上跑通 gradle wrapper 9.1.0 + paper-api 26.2（TASKS_DONE=29），但全量编译 FAIL，BUILD_EXIT=1 / SECONDS=101。首个失败点 = plugins/rpg-integrations 找不到 kr.toxicity.hud.api（BetterHud API 未在依赖里）",
+      "source": "sn=cnb-4r1-1k3tb2rk8 stage=compile 日志；COMPILE_GATE=RED",
+      "level": "[S]"
+    },
+    {
+      "id": "E-009",
+      "fact": "构建不自包含：8 处 compileOnly(files(...)) 指向 server/runtime/plugins 与 server/vendor，而这两条路径被 .gitignore 忽略 ⇒ 干净克隆必然编不过；其中 2 个 jar 是 Sivita 自改版（MyPet-4.0.0-Sivita.jar、worldguard-bukkit-7.0.18-Sivita.jar），公开源不存在",
+      "source": "grep -rn 'files(' --include=build.gradle.kts；.gitignore 的 server/runtime/ server/vendor/",
+      "level": "[S]"
     }
   ],
   "unverified": [
     {
       "id": "U-001",
       "claim": "paper-api:26.2.build.100-stable 能在 CNB 出网环境下从 repo.papermc.io 拉到",
-      "how_to_check": "触发一次编译门，看 gradle.log 是否出现 Could not resolve io.papermc.paper:paper-api"
+      "how_to_check": "触发一次编译门，看 gradle.log 是否出现 Could not resolve io.papermc.paper:paper-api",
+      "status": "RESOLVED_TRUE",
+      "resolution": "paper-api:26.2.build.100-stable 能从 CNB 拉到（编译跑到 29 个 task 才在源码处失败）"
     },
     {
       "id": "U-002",
@@ -76,11 +98,20 @@
     }
   ],
   "author_claimed_pending_verification": [],
-  "decisions_locked": ["L-001", "L-002", "L-003", "L-004", "L-005", "L-006", "L-007", "L-008"],
+  "decisions_locked": [
+    "L-001",
+    "L-002",
+    "L-003",
+    "L-004",
+    "L-005",
+    "L-006",
+    "L-007",
+    "L-008"
+  ],
   "open_questions_for_human": [
     "跨 Phase 抢跑是否批准：G-001（防御失效）与 G-002（Kill Switch）属 Phase 0 范畴，但 G-101/G-107 属 Phase 1 —— 是否允许 Phase 0 与 Phase 1 并行？"
   ],
-  "next_action": "派 Planner NPC 产出完整差集矩阵（G-303）与第一波 tasks.json；同时触发一次编译门验证 E-007",
+  "next_action": "① 本地从 lamb 取回 8 个 jar，把 2 个自改版作为 vendor 二进制入库 ② 派 NPC 写 scripts/fetch-deps.sh 拉其余 6 个公开 jar 并改 build.gradle.kts 指向 libs/ ③ 门转绿后再派 W1-A1..A5",
   "updated_by": "WorkBuddy AI（本地调度）",
-  "updated_at": "2026-10-02T03:20:00Z"
+  "updated_at": "2026-10-02T03:45:00Z"
 }
