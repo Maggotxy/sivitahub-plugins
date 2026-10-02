@@ -164,5 +164,19 @@
     "未改任何 src/main 下的源码（本任务 allowed_paths 为 plan/** 与 .cnb/agent-out/**）。",
     "已合入 main 的 gap 一律未出现在 plan/tasks-w8.json（该文件只含 G-302 残留与 G-ANOMALY-ACK 两个真实剩余项）。",
     "把枚举预留态（SACRIFICED / EquipmentOperationKind.SEASON_ATTUNEMENT）与间接接线（isAuthoritativeNamespace）判为「非缺口」，理由逐条写在 plan/gap-matrix-v4.md §7。"
+  ],
+  "risks": [
+    "G-302 的 2 个纯源码字符串断言测试类未被收敛：MobRewardAsyncLifecycleContractTest（3 tests / 22 断言）与 PetRevivalLifecycleContractTest（4 tests / 29 断言），每 @Test 的断言全部是 source.contains / indexOf 的跨文件源码比较，重构即失效，[T] 证据须打折。",
+    "ProgressionAnomalyService 的读侧（pending(UUID)/pending(int)/acknowledge）在 src/main 零调用点：异常被写进 rpg_progression_anomalies 之后，运行期没有任何代码能把它们列出来或核销。写侧已接线，按 GOAL.md §2 的机械口径不构成「声明未接线」，但能力在运行期不可达。",
+    "本容器无 JDK（command -v java 无输出、/usr/lib/jvm 不存在）：compile / test / assemble 三门未在本地复跑，本轮的八门证据全部来自 CNB 门运行记录（sn=cnb-ihu-1k3ug6u6p，sha=c63f446）。",
+    "同 sha 的 api_trigger_gate（cnb-ves-1k3ug78vf）在本次审计结束时 test stage 仍在 running；采信的是同一 sha 的 push 门（push 与 api_trigger_gate 共用 .cnb.yml 锚点 .quality_gate），未等它跑完。",
+    "配置键复查只覆盖最近几波新增的 5 个键；25 个模块 1900+ 个 YAML 叶子键的全量「配置键未接线」判定做不到机械取证（大量 getConfigurationSection + getKeys(false) 动态遍历），本轮未做。",
+    "W7-A2 遗留 4 条 unproven（G-207 计数器内存态 / G-205 启动对账 / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed）都属 [R] 级证据，需真实 Paper 运行环境。"
+  ],
+  "next_steps": [
+    "派 W9-A1-source-string-tests-final2：把 G-302 最后 2 个测试类的断言按类归成三类（可行为化的 / 属构建接线契约迁 source-contract 规格的 / 依赖本仓外产物只能 @Tag(env) 的）并落地，每条改动做负向对照，完成后跑 ./gradlew --no-daemon test -PexcludeTags=env 确认 26 模块全绿。",
+    "派 W9-A2-progression-anomaly-review-exit：给 ProgressionAnomalyService 的读侧补一个管理面出口（建议 /rpgadmin anomalies [page] + anomaly-ack <player> <reviewer>），保持 acknowledge 的有署名 fail-closed 语义，加真 H2 行为级测试；若读完代码判断出口形态需人类先拍板，就报 status=blocked 并写清要决策什么。",
+    "两条都清掉后，用新 sha 再跑一次 api_trigger_gate 拿八门证据，再出 verdict-v5 复核 done 的三条。",
+    "请人类就 needs_human 里的 5 条给出裁决：G-ANOMALY-ACK 出口形态 / G-302 修法范围（迁规格 vs 真行为化）/ H-001 生产机跑 maintain-world-coverage.sh / U-003 真实客户端握手 / W7-A2 的 4 条 [R] 级 unproven。"
   ]
 }
