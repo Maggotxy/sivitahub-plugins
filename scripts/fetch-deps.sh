@@ -42,15 +42,15 @@ mkdir -p "$LIB_DIR"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# 下载 URL 到目标文件；失败返回非零
-download() {
+# 下载 URL 到目标文件（单次尝试）；失败返回非零
+download_once() {
     # $1 = url, $2 = dest
     if have python3; then
         python3 - "$1" "$2" <<'PY'
 import sys, urllib.request
 url, dest = sys.argv[1], sys.argv[2]
 req = urllib.request.Request(url, headers={"User-Agent": "sivitahub-fetch-deps/1"})
-with urllib.request.urlopen(req, timeout=180) as resp, open(dest, "wb") as out:
+with urllib.request.urlopen(req, timeout=300) as resp, open(dest, "wb") as out:
     while True:
         chunk = resp.read(65536)
         if not chunk:
@@ -65,6 +65,24 @@ PY
         echo "fetch-deps: 没有可用的下载器（python3 / curl / wget 全缺）" >&2
         return 1
     fi
+}
+
+# 带重试的下载：CNB 出网是**间歇性**的，实测同一次运行里 6/7 个 jar 成功、
+# EssentialsX 那一个在 ci.ender.zone 上 read timeout（sn=cnb-jvs-1k3tr78iv）。
+# 单次失败就让整条质量门 RED 是不划算的，所以这里退避重试 4 次。
+download() {
+    # $1 = url, $2 = dest
+    _attempt=0
+    while [ "$_attempt" -lt 4 ]; do
+        _attempt=$((_attempt + 1))
+        if download_once "$1" "$2"; then
+            [ "$_attempt" -gt 1 ] && echo "fetch-deps: [RETRY OK] 第 $_attempt 次成功：$1"
+            return 0
+        fi
+        echo "fetch-deps: 下载失败（第 $_attempt/4 次）：$1" >&2
+        if [ "$_attempt" -lt 4 ]; then sleep $((_attempt * 5)); fi
+    done
+    return 1
 }
 
 # 计算文件 sha1 / sha256（大小写归一为小写）
