@@ -58,13 +58,55 @@
     ]
   },
   "seven_role_truth_table": [
-    {"role": "LEADER", "enum": "OWNER", "governance": true, "approve": true, "moderate": true},
-    {"role": "DEPUTY", "enum": "OFFICER", "governance": true, "approve": true, "moderate": true},
-    {"role": "TREASURER", "enum": "TREASURER", "governance": true, "approve": true, "moderate": true},
-    {"role": "BUILDER", "enum": "BUILDER", "governance": false, "approve": false, "moderate": false},
-    {"role": "EVENT_HOST", "enum": "EVENT_HOST", "governance": false, "approve": false, "moderate": false},
-    {"role": "RECRUITER", "enum": "RECRUITER", "governance": false, "approve": false, "moderate": false},
-    {"role": "MEMBER", "enum": "MEMBER", "governance": false, "approve": false, "moderate": false}
+    {
+      "role": "LEADER",
+      "enum": "OWNER",
+      "governance": true,
+      "approve": true,
+      "moderate": true
+    },
+    {
+      "role": "DEPUTY",
+      "enum": "OFFICER",
+      "governance": true,
+      "approve": true,
+      "moderate": true
+    },
+    {
+      "role": "TREASURER",
+      "enum": "TREASURER",
+      "governance": true,
+      "approve": true,
+      "moderate": true
+    },
+    {
+      "role": "BUILDER",
+      "enum": "BUILDER",
+      "governance": false,
+      "approve": false,
+      "moderate": false
+    },
+    {
+      "role": "EVENT_HOST",
+      "enum": "EVENT_HOST",
+      "governance": false,
+      "approve": false,
+      "moderate": false
+    },
+    {
+      "role": "RECRUITER",
+      "enum": "RECRUITER",
+      "governance": false,
+      "approve": false,
+      "moderate": false
+    },
+    {
+      "role": "MEMBER",
+      "enum": "MEMBER",
+      "governance": false,
+      "approve": false,
+      "moderate": false
+    }
   ],
   "risks": [
     "改动面刻意最小：只动 allowed_paths 里的两个 rpg-core 文件（1 处实现 + 1 处 Javadoc + 1 条测试），不新增接口方法、不动 rpg-api / rpg-community，因此不会与同波任何任务的路径重叠。",
@@ -78,5 +120,7 @@
     "未验证真实玩家命令路径的端到端行为。"
   ],
   "blockers": [],
-  "pr_url": ""
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/33",
+  "branch": "agent/W4-A3-b-g115-direct-admission",
+  "commit": "b44d338"
 }
