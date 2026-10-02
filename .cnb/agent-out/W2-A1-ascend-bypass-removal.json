@@ -74,5 +74,6 @@
   ],
   "blockers": [
     "rpg-core 的 LanguageBundleContractTest 两个用例依赖本仓库未跟踪的 server/ 目录，本环境恒失败；非本任务引入"
-  ]
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/17"
 }
