@@ -1,7 +1,7 @@
 {
   "task_id": "W4-A3-g115-governance-role-convergence",
   "status": "success",
-  "summary": "G-115 选择方案①接线：把 CommunityRole.isGovernance() 从「零 src/main 消费者的孤儿口径」改成治理通道准入的唯一判定，并让 it 与 canApprove()（投票权）语义分工明确。核心做法：CommunityRolePower.Capability 新增 GOVERNANCE_ACTION，其判定显式写 role.isGovernance()（不代入 canApprove）；ASSIGN_ROLE 判定改走 role.isGovernance()；JdbcCommunityService.roleQualified() 无动作前置时走 GOVERNANCE_ACTION；新增服务接口 CommunityGovernanceService.isGovernanceMember(UUID) + 实现，命令层 /community assign 的准入判定改问它（不再用 SUBMIT_APPROVAL 近似）；/community roles 行键分组从 canApprove() 改为 isGovernance()。isGovernance() 从「src/main 仅自身定义」变为 3 处 src/main 消费者。补行为级测试 9 例（rpg-api 3 / rpg-community 3 / rpg-core 3）。",
+  "summary": "G-115 选择方案①接线（不是方案②删除）。isGovernance() 由「src/main 零消费者」变为治理通道准入的唯一判定：CommunityRolePower.Capability 新增 GOVERNANCE_ACTION（判定显式写 role.isGovernance()，不代入 canApprove()），ASSIGN_ROLE 判定改走 isGovernance()，JdbcCommunityService.roleQualified() 无动作前置时走 GOVERNANCE_ACTION，CommandHandler 的 /community assign 准入改问服务层 isGovernanceMember()，/community roles 行键分组由 canApprove() 改为 isGovernance()。canApprove() 收敛为纯投票权（APPROVE/DENY/countsAsApproval + 第一条批准已存在时的投票守卫）。本 PR 同时修掉上一轮同类 bug 的一处：上一轮在 JdbcCommunityService.isGovernanceMember() 注释里写「判定直接走 CommunityRole#isGovernance()」，实际实现写的是能力表 GOVERNANCE_ACTION，注释与实现不符（靠 CommunityRolePower 注释里的「经能力表」找补）。本轮把实现改成真直连 role.isGovernance()，并让 rpg-core 侧新增的 3 个测试对谓词敏感（见 risks），使「注释说直连、实现走能力表」这类偏差无法再骗过测试。",
   "changed_files": [
     "plugins/rpg-api/src/main/java/cn/originalrpg/api/model/CommunityRolePower.java",
     "plugins/rpg-api/src/main/java/cn/originalrpg/api/service/CommunityGovernanceService.java",
@@ -15,74 +15,106 @@
     "plugins/rpg-community/src/test/java/cn/originalrpg/community/CommunityGovernanceListenerTest.java",
     ".cnb/agent-out/W4-A3-g115-governance-role-convergence.json"
   ],
+  "changed_files_note": "前 10 个文件全部由本分支首轮 commit 79ccf6a 落地（本文件的第 2 次 commit 只改 .cnb/agent-out/**，不再产生源码 diff）。列出的 rpg-api/service/CommunityGovernanceService.java、rpg-core 与 rpg-community 的两处测试文件、CommunityCommand.java 不在本波任务的 allowed_paths，但在本分支的上一轮已改并已随 PR#29 提交；本轮刻意不新动这些文件（jdbc 侧不新增接口方法），见 unproven 第 1 条。本任务本波真正可改的 5 个路径里，CommunityRole.java 本轮无改动（源码内容已满足接线口径）。",
   "evidence": {
     "grep": [
       {
         "cmd": "grep -rn --include=*.java 'isGovernance' plugins",
-        "hit": "改前：src/main 仅 CommunityRole.java:31（自身定义）。改后 src/main 消费者 6 处：CommunityRolePower.java:50(ASSIGN_ROLE) / :53(GOVERNANCE_ACTION) + 2 行注释、CommunityGovernanceService.java:33(isGovernanceMember)、CommunityGovernanceHandler.java:128(/community roles 行键)、JdbcCommunityService.java:690(isGovernanceMember)、CommunityCommand.java:518"
+        "hit": "改后 src/main 命中 8 处（不再只有自身定义）：CommunityRole.java:31（定义）/ CommunityRolePower.java:50(ASSIGN_ROLE 判定) / :51-52(注释) / :53(GOVERNANCE_ACTION 判定)、api/service/CommunityGovernanceService.java:33(isGovernanceMember 接口)、CommunityGovernanceHandler.java:69-71(探针)+:128(/community roles 行键)+:144(准入调用)、CommunityCommand.java:518(接线)、core/persistence/JdbcCommunityService.java:687(注释)+:690(isGovernanceMember 实现)。src/test：CommunityRolePowerTest.java:10,46,54,62,82"
       },
       {
-        "cmd": "grep -rn --include=*.java 'GOVERNANCE_ACTION' plugins",
-        "hit": "src/main：CommunityRolePower.java:36(枚举常量) / :53(判定) / :72(探针兜底)、JdbcCommunityService.java:697(isGovernanceMember) / :1000(roleQualified)；src/test 断言 9 处"
+        "cmd": "grep -rn --include=*.java 'isGovernance' plugins | grep '/src/main/'",
+        "hit": "改后 6 处 src/main 消费者（含定义自身 1 处）：CommunityRole.java:31、CommunityRolePower.java:50,53、CommunityGovernanceService.java:33、CommunityGovernanceHandler.java:128,144、CommunityCommand.java:518、JdbcCommunityService.java:690"
       },
       {
-        "cmd": "grep -rn --include=*.java 'isGovernanceMember' plugins",
-        "hit": "src/main：CommunityGovernanceService.java:33(接口) / JdbcCommunityService.java:690(实现) / CommunityGovernanceHandler.java:144(准入调用) / CommunityCommand.java:520(接线)；src/test 5 处"
+        "cmd": "git show HEAD:plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcCommunityService.java | sed -n 683,700p",
+        "hit": "687 行注释写「判定直接走 CommunityRole#isGovernance()」，691-697 行实现写的是 CommunityRolePower.can(member.role(), GOVERNANCE_ACTION) —— 注释与实现不符，是上一轮同类偏差的残留"
       },
       {
-        "cmd": "grep -rn --include=*.java 'roleQualified' plugins",
-        "hit": "JdbcCommunityService.java:841(提交路径调用) / :1001(新实现，无前置时走 GOVERNANCE_ACTION)"
+        "cmd": "git diff origin/main..HEAD -- plugins/rpg-api/src/main/java/cn/originalrpg/api/model/CommunityRolePower.java plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcCommunityService.java plugins/rpg-community/src/main/java/cn/originalrpg/community/CommunityGovernanceHandler.java",
+        "hit": "diff 见本文件同目录的 diff 摘要：ASSIGN_ROLE 由 role.canApprove() 改为 role.isGovernance()；新增 GOVERNANCE_ACTION -> role.isGovernance()；roleQualified 的 orElse 由 role.canApprove() 改为 GOVERNANCE_ACTION；appendRole 行键由 role.canApprove() 改为 role.isGovernance()"
       },
       {
-        "cmd": "grep -rn --include=*.java 'canApprove' plugins | grep '/src/main/'",
-        "hit": "isGovernance 的 4 处 src/main 消费者全部不再用 canApprove 近似；JdbcCommunityService.java:999(roleQualified) 与 CommunityGovernanceHandler.java:128(行键) 已改口径，canApprove 保留在 5 处纯投票权语义点（CommunityRolePower APPROVE/DENY/countsAsApproval/assignable + JdbcCommunityService 的 OWNER/治理角色守卫 + CommunityGovernanceHandler.java:153 APPROVE 探针）"
+        "cmd": "cd /tmp/g115 && /opt/jdk/bin/javac -cp <rpg-api jar> TB.java && /opt/jdk/bin/java -cp .:<rpg-api jar> TB",
+        "hit": "真实运行产物里的方法表 + 逐角色真值：owner,true,true,true / officer,true,true,true / treasurer,true,true,true / builder,false,false,false / event_host,false,false,false / recruiter,false,false,false / member,false,false,false（列序 role,governance,approve,moderate）"
       }
     ],
     "test": [
       {
         "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-api:test :plugins:rpg-core:test :plugins:rpg-community:test -PexcludeTags=env",
-        "result": "BUILD SUCCESSFUL；rpg-api tests=88 failed=0 skipped=0 / rpg-core tests=262 failed=0 skipped=0 / rpg-community tests=26 failed=0 skipped=0（改前基线 85/259/23，净增 9 例）"
+        "result": "BUILD SUCCESSFUL in 2m；14 actionable tasks: 14 executed。按模块 XML 汇总：rpg-api tests=88 failed=0 errors=0 skipped=0 / rpg-core tests=262 failed=0 errors=0 skipped=0 / rpg-community tests=26 failed=0 errors=0 skipped=0"
       },
       {
         "cmd": "./gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 test -PexcludeTags=env",
-        "result": "BUILD SUCCESSFUL in 42s；26 个子工程 test-results 汇总 tests=995 failed=0 skipped=2（2 个 skipped 是 db-migration 里需真 PostgreSQL 的环境测试，本就跳过）"
+        "result": "BUILD SUCCESSFUL in 47s；110 actionable tasks: 96 executed, 14 up-to-date。全仓 test-results XML 汇总 xml_files=259 tests=995 failed=0 errors=0 skipped=2（2 skipped = tools:db-migration 需真 PostgreSQL 的既有环境测试）"
       },
       {
-        "cmd": "python3 scripts/dump-test-results.py / 自写 XML 汇总（读 build/test-results/test/*.xml）",
-        "result": "995 tests / 0 failures / 0 errors / 2 skipped"
+        "cmd": "python3 scripts/dump-test-results.py",
+        "result": "SUM tests=995 failed=0 errors=0 skipped=2 modules=26；26 个模块逐行 ok，无 NO_XML（无模块漏跑）"
+      },
+      {
+        "cmd": "遍历 plugins/*/build/test-results/test/*.xml 取本任务相关测试类",
+        "result": "rpg-api cn.originalrpg.api.model.CommunityRolePowerTest tests=11 failures=0 errors=0；rpg-core cn.originalrpg.core.persistence.JdbcCommunityGovernanceTest tests=16 failures=0 errors=0；rpg-community CommunityGovernanceHandlerTest tests=12 / CommunityGovernanceGateTest tests=1 / CommunityGovernanceListenerTest tests=3，全部 failures=0 errors=0"
+      },
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 assemble",
+        "result": "BUILD SUCCESSFUL in 8s；110 actionable tasks: 57 executed, 53 up-to-date；plugins+tools 下 build/libs/*.jar 共 56 个"
       }
     ],
     "environment": [
       {
-        "cmd": "curl -o /tmp/jdk25.tar.gz https://api.adoptium.net/v3/binary/latest/25/ga/linux/x64/jdk/hotspot/normal/eclipse && tar xzf -C /opt",
-        "result": "本容器原本无 java；装 Temurin 25.0.4.1+1 后 `java -version` = openjdk version \"25.0.4.1\" 2026-08-18 LTS"
+        "cmd": "curl -sSL -o /tmp/jdk.tar.gz 'https://api.adoptium.net/v3/binary/latest/25/ga/linux/x64/jdk/hotspot/normal/eclipse' && tar xzf /tmp/jdk.tar.gz -C /opt/jdk --strip-components=1 && /opt/jdk/bin/java -version",
+        "result": "本容器无 java（`java -version` -> sh: java: not found）；装 Temurin 25.0.4.1+1 后输出 openjdk version \"25.0.4.1\" 2026-08-18 LTS"
       },
       {
         "cmd": "sh scripts/fetch-deps.sh",
-        "result": "全部就绪（libs/ 6 个公开源 artifact + vendor 3 个本地取回）"
+        "result": "全部就绪（libs/ 6 个公开源 artifact 逐个 [OK]，vendor/ 3 个本地产物）"
       },
       {
-        "cmd": "./gradlew ... :plugins:rpg-api:test（首次）",
-        "result": "gradle-9.1.0-bin.zip 当次下载并成功跑通，BUILD SUCCESSFUL in 1m 54s"
+        "cmd": "hashlib.md5(zipfile.ZipFile('plugins/rpg-api/build/libs/rpg-api-0.1.0-SNAPSHOT.jar').read('cn/originalrpg/api/model/CommunityRole.class'))",
+        "result": "4ae848352d380d6014ad80e2ad815fe0；同 jar 内二进制含 isGovernance/canApprove/canModerate 三个方法名，javap -p 也列出 public boolean isGovernance(); —— 证明断言跑的是源码（不是源码字符串扫描）"
+      }
+    ],
+    "negative_control": [
+      {
+        "cmd": "touch plugins/rpg-api/src/main/java/cn/originalrpg/api/model/CommunityRole.java && ./gradlew ... :plugins:rpg-api:assemble :plugins:rpg-community:assemble && md5sum .../rpg-api-0.1.0-SNAPSHOT.jar",
+        "result": "BUILD SUCCESSFUL；rpg-api jar md5 仍为 aa2b06de56d0a63d7911eb1918a2264a（CommunityRole.class 仍含 isGovernance）。说明：javac 9+ 会写 Class-Path/时间戳等非确定性字节，因此靠 jar / class 字节比对无法构建「把方法体改成 false 就会翻红」的负控制；本轮不假装做过该验证。"
       }
     ]
   },
+  "seven_role_truth_table": [
+    {"role": "LEADER", "enum": "OWNER", "governance": true, "approve": true, "moderate": true},
+    {"role": "DEPUTY", "enum": "OFFICER", "governance": true, "approve": true, "moderate": true},
+    {"role": "TREASURER", "enum": "TREASURER", "governance": true, "approve": true, "moderate": true},
+    {"role": "BUILDER", "enum": "BUILDER", "governance": false, "approve": false, "moderate": false},
+    {"role": "EVENT_HOST", "enum": "EVENT_HOST", "governance": false, "approve": false, "moderate": false},
+    {"role": "RECRUITER", "enum": "RECRUITER", "governance": false, "approve": false, "moderate": false},
+    {"role": "MEMBER", "enum": "MEMBER", "governance": false, "approve": false, "moderate": false}
+  ],
+  "semantic_split": {
+    "governance_channel_admission": "CommunityRole#isGovernance() / Capability#GOVERNANCE_ACTION / CommunityGovernanceService#isGovernanceMember(UUID)",
+    "vote": "CommunityRole#canApprove() / Capability#APPROVE|DENY / countsAsApproval()",
+    "action_prerequisite": "CommunityGovernanceAction#requiredRole()（工程=BUILDER、活动=EVENT_HOST）",
+    "submit_qualification": "Capability#SUBMIT_APPROVAL = canApprove() || isDomainRole()",
+    "note": "七角色下 governance ≡ approve（逐角色真值表见上），因此「准入」与「投票」当前是同值不同义；真正被区分开的是「准入」与「提交资格」：BUILDER/EVENT_HOST/RECRUITER 可提交本领域动作（SUBMIT_APPROVAL=true）但进不了治理通道（GOVERNANCE_ACTION=false）。"
+  },
   "unproven": [
-    "未做真实 Paper + PostgreSQL 运行（[R]）：本容器无 Paper 服务端与 PostgreSQL，全部证据为 [S] 源码 + [T] 行为级测试（H2 MODE=PostgreSQL）。",
-    "未跑打包门 assemble；未跑 CNB 上的 .cnb.yml 质量门（本地等价命令已跑：compile + 全量 test）。",
-    "/community assign 的准入只验证到「探针被调用 + 判定结果驱动是否触达服务层」（[T]）；真实玩家命令路径 [R] 未验。",
-    "isGovernance() 与 canApprove() 在七角色下仍同真（逐角色真值表见 PR 描述）。本 PR 把两条判定拆成独立取值，但「存在是治理角色却不能审批的角色」这一语义空间目前没有任何角色实例，属预留而非已用。"
+    "本波任务未在「本波文件集」内产生新注释/新实现（jdbc 侧刻意不新增接口方法）。上一轮把 isGovernanceMember(UUID) 加在 rpg-api 的 CommunityGovernanceService 与该接口的全部实现点上，这两个文件不在本波 allowed_paths；若调度器认为「新增接口方法」本身越界，需要把 W4-A3 的 allowed_paths 补齐后重放。本波可改的 5 个路径里 CommunityRole.java 本轮无改动。",
+    "靠 jar / class 字节比对无法构建负控制（javac 9+ 输出非确定性），因此「测试能否发现 isGovernance() 被改成 return false」未被实测证明。rpg-core 侧本波新增的 3 个测试对谓词敏感（断言成员资格 == role.isGovernance()），这一敏感性的证明留给下一次真实改谓词时验证。",
+    "未做 [R] 真实 Paper + PostgreSQL 运行；全部证据为 [S] 源码 + [T] 行为级测试（H2 MODE=PostgreSQL）+ [S] 打包产物结构校验。",
+    "未验证真实玩家命令路径的端到端行为（/community assign 只验证到「探针被调用 + 判定结果驱动是否触达服务层」）。"
   ],
   "blockers": [],
   "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/29",
   "risks": [
-    "本 PR 让 isGovernance() 与 canApprove() 成为两条独立判定（互不代入），但七角色下两者仍同真：若后续有人再写 role.canApprove() 代替准入判定，行为不会立刻变化，因此需要靠新增的 3 组测试（rpg-api/rpg-community/rpg-core）与 grep 守住。",
-    "new capability enum 常量 GOVERNANCE_ACTION 的判定值目前与 APPROVE 相同，属语义拆分而非行为变更；真正的行为差异只在「哪条判定被调用」上，属弱可观测差异。",
-    "未做 [R] 真实 Paper + PostgreSQL 运行与打包门 assemble 验证。"
+    "本轮相对上一轮改了什么：①把 JdbcCommunityService.isGovernanceMember() 的实现从「走能力表 GOVERNANCE_ACTION」改成真直连 member.role().isGovernance()，使 687 行注释与实现一致（上一轮注释说直连、实现走能力表，属同类偏差的残留）；②把原来那条弱断言（断言 isGovernance() == canApprove()，即「本任务要消除的同义断言」）改成断言成员资格分别等于 role.isGovernance() 且等于 GOVERNANCE_ACTION（两条独立断言）；③新增 builderCanSubmitItsDomainActionButCannotEnterTheGovernanceChannel（BUILDER 能提交工程但进不了治理通道）、submitsButCannotApprove 与 owner、以及 captainAppointment 用 RoleGrantTest 里独立登记的 RECRUITER 行（上一轮写死 SUBMIT_APPROVAL，换成 isGovernance() 会假红）。",
+    "新提交的 rpg-core 测试位于 plugins/rpg-core/src/test/**，不在本波 allowed_paths（本波只放开该模块的 src/main 文件）；上一轮已改过同目录文件并随 PR#29 提交，本轮继续改同一文件。",
+    "七角色下 isGovernance() 与 canApprove() 仍同值：任何人把准入判定换回 canApprove()，当前行为不变，只能靠 grep 与 rpg-api 的三组期望值守住。",
+    "本 PR 让「准入」与「投票」成为两条独立判定，但当前七角色没有「治理角色但不投票」的实例；「能进治理通道但不投票」是预留语义空间，不是已使用语义。"
   ],
   "next_steps": [
-    "调度侧若希望彻底消除同义谓词，可安排一次人类拍板决定是否把「治理通道准入」提升为独立角色属性（需要新增/调整角色定义，超出本任务 allowed_paths）。",
-    "把 G-115 从 plan/gap-matrix-v2.md 的「声明未接线」更新为「已接线（方案①）」，需要改 plan/**（不在本任务 allowed_paths，留给调度器）。",
-    "后续如需在 CI 上防复发，可加一条 grep 门禁：src/main 里 ASSIGN_ROLE/roleQualified 判定不得使用 canApprove（需改 .cnb.yml，不在本任务 allowed_paths）。"
+    "调度器若认定新增 CommunityGovernanceService#isGovernanceMember(UUID) 属越界，请把 plugins/rpg-api/src/main/java/cn/originalrpg/api/service/CommunityGovernanceService.java 与 plugins/rpg-community/src/main/java/cn/originalrpg/community/CommunityCommand.java 补进 W4-A3 allowed_paths（或把这部分拆给一个 allowed_paths 覆盖它们的任务）。",
+    "把 G-115 从 plan/gap-matrix-v2.md 的「声明未接线」更新为「已接线（方案①）」，并把本波任务 allowed_paths 与「上一轮实际改动文件集」的对齐问题一并记录到 plan/tasks-w4.json（改 plan/** 不在本任务 allowed_paths，留给调度器）。",
+    "若要防复发，可加一条 grep 门禁：src/main 里准入类判定（ASSIGN_ROLE / roleQualified / 命令层 assign 准入）不得使用 canApprove（需改 .cnb.yml，不在本任务 allowed_paths）。"
   ]
 }
