@@ -28,6 +28,7 @@ import cn.originalrpg.api.service.CommissionEvidenceService;
 import cn.originalrpg.api.service.SeasonExpeditionService;
 import cn.originalrpg.api.service.SeasonMeritWalletService;
 import cn.originalrpg.api.service.SeasonSettlementService;
+import cn.originalrpg.api.service.SeasonAttunementService;
 import cn.originalrpg.api.service.AdminTestService;
 import cn.originalrpg.api.service.AdminIncidentCompensationService;
 import cn.originalrpg.api.service.AscensionService;
@@ -61,6 +62,7 @@ import cn.originalrpg.core.persistence.JdbcCommissionEvidenceService;
 import cn.originalrpg.core.persistence.JdbcSeasonExpeditionService;
 import cn.originalrpg.core.persistence.JdbcSeasonMeritWalletService;
 import cn.originalrpg.core.persistence.JdbcSeasonSettlementService;
+import cn.originalrpg.core.persistence.JdbcSeasonAttunementService;
 import cn.originalrpg.core.persistence.JdbcNodeLease;
 import cn.originalrpg.core.persistence.JdbcOutboxRegistry;
 import cn.originalrpg.core.persistence.JdbcSessionLease;
@@ -245,8 +247,19 @@ public final class RpgCorePlugin extends JavaPlugin {
             String activeSeasonId = getConfig().getString("chapters.season-id", "launch-1");
             JdbcSeasonMeritWalletService seasonMerits = new JdbcSeasonMeritWalletService(
                     database.dataSource(), databaseExecutor, activeSeasonId);
+            // W6-A2：C-008 第五条退出路径（赛季调谐）的触发者是换季结算。
+            // L-009 默认关：关闭时连服务都不装配，结算的调谐步骤一次查询都不做。
+            boolean seasonAttunementEnabled = getConfig()
+                    .getBoolean("season-attunement.enabled", false);
+            JdbcSeasonAttunementService seasonAttunements = seasonAttunementEnabled
+                    ? new JdbcSeasonAttunementService(database.dataSource(), databaseExecutor, mechanisms)
+                    : null;
             JdbcSeasonSettlementService seasonSettlements = new JdbcSeasonSettlementService(
-                    database.dataSource(), databaseExecutor, mechanisms);
+                    database.dataSource(), databaseExecutor, mechanisms, seasonAttunements);
+            if (seasonAttunements != null) {
+                getServer().getServicesManager().register(
+                        SeasonAttunementService.class, seasonAttunements, this, ServicePriority.Normal);
+            }
             // Phase 6 治理「接线但不启用」：开关默认关，命令与事件消费者仍在位。
             boolean communityGovernanceEnabled = getConfig()
                     .getBoolean("community.governance-enabled", false);

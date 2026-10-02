@@ -3,6 +3,7 @@ package cn.originalrpg.core.persistence;
 import cn.originalrpg.api.model.SeasonSettlementPreview;
 import cn.originalrpg.api.model.SeasonSettlementResult;
 import cn.originalrpg.api.rules.SeasonSettlementState;
+import cn.originalrpg.api.service.SeasonAttunementService;
 import cn.originalrpg.api.service.SeasonSettlementService;
 
 import javax.sql.DataSource;
@@ -55,11 +56,25 @@ public final class JdbcSeasonSettlementService implements SeasonSettlementServic
     private final DataSource dataSource;
     private final Executor executor;
     private final MechanismRegistry mechanisms;
+    private final SeasonAttunementService attunements;
 
     public JdbcSeasonSettlementService(DataSource dataSource, Executor executor, MechanismRegistry mechanisms) {
+        this(dataSource, executor, mechanisms, null);
+    }
+
+    /**
+     * @param attunements C-008 第五条退出路径的触发者接线（W6-A2）。为 null 时表示
+     *                    本次装配没有接入赛季调谐，结算只做原有的赛季层功勋结清 ——
+     *                    与配置 {@code season-attunement.enabled} 默认关一致（L-009）。
+     */
+    public JdbcSeasonSettlementService(
+            DataSource dataSource, Executor executor, MechanismRegistry mechanisms,
+            SeasonAttunementService attunements
+    ) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource");
         this.executor = Objects.requireNonNull(executor, "executor");
         this.mechanisms = mechanisms;
+        this.attunements = attunements;
     }
 
     @Override
@@ -274,6 +289,34 @@ public final class JdbcSeasonSettlementService implements SeasonSettlementServic
     }
 
     /**
+     * 赛季调谐的触发点：把该玩家在旧赛季剩余的可调谐装备收口成 {@code SEASON_ATTUNED}。
+     *
+     * <p>与功勋结清共享同一个 JDBC 事务：调谐行、市场邮箱投递行与状态行要么全落，
+     * 要么全不落。幂等键带上结算 id，所以结算重放会命中唯一键而不是二次推进。</p>
+     *
+     * <p>{@code attunements == null}（未接线）时本方法一次查询都不做，旧行为零变化。</p>
+     */
+    private long attuneSeasonGear(
+            Connection connection, String settlementId, String oldSeasonId, String playerUuid
+    ) throws SQLException {
+        if (attunements == null) return 0;
+        java.util.List<cn.originalrpg.api.model.SeasonAttunementRecord> records;
+        UUID ownerId;
+        try {
+            ownerId = UUID.fromString(playerUuid);
+            records = attunements
+                    .attuneForSettlement(oldSeasonId, ownerId, settlementId)
+                    .toCompletableFuture()
+                    .join();
+        } catch (RuntimeException failure) {
+            // 失败关闭：调谐拿不到确定结果时，整个换季事务回滚，而不是先把功勋结清。
+            throw new SQLException("Season attunement step failed closed for " + playerUuid, failure);
+        }
+        return records == null ? 0
+                : records.stream().filter(cn.originalrpg.api.model.SeasonAttunementRecord::attuned).count();
+    }
+
+    /**
      * 旧赛季赛季层功勋的原子结清。
      *
      * <p>顺序固定：先写不可变账本，再归零，再登记进度。三者共享一个事务；
@@ -302,6 +345,10 @@ public final class JdbcSeasonSettlementService implements SeasonSettlementServic
                     writeSettlementLedger(connection, newSeasonId, seasonId, playerId, amount);
                     zeroSeasonMerit(connection, playerId, seasonId, amount);
                     moveWalletToNewSeason(connection, playerId, newSeasonId);
+                    // C-008 第五条退出路径：旧赛季资产层里的装备身份随结算收口成
+                    // 赛季调谐态，再经唯一市场邮箱交还原持有者。触发者是本方法，
+                    // 不是玩家指令（docs/LONG_TERM_GAME_ECONOMY_PLAN.md 第 3 节）。
+                    attuneSeasonGear(connection, settlementId, seasonId, playerId);
                     recordProgress(connection, settlementId, playerId, amount);
                     settled++;
                 }
