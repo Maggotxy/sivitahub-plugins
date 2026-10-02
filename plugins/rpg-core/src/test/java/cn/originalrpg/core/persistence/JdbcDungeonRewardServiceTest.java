@@ -55,18 +55,20 @@ final class JdbcDungeonRewardServiceTest {
                     """);
             statement.execute("""
                     CREATE TABLE rpg_skill_point_grants (
-                        source VARCHAR(96) NOT NULL, idempotency_key VARCHAR(96) NOT NULL,
-                        player_uuid VARCHAR(36) NOT NULL, points INTEGER NOT NULL,
-                        ascension INTEGER NOT NULL, from_local_level INTEGER NOT NULL,
+                        milestone_key VARCHAR(160) PRIMARY KEY,
+                        receipt VARCHAR(96) NOT NULL,
+                        player_uuid VARCHAR(36) NOT NULL,
+                        points INTEGER NOT NULL,
+                        ascension INTEGER NOT NULL,
+                        milestone_index INTEGER NOT NULL,
                         to_local_level INTEGER NOT NULL,
-                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (source, idempotency_key)
+                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )
                     """);
             statement.execute("""
                     CREATE TABLE rpg_market_deliveries (
                         id VARCHAR(36) PRIMARY KEY, player_uuid VARCHAR(36) NOT NULL,
-                        item_payload TEXT NOT NULL, source VARCHAR(96) NOT NULL, state VARCHAR(16) NOT NULL,
+                        item_payload TEXT NOT NULL, source VARCHAR(128) NOT NULL, state VARCHAR(16) NOT NULL,
                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, delivered_at TIMESTAMP NULL
                     )
                     """);
@@ -168,7 +170,7 @@ final class JdbcDungeonRewardServiceTest {
         assertEquals(1, count("rpg_skill_point_grants"));
     }
 
-    /** 累计恰好升到同段目标本地等级所需的经验。 */    /** 累计恰好升到同段目标本地等级所需的经验。 */
+    /** 累计恰好升到同段目标本地等级所需的经验。 */
     private static long experienceToLocal(int ascension, int fromLocal, int targetLocal) {
         long needed = 0L;
         for (int local = fromLocal; local < targetLocal; local++) {

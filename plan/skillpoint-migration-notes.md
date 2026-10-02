@@ -9,7 +9,7 @@
 |---|---|---|
 | 发放依据 | `effectiveLevel / 3` 差分（每转生 3 有效级 1 点） | 本地等级里程碑（每转本地 3/6/.../30 各 1 点） |
 | 跨段行为 | 0转30 → 1转31，整除差 `10-10=0`，**吞掉新段首档** | 换段后按新段本地等级重新累计，**不吞点** |
-| 幂等 | 无（重放靠调用方业务 receipt） | 表 `rpg_skill_point_grants` 的 `(source, idempotency_key)` 唯一键 |
+| 幂等 | 无（重放靠调用方业务 receipt） | 表 `rpg_skill_point_grants` 主键 `milestone_key = (玩家, 转, 档位)` |
 | 每转总点数 | 不等（跨段点吞/多发） | 恒定 10 点（本地 3..30 共 10 档） |
 | 0→3 转总点数 | 不恒定 | 恒定 40 点 |
 
@@ -48,6 +48,12 @@
 ## 2. 需要人工确认的存量档案（只读 dry-run）
 
 ```sql
+-- 说明：本表上线前的存量档案没有任何里程碑流水行，
+--      因此「已发档位」对存量档案一律为空，新口径会在玩家下次升级时
+--      把该段内已过的档位一次性补上（这正是「不吞点」的补偿形式，
+--      仍然是同一份规则 + 同一个幂等键，可重复执行且只生效一次）。
+--      是否要为此做前置一次性补偿，见 §4。
+
 -- 2.1 是否有档案的 skill_points 低于新口径应得值（跨段吞点嫌疑）
 --     新口径应得 = sum(每段已过里程碑) + 初始 1 点
 --     注意：技能点还被技能书消耗，因此 < 应得 只能作为「嫌疑」而不是结论。
@@ -76,16 +82,23 @@ FROM rpg_skill_point_grants GROUP BY player_uuid;
 ## 3. 补偿路径（本 PR 已实现，可重复执行且只生效一次）
 
 - 表：`rpg_skill_point_grants`
-  - 唯一键：`(source, idempotency_key)`
-  - `source` 形如 `local-milestone:<转>:<里程碑>|source:<业务来源>`
-  - `idempotency_key`：副本用 `run_id`；直接授予经验用玩家 UUID；事故补偿用 `incident_key`
+  - 主键（唯一键）：`milestone_key`
+  - `milestone_key` 形如 `local-milestone:<玩家>:<转>:<档位序号>`
+  - `receipt`（审计列，**不参与去重**）：副本用 `run_id`；直接授予经验用 `profile:<uuid>`；事故补偿用 `incident_key`
+  - 档位序号 = 本地等级 / 3，所以本地 3 -> 序号 1；序号 0 对应本地 1-2，永远不发点
 - 写入路径：`JdbcProfileService.grantExperienceInTransaction(...)` /
   `JdbcProfileService.grantExperience(...)` → `settleSkillPointMilestones(...)`
-- 行为：`INSERT ... ON CONFLICT DO NOTHING` 返回 1 才算新发；返回 0 且内容一致 = 重放，
-  返回 0 且内容不一致 = 抛 `IllegalStateException`（不静默覆写）
+- 行为：`INSERT ... ON CONFLICT DO NOTHING` 主键命中即「这一档已发过」，
+  返回 0 ⇒ 不加点、不覆写（不再比较结算区间字段：把 `from/to` 等级写进一致性校验
+  会把「本地 1→6」与「本地 4→6」这种都跨第 6 档的合法路径误判成键复用而整单回滚）
 - **禁止**内存补偿：只有落库成功才 `Math.addExact` 到 `PlayerProfile.skillPoints`
 - **没有第二套等级账本**：技能点仍然写同一个 `rpg_profiles.skill_points`；
   `rpg_skill_point_grants` 只是「发过哪些档位」的可审计依据
+- **DDL 尚未进迁移清单**：`Database.java` 的建表列表与 `tools/db-migration/SchemaManifest`
+  不在本任务 allowed_paths 内，因此本分支单独提供
+  `plan/migrations/W4-A2-skill-point-grants.sql`（人工执行，`IF NOT EXISTS`，可重复跑）。
+  合入 main 前必须由人把等价 DDL 补进 `Database.java`，否则真机首次经验授予会以
+  「Table not found」回滚。
 
 ## 4. 人工决策项（需要人拍板，本 PR 不擅自 UPDATE）
 

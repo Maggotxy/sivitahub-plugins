@@ -158,8 +158,8 @@ public final class JdbcProfileService implements ProfileService {
             PlayerProfile leveled = withGrantedExperience(current, amount);
             // 直接授予经验没有业务 receipt，幂等依据是「档案 + 本段档位」：
             // 同一档位只落一行流水，重复授予到同一档位不再加点。
-            int granted = settleSkillPointMilestones(connection, skillPointContexts(
-                    current, leveled, profileSource(playerId), current.playerId().toString()));
+            int granted = settleSkillPointMilestones(connection,
+                    skillPointContexts(current, leveled, profileSource(playerId)));
             PlayerProfile updated = withSkillPoints(leveled, granted);
             update(connection, updated);
             return updated;
@@ -444,19 +444,21 @@ public final class JdbcProfileService implements ProfileService {
     /**
      * Applies normal level/point progression inside a caller-owned transaction.
      *
-     * <p>调用方（如副本结算）必须传幂等键 source 与业务 receipt id：技能点里程碑流水
-     * 以 source + (转, 本地里程碑) 为唯一键，同一 receipt 重放不会二次发点。
+     * <p>调用方（如副本结算 / 事故补偿）传业务来源与 receipt：receipt 只作审计，
+     * 技能点去重靠「(玩家, 转, 档位)」档位键，见 {@link #settleSkillPointMilestones}。
      */
     PlayerProfile grantExperienceInTransaction(
-            Connection connection, UUID playerId, long amount, UUID source, String idempotencyKey
+            Connection connection, UUID playerId, long amount, UUID source, String receiptId
     ) throws SQLException {
         if (amount <= 0) throw new IllegalArgumentException("Experience must be positive");
         java.util.Objects.requireNonNull(source, "source");
-        java.util.Objects.requireNonNull(idempotencyKey, "idempotencyKey");
+        java.util.Objects.requireNonNull(receiptId, "receiptId");
         PlayerProfile profile = loadForUpdate(connection, playerId);
         PlayerProfile leveled = withGrantedExperience(profile, amount);
+        // 技能点幂等同「档位」绑定，不与 receipt 绑定：receipt 只是审计备注。
+        // 若把 receipt 混进唯一键，同一档位换一条 receipt 跨过会重复发点。
         int granted = settleSkillPointMilestones(connection,
-                skillPointContexts(profile, leveled, source.toString(), idempotencyKey));
+                skillPointContexts(profile, leveled, source.toString()));
         PlayerProfile updated = withSkillPoints(leveled, granted);
         update(connection, updated);
         return updated;
@@ -465,23 +467,22 @@ public final class JdbcProfileService implements ProfileService {
     /**
      * 一次升级结算跨越的里程碑列表。
      *
-     * <p>幂等依据是「一行一个里程碑」，不是「一行一个结算区间」：
-     * 如果按区间写一行，同一 receipt 分段重放（先升到 9 再升到 12）会把
-     * 一个里程碑写成两行不同区间，重放就无法只生效一次。
+     * <p>幂等依据是「一行一个档位」，不是「一行一个结算区间」：
+     * 一行一个区间会让同一档位被两条区间各写一行（本地 1→6 与 4→6 都过第 6 档），
+     * 重放就无法只生效一次。因此键只取 (玩家, 转, 档位)。
      */
     private static List<SkillPointContext> skillPointContexts(
-            PlayerProfile before, PlayerProfile after, String source, String idempotencyKey
+            PlayerProfile before, PlayerProfile after, String source
     ) {
         List<SkillPointContext> contexts = new ArrayList<>();
         int perPoint = ProgressionRules.LOCAL_LEVELS_PER_SKILL_POINT;
         int firstMilestone = before.level() / perPoint + 1;
         int lastMilestone = after.level() / perPoint;
         for (int milestone = firstMilestone; milestone <= lastMilestone; milestone++) {
+            int atLocal = milestone * perPoint;
             contexts.add(new SkillPointContext(after.playerId(),
-                    ProgressionRules.skillPointMilestoneSource(after.ascension(), milestone * perPoint)
-                            + "|source:" + source,
-                    idempotencyKey, 1, after.ascension(),
-                    before.level(), milestone * perPoint));
+                    ProgressionRules.skillPointMilestoneSource(after.playerId(), after.ascension(), atLocal),
+                    source, 1, after.ascension(), milestone, atLocal));
         }
         return contexts;
     }
@@ -489,8 +490,9 @@ public final class JdbcProfileService implements ProfileService {
     /**
      * 技能点里程碑结算（幂等）。
      *
-     * <p>自防重复流水表 rpg_skill_point_grants 的 (source, idempotency_key) 唯一键是唯一依据：
+     * <p>唯一依据是 rpg_skill_point_grants.milestone_key 主键 = (玩家, 转, 档位)：
      * INSERT ... ON CONFLICT DO NOTHING 成功才算「本次新发」。
+     * 业务 receipt 只落审计列，不参与去重 —— 否则换一条 receipt 跨同一档位会重复发点。
      * 技能点不是货币，但仍然只有落库成功才加内存值，禁止内存补偿。
      *
      * @return 本次真正新落库的里程碑数（重放时为 0）
@@ -511,40 +513,22 @@ public final class JdbcProfileService implements ProfileService {
         if (context.points() <= 0) return false;
         try (PreparedStatement insert = connection.prepareStatement("""
                 INSERT INTO rpg_skill_point_grants (
-                    source, idempotency_key, player_uuid, points, ascension,
-                    from_local_level, to_local_level
+                    milestone_key, receipt, player_uuid, points, ascension,
+                    milestone_index, to_local_level
                 ) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING
                 """)) {
-            insert.setString(1, context.source());
-            insert.setString(2, context.idempotencyKey());
+            insert.setString(1, context.milestoneKey());
+            insert.setString(2, context.receipt());
             insert.setString(3, context.playerId().toString());
             insert.setInt(4, context.points());
             insert.setInt(5, context.ascension());
-            insert.setInt(6, context.fromLocalLevel());
+            insert.setInt(6, context.milestoneIndex());
             insert.setInt(7, context.toLocalLevel());
             if (insert.executeUpdate() == 1) return true;
         }
-        try (PreparedStatement query = connection.prepareStatement("""
-                SELECT player_uuid, points, ascension, from_local_level, to_local_level
-                FROM rpg_skill_point_grants WHERE source = ? AND idempotency_key = ?
-                """)) {
-            query.setString(1, context.source());
-            query.setString(2, context.idempotencyKey());
-            try (ResultSet result = query.executeQuery()) {
-                if (!result.next()) {
-                    throw new IllegalStateException("Skill-point milestone replay could not be resolved");
-                }
-                boolean sameFact = context.playerId().toString().equals(result.getString("player_uuid"))
-                        && context.points() == result.getInt("points")
-                        && context.ascension() == result.getInt("ascension")
-                        && context.fromLocalLevel() == result.getInt("from_local_level")
-                        && context.toLocalLevel() == result.getInt("to_local_level");
-                if (!sameFact) {
-                    throw new IllegalStateException(
-                            "Skill-point milestone key was reused with different content");
-                }
-            }
-        }
+        // 唯一键是 (玩家, 转, 档位)：冲突即「这一档已经发过了」，返回 false 不加点。
+        // 不再比较 from_local_level —— 它描述的是结算区间，不是档位身份；
+        // 拿它做一致性校验会把合法的第二条结算区间误判成键复用而整单回滚。
         return false;
     }
 
@@ -707,9 +691,14 @@ public final class JdbcProfileService implements ProfileService {
     private record UsedBook(int pointsGranted, String limitGroup) {
     }
 
-    /** 一次升级结算的技能点幂等依据：同一来源 + 同一 (转, 本地里程碑) + 同一业务键只发一次。 */
-    private record SkillPointContext(UUID playerId, String source, String idempotencyKey, int points,
-                                     int ascension, int fromLocalLevel, int toLocalLevel) {
+    /**
+     * 一次升级结算里单个里程碑的幂等依据：键是 (玩家, 转, 档位)，receipt 只作审计备注。
+     *
+     * @param milestoneKey 唯一键，形如 {@code local-milestone:<玩家>:<转>:<档位序号>}
+     * @param receipt      业务凭据（副本 run_id / 事故 incident_key / 直接授予的 profile:&lt;uuid&gt;）
+     */
+    private record SkillPointContext(UUID playerId, String milestoneKey, String receipt, int points,
+                                     int ascension, int milestoneIndex, int toLocalLevel) {
     }
 
     @FunctionalInterface
