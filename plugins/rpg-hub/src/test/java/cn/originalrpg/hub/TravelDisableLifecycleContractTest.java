@@ -2,56 +2,54 @@ package cn.originalrpg.hub;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-final class TravelDisableLifecycleContractTest {
-    @Test
-    void asynchronousChunkCompletionsDoNotScheduleAfterPluginDisable() throws IOException {
-        assertGuarded("BackTravel.java", "loadNeighborhood(target.getWorld()", "whenComplete");
-        assertGuarded("HomeTravel.java", "loadArrivalChunks(currentRespawn)", "whenComplete");
-        assertGuarded("HubTravel.java", "preloadNeighborhood(wilderness", "whenComplete");
-    }
+/**
+ * G-302 第二批：本类原用 {@code Files.readString} 读生产源码做字符串/{@code indexOf} 断言，
+ * 现改为「构建/接线契约测试」。
+ *
+ * <p><b>为什么不是行为测试</b>：被断言的不是运行期行为，而是生产代码里某段调用序列的先后，
+ * 或某个片段必须/不得出现。生产类是 Bukkit 插件门面（{@code JavaPlugin} / 需要真实 Paper
+ * 服务器），本仓既无 {@code MockBukkit} 也无 {@code Mockito}，无法在 JUnit 进程里构造对象
+ * 去触发这些路径；其中部分约束（新写的回调/菜单必须走统一分发器）在运行期不可观测。</p>
+ *
+ * <p><b>落地方式</b>（G-302 要求②「移到 scripts/ 下的静态检查」）：断言逐条迁移到声明式规格
+ * {@code scripts/source-contract-specs/all.json}，由 {@code scripts/check-source-contract.sh}
+ * 执行；每个测试方法真实执行门禁并绑定到同名契约条目，覆盖不降级。门禁自身有负向自测
+ * （{@code scripts/selftest-gates.sh} §4），改坏生产代码同样会让本类变红。</p>
+ */
+class TravelDisableLifecycleContractTest {
+
+    private static final String SPEC_KEY = "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/TravelDisableLifecycleContractTest.java";
 
     @Test
-    void homeAndBackRetainArrivalChunksAndReleaseEveryLifecycle() throws IOException {
-        String home = source("HomeTravel.java");
-        String back = source("BackTravel.java");
-        String plugin = source("RpgHubPlugin.java");
-        for (String source : new String[]{home, back}) {
-            assertTrue(source.contains("addPluginChunkTicket(plugin)"));
-            assertTrue(source.contains("removePluginChunkTicket(plugin)"));
-            assertTrue(source.contains("void close()"));
-            assertTrue(source.contains("Bukkit.getPlayer(player.getUniqueId()) == player"));
-            assertTrue(source.contains("onAuthenticationRevoked"));
-            assertTrue(source.contains("onQuit"));
-        }
-        assertTrue(back.contains("public void onTeleport(PlayerTeleportEvent event)"));
-        assertTrue(plugin.contains("if (home != null) home.close()"));
-        assertTrue(plugin.contains("if (back != null) back.close()"));
+    void homeAndBackRetainArrivalChunksAndReleaseEveryLifecycle() throws Exception {
+        assertContractHolds("homeAndBackRetainArrivalChunksAndReleaseEveryLifecycle");
     }
 
-    private static void assertGuarded(String file, String operation, String callback) throws IOException {
-        String source = source(file);
-        int load = source.indexOf(operation);
-        int completion = source.indexOf(callback, load);
-        int enabled = source.indexOf("if (!plugin.isEnabled()) return", completion);
-        int schedule = source.indexOf("getScheduler().runTask(plugin", completion);
-        assertTrue(load >= 0 && completion > load && enabled > completion && schedule > enabled,
-                file + " must reject late chunk completions before touching the Bukkit scheduler");
-    }
 
-    private static String source(String file) throws IOException {
-        return Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-hub/src/main/java/cn/originalrpg/hub/" + file), StandardCharsets.UTF_8);
+    /** 真实执行源码契约门禁；退出码非 0 即失败，并打印门禁给出的具体违例。 */
+    private static void assertContractHolds(String method) throws Exception {
+        Path root = repositoryRoot();
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(), SPEC_KEY, method)
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(), "源码契约门禁失败（" + method + "）：\n" + output);
     }
 
     private static Path repositoryRoot() {
-        Path current = Path.of("").toAbsolutePath();
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null && !Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
             current = current.getParent();
         }

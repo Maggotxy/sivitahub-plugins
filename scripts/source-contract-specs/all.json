@@ -1,0 +1,745 @@
+{
+ "plugins/rpg-classes/src/test/java/cn/originalrpg/classes/ClassAsyncLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "asynchronousClassUiRejectsOldConnectionsAndPluginShutdown",
+    "ordered": [],
+    "required": [
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "new AuthenticatedSession(player, UUID.randomUUID())",
+     "private final Map<UUID, OperationLease> profileMutations",
+     "private final Map<UUID, OperationLease> ascensionMutations",
+     "operations.remove(playerId, lease)",
+     "if (!isReady(player, lease.sessionToken())) return;",
+     "if (!isReady(player, sessionToken)) return;",
+     "authenticatedPlayers.remove(playerId, session)",
+     "if (!isEnabled()) return;",
+     "if (isEnabled()) action.run();",
+     "catch (IllegalStateException ignored)",
+     ".whenComplete((result, failure) -> sync(",
+     "paths.path(playerId).whenComplete((path, failure) -> sync(",
+     "if (!plugin.isEnabled()) return;",
+     "if (plugin.isEnabled()) action.run();"
+    ],
+    "forbidden": [
+     "profileMutations.remove(playerId);",
+     "ascensionMutations.remove(playerId);",
+     "reopenAfterClassChoice.remove(playerId);"
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java",
+   "plugins/rpg-classes/src/main/java/cn/originalrpg/classes/HiddenPathEffects.java"
+  ]
+ },
+ "plugins/rpg-classes/src/test/java/cn/originalrpg/classes/HiddenPathAuthenticationContractTest.java": {
+  "pathFragments": [
+   "src/main/java/cn/originalrpg/classes/HiddenPathEffects.java"
+  ],
+  "checks": [
+   {
+    "method": "asyncEffectsFenceEveryPlayerMutationByAuthenticationGeneration",
+    "ordered": [],
+    "required": [
+     "authenticatedGenerations",
+     "long generation = generation(playerId)",
+     "if (!valid(player, generation)) return;",
+     "if (!valid(player, generation) || owned.get(playerId) != HiddenPath.BLOODPACT) return;",
+     "if (!valid(player, generation) || !talismanEnabled.contains(playerId)) return;"
+    ],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-classes/src/main/java/cn/originalrpg/classes/HiddenPathEffects.java"
+  ]
+ },
+ "plugins/rpg-commerce/src/test/java/cn/originalrpg/commerce/AsyncPlayerSessionContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "asyncUiCallbacksUseExactCurrentPlayerHandle",
+    "ordered": [],
+    "required": [
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "AuthenticatedPlayerReadyEvent",
+     "AuthenticatedPlayerRevokedEvent",
+     "private final Map<UUID, PlayerSession> authenticatedPlayers",
+     "private final Map<UUID, OperationLease> purchaseInFlight",
+     "purchaseInFlight.putIfAbsent(player.getUniqueId(),",
+     "purchaseInFlight.remove(playerId, lease)",
+     "authenticatedPlayers.remove(player.getUniqueId(), session)",
+     "if (!isEnabled()) return;",
+     "catch (IllegalStateException ignored)",
+     "public void onDisable()",
+     "authenticatedPlayers.clear();",
+     "purchaseInFlight.clear();"
+    ],
+    "forbidden": [
+     "purchaseInFlight.remove(player.getUniqueId())",
+     "if (!player.isOnline()) return;"
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-commerce/src/main/java/cn/originalrpg/commerce/RpgCommercePlugin.java"
+  ]
+ },
+ "plugins/rpg-community/src/test/java/cn/originalrpg/community/CommunityAsyncLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "callbacksRequireTheExactAuthenticatedLoginSession",
+    "ordered": [],
+    "required": [
+     "getServer().getPlayer(player.getUniqueId()) == player",
+     "new AuthenticatedSession(event.player(), sessionToken)",
+     "session.player() != player",
+     "authenticatedPlayers.remove(playerId, session)",
+     "sessionToken.equals(session.token())",
+     "UUID sessionToken = start(player,",
+     "plugin.isAuthenticated(player, sessionToken)",
+     "private final Map<UUID, OperationLease> operations",
+     "operations.putIfAbsent(player.getUniqueId(), new OperationLease(player, sessionToken))",
+     "operations.remove(playerId, lease)",
+     "UUID sessionToken = plugin.sessionToken(player)",
+     "plugin.isAuthenticated(player, sessionToken)",
+     "private final Map<UUID, IssueLease> issuedAt",
+     "issuedAt.remove(playerId, lease)"
+    ],
+    "forbidden": [
+     "authenticatedPlayers.remove(playerId);",
+     "operations.remove(player.getUniqueId())"
+    ]
+   },
+   {
+    "method": "logoutCannotReopenAnAlreadySubmittedMutationGate",
+    "ordered": [],
+    "required": [
+     "Submitted database work owns its gate until the callback settles",
+     "operations.remove(playerId, lease)"
+    ],
+    "forbidden": [
+     "operations.remove(playerId);"
+    ]
+   },
+   {
+    "method": "callbacksDoNotScheduleOrRunAfterPluginDisable",
+    "ordered": [],
+    "required": [
+     "if (!isEnabled()) return;",
+     "if (isEnabled()) action.run();",
+     "catch (IllegalPluginAccessException ignored)"
+    ],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-community/src/main/java/cn/originalrpg/community/RpgCommunityPlugin.java",
+   "plugins/rpg-community/src/main/java/cn/originalrpg/community/CommunityCommand.java",
+   "plugins/rpg-community/src/main/java/cn/originalrpg/community/AccountCommand.java"
+  ]
+ },
+ "plugins/rpg-cosmetics/src/test/java/cn/originalrpg/cosmetics/PerformanceLifecycleContractTest.java": {
+  "pathFragments": [
+   "src/main/java/cn/originalrpg/cosmetics/RpgCosmeticsPlugin.java"
+  ],
+  "checks": [
+   {
+    "method": "optionalLoadMonitorIsResolvedAtRenderTimeAndFailsClosed",
+    "ordered": [],
+    "required": [
+     "OptionalServices.enabled(this, PerformanceService.class)",
+     "performance == null ? ServerLoadState.CRITICAL : performance.state()"
+    ],
+    "forbidden": [
+     "private PerformanceService",
+     "load(PerformanceService.class)"
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-cosmetics/src/main/java/cn/originalrpg/cosmetics/RpgCosmeticsPlugin.java"
+  ]
+ },
+ "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonCompletionExitSessionContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "delayedCompletionExitCannotAffectAReusedWorldOrNewPlayerSession",
+    "ordered": [
+     "private void completeDungeonAfterDurableIntent",
+     "Bukkit.getScheduler().runTaskLater",
+     "DungeonSessionRules.isCurrentSession",
+     "intent.worldName.equals(playerInstances.get(playerId))",
+     "player.getWorld().getName().equals(intent.worldName)",
+     "exitHandler.accept(player)"
+    ],
+    "required": [],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java"
+  ]
+ },
+ "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonCompletionRecoveryContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "seasonEvidenceIsJournaledBeforeRewardAndRemovedOnlyAfterBothSettle",
+    "ordered": [
+     "Optional<SeasonExpeditionCompletion> seasonCompletion",
+     "new DungeonRewardBatch(runId, rewardRequests",
+     "rewardIo.persist(intent.batch)",
+     "settleReward(intent.batch",
+     "settleCompletionEvidence(batch",
+     "rewardIo.remove(batch)"
+    ],
+    "required": [
+     "private static final int BATCH_VERSION = 2",
+     "writeSeasonCompletion(output, batch.seasonCompletion())"
+    ],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java",
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonRewardJournal.java"
+  ]
+ },
+ "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonReturnSessionContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "staleAsyncTeleportCannotClearANewerLoginsReturnPoint",
+    "ordered": [
+     "player.teleportAsync(destination).whenComplete",
+     "if (!currentSession(player)) return",
+     "getPersistentDataContainer().remove(returnLocation)",
+     "player.saveData()",
+     "manager.releasePlayer",
+     "Bukkit.getPlayer(player.getUniqueId()) == player"
+    ],
+    "required": [],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonCommand.java"
+  ]
+ },
+ "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonWorldChangeLifecycleContractTest.java": {
+  "pathFragments": [
+   "src/main/java/cn/originalrpg/dungeons/DungeonManager.java"
+  ],
+  "checks": [
+   {
+    "method": "externalWorldChangesClearTheReturnMarkerBeforeReleasingMembership",
+    "ordered": [
+     "public void onWorldChange(PlayerChangedWorldEvent event)",
+     "DungeonSessionRules.departedRegisteredInstance",
+     "remove(returnLocation)",
+     "player.saveData()",
+     "releasePlayer(player.getUniqueId(), event.getFrom())"
+    ],
+    "required": [],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java"
+  ]
+ },
+ "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/EconomicActivityAsyncLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "asynchronousFeedbackUsesSafeSchedulingAndTheExactLoginSession",
+    "ordered": [],
+    "required": [
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "commissionEvidence.grant(player, source).whenComplete((result, error) ->\n",
+     ".whenComplete((result, error) -> sync(",
+     "if (shuttingDown || !plugin.isEnabled()) return;",
+     "catch (IllegalStateException ignored)"
+    ],
+    "forbidden": [
+     "whenComplete((result, error) -> Bukkit.getScheduler().runTask"
+    ]
+   },
+   {
+    "method": "survivalEssenceUsesTheAtomicDailyMailboxSettlementInsteadOfDirectInventoryDelivery",
+    "ordered": [
+     "private void grantEssence",
+     "private void completeEssenceGrant"
+    ],
+    "required": [
+     "item.serializeAsBytes()",
+     "economy.rewardDailyItem(",
+     "whenComplete((result, error) -> sync("
+    ],
+    "forbidden": [
+     "player.getInventory().addItem",
+     "dropItemNaturally",
+     "playerData.set(essenceCount"
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-economy/src/main/java/cn/originalrpg/economy/EconomicActivityListener.java"
+  ]
+ },
+ "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/EconomyReceiptLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "onlyTheCurrentAuthenticatedPlayerSessionMayDeleteAndPersistAReceipt",
+    "ordered": [
+     "private boolean removeReceipt",
+     "if (!currentPlayerSession(player)) return false",
+     "persistReceipts(player, current)",
+     "private boolean currentPlayerSession",
+     "player.isOnline()",
+     "Bukkit.getPlayer(player.getUniqueId()) == player"
+    ],
+    "required": [],
+    "forbidden": []
+   },
+   {
+    "method": "evidenceReleaseIsDurableAndRecoverableBeforeACommissionReceiptIsDeleted",
+    "ordered": [
+     "if (!remove(player, entry.material(), entry.amount()))",
+     "withStage(EconomyReceiptCodec.Stage.RELEASE_PENDING)",
+     "releaseCommissionReceipt(player, releasing, false)",
+     "private void queueCommissionRefund",
+     "withStage(EconomyReceiptCodec.Stage.RELEASE_PENDING)",
+     "receipt.stage() == EconomyReceiptCodec.Stage.RELEASE_PENDING",
+     "private void releaseCommissionReceipt",
+     "if (!ready(player))",
+     "removeReceipt(player, receipt.id())"
+    ],
+    "required": [],
+    "forbidden": []
+   },
+   {
+    "method": "aQueuedRefundCannotFallBackIntoTheRewardSettlementPathAfterReconnect",
+    "ordered": [
+     "private void queueCommissionRefund",
+     "withStage(EconomyReceiptCodec.Stage.REFUND_PENDING)",
+     "market.enqueueDelivery",
+     "receipt.stage() == EconomyReceiptCodec.Stage.REFUND_PENDING",
+     "queueCommissionRefund(player, receipt, true",
+     "queueMerchantRefund(player, receipt, true"
+    ],
+    "required": [],
+    "forbidden": []
+   },
+   {
+    "method": "operationAndAuthenticationOwnershipSurviveQuickReconnectAndShutdown",
+    "ordered": [],
+    "required": [
+     "private final Map<UUID, OperationLease> pending",
+     "private final Map<UUID, PlayerSession> authenticatedPlayers",
+     "pending.putIfAbsent(player.getUniqueId(),",
+     "if (lease != null && lease.player() == player) pending.remove(playerId, lease)",
+     "authenticatedPlayers.remove(player.getUniqueId(), session)",
+     "if (!plugin.isEnabled()) return;",
+     "catch (IllegalStateException ignored)"
+    ],
+    "forbidden": [
+     "pending.remove(player.getUniqueId())",
+     "authenticatedPlayers.remove(player.getUniqueId());"
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-economy/src/main/java/cn/originalrpg/economy/EconomyCommand.java"
+  ]
+ },
+ "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/MutationAsyncLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "everyMutationCallbackUsesPluginAndExactLoginGuards",
+    "ordered": [],
+    "required": [
+     "skills.skill(player.getUniqueId(), skill).whenComplete((progress, lookupError) ->\n                sync(",
+     "skills.settleMutation(request).whenComplete((result, error) ->\n                sync(",
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "if (!plugin.isEnabled()) return",
+     "if (plugin.isEnabled()) action.run()"
+    ],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/MutationCommand.java"
+  ]
+ },
+ "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/DungeonEvidenceRetryContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "persistedDungeonEvidenceUsesBoundedSameSessionRetries",
+    "ordered": [],
+    "required": [
+     "MAXIMUM_DUNGEON_EVIDENCE_MISSES = 4",
+     "DUNGEON_EVIDENCE_RETRY_TICKS = 20L * 15L",
+     "dungeonEvidenceChecked.remove(player.getUniqueId())",
+     "if (ready(player)) queryDungeonEvidence(player)",
+     "dungeonEvidenceMisses.remove(playerId)",
+     "if (!plugin.isEnabled()) return"
+    ],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-guide/src/main/java/cn/originalrpg/guide/GuideTracker.java"
+  ]
+ },
+ "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideAsyncLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "guideUiAndStarterCallbacksRejectOldConnectionsAndShutdown",
+    "ordered": [],
+    "required": [
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "profiles.get(player.getUniqueId()).whenComplete((profile, error) -> sync(",
+     ".whenComplete((result, error) -> sync(",
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "if (ready(responder))",
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "if (currentSession(responder)",
+     "if (!plugin.isEnabled()) return;",
+     "if (plugin.isEnabled()) action.run();",
+     "catch (IllegalStateException ignored)"
+    ],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-guide/src/main/java/cn/originalrpg/guide/GuideCommand.java",
+   "plugins/rpg-guide/src/main/java/cn/originalrpg/guide/GuideTracker.java",
+   "plugins/rpg-guide/src/main/java/cn/originalrpg/guide/WelcomeExperience.java",
+   "plugins/rpg-guide/src/main/java/cn/originalrpg/guide/StarterKitService.java"
+  ]
+ },
+ "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuidePlayerActionContractTest.java": {
+  "pathFragments": [
+   "src/main/resources/plugin.yml"
+  ],
+  "checks": [
+   {
+    "method": "everyGuideNpcTargetExistsInTheHubAndActionsAreNotDuplicated",
+    "ordered": [],
+    "required": [
+     "(\""
+    ],
+    "forbidden": []
+   },
+   {
+    "method": "gameplayHudHasOnlyTheLiveBetterHudModes",
+    "ordered": [],
+    "required": [
+     "command:guidehud \" + id"
+    ],
+    "forbidden": [
+     "command:guidehud auto"
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-guide/src/main/java/cn/originalrpg/guide/GuideCommand.java"
+  ]
+ },
+ "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideRewardSessionContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "staleRewardCallbackLeavesCompletionForTheCurrentLoginToReplay",
+    "ordered": [
+     "private void award",
+     ".whenComplete",
+     "if (!ready(player)) return",
+     "getPersistentDataContainer().set(completedKey",
+     "player.saveData()",
+     "Bukkit.getPlayer(player.getUniqueId()) == player"
+    ],
+    "required": [],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-guide/src/main/java/cn/originalrpg/guide/GuideTracker.java"
+  ]
+ },
+ "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/HubMapLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "delayedSquaremapWorldReadinessUsesABoundedCancellableRetry",
+    "ordered": [],
+    "required": [
+     "squaremapRegistrationAttempts >= 30",
+     "cancelSquaremapRegistration();",
+     "SquaremapHubIntegration.worldReady(current)"
+    ],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-hub/src/main/java/cn/originalrpg/hub/RpgHubPlugin.java"
+  ]
+ },
+ "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/TravelDisableLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "homeAndBackRetainArrivalChunksAndReleaseEveryLifecycle",
+    "ordered": [
+     "if (!plugin.isEnabled()) return",
+     "getScheduler().runTask(plugin"
+    ],
+    "required": [
+     "addPluginChunkTicket(plugin)",
+     "removePluginChunkTicket(plugin)",
+     "void close()",
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "onAuthenticationRevoked",
+     "onQuit",
+     "public void onTeleport(PlayerTeleportEvent event)",
+     "if (home != null) home.close()",
+     "if (back != null) back.close()"
+    ],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-hub/src/main/java/cn/originalrpg/hub/BackTravel.java",
+   "plugins/rpg-hub/src/main/java/cn/originalrpg/hub/HomeTravel.java",
+   "plugins/rpg-hub/src/main/java/cn/originalrpg/hub/HubTravel.java",
+   "plugins/rpg-hub/src/main/java/cn/originalrpg/hub/RpgHubPlugin.java"
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DeliveryCopyWiringTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "everyEscrowProducerBindsItsOutboundPayloadToTheOperation",
+    "ordered": [],
+    "required": [
+     "EquipmentOperationCoordinator.payload(",
+     ", operationId)"
+    ],
+    "forbidden": []
+   },
+   {
+    "method": "outboundDeliveryNeverStripsTheEscrowMarker",
+    "ordered": [],
+    "required": [
+     "DeliveryCopyRules.markerSource"
+    ],
+    "forbidden": [
+     "EquipmentOperationMarker.clear"
+    ]
+   },
+   {
+    "method": "theMarkerlessOverloadIsNeverUsedBySettlementPaths",
+    "ordered": [],
+    "required": [],
+    "forbidden": [
+     "operations.itemPayload("
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeListener.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/SalvageCommand.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/UnbindCommand.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyCommand.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentOperationCoordinator.java"
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentAsyncLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "compensationAndOperationCallbacksRejectStaleSessionsAndShutdown",
+    "ordered": [],
+    "required": [
+     "profiles.get(player.getUniqueId()).whenComplete((profile, failure) -> sync(",
+     "if (!plugin.isEnabled()) return",
+     "if (plugin.isEnabled()) action.run()",
+     "if (!currentSession(player)) return",
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "stage.whenComplete((result, error) -> sync(",
+     "if (!request.settleable()) throw new IllegalArgumentException",
+     "if (!plugin.isEnabled()) return",
+     "if (plugin.isEnabled()) action.run()",
+     "if (!currentSession(player)) return",
+     "EquipmentOperationKind.SALVAGE",
+     "operations.stage(player, request)",
+     "player.saveData()",
+     "operations.submit(player, request",
+     "List<String> rejected = List.of(EquipmentOperationCoordinator.payload(original, operationId))",
+     "Bukkit.getPlayer(player.getUniqueId()) == player"
+    ],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentRecoveryListener.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentOperationCoordinator.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/SalvageCommand.java"
+  ]
+ },
+ "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobAppearanceLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "persistedRareBloodMoonModelIsRestoredByItsArchetypeAfterChunkReload",
+    "ordered": [],
+    "required": [
+     "bloodMoonRare",
+     "bloodMoonArchetype",
+     "appearances.applyBloodMoonModel(entity, rareArchetype)"
+    ],
+    "forbidden": [
+     "|| markedBloodMoon) appearances.applyBloodMoonHusk"
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/LegacyMobMaskMigration.java"
+  ]
+ },
+ "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobGuideAsyncLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "profileLoadsAndDialogClicksBelongToOneAuthenticatedGeneration",
+    "ordered": [],
+    "required": [
+     "new AuthenticatedSession(event.player(), UUID.randomUUID())",
+     "if (!isAuthenticated(player, sessionToken)) return;",
+     "if (!isAuthenticated(responder, sessionToken)) return;",
+     "if (isAuthenticated(responder, sessionToken)) responder.sendMessage",
+     "catch (IllegalPluginAccessException | IllegalStateException ignored)"
+    ],
+    "forbidden": [
+     "if (!player.isOnline()) return;",
+     "if (responder.isOnline())"
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/MobGuideCommand.java"
+  ]
+ },
+ "plugins/rpg-story/src/test/java/cn/originalrpg/story/EscortDisconnectHotPathContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "authenticationCleanupNeverResolvesBetonQuestClasses",
+    "ordered": [
+     "private void disconnectSession(AuthenticatedSession authenticated)",
+     "private void onMain"
+    ],
+    "required": [],
+    "forbidden": []
+   },
+   {
+    "method": "escortManagerOwnsBothAuthenticationBoundaries",
+    "ordered": [
+     "void onAuthenticationRevoked(AuthenticatedPlayerRevokedEvent event)",
+     "clearAuthenticated(event.player())",
+     "void onQuit(PlayerQuitEvent event)",
+     "clearAuthenticated(event.getPlayer())"
+    ],
+    "required": [],
+    "forbidden": []
+   },
+   {
+    "method": "pluginShutdownNeverResolvesBetonQuestClasses",
+    "ordered": [
+     "public void close()",
+     "private void tick(int interval)"
+    ],
+    "required": [],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-story/src/main/java/cn/originalrpg/story/EscortManager.java"
+  ]
+ },
+ "plugins/rpg-story/src/test/java/cn/originalrpg/story/StoryAsyncLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "escortsRewardsAndDialogClicksBelongToOneAuthenticatedGeneration",
+    "ordered": [],
+    "required": [
+     "new AuthenticatedSession(player, UUID.randomUUID())",
+     "private final Map<UUID, RewardLease> rewardsInFlight",
+     "rewardsInFlight.remove(playerId, lease)",
+     "isAuthenticated(lease.player(), lease.sessionToken())",
+     "catch (IllegalPluginAccessException | IllegalStateException ignored)",
+     "escorts.runAuthenticated(responder, sessionToken, action);",
+     "if (isAuthenticated(player, sessionToken)) action.accept(player);"
+    ],
+    "forbidden": [
+     "if (responder.isOnline()) action.accept(responder);"
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-story/src/main/java/cn/originalrpg/story/EscortManager.java",
+   "plugins/rpg-story/src/main/java/cn/originalrpg/story/StoryCommand.java"
+  ]
+ },
+ "plugins/rpg-world/src/test/java/cn/originalrpg/world/WorldEventLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "cancelledTeleportsCannotResetAPlayersHuntChain",
+    "ordered": [],
+    "required": [
+     "@EventHandler(ignoreCancelled = true)\n    public void onTeleport"
+    ],
+    "forbidden": []
+   },
+   {
+    "method": "optionalMobAppearanceProviderIsResolvedOnlyWhileEnabled",
+    "ordered": [],
+    "required": [
+     "OptionalServices.enabled(plugin, MobAppearanceService.class)"
+    ],
+    "forbidden": [
+     "private final MobAppearanceService",
+     "getServicesManager().load(MobAppearanceService.class)"
+    ]
+   },
+   {
+    "method": "bloodMoonCreeperTrackingFollowsChunkLoadAndUnload",
+    "ordered": [],
+    "required": [
+     "public void onEntitiesLoad(EntitiesLoadEvent event)",
+     "public void onEntitiesUnload(EntitiesUnloadEvent event)",
+     "trackBloodMoonCreeper(entity);",
+     "if (bloodMoonCreepers.isEmpty()) return;"
+    ],
+    "forbidden": [
+     "new HashSet<>(bloodMoonCreepers)"
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-world/src/main/java/cn/originalrpg/world/WorldEventListener.java"
+  ]
+ }
+}

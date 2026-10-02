@@ -130,6 +130,49 @@ else
   FAIL=$((FAIL + 1))
 fi
 
+echo "== 4. source-contract 门禁必须能真的变红（负向对照） =="
+# 契约门禁最危险的失效是「规格与源码双漂移后仍然全绿」。这里用最小夹具证明：
+# 在临时规格里写一条不可能满足的顺序契约，门禁必须 RED；改成真实顺序必须 GREEN。
+frag="$TMP/contract-frag"
+mkdir -p "$frag"
+cat > "$frag/Target.java" <<'JAVA'
+class Target { void a() {} void b() {} }
+JAVA
+SPEC_TMP="$TMP/spec-negative.json"
+
+write_spec() {
+  # $1 = ordered 序列的 JSON 数组, $2 = forbidden 的 JSON 数组
+  cat > "$SPEC_TMP" <<JSON
+{
+ "fake/Test.java": {
+  "files": ["$frag/Target.java"],
+  "checks": [
+   {"method": "selftest", "required": [], "forbidden": $2, "ordered": $1}
+  ]
+ }
+}
+JSON
+}
+
+run_contract() {
+  set +e
+  SOURCE_CONTRACT_SPEC="$SPEC_TMP" sh scripts/check-source-contract.sh --all >/dev/null 2>&1
+  echo $?
+}
+
+write_spec '["void b()", "void a()"]' '[]'
+check "不可能满足的顺序契约 → 1" 1 "$(run_contract)"
+
+write_spec '["void a()", "void b()"]' '[]'
+check "真实顺序契约 → 0" 0 "$(run_contract)"
+
+write_spec '[]' '["void a()"]'
+check "禁止片段命中 → 1" 1 "$(run_contract)"
+
+write_spec '[]' '["never-in-this-file"]'
+check "禁止片段未命中 → 0" 0 "$(run_contract)"
+cd "$ROOT"
+
 echo ""
 echo "===== 门禁自测汇总：PASS=$PASS FAIL=$FAIL ====="
 if [ "$FAIL" -ne 0 ]; then
