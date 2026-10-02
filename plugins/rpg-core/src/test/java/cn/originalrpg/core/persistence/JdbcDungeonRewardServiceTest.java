@@ -54,6 +54,16 @@ final class JdbcDungeonRewardServiceTest {
                     )
                     """);
             statement.execute("""
+                    CREATE TABLE rpg_skill_point_grants (
+                        source VARCHAR(96) NOT NULL, idempotency_key VARCHAR(96) NOT NULL,
+                        player_uuid VARCHAR(36) NOT NULL, points INTEGER NOT NULL,
+                        ascension INTEGER NOT NULL, from_local_level INTEGER NOT NULL,
+                        to_local_level INTEGER NOT NULL,
+                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (source, idempotency_key)
+                    )
+                    """);
+            statement.execute("""
                     CREATE TABLE rpg_market_deliveries (
                         id VARCHAR(36) PRIMARY KEY, player_uuid VARCHAR(36) NOT NULL,
                         item_payload TEXT NOT NULL, source VARCHAR(96) NOT NULL, state VARCHAR(16) NOT NULL,
@@ -114,6 +124,57 @@ final class JdbcDungeonRewardServiceTest {
         assertEquals(2, guaranteed.queuedDeliveries());
         assertEquals(100L, guaranteed.profile().experience());
         assertEquals(3, count("rpg_market_deliveries"));
+    }
+
+    @Test
+    void skillPointMilestonesAreGrantedOncePerDungeonRun() throws Exception {
+        // 本地 1 -> 5 过 1 档（本地 3）。用足够的经验一次结算完。
+        long grant = experienceToLocal(0, 1, 5);
+        DungeonRewardRequest request = request(UUID.randomUUID(), grant, 0.0, 99);
+
+        DungeonRewardSettlement settled = rewards.settle(request).toCompletableFuture().join();
+        assertEquals(DungeonRewardSettlement.Status.SETTLED, settled.status());
+        // 新档案自带 1 点（建表默认值），本地 3 档位再加 1 点
+        assertEquals(2, settled.profile().skillPoints());
+        assertEquals(1, count("rpg_skill_point_grants"));
+
+        // 同一 run 重放：receipt 直接判定 REPLAYED，技能点与里程碑流水都不变
+        DungeonRewardSettlement replayed = rewards.settle(request).toCompletableFuture().join();
+        assertEquals(DungeonRewardSettlement.Status.REPLAYED, replayed.status());
+        assertEquals(2, replayed.profile().skillPoints());
+        assertEquals(1, count("rpg_skill_point_grants"));
+    }
+
+    @Test
+    void dungeonSettlementKeepsLocalMilestonesAfterTheStageResets() throws Exception {
+        // 档案先走完 0 转本地 30（十个里程碑），再由真实 AscensionService 转到 1 转本地 1。
+        // 副本经验不转生，因此这里只钉住「副本结算在 1 转段内仍然照发新段里程碑」。
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("UPDATE rpg_profiles SET skill_points = 11, level = 1, ascension = 1,"
+                    + " experience = 0 WHERE player_uuid = '" + playerId + "'");
+            connection.commit();
+        }
+        profiles.evict(playerId);
+
+        // 1 转本地 1 -> 3：新段的首个里程碑必须发 1 点（旧口径 31/3=10 -> 33/3=11 也发，
+        // 但 1 转本地 1 -> 2 旧口径会吞：31/3=10 -> 32/3=10，这里把新口径钉住）
+        DungeonRewardSettlement settled = rewards.settle(
+                request(UUID.randomUUID(), experienceToLocal(1, 1, 3), 0.0, 99))
+                .toCompletableFuture().join();
+
+        assertEquals(1, settled.profile().ascension());
+        assertEquals(3, settled.profile().level());
+        assertEquals(12, settled.profile().skillPoints(), "1 转本地 3 是新段首个里程碑");
+        assertEquals(1, count("rpg_skill_point_grants"));
+    }
+
+    /** 累计恰好升到同段目标本地等级所需的经验。 */    /** 累计恰好升到同段目标本地等级所需的经验。 */
+    private static long experienceToLocal(int ascension, int fromLocal, int targetLocal) {
+        long needed = 0L;
+        for (int local = fromLocal; local < targetLocal; local++) {
+            needed += cn.originalrpg.api.rules.ProgressionRules.experienceToNextLocalLevel(ascension, local);
+        }
+        return needed;
     }
 
     @Test

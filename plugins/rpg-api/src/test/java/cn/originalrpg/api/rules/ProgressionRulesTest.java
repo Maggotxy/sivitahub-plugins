@@ -113,6 +113,87 @@ class ProgressionRulesTest {
         assertThrows(IllegalArgumentException.class, () -> ProgressionRules.stageExperienceSpent(0, 1, -1L));
     }
 
+    // --- G-107 下半：技能点本地里程碑（唯一实现）行为断言 ---
+
+    /** 旧口径（有效等级整除 3 的差分），只用于对照，不属于生产代码。 */
+    private static int legacySkillPoints(int fromEffective, int toEffective) {
+        return Math.max(0, toEffective / 3 - fromEffective / 3);
+    }
+
+    @Test
+    void localMilestonesGiveTenPointsPerStageAndMatchTheLegacyPaceInsideAStage() {
+        // 段内点位 3/6/9/.../30；0转 5 级 -> 1 点（与旧口径一致，段内不改变节奏）
+        for (int local = 1; local <= ProgressionRules.LOCAL_LEVEL_CAP; local++) {
+            int expected = local / ProgressionRules.LOCAL_LEVELS_PER_SKILL_POINT;
+            assertEquals(expected, ProgressionRules.skillPointMilestonesPassed(local));
+            assertEquals(legacySkillPoints(ProgressionRules.effectiveLevel(0, 1),
+                            ProgressionRules.effectiveLevel(0, local)),
+                    ProgressionRules.cumulativeSkillPoints(0, local),
+                    "0 转段内旧新口径必须一致，local=" + local);
+        }
+        assertEquals(10, ProgressionRules.skillPointsForStage(0));
+        assertEquals(10, ProgressionRules.skillPointsForStage(1));
+        assertEquals(10, ProgressionRules.skillPointsForStage(2));
+        assertEquals(10, ProgressionRules.skillPointsForStage(3));
+    }
+
+    @Test
+    void fourStagesAccumulateFortyPointsAtEveryBoundary() {
+        assertEquals(0, ProgressionRules.cumulativeSkillPoints(0, 1));
+        assertEquals(10, ProgressionRules.cumulativeSkillPoints(0, ProgressionRules.LOCAL_LEVEL_CAP));
+        assertEquals(10, ProgressionRules.cumulativeSkillPoints(1, 1), "跨段（30->31）不得吞点");
+        assertEquals(20, ProgressionRules.cumulativeSkillPoints(1, ProgressionRules.LOCAL_LEVEL_CAP));
+        assertEquals(20, ProgressionRules.cumulativeSkillPoints(2, 1));
+        assertEquals(30, ProgressionRules.cumulativeSkillPoints(2, ProgressionRules.LOCAL_LEVEL_CAP));
+        assertEquals(30, ProgressionRules.cumulativeSkillPoints(3, 1));
+        assertEquals(40, ProgressionRules.cumulativeSkillPoints(3, ProgressionRules.LOCAL_LEVEL_CAP));
+    }
+
+    @Test
+    void milestoneDeltaIsStageLocalAndNeverSpansAscension() {
+        // 段内增量：1 -> 4 过 1 档
+        assertEquals(1, ProgressionRules.skillPointsGained(0, 1, 4));
+        // 满段 29 -> 30 过 1 档
+        assertEquals(1, ProgressionRules.skillPointsGained(0, 29, 30));
+        // 同档位内不重复发点（12/13/14 都落在第 4 档）
+        assertEquals(0, ProgressionRules.skillPointsGained(0, 12, 14));
+        // 重放同一 (转, 起始, 结束)：纯函数结果恒等，是幂等的基础
+        assertEquals(ProgressionRules.skillPointsGained(2, 6, 12),
+                ProgressionRules.skillPointsGained(2, 6, 12));
+        // 本段内不可能跨转，唯一合法输入是同段；
+        // 转生换段由 skillPointsForStage/累计口径处理，单段差分不参与跨段
+        assertThrows(IllegalArgumentException.class, () -> ProgressionRules.skillPointsGained(0, 12, 10));
+    }
+
+    @Test
+    void milestoneSourceIdsAreStageScopedAndStableForReplay() {
+        assertEquals("local-milestone:0:0", ProgressionRules.skillPointMilestoneSource(0, 1));
+        assertEquals("local-milestone:0:0", ProgressionRules.skillPointMilestoneSource(0, 2));
+        assertEquals("local-milestone:0:1", ProgressionRules.skillPointMilestoneSource(0, 3));
+        assertEquals("local-milestone:1:0", ProgressionRules.skillPointMilestoneSource(1, 1));
+        assertEquals("local-milestone:1:0", ProgressionRules.skillPointMilestoneSource(1, 2));
+        // 跨段（0转30 -> 1转1）档位 id 变了 ⇒ 新段里程碑不会被旧段幂等键挡住
+        assertFalse(ProgressionRules.skillPointMilestoneSource(0, 30)
+                .equals(ProgressionRules.skillPointMilestoneSource(1, 1)));
+        // 同 (转, 里程碑) 重放得到同一个 id ⇒ 幂等依据稳定
+        assertEquals(ProgressionRules.skillPointMilestoneSource(3, 15),
+                ProgressionRules.skillPointMilestoneSource(3, 15));
+    }
+
+    @Test
+    void localMilestoneRulesRejectOutOfRangeInputs() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ProgressionRules.skillPointMilestonesPassed(0));
+        assertThrows(IllegalArgumentException.class,
+                () -> ProgressionRules.skillPointMilestonesPassed(ProgressionRules.LOCAL_LEVEL_CAP + 1));
+        assertThrows(IllegalArgumentException.class, () -> ProgressionRules.skillPointsForStage(-1));
+        assertThrows(IllegalArgumentException.class,
+                () -> ProgressionRules.skillPointsForStage(ProgressionRules.MAX_ASCENSION + 1));
+        assertThrows(IllegalArgumentException.class, () -> ProgressionRules.cumulativeSkillPoints(0, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> ProgressionRules.skillPointMilestoneSource(0, 0));
+    }
+
     @Test
     void customDropsStopAtTwentyLevelDifference() {
         assertTrue(CombatRules.allowsCustomDrops(29, 10));

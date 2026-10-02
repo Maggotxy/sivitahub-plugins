@@ -5,7 +5,6 @@ import cn.originalrpg.api.model.DungeonRewardRequest;
 import cn.originalrpg.api.model.DungeonRewardSettlement;
 import cn.originalrpg.api.model.DungeonTicketCandidate;
 import cn.originalrpg.api.model.PlayerProfile;
-import cn.originalrpg.api.rules.ProgressionRules;
 import cn.originalrpg.api.service.DungeonRewardService;
 
 import javax.sql.DataSource;
@@ -135,8 +134,11 @@ public final class JdbcDungeonRewardService implements DungeonRewardService {
             enqueueDelivery(connection, request.playerId(), delivery);
         }
 
-        PlayerProfile updated = grantExperience(current, request.experience());
-        profiles.updateInTransaction(connection, updated);
+        // 升级与技能点里程碑在同一事务内结算；幂等键用业务 receipt id（run_id），
+        // 同一 run 重放不会二次发点（里程碑流水表 (source, idempotency_key) 唯一键）。
+        PlayerProfile updated = profiles.grantExperienceInTransaction(
+                connection, request.playerId(), request.experience(),
+                request.runId(), request.runId().toString());
         try (PreparedStatement insert = connection.prepareStatement("""
                 INSERT INTO rpg_dungeon_reward_receipts (
                     run_id, player_uuid, dungeon_id, experience_awarded,
@@ -261,37 +263,6 @@ public final class JdbcDungeonRewardService implements DungeonRewardService {
                         result.getInt("ticket_failures")) : null;
             }
         }
-    }
-
-    private static PlayerProfile grantExperience(PlayerProfile profile, long amount) {
-        int ascension = profile.ascension();
-        int localLevel = profile.level();
-        int startingEffective = ProgressionRules.effectiveLevel(ascension, localLevel);
-        long experience = profile.experience() > Long.MAX_VALUE - amount
-                ? Long.MAX_VALUE : profile.experience() + amount;
-        int cap = ProgressionRules.LOCAL_LEVEL_CAP;
-        while (localLevel < cap) {
-            long needed = ProgressionRules.experienceToNextLocalLevel(ascension, localLevel);
-            if (experience < needed) break;
-            experience -= needed;
-            localLevel++;
-        }
-        if (localLevel == cap) {
-            long clampNeeded = (ascension < ProgressionRules.MAX_ASCENSION)
-                    ? ProgressionRules.experienceToNextLocalLevel(ascension, cap - 1)
-                    : Long.MAX_VALUE;
-            if (clampNeeded != Long.MAX_VALUE) {
-                experience = Math.min(experience, clampNeeded - 1);
-            }
-        }
-        int finalEffective = ProgressionRules.effectiveLevel(ascension, localLevel);
-        int levelsGained = localLevel - profile.level();
-        int skillPointsGained = finalEffective / 3 - startingEffective / 3;
-        if (skillPointsGained < 0) skillPointsGained = 0;
-        return new PlayerProfile(
-                profile.playerId(), profile.archetype(), ascension, localLevel, experience,
-                profile.energy(), profile.energyCap(), profile.unspentAttributePoints() + levelsGained,
-                profile.skillPoints() + skillPointsGained, profile.attributes());
     }
 
     private static double deterministicRoll(UUID runId, UUID playerId, String pityGroup) {

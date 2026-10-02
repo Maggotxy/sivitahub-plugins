@@ -1,0 +1,97 @@
+{
+  "task_id": "W4-A2-skillpoint-local-milestone",
+  "status": "success",
+  "summary": "补 G-107 下半条：技能点结算从「有效等级整除 3 的差分」改为「本地等级里程碑 + 幂等补偿」。① ProgressionRules 新增唯一实现：LOCAL_LEVELS_PER_SKILL_POINT=3、skillPointMilestonesPassed、skillPointsForStage（每转 10 点）、skillPointsGained、cumulativeSkillPoints、skillPointMilestoneSource。② JdbcProfileService 与 JdbcDungeonRewardService 统一走 JdbcProfileService 的唯一结算路径：withGrantedExperience 只算等级/属性，技能点由 settleSkillPointMilestones 按「一行一个里程碑」逐档结账后才加。③ 幂等依据：表 rpg_skill_point_grants 的 (source, idempotency_key) 唯一键 + INSERT ... ON CONFLICT DO NOTHING，返回 1 才算新发；返回 0 且内容一致=重放（0 点），内容不一致=抛异常（不静默覆写）。禁止内存补偿。④ 跨段不再吞点：换段后 source 里的转号变化，新段本地 3/6/.../30 各自重新成为可发档位。⑤ 行为级测试：rpg-api 5 例（四段 40 点、段内旧新口径一致、跨段不吞点、档位 id 稳定、越界拒绝）+ rpg-core 6 例（段内里程碑、跨段不吞点、receipt 重放只发一次、重放不改写首次行、副本同一 run REPLAYED 不重复发点、1 转段内里程碑）。负向对照已跑：改坏里程碑步长 → 3 例 RED；改坏唯一键冲突判定 → 1 例 RED。",
+  "changed_files": [
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/ProgressionRules.java",
+    "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/ProgressionRulesTest.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcProfileService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcDungeonRewardService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcAdminIncidentCompensationService.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcDungeonRewardServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/DungeonRewardOutboxWiringTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcAdminIncidentCompensationServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcCommunityServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcCommunityApprovalPersistenceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcCommunityGovernanceTest.java",
+    "plan/skillpoint-migration-notes.md",
+    ".cnb/agent-out/W4-A2-skillpoint-local-milestone.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'finalEffective / 3' plugins | grep '/src/main/'",
+        "hit": "NO_HIT（旧口径 finalEffective/3 与 startingEffective/3 在 src/main 已清零；任务描述给出的两处命中点不再存在）"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'skillPointsGained\\|skillPointMilestonesPassed\\|cumulativeSkillPoints\\|skillPointMilestoneSource\\|skillPointsForStage' plugins | grep '/src/main/'",
+        "hit": "plugins/rpg-api/.../ProgressionRules.java:75,83,85,89,94,98,103,111（定义）\nplugins/rpg-core/.../JdbcProfileService.java:481（唯一消费点）\n=> 纯规则只有一份实现（ProgressionRules），两处结算服务都复用它"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'skill_points = ?' plugins | grep '/src/main/'",
+        "hit": "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcProfileService.java:604（唯一 UPDATE rpg_profiles 的技能点写入口）=> 仍然只有一个等级/技能点账本，没有第二套"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'rpg_skill_point_grants' plugins | grep '/src/main/'",
+        "hit": "plugins/rpg-core/.../JdbcProfileService.java:492（注释）、513（INSERT）、529（复读校验）=> 新表唯一消费者为 JdbcProfileService"
+      },
+      {
+        "cmd": "grep -rn 'skillPointMilestonesPassed(LOCAL_LEVEL_CAP)\\|ascension \\* skillPointsForStage' plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/ProgressionRules.java",
+        "hit": "83-85（每转 10 点）、98-103（累计 = 转数*每转点数 + 本段已过档位）=> 跨段重新累计，不吞点也不多发"
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "hit": "DDL_CONSUMER_GATE=GREEN / CMD_REFERENCE_GATE=GREEN（新增 DDL 未引入未接线表；rpg_skill_point_grants 因只登记在测试夹具、未进 Database.java 故不在门禁表数内）"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon --rerun-tasks :plugins:rpg-api:test :plugins:rpg-core:test -PexcludeTags=env",
+        "result": "BUILD SUCCESSFUL in 12s / 9 actionable tasks: 9 executed（rpg-api 全绿；rpg-core 263 tests / 0 failed）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-api:test :plugins:rpg-core:test（不排除 env 标签）",
+        "result": "BUILD FAILED，恰好 2 个失败，均与基线一致的环境依赖测试：LanguageBundleContractTest.quickActionTaskButtonUsesTheUnifiedTaskCenter（缺 server/datapacks/...）、LanguageBundleContractTest.projectYamlFilesParseWithoutDuplicateKeys（缺 server/config）。改动前同一命令同样只有这 2 个失败 => 未引入新红。"
+      },
+      {
+        "cmd": "（负向对照 A·里程碑步长）把 ProgressionRules.skillPointMilestonesPassed 的 /LOCAL_LEVELS_PER_SKILL_POINT 改成 /2，再跑 :plugins:rpg-api:test :plugins:rpg-core:test -PexcludeTags=env",
+        "result": "BUILD FAILED，3 例 RED：ProgressionRulesTest.localMilestonesGiveTenPointsPerStageAndMatchTheLegacyPaceInsideAStage / fourStagesAccumulateFortyPointsAtEveryBoundary / milestoneDeltaIsStageLocalAndNeverSpansAscension。已用备份还原，还原后重跑 BUILD SUCCESSFUL。"
+      },
+      {
+        "cmd": "（负向对照 B·幂等唯一键）把 JdbcProfileService.settleSkillPointMilestone 的冲突判定从 `!sameFact -> throw` 改成 `sameFact -> return true`（等价于把重放当作新发），再跑 :plugins:rpg-core:test -PexcludeTags=env",
+        "result": "BUILD FAILED，1 例 RED：JdbcServicesTest.skillPointMilestoneReplayKeepsTheFirstReceiptRowUnchanged（重放同一 receipt 不得重复发点：expected 1 point delta but was 2）。已还原，还原后重跑 BUILD SUCCESSFUL。"
+      },
+      {
+        "cmd": "（基线对照）git stash -q -u && ./gradlew --no-daemon :plugins:rpg-core:test -PexcludeTags=env",
+        "result": "BUILD SUCCESSFUL（改动前后同一命令都是绿的，说明本次没有把既有测试改红，也没有靠删测试/改恒真断言过关）"
+      },
+      {
+        "cmd": "grep -rn '@Disabled\\|@Ignore' plugins/rpg-api/src/test plugins/rpg-core/src/test",
+        "result": "唯一命中是 DeploymentEnvironmentFixtures.java:14 的文档注释（说明禁止用 @Disabled 静默跳过），没有任何 @Disabled/@Ignore 注解、没有删除测试、没有改成恒真断言"
+      }
+    ]
+  },
+  "unproven": [
+    "未取得 [R] Runtime：全部验证在 H2(in-memory, MODE=PostgreSQL) 与 Gradle 单测内完成，没有在真实 Paper + PostgreSQL 上跑过结算。",
+    "未取得 [H] Human：存量档案是否需要一次性补偿，需要人类按 plan/skillpoint-migration-notes.md §2 的只读 dry-run 结果拍板。",
+    "rpg_skill_point_grants 未进 Database.java 的 DDL 清单（越界），真机首次启动时该表不存在 => 生产环境必须补一条迁移，详见 blockers。",
+    "tools/db-migration/SchemaManifest 未登记 rpg_skill_point_grants（越界），因此迁移工具目前不会校验它的存在与唯一键。"
+  ],
+  "blockers": [
+    "需要人类确认：新增表 rpg_skill_point_grants 必须加入 Database.java 的迁移列表（表级锁维度，未在 allowed_paths 内）。真机若上本分支，必须先补这条 DDL 再启动，否则任何经验授予都会以 'Table not found' 回滚。"
+  ],
+  "risks": [
+    "跨段点数修正改变了数值语义：段内（同一转内）旧新口径完全一致；差异只出现在「转生后立刻再升 1-3 级」的路径上，旧口径可能少发点。变更表已写入 plan/skillpoint-migration-notes.md §1。",
+    "【本轮无意改动，需人类决定】grantExperience(UUID, long) 由 mutate() 改成了显式事务（为了把技能点流水写在同一事务）。行为语义不变，但异常包装从 'Profile transaction failed' 变成 'Could not open profile transaction' 的场景略有不同。",
+    "【沿用现状，根因在别处】事故补偿的玩家档案本身没有记录 inc 内容，重复用同一 inc+等级会静默变成 DUPLICATE（因为 incident_key 全局唯一，同名不同请求会先被 CONFLICT 拦下），因此本轮没有额外改动该服务的事务顺序；若将来引入按玩家区分的事故 ID，需要重新评估这里。",
+    "副本结算的等级/经验幂等仍由 rpg_dungeon_reward_receipts 承担（同一 run 直接 REPLAYED）；grantExperienceInTransaction 的幂等键只负责技能点。这层分工已写进方法注释与测试注释，避免误以为它能拦住重复经验。",
+    "技能点上限 MAX_SKILL_POINTS=1_000_000_000 的加法改为 Math.addExact：极端溢出会抛异常而不是静默回绕（更安全但更吵）。"
+  ],
+  "next_steps": [
+    "人类拍板后补一条独立 PR：把 rpg_skill_point_grants 加进 Database.java 迁移列表 + tools/db-migration/SchemaManifest（表名 + 唯一键 (source, idempotency_key) 的 requiredUnique 登记）。",
+    "跑 plan/skillpoint-migration-notes.md §2 的只读 dry-run，把跨段吞点嫌疑档案交给人类；确认要补偿后走 JdbcAdminIncidentCompensationService（incident_key 幂等），禁止直接 UPDATE rpg_profiles。",
+    "rpg-api 的 combat 模块测试在 W2-A1 后已被就地修过一次；本 PR 未触碰 ProfileService 接口，无需重复修。"
+  ],
+  "pr_url": ""
+}
