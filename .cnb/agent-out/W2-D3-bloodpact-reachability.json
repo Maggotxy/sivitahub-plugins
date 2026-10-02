@@ -116,12 +116,13 @@
     "shipped 配置仍带 G-106（血契二转不可达），本 PR 未修好数值；玩法侧行为与 main 完全一致（config.yml 除注释外零差异，已用 python yaml 回读确认 minimum-ascension 仍为 3）。",
     "fail-on-contradiction 保持 false：跨模块修法落地前置 true 会让 RpgSkills 启动失败。反过来，若跨模块修法落地后忘记置 true，门禁只告警不拦截（已用 shippedFailFastSwitchAgreesWithTheRealConfigVerdict() 把两者钉在一起）。",
     "HiddenPathReachability 用「路线门那一转的本地满级」作为比较基准（保守上界）；若将来某前置的门落在路线门那一转的更低本地等级，本判据仍会判可达，不会误报。",
-    "分支基点：本 PR 从 main=c234360 重新 rebase（原 PR#19 的内容 baa62cd 已由人类先行合入 main，但其中不含本轮新增的 HiddenPathPreconditionPlan 与逐路径可达性断言）。已在 rebase 后的树上重跑两模块 compileJava + test（rpg-api 77 例 / rpg-skills 67 例全绿）与 rpg-core 基线对照。"
+    "分支基点：本 PR 从 main=c234360 重新 rebase（原 PR#19 的内容 baa62cd 已由人类先行合入 main，但其中不含本轮新增的 HiddenPathPreconditionPlan 与逐路径可达性断言）。已在 rebase 后的树上重跑两模块 compileJava + test（rpg-api 77 例 / rpg-skills 67 例全绿）与 rpg-core 基线对照。",
+    "PR 编号：本轮为 PR#22（PR#19 已由人类在 fb32c54 之前合入 main，其内容不含本轮的 HiddenPathPreconditionPlan 与逐路径可达性断言，故另开 PR#22，基点 main=d4e4d5b/本分支 639a2dc）。"
   ],
   "next_steps": [
     "人类裁决并执行跨模块修法：把 plugins/rpg-classes/src/main/resources/config.yml:43 的 unseen stage 从 3 降到 2，同时把 plugins/rpg-skills/src/main/resources/config.yml 的 vanished-horizon.minimum-ascension 从 3 降到 2（两处必须同改，否则 validateCatalog 不变式会拒绝启动）。",
     "修法落地后：把 hidden-route-reachability.fail-on-contradiction 置为 true，并把 rpg-skills 的 everyHiddenPathPreconditionIsAuditedAtThePathsOwnAscension() 期望值从「BLOODPACT/vanished-horizon」改为空集（测试里已写明该提示）。",
     "同一可达性断言可推广到 gap-matrix 其他「机制声明了门但门晚于机制」的位置。"
   ],
-  "pr_url": ""
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/22"
 }
