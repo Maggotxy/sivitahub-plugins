@@ -208,7 +208,7 @@
       "repo_pollution_check": "sh -c 'cd <clean-clone> && sh scripts/selftest-gates.sh; git status --short' → 输出为空"
     }
   },
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/41",
   "risks": [
     "判据 4/5 只断言「码位 ↔ 图集/纹理」的静态一致性，不能证明字形在真实客户端里的最终宽度与基线位置（README 已把这件事列为客户端逐项验收第 6/7 项）。无 Paper 环境无法可靠判定，未硬写。",
     "判据 8 只判 pack.mcmeta 自己声明的格式（min=max=88）；「与安装中的 26.2 服务端一致」要读 server/runtime/cache/mojang_26.2.jar（仓外产物，CI 无），仍由生产机 build.sh 判定。",
