@@ -259,5 +259,5 @@
     "请人类拍板：是否把 rpg-combat 测试失配（DefenseWiringTest 的 @Override ascend）登记为一个独立的 gap/任务，而不是并进 W3-A2。",
     "在 W3 合波后触发 .cnb.yml 的 api_trigger_gate，确认三阶段门在 CNB 上真绿，并把 sn 与各阶段耗时写回 state/world-state.json。"
   ],
-  "pr_url": ""
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/27"
 }
