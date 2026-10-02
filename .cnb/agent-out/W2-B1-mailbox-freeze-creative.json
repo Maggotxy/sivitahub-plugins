@@ -55,5 +55,14 @@
     "未在真实 Paper 服务器上跑 [R] Runtime 验证：仅做到编译 + 单元/行为级测试 [T]",
     "InventoryCreativeEvent 的真实客户端触发（创造模式物品栏拖拽）未做端到端人工复现 [H]"
   ],
-  "blockers": []
+  "blockers": [],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/10",
+  "next_steps": [
+    "人工在真实 Paper 上验证创造模式物品栏（InventoryCreativeEvent 触发路径）与断线重连领取路径，补齐 [R]/[H] 证据",
+    "更新 plan/gap-matrix.md §2 M-007 判定（该文件不在本任务 allowed_paths，需由对账任务处理）"
+  ],
+  "risks": [
+    "游标槽用 -1 表示，若未来有人把 scan 结果直接当物品栏下标使用会越界；已由 DeliveryReceiptRules.slot 与 clearInventoryMarkerAt 的显式分支隔离",
+    "InventoryCreativeEvent 的真实客户端触发依赖客户端创造模式，本轮仅有编译期与单元级证据"
+  ]
 }
