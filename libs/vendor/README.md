@@ -15,4 +15,11 @@ scp "lamb:/home/lamb/minecraft/server/runtime/plugins/worldguard-bukkit-7.0.18-S
 sha1sum libs/vendor/*.jar    # 与上表核对，不一致就把上表一起改掉并在 PR 里说明
 ```
 
-其余 6 个有公开源的编译期依赖由 `scripts/fetch-deps.sh` 拉取，**不入库**（见 `doc/cnb/gap-registry.md` §F）。
+**缺失时的行为**：`sh scripts/fetch-deps.sh` **不下载**这两个 jar，但会检查存在性，
+缺失时以非零码退出并打印本文件的路径。也就是说干净克隆缺少 vendor jar 时，
+门禁会在编译前就明确失败，而不是等到 `compileJava` 报“package 不存在”。
+
+其余 7 个有公开源的编译期依赖（含 worldedit 的 core + bukkit 两个 artifact）由
+`scripts/fetch-deps.sh` 拉取到 `libs/`，**不入库**（`.gitignore` 已忽略 `libs/*.jar` 与
+`libs/vendor/*.jar`）。清单与校验值见该脚本，机械门禁见 `scripts/check-file-deps.sh`
+与 `doc/cnb/decisions-locked.md` L-009。
