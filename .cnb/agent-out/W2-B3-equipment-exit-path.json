@@ -56,5 +56,12 @@
     "EquipmentExitPathGate 只吃 (custom, tradeUnlocked, kind) 两个布尔事实，没有覆盖真实 ItemStack/PDC 层面的端到端行为；rpg-items 测试源集没有 paper-api 依赖，端到端断言需要真实 Paper 运行时（[R] 等级）。",
     "本次未做真实 Paper + PostgreSQL 运行验证，属 [S]+[T] 等级；[R][H] 未取得。"
   ],
-  "blockers": []
+  "blockers": [],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/14",
+  "next_steps": [
+    "等待人工评审与合并（NPC 不代合并）。",
+    "Phase 4 派任务时补接调谐（SEASON_ATTUNED）与明确销毁（DESTROYED）两条退出路径的生产入口——目前只有状态机声明，无 src/main 写入方。",
+    "可选：为 rpg-items 测试源集加 paper-api，把门禁判定升级到真实 ItemStack/PDC 端到端断言（本次受「不要改依赖」约束未做）。",
+    "可选：把 market.refined-bound 换成一条语义更贴切的专用文案（需改 rpg-core lang，不在本任务 allowed_paths 内）。"
+  ]
 }
