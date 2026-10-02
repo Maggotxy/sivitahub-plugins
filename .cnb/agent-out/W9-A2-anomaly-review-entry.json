@@ -1,11 +1,11 @@
 {
   "task_id": "W9-A2-anomaly-review-entry",
   "status": "success",
-  "summary": "W9-A2 本轮为**复跑复核**：任务产物在上一轮已完整交付并**已合入 main**（合并提交 a624b61，PR #49 已 closed/merged），main 上的 doc/cnb/gap-registry.md 已把 G-ANOMALY-ACK 标为 DONE W9-A2，verdict-v5/v6 不再出现该条。调度器标注的「上一轮失败」无错误日志（错误/日志摘要为「无日志」），且分支 tip 50c3e02 已被 main 包含（git merge-base --is-ancestor 成立），本分支相对 main 零净新增。本轮未改任何实现代码，改为在**当前 main (6d12e03) 的独立 worktree 上重跑全部判据**做交叉验证，结果与上一轮一致：门禁自测 PASS=67 FAIL=0 / DDL 三判据 GREEN / 全量 test SUM tests=1091 failed=0 errors=0 skipped=2 modules=26 SUMMARY_GATE=GREEN；并重做署名落库的负向对照（改坏 SET reviewer=? 后 7 例真实转红，证明测试非恒绿）。原实现要点：/rpgadmin anomaly <list|ack> 管理面入口（沿用既有 rpg.admin，未新造权限体系），list 分页 offset/limit（limit 收敛到 500）+ 总数，ack <player-uuid> CONFIRM <结论> 落 reviewer/review_note/reviewed_at；复核语义为幂等签署（WHERE reviewed_at IS NULL，先到者为准）；DDL 走 Database.java 建表三列 + 三条 ALTER ADD COLUMN IF NOT EXISTS，表已登记 SchemaManifest.java:81。",
+  "summary": "W9-A2 本轮为**复跑复核**：任务产物在上一轮已完整交付并**已合入 main**（合并提交 a624b61，PR #49 已 closed/merged），main 上的 doc/cnb/gap-registry.md 已把 G-ANOMALY-ACK 标为 DONE W9-A2，verdict-v5/v6 不再出现该条。调度器标注的「上一轮失败」无错误日志（错误/日志摘要为「无日志」），且分支 tip 50c3e02 已被 main 包含（git merge-base --is-ancestor 成立），本分支相对 main 零净新增。本轮未改任何实现代码，改为在**当前 main (6d12e03) 的独立 worktree 上重跑全部判据**做交叉验证，结果与上一轮一致：门禁自测 PASS=67 FAIL=0 / DDL 三判据 GREEN / 全量 test SUM tests=1091 failed=0 errors=0 skipped=2 modules=26 SUMMARY_GATE=GREEN；并重做署名落库的负向对照（改坏 SET reviewer=? 后 7 例真实转红，证明测试非恒绿）。原实现要点：/rpgadmin anomaly <list|ack> 管理面入口（沿用既有 rpg.admin，未新造权限体系），list 分页 offset/limit（limit 收敛到 500）+ 总数，ack <player-uuid> CONFIRM <结论> 落 reviewer/review_note/reviewed_at；复核语义为幂等签署（WHERE reviewed_at IS NULL，先到者为准）；DDL 走 Database.java 建表三列 + 三条 ALTER ADD COLUMN IF NOT EXISTS，表已登记 SchemaManifest.java:81。 本轮复跑复核 PR：#52（仅含证据文件更新）；原实现交付 PR：#49（已 merged）。",
   "changed_files": [
     ".cnb/agent-out/W9-A2-anomaly-review-entry.json"
   ],
-  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/49",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/52",
   "evidence": {
     "grep": [
       {
