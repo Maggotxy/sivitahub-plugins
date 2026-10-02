@@ -56,6 +56,16 @@ class DungeonRewardOutboxWiringTest {
                     )
                     """);
             statement.execute("""
+                    CREATE TABLE rpg_skill_point_grants (
+                        source VARCHAR(96) NOT NULL, idempotency_key VARCHAR(96) NOT NULL,
+                        player_uuid VARCHAR(36) NOT NULL, points INTEGER NOT NULL,
+                        ascension INTEGER NOT NULL, from_local_level INTEGER NOT NULL,
+                        to_local_level INTEGER NOT NULL,
+                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (source, idempotency_key)
+                    )
+                    """);
+            statement.execute("""
                     CREATE TABLE rpg_market_deliveries (
                         id VARCHAR(36) PRIMARY KEY, player_uuid VARCHAR(36) NOT NULL,
                         item_payload TEXT NOT NULL, source VARCHAR(96) NOT NULL, state VARCHAR(16) NOT NULL,

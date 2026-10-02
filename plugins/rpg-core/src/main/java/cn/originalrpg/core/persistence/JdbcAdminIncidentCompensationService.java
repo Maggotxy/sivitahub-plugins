@@ -153,8 +153,12 @@ public final class JdbcAdminIncidentCompensationService implements AdminIncident
             return replayResult(existing, request.hash());
         }
 
+        // G-107 下半：结算的技能点里程碑以「事件 id + 来源」为幂等依据，
+        // 同一 incident_key 重放只生效一次（incident 表本身也保证只结算一次）。
         PlayerProfile after = value.experience() == 0 ? before
-                : profiles.grantExperienceInTransaction(connection, value.playerId(), value.experience());
+                : profiles.grantExperienceInTransaction(connection, value.playerId(), value.experience(),
+                        UUID.nameUUIDFromBytes(("incident:" + value.incidentKey()).getBytes(
+                                java.nio.charset.StandardCharsets.UTF_8)), value.incidentKey());
         if (appliedGold.signum() > 0) {
             updateAccount(connection, value.playerId(), balance.add(appliedGold));
         }

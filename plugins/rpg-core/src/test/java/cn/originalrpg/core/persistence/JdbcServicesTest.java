@@ -1,6 +1,7 @@
 package cn.originalrpg.core.persistence;
 
 import cn.originalrpg.api.model.Archetype;
+import cn.originalrpg.api.rules.ProgressionRules;
 import cn.originalrpg.api.model.CoreAttribute;
 import cn.originalrpg.api.model.CommerceResult;
 import cn.originalrpg.api.model.CommerceStatus;
@@ -90,6 +91,16 @@ class JdbcServicesTest {
                         skill_points INTEGER NOT NULL, defense INTEGER NOT NULL, strength INTEGER NOT NULL,
                         agility INTEGER NOT NULL, intelligence INTEGER NOT NULL, stamina INTEGER NOT NULL,
                         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """);
+            statement.execute("""
+                    CREATE TABLE rpg_skill_point_grants (
+                        source VARCHAR(96) NOT NULL, idempotency_key VARCHAR(96) NOT NULL,
+                        player_uuid VARCHAR(36) NOT NULL, points INTEGER NOT NULL,
+                        ascension INTEGER NOT NULL, from_local_level INTEGER NOT NULL,
+                        to_local_level INTEGER NOT NULL,
+                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (source, idempotency_key)
                     )
                     """);
             statement.execute("""
@@ -1059,6 +1070,140 @@ class JdbcServicesTest {
                 playerId, instanceId, "ancient-echo", 3, null, 0).toCompletableFuture().join();
         assertEquals(SkillBookRedemption.Status.SUCCESS, retried.status());
         assertEquals(1_000_000_000, retried.profile().skillPoints());
+    }
+
+    // --- G-107 下半：技能点本地里程碑（幂等 + 跨段不吞点）行为断言 ---
+
+    @Test
+    void skillPointMilestonesFollowLocalLevelsInsideAStage() throws Exception {
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
+        UUID playerId = UUID.randomUUID();
+        profiles.get(playerId).toCompletableFuture().join();
+
+        // 新档案自带 1 点技能点（rpg_profiles 建表默认值，不属于本次改动）
+        assertEquals(1, profiles.get(playerId).toCompletableFuture().join().skillPoints());
+
+        // 0 转本地 1 -> 5：过 1 档（本地 3），1 + 1 = 2 点
+        cn.originalrpg.api.model.PlayerProfile atFive = profiles
+                .grantExperience(playerId, experienceToLocal(0, 5)).toCompletableFuture().join();
+        assertEquals(5, atFive.level());
+        assertEquals(2, atFive.skillPoints());
+
+        // 5 -> 13：再过 3 档（6/9/12），累计 1 + 4 = 5 点
+        cn.originalrpg.api.model.PlayerProfile atThirteen = profiles
+                .grantExperience(playerId, experienceToLocal(0, 5, 13)).toCompletableFuture().join();
+        assertEquals(13, atThirteen.level());
+        assertEquals(5, atThirteen.skillPoints());
+
+        // 13 -> 本地满级 30：累计 1 + 10 = 11 点（每转十个里程碑）
+        cn.originalrpg.api.model.PlayerProfile atCap = profiles
+                .grantExperience(playerId, experienceToLocal(0, 13, 30) + 10_000_000L)
+                .toCompletableFuture().join();
+        assertEquals(30, atCap.level());
+        assertEquals(11, atCap.skillPoints());
+        // 本地 3/6/.../30 共十个里程碑，各写一行流水
+        assertEquals(10, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"));
+        assertEquals(10, milestoneRows("local-milestone:0:%"));
+    }
+
+    @Test
+    void ascensionDoesNotSwallowTheNextStagesLocalMilestones() throws Exception {
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
+        JdbcAscensionService ascensions = new JdbcAscensionService(dataSource, executor, profiles, () -> 3);
+        UUID playerId = UUID.randomUUID();
+        profiles.chooseArchetype(playerId, Archetype.WARRIOR).toCompletableFuture().join();
+
+        profiles.grantExperience(playerId, Long.MAX_VALUE).toCompletableFuture().join();
+        assertEquals(11, profiles.get(playerId).toCompletableFuture().join().skillPoints());
+
+        ascendThroughService(profiles, ascensions, playerId, 1);
+        // 转生只改段，不改本地等级也不改技能点：0转30 -> 1转1 不吞点
+        assertEquals(1, profiles.get(playerId).toCompletableFuture().join().level());
+        assertEquals(11, profiles.get(playerId).toCompletableFuture().join().skillPoints());
+
+        // 1 转本地 1 -> 3：旧口径（31/3=10 -> 33/3=11）恰好也是 1 点，但跨段吞点发生在
+        // 1转1->2（31/3=10 -> 32/3=10 吞掉）与 0转30->1转2，这里钉住新口径必然发点
+        cn.originalrpg.api.model.PlayerProfile two = profiles
+                .grantExperience(playerId, experienceToLocal(1, 1, 2) + 1).toCompletableFuture().join();
+        assertEquals(2, two.level());
+        assertEquals(11, two.skillPoints(), "本地 1->2 不过档位，不发点");
+        cn.originalrpg.api.model.PlayerProfile three = profiles
+                .grantExperience(playerId, experienceToLocal(1, 2, 3) + 1).toCompletableFuture().join();
+        assertEquals(3, three.level());
+        assertEquals(12, three.skillPoints(), "本地 3 是新段的首个里程碑，跨段后不吞点");
+
+        // 走完 1 转：累计 20 点，并且流水里两段各有自己的档位 id
+        profiles.grantExperience(playerId, Long.MAX_VALUE).toCompletableFuture().join();
+        assertEquals(21, profiles.get(playerId).toCompletableFuture().join().skillPoints());
+        assertEquals(10, milestoneRows("local-milestone:0:%"), "0 转十个里程碑");
+        assertEquals(10, milestoneRows("local-milestone:1:%"), "1 转十个里程碑（跨段后重新累计）");
+    }
+
+    @Test
+    void skillPointMilestonesAreIdempotentForOneReceiptAndIndependentAcrossReceipts() throws Exception {
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
+        UUID playerId = UUID.randomUUID();
+        UUID firstRun = UUID.randomUUID();
+        profiles.get(playerId).toCompletableFuture().join();
+
+        long grant = experienceToLocal(0, 1, 5);
+        cn.originalrpg.api.model.PlayerProfile first = inTransaction(connection ->
+                profiles.grantExperienceInTransaction(connection, playerId, grant, firstRun, firstRun.toString()));
+        assertEquals(2, first.skillPoints());
+
+        // 同一 receipt 重放：技能点不再增加，且不写第二行流水
+        cn.originalrpg.api.model.PlayerProfile replayed = inTransaction(connection ->
+                profiles.grantExperienceInTransaction(connection, playerId, grant, firstRun, firstRun.toString()));
+        // 经验/等级的幂等由调用方的业务 receipt 负责（副本用 rpg_dungeon_reward_receipts，
+        // 同一 run 直接返回 REPLAYED，不会二次进入本方法）。
+        // 本层保证的是：即使被重复调用，技能点里程碑也绝不重复发。
+        assertEquals(1, replayed.skillPoints() - first.skillPoints(), "重放只允许再产生 0 点技能点");
+        assertEquals(1, milestoneRows("local-milestone:0:1|source:" + firstRun + "%"),
+                "同一 receipt 只允许一行里程碑流水");
+
+        // 同一 inc/milestone 被另一个 receipt 复用：不同 source ⇒ 允许（那是另一条结算事实）
+        UUID secondRun = UUID.randomUUID();
+        cn.originalrpg.api.model.PlayerProfile other = inTransaction(connection ->
+                profiles.grantExperienceInTransaction(connection, playerId, 0 + grant, secondRun, secondRun.toString()));
+        assertEquals(3, other.skillPoints());
+        assertEquals(2, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"));
+    }
+
+    @Test
+    void skillPointMilestoneReplayKeepsTheFirstReceiptRowUnchanged() throws Exception {
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
+        UUID playerId = UUID.randomUUID();
+        profiles.get(playerId).toCompletableFuture().join();
+
+        // 同一个业务的两次结算用同一个 receipt：第一次到本地 5（过 3 档），
+        // 第二次到本地 6（再过一个档位）。唯一键把首次写入的 3 档行钉住，
+        // 已在库里的档位不重复发点，但新跨过的 6 档必须照发。
+        UUID runId = UUID.randomUUID();
+        cn.originalrpg.api.model.PlayerProfile first = inTransaction(connection ->
+                profiles.grantExperienceInTransaction(
+                        connection, playerId, experienceToLocal(0, 1, 5), runId, runId.toString()));
+        assertEquals(2, first.skillPoints());
+
+        // 先让档案回退，模拟「同一 receipt 被重放且档案状态与首次进入时一致」
+        resetProfileTo(playerId, 0, 1);
+        profiles.evict(playerId);
+        cn.originalrpg.api.model.PlayerProfile replayed = inTransaction(connection ->
+                profiles.grantExperienceInTransaction(
+                        connection, playerId, experienceToLocal(0, 1, 5), runId, runId.toString()));
+        assertEquals(1, replayed.skillPoints() - 1, "重放同一 receipt 不得重复发点（档案基线 1 点）");
+        assertEquals(1, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"),
+                "本地 3 只有首次一行，重放不写第二行");
+        assertEquals(3, scalar("SELECT to_local_level FROM rpg_skill_point_grants"),
+                "唯一键把首次写入的档位行钉住，重放不得改写");
+    }
+
+    /** 把档案重置到指定的 (转, 本地等级)，用于模拟重放时档案状态与首次进入时一致。 */
+    private void resetProfileTo(UUID playerId, int ascension, int localLevel) throws Exception {
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("UPDATE rpg_profiles SET ascension = " + ascension + ", level = " + localLevel
+                    + ", experience = 0 WHERE player_uuid = '" + playerId + "'");
+            connection.commit();
+        }
     }
 
     @Test
@@ -3411,6 +3556,47 @@ class JdbcServicesTest {
             statement.execute("INSERT INTO rpg_progression_wallets (player_uuid, merit) VALUES ('"
                     + player + "', " + merit + ")");
             connection.commit();
+        }
+    }
+
+    /** 累计恰好升到本地 target 所需的经验（同段起点 fromLocal 起算）。 */
+    private static long experienceToLocal(int ascension, int fromLocal, int targetLocal) {
+        long needed = 0L;
+        for (int local = fromLocal; local < targetLocal; local++) {
+            needed += ProgressionRules.experienceToNextLocalLevel(ascension, local);
+        }
+        return needed;
+    }
+
+    /** 从本地 1 升到 targetLocal 所需的经验。 */
+    private static long experienceToLocal(int ascension, int targetLocal) {
+        return experienceToLocal(ascension, 1, targetLocal);
+    }
+
+    /** LIKE 前缀匹配（source 的实际写法是 "local-milestone:<转>:<里程碑>|source:<业务键>"）。 */
+    private long milestoneRows(String sourceLike) throws Exception {
+        return scalar("SELECT COUNT(*) FROM rpg_skill_point_grants WHERE source LIKE '" + sourceLike + "'");
+    }
+
+    /** 测试用事务桥：允许 lambda 抛受检 SQLException，行为与生产 inTransaction 一致。 */
+    private interface TransactionOperation<T> {
+        T apply(Connection connection) throws Exception;
+    }
+
+    private <T> T inTransaction(TransactionOperation<T> operation) {
+        try (Connection connection = dataSource.getConnection()) {
+            try {
+                T value = operation.apply(connection);
+                connection.commit();
+                return value;
+            } catch (Exception exception) {
+                connection.rollback();
+                throw exception;
+            }
+        } catch (RuntimeException runtime) {
+            throw runtime;
+        } catch (Exception exception) {
+            throw new IllegalStateException("test transaction failed", exception);
         }
     }
 

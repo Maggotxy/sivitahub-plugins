@@ -8,6 +8,15 @@ public final class ProgressionRules {
     public static final int POST_ASCENSION_VERTICAL_CAP = 120;
 
     /**
+     * 技能点本地里程碑口径（唯一实现）：每一转的本地等级 1..30 内，每 3 级发 1 点。
+     * 点位在本地等级 3/6/.../30，四转合计 10*4 = 40 点。
+     */
+    public static final int LOCAL_LEVELS_PER_SKILL_POINT = 3;
+
+    /** 本地里程碑档位 id；转生换段后同一 id 在新段重新累计，跨段不吞点也不多发。 */
+    private static final String SKILL_POINT_SOURCE = "local-milestone:%d:%d";
+
+    /**
      * Stage total experience budgets (sum of 29 transitions per stage).
      * Chosen to keep early game brisk (~120 XP for 1->2) while keeping
      * total to 120 at ~2.48M (avoids eff^2 inflation but preserves stage growth).
@@ -55,6 +64,63 @@ public final class ProgressionRules {
     /** Effective cap for reference (always 120). */
     public static int effectiveLevelCap() {
         return POST_ASCENSION_VERTICAL_CAP;
+    }
+
+    // --- 技能点本地里程碑（G-107 下半，唯一实现）--------------------------------------
+    // 旧口径是「有效等级整除 3 的差分」：finalEffective/3 - startingEffective/3。
+    // 有效等级跨段会跳档（0转30 -> 1转31），整除差在跨段点会吞点或补发，
+    // 因此改为按「本地等级里程碑」计数：本段内已过档位个数 - 本段起始已过档位个数。
+
+    /** 本地等级 [1, localLevel] 内已过的里程碑个数（本地等级本身就是里程碑索引来源）。 */
+    public static int skillPointMilestonesPassed(int localLevel) {
+        if (localLevel < 1 || localLevel > LOCAL_LEVEL_CAP) {
+            throw new IllegalArgumentException("localLevel must be between 1 and " + LOCAL_LEVEL_CAP);
+        }
+        return localLevel / LOCAL_LEVELS_PER_SKILL_POINT;
+    }
+
+    /** 某一转的本地等级全程走完后应得的技能点总数（每段 10 点）。 */
+    public static int skillPointsForStage(int ascension) {
+        requireAscension(ascension);
+        return skillPointMilestonesPassed(LOCAL_LEVEL_CAP);
+    }
+
+    /** 从 (ascension, fromLocal) 升到同段 (ascension, toLocal) 应发的技能点增量。 */
+    public static int skillPointsGained(int ascension, int fromLocal, int toLocal) {
+        requireAscension(ascension);
+        if (toLocal < fromLocal) {
+            throw new IllegalArgumentException("toLocal must not be below fromLocal");
+        }
+        return skillPointMilestonesPassed(toLocal) - skillPointMilestonesPassed(fromLocal);
+    }
+
+    /** [1, 本地等级] 内跨全部转生段累计应得的技能点（跨段跳档不再吞点）。 */
+    public static int cumulativeSkillPoints(int ascension, int localLevel) {
+        requireAscension(ascension);
+        if (localLevel < 1 || localLevel > LOCAL_LEVEL_CAP) {
+            throw new IllegalArgumentException("localLevel must be between 1 and " + LOCAL_LEVEL_CAP);
+        }
+        return ascension * skillPointsForStage(ascension) + skillPointMilestonesPassed(localLevel);
+    }
+
+    /**
+     * 里程碑档位 id（幂等依据）。
+     * 同一 (转, 本地里程碑) 只会对应一个 id；跨段后重新从 0 开始，
+     * 因此重放/跨段都不会拿到同一个 id 重复发点。
+     */
+    public static String skillPointMilestoneSource(int ascension, int localLevel) {
+        requireAscension(ascension);
+        if (localLevel < 1 || localLevel > LOCAL_LEVEL_CAP) {
+            throw new IllegalArgumentException("localLevel must be between 1 and " + LOCAL_LEVEL_CAP);
+        }
+        return SKILL_POINT_SOURCE.formatted(
+                ascension, localLevel / LOCAL_LEVELS_PER_SKILL_POINT);
+    }
+
+    private static void requireAscension(int ascension) {
+        if (ascension < 0 || ascension > MAX_ASCENSION) {
+            throw new IllegalArgumentException("ascension must be between 0 and " + MAX_ASCENSION);
+        }
     }
 
     public static long experienceToNextLocalLevel(int ascension, int localLevel) {
