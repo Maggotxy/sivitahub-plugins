@@ -113,5 +113,6 @@
     "在真实 Paper + PostgreSQL 上验证 RpgClasses 启动自检：把 skills/config.yml 的 vanished-horizon 改回 minimum-ascension: 2 得到最小复现（应启动失败），再改回 3（应启动成功）。",
     "由设计方确认「血契 3 转门」是本意；若要维持二转，另开 MECHANISM_RFC 调整 unseen 分支阶段与技能矩阵。",
     "把相同可达性断言推广到其他「机制声明了门但门晚于机制」的位置（gap-matrix 同类行），可复用 HiddenPathReachability 的模型。"
-  ]
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/19"
 }
