@@ -147,5 +147,76 @@ if [ -n "$UNWIRED_LINES" ]; then
   exit 1
 fi
 
+# ---- 6. Slash 指令引用门禁 ----
+#
+# 失败模式：语言包（lang/*.yml）里的 tooltip 承诺「执行 /<cmd> 做某事」，
+# 但那个指令从来没有被任何 plugin.yml 注册过 —— 玩家点下去只会得到
+# 「Unknown command」。这与 DDL 门禁是同一类病：声明了，但没有消费者。
+#
+# 判据：语言包里每一次 `/foo` 引用，必须命中某个 plugin.yml 的 commands 键，
+# 或命中显式豁免（原版指令 / 第三方插件拥有的指令 / 已知待接线）。
+#
+# 真实失效样本（W3-A2 实测）：`/claimslist` 与 `/claim` 由 GriefPrevention 拥有，
+# 从未出现在本仓任何 plugin.yml 里，但 `guide.help.claims.*tooltip` 承诺了它们，
+# 并在同一测试里被判为「Guide 暴露了普通玩家不可用的指令」。
+# 落成文件而不是变量：多行 here-doc 存进 shell 变量后再 `grep "^x|"` 在 dash 下
+# 实测恒不命中（第一行之外的行都被拆散）⇒ 门禁会恒绿，等于没有门禁。
+CMD_EXEMPT_FILE=$(mktemp)
+cat > "$CMD_EXEMPT_FILE" <<'CMD_EXEMPT_EOF'
+help|原版 /help，由 Paper 内建提供，不在任何 plugin.yml 里
+claim|GriefPrevention 拥有（本仓不含该插件，见 docs/PLUGIN_INTEGRATION.md）
+claimslist|GriefPrevention 拥有（同上）
+trust|GriefPrevention 拥有
+containertrust|GriefPrevention 拥有
+accesstrust|GriefPrevention 拥有
+trustlist|GriefPrevention 拥有
+untrust|GriefPrevention 拥有
+abandonclaim|GriefPrevention 拥有
+CMD_EXEMPT_EOF
+
+REGISTERED_CMDS=''
+for y in $(find plugins -path '*/src/main/resources/plugin.yml' -type f 2>/dev/null); do
+  REGISTERED_CMDS="$REGISTERED_CMDS$(sed -n '/^commands:/,$p' "$y" \
+    | grep -oE '^  [A-Za-z0-9_-]+:' | sed 's/^  //; s/:$//')
+"
+done
+REGISTERED_CMDS=$(printf '%s\n' "$REGISTERED_CMDS" | sed '/^$/d' | sort -u)
+
+CMD_UNKNOWN=''
+for lang in plugins/*/src/main/resources/lang/*.yml; do
+  [ -f "$lang" ] || continue
+  # 只认「命令行首」的引用：`/foo` 前面必须是行首、空白、引号或标点（含中文标点），
+  # 后面是行尾/空白/标点。这样 `left/right-click`、`safe/lucky`、`current/next-level`
+  # 这类「选项对」不会被误当成指令。匹配后统一用 sed 归一化成裸指令名。
+  #
+  # 注意：不要用 `grep -oE '...)::'` 想靠 `::` 多输出一次分隔符 —— GNU grep 的 -oE
+  # 把 `::` 当普通字符，整个 -oE 会静默匹配不到任何东西，循环体一次都不执行，
+  # 门禁就变成恒绿的假门禁（实测踩过，负向对照抓出来的）。
+  referenced=$(sed -n 's|^\(.*\)$|\1|p' "$lang" \
+    | grep -oE '(^|[[:space:]]|["（(、。；：;,:])/[a-z][a-z0-9_-]+' \
+    | grep -oE '/[a-z][a-z0-9_-]+' | sed 's|^/||' | sort -u)
+  for cmd in $referenced; do
+    printf '%s\n' "$REGISTERED_CMDS" | grep -qx "$cmd" && continue
+    grep -q "^$cmd|" "$CMD_EXEMPT_FILE" && continue
+    CMD_UNKNOWN="$CMD_UNKNOWN$lang -> /$cmd
+"
+  done
+done
+
+echo "已注册指令数: $(printf '%s\n' "$REGISTERED_CMDS" | sed '/^$/d' | wc -l | tr -d ' ')"
+echo "指令豁免清单: $(grep -c '|' "$CMD_EXEMPT_FILE") 条（脚本内 CMD_EXEMPT，可审计）"
+
+if [ -n "$CMD_UNKNOWN" ]; then
+  echo ""
+  echo "--- 语言包引用了未注册/未豁免的指令 ---"
+  printf '%s\n' "$CMD_UNKNOWN" | sed '/^$/d'
+  n=$(printf '%s\n' "$CMD_UNKNOWN" | sed '/^$/d' | wc -l | tr -d ' ')
+  echo ""
+  echo "提示：把 tooltip 指向已注册的指令，或在脚本 CMD_EXEMPT 中登记持有人（需评审）。"
+  echo "CMD_REFERENCE_GATE=RED UNKNOWN=$n"
+  exit 1
+fi
+echo "CMD_REFERENCE_GATE=GREEN"
+
 echo "DDL_CONSUMER_GATE=GREEN"
 exit 0

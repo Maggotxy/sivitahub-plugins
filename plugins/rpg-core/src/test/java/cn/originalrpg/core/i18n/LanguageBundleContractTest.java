@@ -1,5 +1,7 @@
 package cn.originalrpg.core.i18n;
 
+import cn.originalrpg.core.testing.DeploymentEnvironmentFixtures;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -247,6 +249,7 @@ class LanguageBundleContractTest {
     }
 
     @Test
+    @Tag(DeploymentEnvironmentFixtures.TAG)
     void quickActionTaskButtonUsesTheUnifiedTaskCenter() throws IOException {
         Path repository = findRepositoryRoot();
         String dialog = Files.readString(repository.resolve(
@@ -375,6 +378,7 @@ class LanguageBundleContractTest {
     }
 
     @Test
+    @Tag(DeploymentEnvironmentFixtures.TAG)
     void projectYamlFilesParseWithoutDuplicateKeys() throws IOException {
         Path repository = findRepositoryRoot();
         List<Path> roots = List.of(repository.resolve("plugins"), repository.resolve("server/config"),

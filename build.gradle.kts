@@ -46,7 +46,15 @@ subprojects {
     }
 
     tasks.withType<Test>().configureEach {
-        useJUnitPlatform()
+        // CI 门禁按标签排除「环境依赖测试」（如 @Tag("env") 的部署产物断言）。
+        // 默认不排除任何东西 —— 本机 `./gradlew test` 永远是全量。
+        // 门禁显式传 `-PexcludeTags=env`，且退出码仍由 Gradle 决定（不设 ignoreFailures）。
+        val excludedTags = providers.gradleProperty("excludeTags").orNull
+            ?.split(',')?.map(String::trim)?.filter(String::isNotEmpty)
+            ?: emptyList()
+        useJUnitPlatform {
+            excludedTags.forEach { tag -> excludeTags(tag) }
+        }
         testLogging {
             exceptionFormat = TestExceptionFormat.FULL
             events("failed", "skipped")

@@ -1,5 +1,7 @@
 package cn.originalrpg.world;
 
+import cn.originalrpg.world.testing.DeploymentEnvironmentFixtures;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -27,6 +29,7 @@ final class SurvivalPerformanceConfigurationContractTest {
             "ambient", 12);
 
     @Test
+    @Tag(DeploymentEnvironmentFixtures.TAG)
     void naturalSpawningKeepsTheReviewedExperienceAndEntityEnvelope() throws IOException {
         Path root = repositoryRoot();
         Map<?, ?> bukkit = yaml(root.resolve("server/config/bukkit.yml"));
@@ -69,6 +72,7 @@ final class SurvivalPerformanceConfigurationContractTest {
     }
 
     @Test
+    @Tag(DeploymentEnvironmentFixtures.TAG)
     void chunkLoadingUsesPaperConcurrencyWithoutDiscardingSavedEntities() throws IOException {
         Path root = repositoryRoot();
         Map<?, ?> global = yaml(root.resolve("server/config/paper-global.yml"));

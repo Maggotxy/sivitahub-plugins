@@ -205,10 +205,6 @@ class DefenseWiringTest {
             throw new UnsupportedOperationException();
         }
 
-        @Override public CompletionStage<PlayerProfile> ascend(UUID playerId) {
-            throw new UnsupportedOperationException();
-        }
-
         @Override public CompletionStage<SkillBookRedemption> redeemSkillBook(
                 UUID playerId, UUID instanceId, String bookId, int points, String limitGroup, int maxUses
         ) {

@@ -1,5 +1,7 @@
 package cn.originalrpg.story;
 
+import cn.originalrpg.story.testing.DeploymentEnvironmentFixtures;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -9,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class StoryJourneyOrderContractTest {
     @Test
+    @Tag(DeploymentEnvironmentFixtures.TAG)
     void qizhiConversationUsesTheExecutableFirstForgeOrder() throws Exception {
         String source = Files.readString(repositoryRoot().resolve(
                 "server/config-templates/BetonQuest/QuestPackages/sivita_story/conversations/qizhi.yml"));
