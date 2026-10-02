@@ -7,7 +7,7 @@
 | 插件 | 实际消费者 | 最终用途 | 决策与边界 |
 |---|---|---|---|
 | LuckPerms | 管理员、`RpgIntegrations` | 权限组、职业/分支/转数动态 context | 保留。单服使用 SQLite，避免 H2 JVM 关服钩子告警；原创插件只提供 context，不把职业复制成永久权限组；多服再迁移 PostgreSQL |
-| PlaceholderAPI | `RpgIntegrations`、后续计分板/网站展示 | 11 个 `%sivita_*%` 内部占位符 | 保留。禁用 expansion cloud；回调只读内存快照，不发起 JDBC |
+| PlaceholderAPI | `RpgIntegrations`、后续计分板/网站展示 | 38 个 `%sivita_*%` 内部占位符入参分支 | 保留。禁用 expansion cloud；回调只读内存快照，不发起 JDBC |
 | AuthMeReloaded | 离线模式登录边界 | 配置阶段中英 Dialog、注册、登录、登录前冻结与命令白名单 | 保留。`online-mode=false` 时必需；不启用付费账号识别，不接管 RPG 档案。取消 pre-join 直接断开，不再进入世界叠加第二个窗口；自动 IP 会话关闭，公网入口仍须补 pre-join 失败限速 |
 | WorldEdit | 建筑管理员 | 出生点、活动区和后续手工副本模板制作 | 保留为管理工具。编辑量、历史和半径有限制；不参与运行时副本复制 |
 | WorldGuard | 管理员、`RpgHub`、公共世界 | 主城/活动区/建筑区保护 | 保留。`RpgHub` 创建 48 边形 `sivita_hub` 区域，使保护范围与地图圆形边界一致；自研监听器仍覆盖爆炸、火焰、活塞、NPC 伤害等边界 |
@@ -43,7 +43,7 @@ QuickShop-Hikari、Shopkeepers 和通用面对面交易插件也不加入。它�
 
 ## 菜单视觉语言
 
-入口采用四层互补而不是四套菜单状态：26.2 原生 `#minecraft:quick_actions` 让玩家按默认 `G` 打开低频快捷操作；旅者罗盘右键适合刚加入和不熟悉按键的玩家；`/menu` 是任何客户端都能使用的兜底；NPC 只打开当前场景最相关的页面。快捷操作由版本化数据包 `sivita-navigation` 提供，按钮文本使用资源包翻译键随客户端语言切换。复杂选择仍由自研 Inventory GUI 完成，所有点击最终回到同一命令与事务校验。钟表不被强制占用，因为它会长期挤占生存快捷栏；也不安装通用菜单框架。
+入口采用四层互补而不是四套菜单状态：26.2 原生 `#minecraft:quick_actions` 让玩家按默认 `G` 打开低频快捷操作；旅者罗盘右键适合刚加入和不熟悉按键的玩家；`/menu` 是任何客户端都能使用的兜底；NPC 只打开当前场景最相关的页面。快捷操作**计划**由数据包 `sivita-navigation` 提供，按钮文本使用资源包翻译键随客户端语言切换。**待办（G-206）**：该数据包目录与部署脚本 `server/bin/verify-installation.sh` 当前都不在本仓库内（`server/` 目录被 `.gitignore` 排除），因此 `#minecraft:quick_actions` 入口在版本控制下不可审计，`docs/RESOURCE_PACK_QA.md` 对 `verify-installation.sh` 的硬依赖也无法在本仓验证。建议后续任务把数据包与安装校验脚本纳入版本控制（或用脚本生成 + 校验替代），属于代码改动，不在本次文档订正范围内。复杂选择仍由自研 Inventory GUI 完成，所有点击最终回到同一命令与事务校验。钟表不被强制占用，因为它会长期挤占生存快捷栏；也不安装通用菜单框架。
 
 所有菜单遵循同一语义，不用随机材料凑图标：
 
@@ -78,4 +78,4 @@ QuickShop-Hikari、Shopkeepers 和通用面对面交易插件也不加入。它�
 
 Paper 26.2 运行基线现为 40 个插件（25 自研 + 15 社区）。主城位于独立虚空世界 `sivita_hub`，有 11 名低开销固定功能 NPC、1 名 Citizens 剧情演员、全域禁刷怪/伤害/建造和 48 边形 WorldGuard 保护。六类副本各保持 1 个热实例，总世界硬上限 16；主世界、下界和末地锁定在 1800/900/1200 半径的方形边界，边缘相交区块必须由维护脚本核验后才算完整预生成。GriefPrevention 仅接管原版主世界生存领地，SkinsRestorer 已启用 Paper join listener；EssentialsX 与 MyPet 分别被限制为基础工具层和宠物实体/AI 层；BetterModel 3.3.0 仅渲染经审核的完整稀有怪外壳；BetterHud 只投影内存快照并静态并入唯一资源包。LAN 官网监听 `0.0.0.0:8080`，squaremap 只监听 `127.0.0.1:8081` 并由官网 `/map/` 提供；生产仍由 Caddy 统一暴露 HTTPS，不公开后台端口。
 
-尚不能由空服启动替代的真人验收包括：AuthMe 登录前无法移动/聊天/执行非白名单命令；LuckPerms context 与 11 个占位符随真实档案刷新；WorldEdit 限额生效；WorldGuard 具名区域不拦截锻造和菜单；Chunky 不处理副本世界；官网 `/map/` 反代和强制资源包在目标 HTTPS 域名工作。任何插件若无法满足这一边界，应移除，而不是绕过自研安全规则迁就它。
+尚不能由空服启动替代的真人验收包括：AuthMe 登录前无法移动/聊天/执行非白名单命令；LuckPerms context 与 38 个占位符随真实档案刷新；WorldEdit 限额生效；WorldGuard 具名区域不拦截锻造和菜单；Chunky 不处理副本世界；官网 `/map/` 反代和强制资源包在目标 HTTPS 域名工作。任何插件若无法满足这一边界，应移除，而不是绕过自研安全规则迁就它。

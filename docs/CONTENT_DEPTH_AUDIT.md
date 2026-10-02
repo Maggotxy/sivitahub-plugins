@@ -87,7 +87,7 @@
 
 ## 自动化证据与未完成验收
 
-技能等级与高阶路线的既有回归中，`SkillLevelRulesTest` 证明四个转阶上限、2/4/6/8 成本与五级严格递减但有下限的 CD；`SkillCatalogContractTest` 锁定六职业各七个真实技能；`ClassBranchGraphTest` 拒绝跨职业、断链与空前置；`SkillSessionStateTest` 证明未到期且在目录内的 CD 才能恢复，并夹取法力到当前上限；`JdbcServicesTest` 证明错误前置不写库、三转接受两条合法二转之一、隐藏路线容量竞争与专属书凭证、并发选择只成功一次。事务化晋升另有整笔成功、功勋扣除、唯一收据、缺少上一分支以及双击只成功一次的数据库测试。`DungeonRewardRulesTest` 锁定六关材料和三本隐藏书的独立身份。当前 `Database` 与迁移 `SchemaManifest` 均列出 62 张 `rpg_*` 表，并由清单合同防止漏迁。
+技能等级与高阶路线的既有回归中，`SkillLevelRulesTest` 证明四个转阶上限、2/4/6/8 成本与五级严格递减但有下限的 CD；`SkillCatalogContractTest` 锁定六职业各七个真实技能；`ClassBranchGraphTest` 拒绝跨职业、断链与空前置；`SkillSessionStateTest` 证明未到期且在目录内的 CD 才能恢复，并夹取法力到当前上限；`JdbcServicesTest` 证明错误前置不写库、三转接受两条合法二转之一、隐藏路线容量竞争与专属书凭证、并发选择只成功一次。事务化晋升另有整笔成功、功勋扣除、唯一收据、缺少上一分支以及双击只成功一次的数据库测试。`DungeonRewardRulesTest` 锁定六关材料和三本隐藏书的独立身份。当前 `Database` 与迁移 `SchemaManifest` 均列出 75 张 `rpg_*` 表，并由清单合同防止漏迁。
 
 以下命令重新编译并执行 API、技能与副本测试，结果为 `BUILD SUCCESSFUL`：
 
