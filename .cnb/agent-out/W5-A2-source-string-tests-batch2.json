@@ -47,27 +47,41 @@
     "grep": [
       {
         "cmd": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/' | wc -l",
-        "hit": ["46（基线，含 rpg-core 已处置的 2 个 env 用例所在类；plan 记录的 48 个是 plugins 口径，tools/ 另有 2 个）"]
+        "hit": [
+          "46（基线，含 rpg-core 已处置的 2 个 env 用例所在类；plan 记录的 48 个是 plugins 口径，tools/ 另有 2 个）"
+        ]
       },
       {
         "cmd": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/' | xargs grep -l 'indexOf' | wc -l",
-        "hit": ["35（基线）"]
+        "hit": [
+          "35（基线）"
+        ]
       },
       {
         "cmd": "for f in $(grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/'); do grep -q 'src/main\\|plugin.yml\\|build.gradle' $f && echo $f; done | wc -l",
-        "hit": ["19（改动后仍读生产源码的类；其中 15 个是第二批剩余项，另有 env/build 豁免 4 个）"]
+        "hit": [
+          "19（改动后仍读生产源码的类；其中 15 个是第二批剩余项，另有 env/build 豁免 4 个）"
+        ]
       },
       {
         "cmd": "git show <main>:.cnb/agent-out/W4-A4-source-string-test-replacement.json",
-        "hit": ["W4-A4 首批 rpg-core 3 个的处置记录（本轮不重复）"]
+        "hit": [
+          "W4-A4 首批 rpg-core 3 个的处置记录（本轮不重复）"
+        ]
       },
       {
         "cmd": "sh scripts/check-source-contract.sh --all",
-        "hit": ["SOURCE_CONTRACT_CHECKS=185 SPECS=25", "SOURCE_CONTRACT_GATE=GREEN"]
+        "hit": [
+          "SOURCE_CONTRACT_CHECKS=185 SPECS=25",
+          "SOURCE_CONTRACT_GATE=GREEN"
+        ]
       },
       {
         "cmd": "sh scripts/selftest-gates.sh",
-        "hit": ["§4 source-contract 门禁负向自测 4 项全 OK", "GATE_SELFTEST=GREEN PASS=14 FAIL=0"]
+        "hit": [
+          "§4 source-contract 门禁负向自测 4 项全 OK",
+          "GATE_SELFTEST=GREEN PASS=14 FAIL=0"
+        ]
       }
     ],
     "test": [
@@ -180,5 +194,16 @@
     "第二批剩余 15 个读生产源码的类未处理（见 plan/source-string-tests-remaining.json 的 _remaining_after_batch2）：它们的断言含跨多文件作用域 / 「|| 备选」/ 段内 substring / 重复锚点等语义，自动迁移会失真，需逐条人工迁移。",
     "rpg-performance PerformanceStatusStoreTest 与 rpg-items EquipmentSigningMaterialTest 的 Files.readString 是真实 IO 读取自身产物/生产配置，不是源码字符串扫描，未改动。"
   ],
-  "blockers": []
+  "blockers": [],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/37",
+  "risks": [
+    "B 类（25 个类）改成了「构建/接线契约测试」：证明的是源码结构与调用先后，不是运行期行为等价。覆盖不降级（185 条判据与原断言一一对应），但语义等级仍是 [S]，不是 [T] 行为级。",
+    "契约门禁的判据以源码文本为输入，因此「重构改名」会造成误报（例如把 bloodMoonArchetype 换成等价别名）。这类噪声在下一波人工迁移时应改为按方法体切分或按编译产物断言。",
+    "门禁脚本被 JUnit 通过 ProcessBuilder 调用，依赖 CI 环境有 sh + python3；.cnb.yml 的「准备下载器」stage 已保证 python3 存在，且已有 chmod +x scripts/*.sh。本机复跑同样通过。"
+  ],
+  "next_steps": [
+    "第二波：把 _remaining_after_batch2 里的 15 个类逐条人工迁移到 source-contract 规格或行为化（跨多文件作用域/|| 备选/段内 substring/重复锚点这四类语义需要规格扩展）。",
+    "若未来引入 MockBukkit/Mockito testImplementation，可把 B 类里「异步回调必须先判 isEnabled/登录代际」这一族升级为真行为测试（构造插件 + 假调度器）。",
+    "把 scripts/check-source-contract.sh 纳入 .cnb.yml 的独立 stage（当前由测试 stage 内的 JUnit 触发，效果等价但审计上不显眼）。"
+  ]
 }
