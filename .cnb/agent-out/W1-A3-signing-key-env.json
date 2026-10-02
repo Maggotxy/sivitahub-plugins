@@ -12,7 +12,7 @@
     "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/EquipmentSigningKeyWiringContractTest.java",
     ".cnb/agent-out/W1-A3-signing-key-env.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/2",
   "risks": [
     "属主范围：rpg-sulfur（G-003 同模式）与 rpg-community/AccountCommand 仍有明文 config 回退，但它们的消费者/语义超出允许路径，本次未改动，需另立任务。",
     "RpgItems 是 RpgCore 的 depend，密钥缺失时它不注册 EquipmentService/EquipmentProgressService，会让依赖这两项服务的插件（如 RpgMarket）启动失败 —— 这是 fail-closed 的传播结果，属预期但会放大启动失败半径，建议运维在密钥缺失时先看 RpgItems 日志。",
