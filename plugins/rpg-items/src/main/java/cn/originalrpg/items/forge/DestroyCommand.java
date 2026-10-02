@@ -147,6 +147,20 @@ public final class DestroyCommand implements CommandExecutor, Listener {
                 operationId, player.getUniqueId(), EquipmentOperationKind.DESTROY,
                 Optional.of(current.itemId()), EquipmentOperationEnvelope.fingerprint(requestPayload, rejected),
                 requestPayload, BigDecimal.ZERO.setScale(2), "destroy:" + operationId, committed, rejected);
+        // C-009：产物只能经托管出站进入唯一市场邮箱，绝不直接改玩家背包。
+        // 判据必须在任何「输入已被清空」的步骤之前：原实现把它写在
+        // held.setAmount(0) 与 player.saveData() 之后，一旦口径被改成非邮箱通道，
+        // 异常会在装备已从手上消失、恢复信封已落 playerdata 之后抛出，
+        // 把一次本可回放的托管操作变成玩家物品凭空消失且没有任何结算记录。
+        if (DestroyRules.deliveryLane(EquipmentOperationKind.DESTROY)
+                != DestroyDeliveryRules.Lane.ESCROW_MAILBOX) {
+            active.remove(player.getUniqueId());
+            player.sendMessage(Component.text(messages.text(player, "items.destroy-settlement-failed"),
+                    NamedTextColor.RED));
+            plugin.getLogger().severe("销毁退出路径的产物必须经市场邮箱交付，已拒绝本次操作 item="
+                    + current.itemId());
+            return;
+        }
         try {
             operations.stage(player, request);
         } catch (RuntimeException exception) {
@@ -161,12 +175,6 @@ public final class DestroyCommand implements CommandExecutor, Listener {
         // Force the complete original-equipment recovery envelope and its removal
         // into playerdata before the database/mailbox transaction may begin.
         player.saveData();
-        // C-009：产物只走托管出站 -> 市场邮箱，绝不直接改玩家背包。
-        // 直接塞背包时背包已满会把「唯一回报」静默丢掉，并且绕开市场邮箱领取门。
-        if (DestroyRules.deliveryLane(EquipmentOperationKind.DESTROY)
-                != DestroyDeliveryRules.Lane.ESCROW_MAILBOX) {
-            throw new IllegalStateException("销毁退出路径的产物必须经市场邮箱交付");
-        }
         operations.submit(player, request, settlement -> {
             active.remove(player.getUniqueId());
             if (settlement.status() == EquipmentOperationResult.Status.COMMITTED && currentSession(player)) {

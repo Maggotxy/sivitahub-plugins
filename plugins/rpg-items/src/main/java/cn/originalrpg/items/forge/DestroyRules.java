@@ -29,12 +29,17 @@ public final class DestroyRules {
      *
      * <p>只发一条结果消息、物品却原样不动的不变（no-op）操作会被拒绝：
      * 已花的金币会留在一个从未推进的账本身份上（C-002 幂等键 + 审计流水）。</p>
+     *
+     * <p>终态判定用 {@link EquipmentLifecycle#descendsToTerminalExit}(from, to)
+     * 而不是「afterOperation 的结果是不是 isTerminal」：LEGACY_EXTRACTED 也是
+     * 终态，但它属于传承路径，不能算「分解到底」。同一条口径同时被指令侧与
+     * 账本侧读取，避免出现「指令认为走完了、状态机认为没走完」的分裂。</p>
      */
     public static boolean outcomeIsTerminal(EquipmentOperationKind kind) {
         if (!descendsToTerminal(kind)) return false;
-        EquipmentLifecycle.State outcome = EquipmentLifecycle.afterOperation(
-                kind, EquipmentLifecycle.seedForOperation(kind));
-        return EquipmentLifecycle.isTerminal(outcome);
+        EquipmentLifecycle.State from = EquipmentLifecycle.seedForOperation(kind);
+        EquipmentLifecycle.State outcome = EquipmentLifecycle.afterOperation(kind, from);
+        return outcome != null && EquipmentLifecycle.descendsToTerminalExit(from, outcome);
     }
 
     /**

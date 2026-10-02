@@ -53,6 +53,37 @@ class DestroyRulesTest {
         assertFalse(EquipmentLifecycle.descendsToTerminalExit(EquipmentLifecycle.State.SALVAGED, null));
     }
 
+    /**
+     * 「分解到底」必须与「终态」区分开：传承（LEGACY_EXTRACTED）也是终态，
+     * 但它不属于分解路径。
+     *
+     * <p>这条区分是 {@link DestroyRules#outcomeIsTerminal} 改用
+     * {@code descendsToTerminalExit(from, to)} 而不是 {@code isTerminal(outcome)}
+     * 的原因：用后者时 LEGACY 也会被判成「分解到底」，将来谁把 LEGACY 也接进
+     * 邮箱通道就会被静默放过。</p>
+     */
+    @Test
+    void terminalExitIsNarrowerThanTerminalStateSoLegacyIsNotTreatedAsSalvage() {
+        EquipmentLifecycle.State legacy = EquipmentLifecycle.afterOperation(
+                EquipmentOperationKind.LEGACY, EquipmentLifecycle.seedForOperation(EquipmentOperationKind.LEGACY));
+        assertTrue(EquipmentLifecycle.isTerminal(legacy),
+                "传承已经落进终态集合，这是另一个事实");
+        assertFalse(EquipmentLifecycle.descendsToTerminalExit(EquipmentLifecycle.State.BOUND, legacy),
+                "传承不是「分解到底」，不得占用销毁的终态出口口径");
+
+        // 只有 BOUND / UNBOUND 这两条有主状态能走完分解到底。
+        for (EquipmentLifecycle.State from : EquipmentLifecycle.State.values()) {
+            EquipmentLifecycle.State to = EquipmentLifecycle.afterOperation(EquipmentOperationKind.DESTROY, from);
+            boolean descends = EquipmentLifecycle.descendsToTerminalExit(from, to);
+            if (from == EquipmentLifecycle.State.BOUND || from == EquipmentLifecycle.State.UNBOUND) {
+                assertTrue(descends, from + " 必须有销毁灭路径");
+            } else {
+                assertFalse(descends, from + " 不该能直接跳到 DESTROYED");
+            }
+        }
+        assertFalse(EquipmentLifecycle.descendsToTerminalExit(null, EquipmentLifecycle.State.DESTROYED));
+    }
+
     @Test
     void persistedStateGateOnlyAcceptsRealTerminalStates() {
         assertTrue(DestroyRules.persistedStateIsTerminal("DESTROYED"));

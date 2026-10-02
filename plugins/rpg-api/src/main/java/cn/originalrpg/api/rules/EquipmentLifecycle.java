@@ -137,17 +137,29 @@ public final class EquipmentLifecycle {
 
     public static boolean requiresExitPath() {
         // C-008: every persistently farmable high-value item type must declare at least one exit
-        // TODO(W3-A3-exit-path-remaining)：C-008 列出的第五条退出路径「赛季调谐」
-        // （SEASON_ATTUNED）在当前 Phase 下没有触发者，本方法会对它返回 false，
-        // 这正是「只声明未接线」的机械证据。判定依据（全部可复现）：
-        //   - 全仓 grep 'SEASON_ATTUNED' 在 plugins/*/src/main 只命中本文件；
+        // TODO(Phase 7 / codex/endgame-pipeline)：C-008 列出的第五条退出路径
+        // 「赛季调谐」（SEASON_ATTUNED）在当前 Phase 下没有触发者。判定依据
+        // （全部可复现，见 EquipmentExitPathReachabilityTest 的「当前无入口」断言）：
+        //   - plugins/*/src/main 里 grep 'SEASON_ATTUNED' 只命中本文件；
         //   - EquipmentOperationKind 里没有任何 kind 会产出 SEASON_ATTUNED 结果态；
-        //   - rpg-items 的 plugin.yml / config.yml / 插件启动路径都不得出现占位入口。
-        // 该路径承载的是 Phase 4「装备退出与市场 V2」的新赛季调谐玩法（先要 Phase 3
-        // 仿真器给出退出率结论，再等 Phase 7「非副本终局与内容管线」提供内容触发者），
-        // 因此登记为「待 Phase 7 内容管线接入」，不在 rpg-items 里硬造指令。
-        // 接入时必须复用本状态机，不得新造第二套装备状态机；届时删除本 TODO，
-        // 并同步 EquipmentExitPathReachabilityTest 的「当前无入口」断言。
+        //   - rpg-items 的 plugin.yml / config.yml / 插件启动路径都没有占位入口。
+        // 依赖顺序（docs/planning/long-term-game-economy-v1.yaml 的 phases）：
+        //   Phase 3 仿真器给出装备 创建/退出 比值结论
+        //     -> Phase 4 codex/equipment-exit-market-v2 定调谐的产物语义
+        //     -> Phase 7 codex/endgame-pipeline 提供内容触发者（换季调谐事件）。
+        // 因此本任务（W3-A3-exit-path-remaining）不硬造指令，登记为待接入。
+        //
+        // 接入合同（Phase 7 必须逐条满足，否则不要删本 TODO）：
+        //   1. 复用本状态机：给 EquipmentOperationKind 追加调谐 kind，或新增一个
+        //      调用 afterOperation 的调谐服务；禁止新造第二套装备状态机。
+        //   2. 结果态必须是 SEASON_ATTUNED，且 afterOperation 要能真的返回它
+        //      （SEASON_ATTUNED 当前只出现在 isValidTransition 的目标位）。
+        //   3. 调谐的换季结算必须走 SeasonSettlementService（C-010），不得只改
+        //      season-id；调谐产物不得成为 support_credit 的兑换出口（C-012：
+        //      season_attunement 在 forbidden_sinks 里）。
+        //   4. 交付必须经唯一托管市场邮箱（C-009），与 /salvage、/destroy 同一通道。
+        //   5. 接线同时删除本 TODO，并同步更新 EquipmentExitPathReachabilityTest
+        //      的「当前无入口」断言与 plugin.yml / config.yml 的占位面断言。
         return true;
     }
 }

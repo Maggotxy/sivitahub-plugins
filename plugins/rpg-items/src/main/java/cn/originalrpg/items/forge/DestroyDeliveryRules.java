@@ -13,9 +13,24 @@ import cn.originalrpg.api.model.EquipmentOperationKind;
  *
  * <p>这里把该决策抽成不依赖 Bukkit 的纯函数，让「销毁到底走哪条交付通道」
  * 可以被行为级测试直接断言，而不是散落在指令实现里。</p>
+ *
+ * <p>「哪些操作算分解到底」的口径只有 {@link DestroyRules#descendsToTerminal}
+ * 一处；本类不反向依赖它，避免两个类互相引用（那样任何一侧的判定都可能被
+ * 另一侧的改动悄悄改掉，而测试仍然只看得见其中一侧）。</p>
  */
 public final class DestroyDeliveryRules {
     private DestroyDeliveryRules() {
+    }
+
+    /**
+     * 通道判定的输入口径：该操作是不是「分解到底」（产出一件绑定精华的终态操作）。
+     *
+     * <p>由调用方注入，因此测试可以把「已接线」与「未接线」两种口径都跑一遍，
+     * 而不是让实现自己去问一个可能被改坏的判定表。</p>
+     */
+    @FunctionalInterface
+    interface TerminalExit {
+        boolean test(EquipmentOperationKind kind);
     }
 
     /** 销毁产物的交付通道。 */
@@ -33,8 +48,13 @@ public final class DestroyDeliveryRules {
      * （精炼 / 突破 / 解绑）不在这里判定，交给它们各自的结算路径。</p>
      */
     static Lane laneFor(EquipmentOperationKind kind) {
-        if (kind == null) return Lane.MESSAGE_ONLY;
-        return DestroyRules.descendsToTerminal(kind) ? Lane.ESCROW_MAILBOX : Lane.MESSAGE_ONLY;
+        return laneFor(kind, DestroyRules::descendsToTerminal);
+    }
+
+    /** 注入口径的重载：让「判定变了交付通道也会跟着变」这件事可被直接断言。 */
+    static Lane laneFor(EquipmentOperationKind kind, TerminalExit terminalExit) {
+        if (kind == null || terminalExit == null) return Lane.MESSAGE_ONLY;
+        return terminalExit.test(kind) ? Lane.ESCROW_MAILBOX : Lane.MESSAGE_ONLY;
     }
 
     /**
@@ -42,10 +62,23 @@ public final class DestroyDeliveryRules {
      *
      * <p>被拒的销毁不能凭空吞掉原装备：拒绝收据已经落库，原物必须经同一托管
      * 出站的 recovery 通道退回玩家，否则「生命周期拒绝」就等于一次无提示的
-     * 永久删除。常量返回也能防止将来有人把拒绝分支改成 {@code MESSAGE_ONLY}。</p>
+     * 永久删除。</p>
+     *
+     * <p>当前实现与 {@link #laneFor} 同为「分解到底即邮箱」，但这**不是**
+     * 刻意写死的常量：退回通道必须跟着同一条口径走，将来若某条退出路径改成
+     * 不进邮箱，退回通道不能继续留在邮箱里把原物寄给玩家。</p>
      */
     static Lane refundLaneFor(EquipmentOperationKind kind) {
-        if (kind == null) return Lane.MESSAGE_ONLY;
-        return DestroyRules.descendsToTerminal(kind) ? Lane.ESCROW_MAILBOX : Lane.MESSAGE_ONLY;
+        return laneFor(kind);
+    }
+
+    /**
+     * 结果通道与退回通道是否一致。
+     *
+     * <p>不一致意味着「被拒时原物的去向」和「成功时产物的去向」不是同一个
+     * 托管面，这正是 C-009「只能有一套托管结算」要防的分裂。</p>
+     */
+    static boolean lanesAgree(EquipmentOperationKind kind) {
+        return laneFor(kind) == refundLaneFor(kind);
     }
 }

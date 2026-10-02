@@ -128,6 +128,33 @@ class EquipmentExitPathReachabilityTest {
         assertFalse(code.contains("economy.burn("), "销毁不得绕过账本直接铸币或扣币");
     }
 
+    /**
+     * C-009 交付通道判据必须失败关闭在「输入被清空」之前。
+     *
+     * <p>原实现把这条判据写在 {@code held.setAmount(0)} 与 {@code player.saveData()}
+     * 之后：一旦口径改成非邮箱通道，异常会在装备已从手上消失、恢复信封已落
+     * playerdata 之后抛出，玩家物品凭空消失且没有任何结算记录。判据必须排在
+     * 托管编排（{@code operations.stage}）之前，才能在任何状态变更前拒绝。</p>
+     */
+    @Test
+    void theMailboxLaneGateFailsClosedBeforeAnyStateIsMutated() throws IOException {
+        String code = Files.readString(ROOT.resolve(
+                "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java"), StandardCharsets.UTF_8);
+        int gate = code.indexOf("DestroyRules.deliveryLane(");
+        int stage = code.indexOf("operations.stage(player, request)");
+        int consume = code.indexOf("held.setAmount(0)", stage);
+        int save = code.indexOf("player.saveData()", consume);
+        assertTrue(gate > 0, "销毁必须显式判定交付通道，不能隐式依赖默认值");
+        assertTrue(gate < stage,
+                "交付通道判据必须在托管编排之前：否则异常会在装备被清空、恢复信封落盘之后才抛出");
+        assertTrue(stage < consume && consume < save, "编排 -> 消费输入 -> 保存玩家的顺序不得颠倒");
+        // 失败关闭必须是「拒绝并返回」，不能只打日志继续往下走。
+        String gateBlock = code.substring(gate, stage);
+        assertTrue(gateBlock.contains("return;"), "交付通道不合法时必须直接拒绝本次操作");
+        assertFalse(gateBlock.contains("throw new IllegalStateException"),
+                "不得用异常终止一个已经暂停了玩家装备的操作，必须走可读的失败关闭分支");
+    }
+
     /** src/main 里出现该标识符的文件（相对仓根的 / 分隔路径）。 */
     private static List<String> productionReferences(String identifier) throws IOException {
         List<String> hits = new ArrayList<>();

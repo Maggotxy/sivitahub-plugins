@@ -42,9 +42,10 @@ public final class RpgItemsPlugin extends JavaPlugin {
         validateRareTraits();
         // C-008：高价值装备必须有退出路径。启动自检，缺一条就拒绝启用，
         // 避免「只进不出」的物品池在无人察觉时上线。
-        if (!EquipmentExitPathRules.hasExitPath()) {
+        java.util.List<String> exitPathFailures = EquipmentExitPathRules.exitPathFailures();
+        if (!exitPathFailures.isEmpty()) {
             getLogger().severe("C-008 自检失败：装备状态机没有可用的退出路径（分解/献祭/传承/调谐/销毁），"
-                    + "拒绝启用，以免出现只进不出的物品池。");
+                    + "拒绝启用，以免出现只进不出的物品池。明细：" + exitPathFailures);
             return;
         }
         warnAboutLegacyPlaintextKey();
