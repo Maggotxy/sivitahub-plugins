@@ -10,6 +10,7 @@ import cn.originalrpg.api.model.EquipmentOperationEnvelope;
 import cn.originalrpg.api.model.EquipmentOperationKind;
 import cn.originalrpg.api.model.EquipmentOperationRequest;
 import cn.originalrpg.api.model.EquipmentOperationResult;
+import cn.originalrpg.api.rules.AuthoritativeItemPolicy;
 import cn.originalrpg.api.service.EquipmentProgressService;
 import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.ForgeImprintService;
@@ -942,6 +943,11 @@ public final class ForgeListener implements Listener, CommandExecutor, Equipment
         ItemMeta meta = item == null ? null : item.getItemMeta();
         if (meta == null) return false;
         PersistentDataContainer data = meta.getPersistentDataContainer();
+        // G-112 命名空间门：核心材料的每个外部标记都必须落在本服权威命名空间内。
+        // 注意不能用 AuthoritativeItemPolicy.isAuthoritative(item)（那是 anyMatch，
+        // 只要有一个权威标记就返回 true），否则「第三方标记 + 一个权威标记」的
+        // 伪造材料会被放行。这里用逐 key 的 allMatch（见 authoritativeNamespaceOnly）。
+        if (!authoritativeNamespaceOnly(item)) return false;
         String dungeonSource = bossMaterial == null ? null
                 : data.get(bossMaterial, PersistentDataType.STRING);
         boolean marked = adaptiveMaterial != null && data.has(adaptiveMaterial, PersistentDataType.BYTE)
@@ -951,6 +957,18 @@ public final class ForgeListener implements Listener, CommandExecutor, Equipment
         if (!marked) return false;
         String ownerId = materialOwner == null ? null : data.get(materialOwner, PersistentDataType.STRING);
         return ownerId == null || player != null && player.getUniqueId().toString().equals(ownerId);
+    }
+
+    /**
+     * 物品的每个 PDC key 都必须属于本服权威命名空间（allMatch，fail-closed）。
+     * 空 PDC 也返回 true：无标记的普通物品在 {@link #isCoreMaterial} 里随后
+     * 会因为「没有任何核心标记」被拒，命名空间门不负责这一层判定。
+     */
+    private static boolean authoritativeNamespaceOnly(ItemStack item) {
+        ItemMeta meta = item == null ? null : item.getItemMeta();
+        if (meta == null) return false;
+        return meta.getPersistentDataContainer().getKeys().stream()
+                .allMatch(AuthoritativeItemPolicy::isAuthoritativeKey);
     }
 
     private Optional<DungeonCoreResonanceRules.Resonance> inspectDungeonCore(ItemStack item) {

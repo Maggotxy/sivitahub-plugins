@@ -24,6 +24,11 @@ public final class AdaptiveMobSafetyRules {
         if (maximumOpenAscension < 0 || maximumOpenAscension > ProgressionRules.MAX_ASCENSION) {
             throw new IllegalArgumentException("Invalid content chapter");
         }
+        if (maximumOpenAscension == ProgressionRules.MAX_ASCENSION) {
+            // 终态章节没有下一转，天花板就是绝对有效等级上限（120）。
+            // 收敛到 ProgressionRules.effectiveLevelCap()，避免此处再手写一份乘加公式。
+            return ProgressionRules.effectiveLevelCap();
+        }
         return maximumOpenAscension * ProgressionRules.LEVELS_PER_ASCENSION
                 + ProgressionRules.levelCap(maximumOpenAscension);
     }

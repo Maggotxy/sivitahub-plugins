@@ -81,6 +81,14 @@ public final class SalvageCommand implements CommandExecutor, Listener {
             player.sendMessage(Component.text(messages.text(player, "items.salvage-owner-mismatch"), NamedTextColor.RED));
             return true;
         }
+        // C-008：已付费解绑的装备必须先重新绑定才能销毁，否则玩家可绕过唯一
+        // 市场通道（C-009）把市场价值直接换成销毁产物。
+        if (!EquipmentExitPathGate.allowsExit(equipment.isCustomEquipment(held),
+                equipment.isTradeUnlocked(held), EquipmentOperationKind.SALVAGE)) {
+            player.sendMessage(Component.text(messages.text(player, "market.refined-bound"),
+                    NamedTextColor.RED));
+            return true;
+        }
         PendingSalvage confirmation = confirmations.get(player.getUniqueId());
         if (args.length != 1 || !args[0].equalsIgnoreCase("confirm") || confirmation == null
                 || !confirmation.itemId().equals(snapshot.itemId())
@@ -109,7 +117,13 @@ public final class SalvageCommand implements CommandExecutor, Listener {
             player.sendMessage(Component.text(messages.text(player, "items.salvage-item-required"), NamedTextColor.RED));
             return;
         }
-
+        // 确认步再判一次：两次点击之间装备可能被解绑（C-008 失败关闭）。
+        if (!EquipmentExitPathGate.allowsExit(equipment.isCustomEquipment(held),
+                equipment.isTradeUnlocked(held), EquipmentOperationKind.SALVAGE)) {
+            active.remove(player.getUniqueId());
+            player.sendMessage(Component.text(messages.text(player, "market.refined-bound"), NamedTextColor.RED));
+            return;
+        }
         int amount = Math.clamp(rarityValue(current.rarity()) + current.totalSlots() / 2
                 + current.limitBreakLevel() * 2, 1, 64);
         UUID operationId = UUID.randomUUID();

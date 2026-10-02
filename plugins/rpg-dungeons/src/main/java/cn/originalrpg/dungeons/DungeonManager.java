@@ -79,7 +79,6 @@ import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 
 final class DungeonManager implements Listener {
-    private static final String INSTANCE_PREFIX = DungeonInstanceStorage.INSTANCE_PREFIX;
 
     private final Plugin plugin;
     private final DungeonInstanceStorage instanceStorage;
@@ -135,6 +134,8 @@ final class DungeonManager implements Listener {
     private boolean recoveryScanPending;
     private int tickCounter;
     private long mechanicsTick;
+    // 只在主线程递增：副本世界名必须进程内唯一，且必须落在 disposable 命名空间里。
+    private long instanceWorldOrdinal;
     private Consumer<Player> exitHandler = ignored -> { };
 
     DungeonManager(
@@ -281,9 +282,20 @@ final class DungeonManager implements Listener {
         return InstanceRequestStatus.QUEUED;
     }
 
+    /**
+     * 生成一次性副本世界名。名字永远由运行时决定：{@code config.yml} 里没有
+     * 权威世界名，所以不存在「配置写了但找不到世界」的可能。
+     */
+    private String nextInstanceWorldName(String id) {
+        String worldName = DungeonWorldNames.allocate(id, ++instanceWorldOrdinal);
+        if (plugin.getConfig().getBoolean("instance-pool.log-instance-worlds", false)) {
+            plugin.getLogger().info("Preparing disposable dungeon world " + worldName + " for " + id);
+        }
+        return worldName;
+    }
+
     private void startNewInstance(String id, ConfigurationSection config) {
-        String safeId = id.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9_]", "_");
-        String worldName = INSTANCE_PREFIX + safeId + "_" + Long.toUnsignedString(System.nanoTime(), 36);
+        String worldName = nextInstanceWorldName(id);
         WorldCreator creator = new WorldCreator(worldName)
                 .type(WorldType.FLAT)
                 .generateStructures(false)

@@ -71,6 +71,14 @@ public final class LegacyCommand implements CommandExecutor, Listener {
                     "level", minimumLimit)), NamedTextColor.RED));
             return true;
         }
+        // C-008 / C-009：传承（LEGACY_EXTRACTED）是退出路径。已解绑可交易的装备
+        // 走这条捷径等于把市场价值直接换成蓝图，必须先重新绑定。
+        if (!EquipmentExitPathGate.allowsExit(equipment.isCustomEquipment(held),
+                equipment.isTradeUnlocked(held), EquipmentOperationKind.LEGACY)) {
+            player.sendMessage(Component.text(messages.text(player, "market.refined-bound"),
+                    NamedTextColor.RED));
+            return true;
+        }
         PendingLegacy confirmation = confirmations.get(player.getUniqueId());
         if (args.length != 1 || !args[0].equalsIgnoreCase("confirm") || confirmation == null
                 || !confirmation.itemId().equals(snapshot.itemId())
@@ -102,6 +110,13 @@ public final class LegacyCommand implements CommandExecutor, Listener {
                 || eligibility != LegacyBlueprintRules.Eligibility.VALID) {
             active.remove(player.getUniqueId());
             player.sendMessage(Component.text(messages.text(player, "items.legacy.item-changed"), NamedTextColor.RED));
+            return;
+        }
+        // 确认步再判一次：两次点击之间装备可能被解绑（C-008 失败关闭）。
+        if (!EquipmentExitPathGate.allowsExit(equipment.isCustomEquipment(item),
+                equipment.isTradeUnlocked(item), EquipmentOperationKind.LEGACY)) {
+            active.remove(player.getUniqueId());
+            player.sendMessage(Component.text(messages.text(player, "market.refined-bound"), NamedTextColor.RED));
             return;
         }
         UUID operationId = UUID.randomUUID();

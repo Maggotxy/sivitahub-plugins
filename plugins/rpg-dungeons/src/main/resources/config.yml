@@ -5,7 +5,6 @@ dungeons:
     maximum-party-size: 4
     energy-cost: 20
     minimum-effective-level: 5
-    world: dungeon_ancient_ruins
     x: 0.5
     y: 80.0
     z: 0.5
@@ -46,7 +45,6 @@ dungeons:
     energy-cost: 30
     minimum-effective-level: 15
     ticket-id: ancient-ruins-hidden
-    world: dungeon_ancient_ruins_hidden
     x: 0.5
     y: 80.0
     z: 0.5
@@ -84,7 +82,6 @@ dungeons:
     maximum-party-size: 4
     energy-cost: 24
     minimum-effective-level: 12
-    world: dungeon_sulfur_depths
     x: 0.5
     y: 80.0
     z: 0.5
@@ -125,7 +122,6 @@ dungeons:
     energy-cost: 32
     minimum-effective-level: 20
     ticket-id: sulfur-depths-hidden
-    world: dungeon_sulfur_depths_hidden
     x: 0.5
     y: 80.0
     z: 0.5
@@ -163,7 +159,6 @@ dungeons:
     maximum-party-size: 4
     energy-cost: 28
     minimum-effective-level: 22
-    world: dungeon_storm_vault
     x: 0.5
     y: 80.0
     z: 0.5
@@ -204,7 +199,6 @@ dungeons:
     energy-cost: 36
     minimum-effective-level: 28
     ticket-id: storm-vault-hidden
-    world: dungeon_storm_vault_hidden
     x: 0.5
     y: 80.0
     z: 0.5
@@ -261,6 +255,11 @@ party:
   wave-health-per-extra-player: 0.35
   wave-damage-per-extra-player: 0.08
 instance-pool:
+  # World names are never declared here: every dungeon instance is created at
+  # runtime as dungeon_instance_<id>_<token>. Declaring a fixed world name only
+  # invites the "configured but missing" failure mode, so the plugin refuses to
+  # enable while a dungeons.*.world key exists (G-108).
+  log-instance-worlds: false
   # Disposable flat worlds are prepared before players need them. Arena blocks
   # are written over several ticks, then the world is recycled after a run.
   # One complete arena per type gives every route an immediate first entry

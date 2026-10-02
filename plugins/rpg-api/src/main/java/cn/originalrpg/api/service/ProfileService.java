@@ -49,12 +49,6 @@ public interface ProfileService {
             int periodLimit
     );
 
-    /**
-     * @deprecated Phase 1 removed simplified bypass — use AscensionService.ascend() (C-015).
-     */
-    @Deprecated(forRemoval = true)
-    CompletionStage<PlayerProfile> ascend(UUID playerId);
-
     CompletionStage<SkillBookRedemption> redeemSkillBook(
             UUID playerId,
             UUID instanceId,
