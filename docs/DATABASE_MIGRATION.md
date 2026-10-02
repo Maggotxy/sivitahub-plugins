@@ -7,6 +7,8 @@
 入口：`server/bin/migrate-rpg-h2-to-postgresql.sh`  
 实现与测试：`tools/db-migration/`
 
+> 与迁移清单相关的「延后表」（有 DDL、暂无消费者）的逐条判定见 `docs/planning/deferred-tables.md`；DDL 消费者门禁为 `scripts/check-ddl-consumers.sh`（分类：`PENDING` 待接线 / `ABANDONED` 已废弃）。
+
 ## 安全边界
 
 - Paper 必须先正常停服。外层脚本会检查本项目 Paper 进程，Java 工具再次按运行目录检查进程；任一门禁失败都不会连接数据库。

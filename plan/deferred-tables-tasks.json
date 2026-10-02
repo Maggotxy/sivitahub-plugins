@@ -1,0 +1,60 @@
+{
+  "_comment": "延后表接线派发清单。来源 = W3-A4 逐条判定（docs/planning/deferred-tables.md）。输入 = scripts/check-ddl-consumers.sh 里 PENDING 分类的 4 张表。用法：orchestrator.py --repo xzqkjmnbvc2026/sivitahub --tasks plan/deferred-tables-tasks.json --max-inflight 3。未执行：本任务只产出清单，不接线。",
+  "_reconciliation": "docs/planning/deferred-tables.md §2/§3 与 scripts/check-ddl-consumers.sh EXEMPT 的 PENDING 条目一一对应。",
+  "_wave_order_note": "波次 A（W4-A1 support_credit 两表、W4-A2 market_buy_orders，paths 不重叠，可并行）→ 波次 B（W4-B1 progression_anomalies 依赖真人 dry-run 结果，且必须等 W4-A1 合入后释放 rpg-core 写锁）。W4-A1 的两张表必须同一 PR（余额表 + 流水表同事务，宪法「余额表 + idempotency_key + 审计流水」）。每波合完必须显式触发一次全量编译门（.cnb.yml api_trigger_gate）。",
+  "_env_facts": {
+    "build_cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 compileJava",
+    "test_cmd": "./gradlew --no-daemon :plugins:<mod>:test",
+    "java": "25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable",
+    "note": "编译期第三方 jar 在 libs/ 与 libs/vendor/；不要改依赖版本。玩法数值真相在 plugins/<mod>/src/main/resources/config.yml。"
+  },
+  "tasks": [
+    {
+      "id": "W4-A1-support-credit-ledger",
+      "mode": "implement",
+      "goal": "接线 Phase 5 独立 support_credit 账本（宪法 C-012 物理隔离）。判定依据见 docs/planning/deferred-tables.md §2.1/§2.2。\n\n当前事实（判别证据，可自行复核）：\n$ grep -rn --include='*.java' 'rpg_support_credit_accounts' plugins tools\nplugins/rpg-core/.../Database.java:987  CREATE TABLE IF NOT EXISTS rpg_support_credit_accounts (\ntools/db-migration/.../SchemaManifest.java:87  \"rpg_support_credit_accounts\",\n$ grep -rn --include='*.java' 'rpg_support_credit_ledger' plugins tools\nplugins/rpg-core/.../Database.java:994  CREATE TABLE IF NOT EXISTS rpg_support_credit_ledger (\ntools/db-migration/.../SchemaManifest.java:88  \"rpg_support_credit_ledger\",\n→ src/main 零 SQL 消费者（只有 DDL + 迁移清单）。\n\n要求：① 实现 SupportCreditLedgerService（或其等价单服务）：余额表与流水表**同一事务**提交，每笔变动带 idempotency_key（唯一约束已在流水表上，schema 已定，不要改 DDL）；② 严格物理隔离：禁止任何代码路径把 support_credit 兑换成 gold/merit/starlight/装备/材料/保护石/幸运符/经验/体力/掉率/赛季调谐/排行战力（C-012）；③ 至少一个真实调用点（例如 /rpg credit 查询余额、验签订单入账入口），并保证默认关闭时零副作用；④ 行为级测试：同 idempotency_key 重复入账只生效一次；跨币种兑换必须被拒；事务回滚后余额与流水一致；⑤ 接线后**从 scripts/check-ddl-consumers.sh 的 EXEMPT 里删除这两张表的 PENDING 条目**（同一 PR）。\n\n两张表必须同一 PR 落地（余额表+流水表成对）。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 编译：./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:<mod>:compileJava\n- 测试：./gradlew --no-daemon :plugins:<mod>:test\n- 编译期第三方 jar 在 libs/（公开源，scripts/fetch-deps.sh）与 libs/vendor/（同版本入库）；不要改依赖版本\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 是最高约束；AGENTS.md 是执行边界\n\n【证据契约】把结构化结果写进 .cnb/agent-out/<task-id>.json，字段：task_id / status / summary / changed_files / evidence{grep:[{cmd,hit}],test:[{cmd,result}]} / unproven[] / blockers[]。evidence 必须是实际跑过的命令原文与输出。\n\n【验收口径】机制算「已接线」必须同时满足：① src/main 里有真实调用点（不是它自己）② 有行为级测试（真的执行行为并断言结果；Files.readString+indexOf 源码字符串断言不算）③ 本地跑过该模块 compileJava 与 test 且通过。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-core/**",
+        "plugins/rpg-api/**",
+        "scripts/**",
+        "docs/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。不要改 Database.java 的 DDL。接线完成后删除对应 PENDING 豁免，并在 docs/planning/deferred-tables.md §0 表格里把该表状态改为「已接线」。"
+    },
+    {
+      "id": "W4-A2-market-buy-orders",
+      "mode": "implement",
+      "goal": "接线 Phase 4 市场 V2 买单簿 rpg_market_buy_orders。判定依据见 docs/planning/deferred-tables.md §2.3。\n\n当前事实：\n$ grep -rn --include='*.java' 'rpg_market_buy_orders' plugins tools\nplugins/rpg-core/.../Database.java:1005  CREATE TABLE IF NOT EXISTS rpg_market_buy_orders (\ntools/db-migration/.../SchemaManifest.java:89  \"rpg_market_buy_orders\",\n→ 仅 DDL + 迁移清单。API 侧模型已存在：plugins/rpg-api/.../model/MarketOrder.java（PREPARED/ACTIVE/FILLED/CANCELLED/EXPIRED），但 src/main 无任何服务读写该表。\n\n要求：① 实现买单撮合事务：托管金币（下单扣款入托管）、状态机只能按 PREPARED->ACTIVE->FILLED/CANCELLED/EXPIRED 前向流转；② **务必遵守 C-009 单一托管**：复用现有市场税/结算模型（参考 rpg_market_listings / rpg_market_deliveries 现有实现），禁止新造第二套市场或第二套结算；③ 幂等：重复撮合/重复回调不得双花；④ 行为级测试：下单托管扣款正确、撮合成交税后结算正确、取消/过期退回托管、并发撮合只有一次成功；⑤ 接线后从 scripts/check-ddl-consumers.sh 删除该表的 PENDING 条目（同一 PR）。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 编译：./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:<mod>:compileJava\n- 测试：./gradlew --no-daemon :plugins:<mod>:test\n- 编译期第三方 jar 在 libs/（公开源，scripts/fetch-deps.sh）与 libs/vendor/（同版本入库）；不要改依赖版本\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 是最高约束；AGENTS.md 是执行边界\n\n【证据契约】把结构化结果写进 .cnb/agent-out/<task-id>.json，字段：task_id / status / summary / changed_files / evidence{grep:[{cmd,hit}],test:[{cmd,result}]} / unproven[] / blockers[]。evidence 必须是实际跑过的命令原文与输出。\n\n【验收口径】机制算「已接线」必须同时满足：① src/main 里有真实调用点（不是它自己）② 有行为级测试（真的执行行为并断言结果；Files.readString+indexOf 源码字符串断言不算）③ 本地跑过该模块 compileJava 与 test 且通过。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-market/**",
+        "plugins/rpg-core/**",
+        "plugins/rpg-api/**",
+        "scripts/**",
+        "docs/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。不要改 Database.java 的 DDL。不要新增第二套市场/第二套结算。接线完成后删除对应 PENDING 豁免并更新 deferred-tables.md。"
+    },
+    {
+      "id": "W4-B1-progression-anomalies-migration",
+      "mode": "implement",
+      "goal": "接线 Phase 1 rpg_progression_anomalies 迁移写入口。判定依据见 docs/planning/deferred-tables.md §2.4。\n\n当前事实：\n$ grep -rn --include='*.java' 'rpg_progression_anomalies' plugins tools\nplugins/rpg-core/.../Database.java:917  CREATE TABLE IF NOT EXISTS rpg_progression_anomalies (\ntools/db-migration/.../SchemaManifest.java:80  \"rpg_progression_anomalies\",\n设计意图（原文）：docs/CODEX_LONG_TERM_EXECUTION_PLAN.md「禁止 level % 30 猜测，无法唯一映射进 rpg_progression_anomalies」；docs/audits/PROGRESSION_SEMANTICS_AUDIT.md:98 同义。\n\n**前置门禁（必须，不得跳过）**：先跑只读 dry-run ——\nSELECT player_uuid, ascension, level, experience FROM rpg_profiles WHERE ascension>0 AND level>30;\n把结果交给人类确认。若结果为 0 行，本任务应把该表判为 ABANDONED 而不是强行接线。\n\n要求：① dry-run 有非空结果时，实现写入口把「无法唯一映射」的档案落进该表（reason + detected_at），并附回滚脚本；② 禁止 level % 30 猜测映射；③ 行为级测试：异常档案被写入、正常档案不被写入、回滚后表为空；④ 明确标注 [R] Runtime 与 [H] Human 未取得（AGENTS.md §6：有代码 != 运营就绪）；⑤ 接线后从 scripts/check-ddl-consumers.sh 删除该表 PENDING 条目；若判定 ABANDONED，则把条目改为 ABANDONED 分类并更新 docs/planning/deferred-tables.md §4。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 编译：./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:<mod>:compileJava\n- 测试：./gradlew --no-daemon :plugins:<mod>:test\n- 编译期第三方 jar 在 libs/（公开源，scripts/fetch-deps.sh）与 libs/vendor/（同版本入库）；不要改依赖版本\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 是最高约束；AGENTS.md 是执行边界\n\n【证据契约】把结构化结果写进 .cnb/agent-out/<task-id>.json，字段：task_id / status / summary / changed_files / evidence{grep:[{cmd,hit}],test:[{cmd,result}]} / unproven[] / blockers[]。evidence 必须是实际跑过的命令原文与输出。\n\n【验收口径】机制算「已接线」必须同时满足：① src/main 里有真实调用点（不是它自己）② 有行为级测试（真的执行行为并断言结果；Files.readString+indexOf 源码字符串断言不算）③ 本地跑过该模块 compileJava 与 test 且通过。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [
+        "W4-A1-support-credit-ledger"
+      ],
+      "allowed_paths": [
+        "plugins/rpg-core/**",
+        "scripts/**",
+        "docs/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。deps 里 W4-A1 必须先合入（两任务都会动 rpg-core + scripts）。不要改 Database.java 的 DDL。真人 dry-run 未确认前不得接线，blocked 时写清要人类决策什么。"
+    }
+  ]
+}
