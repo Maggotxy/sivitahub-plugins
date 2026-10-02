@@ -188,6 +188,14 @@
       {
         "cmd": "python3 json.load 解析 plan/tasks-w4.json / plan/verdict-v2.json / plan/world-state.json",
         "result": "三个文件均为合法 JSON；tasks-w4 4 条；verdict done=false impossible=false remaining=4；world-state round=5 evidence=31 merged_gaps=21"
+      },
+      {
+        "cmd": "cnb pulls list-files --repo xzqkjmnbvc2026/sivitahub --number 23",
+        "result": "5 个文件全部 add：plan/gap-matrix-v2.md(427) plan/tasks-w4.json(75) plan/verdict-v2.json(10) plan/world-state.json(301) .cnb/agent-out/W3-A5-gapmatrix-v2.json(214)；越界 0"
+      },
+      {
+        "cmd": "git diff --name-only 7163984..f53fa9f | grep -c '^plugins/'",
+        "result": "0 —— 未改任何 src/main 源码"
       }
     ],
     "note": "本任务为只读审计：未改 plugins/**/src/main、未改宪法、未新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本。未跑 gradle 编译（本容器无 JDK/Gradle，编译门由 CNB push 流水线负责；本任务产物为纯 Markdown/JSON，不影响编译）。"
@@ -210,5 +218,5 @@
     "W3-A4 对 8 张豁免表逐条判定完成后，把「建议接线」的表转成任务并入下一波；G-109 剩余 4 张表当前全部在豁免清单内，判定结果决定它们进 tasks-w5 还是转 ABANDONED。",
     "全部合入后再跑一轮差集矩阵（gap-matrix-v3）判断 done=true。"
   ],
-  "pr_url": ""
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/23"
 }
