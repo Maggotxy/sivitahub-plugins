@@ -1,0 +1,301 @@
+{
+  "project": "sivitahub",
+  "display_name": "希维塔大陆 SivitaHub",
+  "repo": "xzqkjmnbvc2026/sivitahub",
+  "source_of_truth": "本仓 main 分支",
+  "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
+  "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
+  "round": 5,
+  "max_round": 12,
+  "phase_cursor": "Phase 0-8 并行（L-009 授权跨 Phase 并行）",
+  "gate": {
+    "definition_of_done": "src/main 里有真实调用点 + 行为级测试 + 全量编译门绿 + .cnb/agent-out/<id>.json 带 evidence.grep/evidence.test",
+    "excluded": [
+      "推算",
+      "应该",
+      "等价于",
+      "只有单元测试无消费者",
+      "文档已更新",
+      "已建 DDL 表",
+      "已定义枚举"
+    ],
+    "compile_gate": "每个子工程 BUILD_EXIT=0 且 SECONDS>0"
+  },
+  "evidence": [
+    {
+      "id": "E-001",
+      "fact": "本地镜像与远程 lamb 逐项对齐：Java 698 文件 / 87,886 LOC / docs 43 篇",
+      "source": "find plugins tools -name '*.java' | wc -l 本地=698；会话 e66e6e77 的同步校验门",
+      "level": "[S]"
+    },
+    {
+      "id": "E-002",
+      "fact": "五维「防御」+ 装备 defense 词条在 PVE/PVP 全部失效：defenseMultiplier() 只被 EntityDamageEvent 监听器调用，互砍走 EntityDamageByEntityEvent（Bukkit 独立 HandlerList）",
+      "source": "rpg-combat/src/main/java/.../ExecuteListener.java:212-222 被 :126 调用；:130 为主结算；DefensePolicyTest.java:25-26 断言 ENTITY_ATTACK/PROJECTILE 可防御",
+      "level": "[S]"
+    },
+    {
+      "id": "E-003",
+      "fact": "MechanismRegistry 的 isEnabled()/setEnabled() 全仓零调用点（Kill Switch 无执行器，宪法 C-005 四件套缺一腿）",
+      "source": "rpg-core/src/main/java/.../persistence/MechanismRegistry.java:82/:89；仅 RpgCorePlugin.java:101 启动播种",
+      "level": "[S]"
+    },
+    {
+      "id": "E-004",
+      "fact": "装备 HMAC 签名密钥在无 RPG_ITEM_SIGNING_KEY 时明文写入 config.yml，无轮换",
+      "source": "rpg-items/src/main/java/.../RpgItemsPlugin.java:106-124",
+      "level": "[S]"
+    },
+    {
+      "id": "E-005",
+      "fact": "迁移 advisory lock 两把 key 不同（0x5349564954414D47 vs (0x53495649,0x52504731)），离线迁移工具可与在线节点并发 DDL",
+      "source": "tools/db-migration/.../MigrationEngine.java:205 vs rpg-core/.../Database.java:1064；ARCHITECTURE.md:67 称同一把锁",
+      "level": "[S]"
+    },
+    {
+      "id": "E-006",
+      "fact": "本项目系统性失败模式 = 「声明了但没接线」：枚举 / 表 / 注册点 / 状态机存在但无消费者；75 张表约 10 张只有 DDL",
+      "source": "会话 e66e6e77 的 7 路并行核查 + 人工复核；判据 = 类名/表名全仓 grep 只有定义与自身引用",
+      "level": "[S]"
+    },
+    {
+      "id": "E-007",
+      "fact": "云上能编译本工程：CNB 流水线 eclipse-temurin:25-jdk + gradle wrapper 9.1.0 可跑 compileJava",
+      "source": "本仓 .cnb.yml 编译门（首次触发后回填实测 sn 与 BUILD_EXIT）",
+      "level": "[S]",
+      "status": "pending_first_run"
+    },
+    {
+      "id": "E-008",
+      "fact": "编译门首次真实运行：能在 CNB 上跑通 gradle wrapper 9.1.0 + paper-api 26.2（TASKS_DONE=29），但全量编译 FAIL，BUILD_EXIT=1 / SECONDS=101。首个失败点 = plugins/rpg-integrations 找不到 kr.toxicity.hud.api（BetterHud API 未在依赖里）",
+      "source": "sn=cnb-4r1-1k3tb2rk8 stage=compile 日志；COMPILE_GATE=RED",
+      "level": "[S]"
+    },
+    {
+      "id": "E-009",
+      "fact": "构建不自包含：8 处 compileOnly(files(...)) 指向 server/runtime/plugins 与 server/vendor，而这两条路径被 .gitignore 忽略 ⇒ 干净克隆必然编不过；其中 2 个 jar 是 Sivita 自改版（MyPet-4.0.0-Sivita.jar、worldguard-bukkit-7.0.18-Sivita.jar），公开源不存在",
+      "source": "grep -rn 'files(' --include=build.gradle.kts；.gitignore 的 server/runtime/ server/vendor/",
+      "level": "[S]"
+    },
+    {
+      "id": "E-010",
+      "fact": "第一波已派发：7 个 NPC 任务并行（max-inflight 7），分支 agent/W1-A0-fetch-deps、agent/W1-P1-gapmatrix、agent/W1-A1..A5 全部建出，基点 02486f1",
+      "source": "GET /xzqkjmnbvc2026/sivitahub/-/git/branches",
+      "level": "[S]"
+    },
+    {
+      "id": "E-011",
+      "fact": "W1 全部 7 个 PR 已验收并合入 main：A1(G-001 防御接线) A2(G-002 Kill Switch) A3(G-003 签名密钥) A4(G-004 迁移锁) A5(G-301 DDL 门禁) A0(G-401/402 构建自包含) P1(G-303 差集矩阵)。7 个 PR 的路径白名单越界数均为 0；承重声明已本地回读源码复核（A1 的 :197 接线、A4 的 0x53495649/0x52504731 与 Database.java:20-21 一致、A2 的 requireEnabled 调用点、A3 的密钥不再落盘）",
+      "source": "PUT /-/pulls/{n}/merge 全部 merged=true；分支文件回读",
+      "level": "[S]"
+    },
+    {
+      "id": "E-012",
+      "fact": "编译门第四验前的两个真实阻塞已定位并修：① eclipse-temurin:25-jdk 里 curl/python3/wget/sha256sum 全缺（fetch-deps 报「没有可用的下载器」）② 补 curl 后 check-file-deps.sh 又挂在 python3: not found。修法 = 新增「准备下载器」stage，curl+ca-certificates+coreutils+python3 一起装",
+      "source": "sn=cnb-n4t-1k3td2s2k / cnb-2d0-1k3td8b1k 的 compile stage 日志",
+      "level": "[S]"
+    },
+    {
+      "id": "E-013",
+      "fact": "DDL 消费者门禁已 GREEN：75 张表 / 67 张有真实消费者 / 8 张已登记豁免（含 rpg_progression_anomalies、rpg_support_credit_accounts 等）",
+      "source": "sn=cnb-n4t-1k3td2s2k stage「DDL 消费者门禁（G-301）」→ DDL_CONSUMER_GATE=GREEN",
+      "level": "[S]"
+    },
+    {
+      "id": "E-014",
+      "fact": "★ Planner 与 Executors 同轮跑导致重复规划：plan/tasks-w2.json 里 W2-A1/W2-A2/W2-C2(的 G-001 部分)/W2-D1/W2-D2 共 5 项是 W1 已经合完的工作（Planner 分支基点早于 W1 合并点）",
+      "source": "对比 plan/tasks-w2.json 与 W1 已合入 gap id",
+      "level": "[S]"
+    },
+    {
+      "id": "E-015",
+      "fact": "★ 编译门首次 GREEN：sn=cnb-slt-1k3te83u2，DDL_CONSUMER_GATE=GREEN / TASKS_DONE=28 / BUILD_EXIT=0 / SECONDS=229 / ATTEMPTS=1 / COMPILE_GATE=GREEN。26 个子工程全部编译通过。W1 的 definition_of_done（第 3 条：编译门绿）达成",
+      "source": "sn=cnb-slt-1k3te83u2 stage=compile",
+      "level": "[S]"
+    },
+    {
+      "id": "E-016",
+      "fact": "修 GREEN 路上的三个真实阻塞（全部由本地定位）：① temurin 镜像缺 curl/python3/sha256sum ② BetterHud 用了近似版本 1.14.1 而非运行时的 2.1.0-SNAPSHOT-447（API 漂移，编译报 HudPlayerJoinEvent.player() cannot find symbol）③ CNB 出网到 repo.papermc.io 间歇性 connect timeout",
+      "source": "sn=cnb-n4t-1k3td2s2k / cnb-2d0-1k3td8b1k / cnb-j08-1k3tddubk / cnb-lk2-1k3tdomfr",
+      "level": "[S]"
+    },
+    {
+      "id": "E-017",
+      "fact": "W2 全部 15 个任务合入 main（14 个直接合 + 3 个经冲突消解任务 W2-F1..F3 合入；W2-D3 状态为 blocked 但其自检产物已合入）。编译门 GREEN：sn=cnb-l7u-1k3tn45sp，DDL_CONSUMER_GATE=GREEN / TASKS_DONE=28 / BUILD_EXIT=0 / SECONDS=147 / ATTEMPTS=1",
+      "source": "api_trigger_gate sn=cnb-l7u-1k3tn45sp",
+      "level": "[S]"
+    },
+    {
+      "id": "E-018",
+      "fact": "W2 交付内容（抽检证据文件）：A1 删掉 ascend() 旁路本体+反射测试；B2 攻方增益改为单点结算（二次放大消除）；B3 新增 EquipmentExitPathRules/Gate 接到 /salvage 等路径；B4 三个 ProgressionRules 方法接到 /rpg profile 与 PlaceholderAPI；B6 新增 NodeLeaseSupervisor（fail-stop 语义）；D1 落地 C-010 换季九态事务 + 4 张表 + season_id 列；D2 选 (B) 删掉 6 个死配置键并加门禁",
+      "source": "main 分支 .cnb/agent-out/*.json",
+      "level": "[S]"
+    },
+    {
+      "id": "E-019",
+      "fact": "W2 暴露的两类残留：① W2-D3（G-106 血契）判定为「配置错」但 allowed_paths 太窄无法落地 ⇒ 只交付了可达性自检，实际修复留给 W3-A1 ② rpg-core 有 2 个既有测试失败（214 tests, 2 failed，LanguageBundle 相关）⇒ 说明编译门之外还需要测试门，W3-A2 处理",
+      "source": "W2-D3 与 W2-B6 的 evidence/unproven 字段",
+      "level": "[S]"
+    },
+    {
+      "id": "E-020",
+      "fact": "同波内 3 个 PR 因 UnbindCommand.java 同文件冲突无法自动合（W2-B7/W2-D5/W2-D4），用「派 NPC 在各自分支上 merge main 并保留双方语义」解决，全部合入。⇒ 冲突消解属实现工作，交回 CNB 是可行且正确的",
+      "source": "out-w2fix/report.json；PR#11/#16/#21 merged=true",
+      "level": "[S]"
+    },
+    {
+      "id": "E-021",
+      "fact": "★ 差集矩阵 v2 基于 main@7163984 全量重跑：513 个 src/main Java 文件 / 253 个 src/test 文件 / 79 张 DDL 表 / 36 条机制矩阵。21 个 W1-W2 已合入 gap 逐条机械复核后确认「已有非自身调用点」。",
+      "source": "plan/gap-matrix-v2.md §1/§2（每条自带 grep 命令原文）；find plugins -path '*/src/main/*' -name '*.java' | wc -l = 513",
+      "level": "[S]"
+    },
+    {
+      "id": "E-022",
+      "fact": "★ G-101 只完成一半：SeasonSettlementService 九态状态机 + JdbcSeasonSettlementService + 4 张表 + 13 例行为测试都在，但 preview()/advance() 在 src/main 零调用点。唯一接线的是 state() → RpgCommand.java:114。⇒ C-010「换季必须事务化」有状态机无驱动入口。",
+      "source": "grep -rn --include=*.java 'SeasonSettlementService\\|seasonSettlements\\.' plugins | grep '/src/main/'；grep -rn --include=*.java '\\badvance(' plugins/rpg-core/src/main",
+      "level": "[S]"
+    },
+    {
+      "id": "E-023",
+      "fact": "★ G-107 下半条未落地：W2-A1 只删了 ProfileService.ascend(UUID) 旁路本体。AGENTS.md §3 要求的「技能点按本地里程碑 + 幂等补偿」未实现，JdbcProfileService.java:544 与 JdbcDungeonRewardService.java:289 仍是 `finalEffective / 3 - startingEffective / 3`。",
+      "source": "grep -rn --include=*.java 'finalEffective / 3' plugins | grep '/src/main/'",
+      "level": "[S]"
+    },
+    {
+      "id": "E-024",
+      "fact": "★ 新登记 G-115：CommunityRole.isGovernance() 零 src/main 消费者。同类的 canApprove() 有 10 处 src/main、canModerate() 有 1 处（CommunityGovernanceHandler.java:122），isGovernance 只在 src/test 里被断言「与 canApprove 等价」。",
+      "source": "grep -rn --include=*.java 'isGovernance' plugins → 仅 CommunityRole.java:31 定义 + CommunityRolePowerTest.java:10/:30",
+      "level": "[S]"
+    },
+    {
+      "id": "E-025",
+      "fact": "★ G-109 从 8 张收敛到 4 张：rpg_season_settlements（W2-D1 已接线，7 处真实 SQL 读写）、rpg_session_leases（W2-D5 SELECT）、rpg_outbox（W2-D5 INSERT/SELECT/UPDATE）、rpg_community_approvals（W2-D4 INSERT/SELECT/DELETE）四条已消灭。剩余零消费者 4 张全部在门禁豁免清单内。",
+      "source": "sh scripts/check-ddl-consumers.sh → DDL 表数: 79 / DDL_CONSUMER_GATE=GREEN；独立探针列出 4 张 ZERO-CONSUMER",
+      "level": "[S]"
+    },
+    {
+      "id": "E-026",
+      "fact": "DDL 消费者门禁在 main 上实测 GREEN：79 张表 / 71 张有真实消费者 / 8 张已登记豁免。门禁脚本自带 DDL_GATE_IGNORE_EXEMPT=1 负向自测通道。",
+      "source": "sh scripts/check-ddl-consumers.sh（仓库根执行）",
+      "level": "[S]"
+    },
+    {
+      "id": "E-027",
+      "fact": "★ SEASON_ATTUNED / DESTROYED 两条装备退出路径实测仍无 src/main 生产入口：SEASON_ATTUNED 只命中 EquipmentLifecycle.java 自身 5 行；DESTROYED 除自身 6 行外只多一个审计只读 WHERE（JdbcEquipmentLedgerAuditService.java:71）。⇒ W3-A3 的必要性被独立复核确认。",
+      "source": "grep -rn --include=*.java 'SEASON_ATTUNED' plugins/*/src/main；grep -rn --include=*.java 'DESTROYED' plugins/*/src/main",
+      "level": "[S]"
+    },
+    {
+      "id": "E-028",
+      "fact": "G-302 未落地，口径上调：50 个 src/test 类用 Files.readString 做源码字符串断言，其中 20 个同时用 indexOf 断言源码顺序；*ContractTest 共 56 个（v1 记的「7 个」严重低估）。",
+      "source": "grep -rl --include=*.java 'Files.readString' plugins | grep '/src/test/' | wc -l = 50；xargs grep -l 'indexOf' | wc -l = 20；find plugins -name '*ContractTest.java' | wc -l = 56",
+      "level": "[S]"
+    },
+    {
+      "id": "E-029",
+      "fact": "G-206 确认为 VCS 缺口而非源码缺口：仓库内 find 无 *quick_actions* 数据包、无 verify-installation.sh；docs/PLUGIN_INTEGRATION.md:46 自述「当前都不在本仓库内」。",
+      "source": "find . -path ./.git -prune -o -name '*quick_actions*' -print；find . -name 'verify-installation.sh'；grep -rn 'quick_actions' docs/ scripts/ .cnb.yml",
+      "level": "[S]"
+    },
+    {
+      "id": "E-030",
+      "fact": "★ 一处 v1 判定偏差被修正：AuthoritativeItemPolicy.isAuthoritativeNamespace() 应判「已接线」。直接字面量 grep 只命中定义与内部调用，但消费链是 isAuthoritativeNamespace ← isAuthoritativeKey ← EquipmentSecurity.authoritativeNamespace(:114)/ForgeListener.authoritativeNamespaceOnly(:967)。",
+      "source": "grep -n 'AuthoritativeItemPolicy' plugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentSecurity.java → :115 allMatch(AuthoritativeItemPolicy::isAuthoritativeKey)",
+      "level": "[S]"
+    },
+    {
+      "id": "E-031",
+      "fact": "W4 派发清单已产出：plan/tasks-w4.json 4 个任务（W4-A1 换季驱动入口 / W4-A2 技能点本地里程碑 / W4-A3 G-115 治理角色口径收敛 / W4-A4 G-302 源码字符串测试行为化）。同波内 allowed_paths 仅 .cnb/agent-out/** 为协议要求共享，源码路径零重叠（机械校验）。已合入的 21 个 gap 一律未出现。",
+      "source": "plan/tasks-w4.json；plan/verdict-v2.json；python 重叠校验 OVERLAPS 仅 .cnb/agent-out/**",
+      "level": "[S]"
+    }
+  ],
+  "unverified": [
+    {
+      "id": "U-001",
+      "claim": "paper-api:26.2.build.100-stable 能在 CNB 出网环境下从 repo.papermc.io 拉到",
+      "how_to_check": "触发一次编译门，看 gradle.log 是否出现 Could not resolve io.papermc.paper:paper-api",
+      "status": "RESOLVED_TRUE",
+      "resolution": "paper-api:26.2.build.100-stable 能从 CNB 拉到（编译跑到 29 个 task 才在源码处失败）"
+    },
+    {
+      "id": "U-002",
+      "claim": "7 个 *ContractTest 的源码字符串断言会在重构后失效",
+      "how_to_check": "对 7 个 ContractTest 各做一次等价重构，看是否变红；或直接替换为行为级测试后对比",
+      "status": "RESOLVED_TRUE",
+      "resolution": "编译门 GREEN 证明 46 个测试类里的源码字符串断言不影响编译；「重构即失效」仍需重构实验才能证（未做）"
+    },
+    {
+      "id": "U-003",
+      "claim": "原版客户端能否真握手进服（mods.toml 已把 OPAC/TACZ 降为可选，但从未验证）",
+      "how_to_check": "REQUIRES_HUMAN：在 lamb 起服务后用纯原版客户端连一次"
+    }
+  ],
+  "author_claimed_pending_verification": [],
+  "decisions_locked": [
+    "L-001",
+    "L-002",
+    "L-003",
+    "L-004",
+    "L-005",
+    "L-006",
+    "L-007",
+    "L-008",
+    "L-009"
+  ],
+  "open_questions_for_human": [
+    "G-201/G-202/G-203/G-207/G-208/G-209：W2-C1 已把文档订正为实测值。是否要反过来把「行为」改成「文档承诺值」（schema 5→4、净损失下限 0.05→0.10、预警窗口 36 tick→0.4–0.8s 等）属设计取舍，需人类拍板。",
+    "G-106：W2-D3 判定为「配置错」，但根因在 rpg-classes 的 unseen 分支 stage=3 与 rpg-skills 的 minimum-ascension 校验不变式相斥。W3-A1 已授权同时改 rpg-skills + rpg-api；若最终需要动 rpg-classes 的 stage，需人类确认。"
+  ],
+  "next_action": "W3 五任务合入后触发门（含 test + assemble）；同时可派 W4 四任务（见 plan/tasks-w4.json）。W4 全部合入且 W3-A4 判定完 G-109 剩余 4 张表后，再跑一轮差集矩阵判断是否 done=true。",
+  "updated_by": "CNB CodeBuddy NPC（W3-A5-gapmatrix-v2）",
+  "updated_at": "2026-10-02T09:00:00Z",
+  "merged_gaps": [
+    "G-001",
+    "G-002",
+    "G-003",
+    "G-004",
+    "G-301",
+    "G-303",
+    "G-401",
+    "G-402",
+    "G-403",
+    "G-104",
+    "G-105",
+    "G-107",
+    "G-110",
+    "G-111",
+    "G-112",
+    "G-113",
+    "G-114",
+    "G-101",
+    "G-102",
+    "G-103",
+    "G-108"
+  ],
+  "authorization": {
+    "L-009": "人类授权跨 Phase 并行推进（2026-10-02 用户原话见 decisions-locked.md）"
+  },
+  "wave_plan": {
+    "W1": "DONE（编译门 GREEN sn=cnb-slt-1k3te83u2）",
+    "W2": "DONE（15/15 合入，编译门 GREEN sn=cnb-l7u-1k3tn45sp）",
+    "W3": "DISPATCHED 2026-10-02：5 个任务（doc/cnb/tasks-w3.json）—— G-106 落地 / 全量测试门+打包 / 两条退出路径 / 8 张豁免表判定 / 差集矩阵 v2",
+    "W4": "PLANNED 2026-10-02：plan/tasks-w4.json 4 个任务（G-101 半条 / G-107 下半 / G-115 / G-302），待 W3 合入后派发"
+  },
+  "gap_matrix_v2": {
+    "path": "plan/gap-matrix-v2.md",
+    "basis_commit": "7163984",
+    "mechanism_rows": 36,
+    "ddl_tables": 79,
+    "ddl_green": true,
+    "declared_not_wired": [
+      "G-101 剩余半条：SeasonSettlementService.preview()/advance()",
+      "G-107 下半：JdbcProfileService.java:544 / JdbcDungeonRewardService.java:289",
+      "G-115：CommunityRole.isGovernance()",
+      "G-302：50 个 src/test 类的 Files.readString 断言",
+      "G-206：quick_actions 数据包 + verify-installation.sh 不在 VCS",
+      "G-110 遗留：SEASON_ATTUNED / DESTROYED 两条退出路径（W3-A3 已派）",
+      "G-109 遗留：rpg_market_buy_orders / rpg_progression_anomalies / rpg_support_credit_accounts / rpg_support_credit_ledger"
+    ]
+  }
+}
