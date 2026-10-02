@@ -5,9 +5,9 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 12,
+  "round": 13,
   "max_round": 12,
-  "phase_cursor": "Phase 0-8 并行（L-009）；W8 最终验收轮：done=false，remaining=2（G-302 2 个测试类 + G-ANOMALY-ACK 读侧）",
+  "phase_cursor": "Phase 0-8 并行（L-009）；W11 复核 + 收尾判定轮：done=true，remaining=0。verdict-v5 的 2 条 remaining 复核后均为假缺口（G-303-SCSTALE / G-ENV-PENDING）。剩余项只有 REQUIRES_HUMAN。",
   "gate": {
     "definition_of_done": "src/main 里有真实调用点 + 行为级测试 + 全量编译门绿 + .cnb/agent-out/<id>.json 带 evidence.grep/evidence.test",
     "excluded": [
@@ -358,9 +358,9 @@
     "U-003 纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
     "W7-A2 遗留 4 条 unproven（G-207 计数器内存态重启丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）都属 [R] 级证据，需真实 Paper 运行环境。"
   ],
-  "next_action": "派 W9-A1（G-302 最后 2 个测试类）与 W9-A2（异常读侧出口）；W9-A2 若人类未定出口形态会自己报 blocked。两条都清掉、且新 sha 的八门跑绿之后，done 的 ①②③ 三条才可能同时成立。",
-  "updated_by": "CNB CodeBuddy NPC（W8-A1-final-verdict）",
-  "updated_at": "2026-10-02T15:05:00Z",
+  "next_action": "done=true，本项目收口。剩余 only REQUIRES_HUMAN：H-001（生产机跑 maintain-world-coverage.sh）、U-003（真实 Paper + 客户端握手）、W7-A2 的 4 条 [R] 级 unproven。这些需要在真实 Paper / 生产机上取证，不在本仓（无 server/）能力范围内。",
+  "updated_by": "CNB CodeBuddy NPC（W11-A1-recheck-and-final-verdict）",
+  "updated_at": "2026-10-02T15:45:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
@@ -430,20 +430,22 @@
       "G-109 遗留：rpg_market_buy_orders / rpg_progression_anomalies / rpg_support_credit_accounts / rpg_support_credit_ledger"
     ]
   },
-  "basis": "main @ c63f446a4834e126849454e5b17f3cf6076294db（= agent/W8-A1-final-verdict 分支基点，与 origin/main 同一 commit）",
+  "basis": "main @ 6d12e0301120e6a6c21dd8b03599d0c009ad497c（= origin/main HEAD，git ls-remote 实测同一 commit）",
   "gates": {
-    "evidence_sn": "cnb-ihu-1k3ug6u6p",
-    "evidence_sha": "c63f446a4834e126849454e5b17f3cf6076294db",
-    "evidence_relation": "sha 与当前 main HEAD / W8-A1 分支基点同一 commit",
-    "gate_selftest": "GREEN (PASS=67 FAIL=0)",
-    "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
-    "ddl_consumer": "GREEN (81 张表 / 豁免 0 条 / 零消费者 0 张)",
-    "ddl_registration": "GREEN (反向：代码引用的 81 个 rpg_* 表名全部在 DDL 里)",
-    "cmd_reference": "GREEN (43 条已注册 / 9 条豁免)",
-    "compile": "GREEN (BUILD_EXIT=0 SECONDS=105 TASKS_DONE=28)",
-    "test": "GREEN (SUM tests=1081 failed=0 errors=0 skipped=2 modules=26 / NO_XML=0 / SUMMARY_GATE=GREEN / ENV_ANNOTATIONS=8 / EXCLUDED_TAG_SEEN_IN_LOG=26 ENV_TAG_LINE=26)",
-    "assemble": "GREEN (JAR_COUNT=56 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)",
-    "local_rerun_note": "本容器无 JDK；compile/test/assemble 只能引用 CNB 门运行记录；其余静态门禁本轮本地实跑全 exit=0"
+    "evidence_sn": "cnb-kb4-1k3uk7cro",
+    "evidence_sha": "6d12e0301120e6a6c21dd8b03599d0c009ad497c",
+    "evidence_event": "push",
+    "evidence_relation": "sha 与当前 main HEAD 同一 commit；本任务分支基点 a9114d3 的代码树与当前 main 对 plugins/tools/scripts 完全相同",
+    "gate_selftest": "GREEN (PASS=67 FAIL=0, 545955ms)",
+    "resource_pack": "GREEN (RUN=8 SKIPPED=0, 514ms)",
+    "ddl_consumer": "GREEN (DDL 表数 81 / 豁免 0 条 / 零消费者 0 张, 106803ms)",
+    "ddl_registration": "GREEN (反向：代码引用的 81 个 rpg_* 表名全部在 DDL 里；反向豁免 0 条)",
+    "cmd_reference": "GREEN (已注册指令 43 条 / 豁免 9 条)",
+    "compile": "GREEN (BUILD_EXIT=0 SECONDS=133, 159066ms)",
+    "test": "GREEN (SUM tests=1091 failed=0 errors=0 skipped=2 modules=26 / NO_XML modules=0 / SUMMARY_GATE=GREEN / ENV_ANNOTATIONS=8, 37176ms)",
+    "assemble": "GREEN (JAR_COUNT=56 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0 / ASSEMBLE_EXIT=0, 8287ms)",
+    "crosscheck_sn": "cnb-q2d-1k3uj566m (sha=a9114d3, api_trigger_gate, success, 八门判据行齐全)",
+    "evidence_note": "八门判据行取自 build/status 的 stage 状态 + runner 日志运行时输出行（非脚本原文）"
   },
   "verdict_v3": {
     "done": false,
@@ -484,5 +486,12 @@
       "reversible": "inventory 与对拉关系写在 plan/gap-matrix-v4.md §7 第 2/3 条",
       "by": "CodeBuddy NPC（W8-A1）"
     }
-  ]
+  ],
+  "gap_matrix_v6": "plan/gap-matrix-v6.md（v4 矩阵基础上更新两条复核判定 + W9 新增物零消费者复查；附 V-30..V-41 命令原文）",
+  "verdict_v6": "plan/verdict-v6.json（done=true / impossible=false / remaining=0）",
+  "tasks_v6": "plan/tasks-w11.json（tasks=[]）",
+  "recheck_v6": {
+    "G-303-SCSTALE": "假缺口，撤掉。here-doc 完整覆盖继承 stdin；5 种 stdin 形态 + 2 种投毒形态全部 RED/exit=1；27 个包装器 45 次调用 SPEC_KEY 与 method 全部命中规格（0 处空跑）；selftest §4b 4 条负向对照全过。v5 的 GREEN 最可能来自用 `| tail` 取退出码（拿到 tail 的 0）。",
+    "G-ENV-PENDING": "假缺口，撤掉。stage-N `start,0` 是在跑中的实时显示；本轮三次采样直接抓到现场（pending stage-2 start,0 → pending stage-4 start,0 → success）。当前 main HEAD 门 sn=cnb-kb4-1k3uk7cro success 且八门判据行齐全。"
+  }
 }

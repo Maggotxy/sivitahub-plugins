@@ -1,0 +1,134 @@
+{
+  "task_id": "W11-A1-recheck-and-final-verdict",
+  "status": "success",
+  "summary": "复核 + 收尾判定轮。逐条复核 verdict-v5 的两条 remaining，两条均判为**假缺口**并撤掉，故 done=true、remaining=0。① G-303-SCSTALE：可复现反证成立。把规格第一条 required 字面量 'Bukkit.getPlayer(player.getUniqueId()) == player' 在 RpgClassesPlugin.java:743 替换为 /*MUTATED*/（写盘已证：grep -c MUTATED=1、原字面量=0）后，5 种 stdin 形态（继承 / 单 spec key+method / < /dev/null / true | / echo 数据 |）全部 SOURCE_CONTRACT_GATE=RED 且 exit=1；2 种投毒形态（喂一段自称 GREEN 并 sys.exit(0) 的合法 python、喂 10 万行 stdin）仍 RED/exit=1 ⇒ here-doc 完整覆盖继承 stdin。27 个 *ContractTest 包装器共 45 次 assertContractHolds 调用的 SPEC_KEY 与 method 全部命中规格（mismatches=0），无空跑；包装器末尾 assertEquals(0, process.exitValue()) 使门禁 RED 必致测试 RED；selftest-gates §4b 另有 4 条负向对照全过。v5 观察到 GREEN 的最可能来源：用 `sh script | tail -5; echo $?` 取退出码 —— 拿到 tail 的退出码恒 0（本轮复现 TAIL_EXIT=0，同命令写文件后 REAL_EXIT=1）。已复原并复验 GREEN/exit=0、git status 为空。② G-ENV-PENDING：查得当前 main HEAD（6d12e03，git ls-remote origin refs/heads/main 实测同一 commit）的 push 门 sn=cnb-kb4-1k3uk7cro = success，11 格中 8 个门 stage 全 success 且耗时非零（stage-1 门禁自测 545955ms / stage-2 DDL 106803ms / compile 159066ms / test 37176ms / assemble 8287ms），runner 日志判据行齐全：GATE_SELFTEST=GREEN(PASS=67 FAIL=0) / DDL 表数 81 / CMD_REFERENCE_GATE=GREEN / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / RESOURCE_PACK_GATE=GREEN / COMPILE_GATE=GREEN(BUILD_EXIT=0 SECONDS=133) / TEST_GATE=GREEN(SUM tests=1091 failed=0 modules=26) / SUMMARY_GATE=GREEN / PACKAGE_GATE=GREEN(JAR_COUNT=56)。首查时该构建 pending、stage-2 显示 start,0，180s 后 stage-4 start,0，300s 后 success ⇒ stage-N `start,0` 是在跑中的实时显示，W10 撞上的是另一个正在跑的构建（时序假象）。③ W9 新增物零消费者复查：27 个规格键各有一个真实执行门禁的包装器且声明的生产文件全存在（0 缺失 / 0 无门禁执行者）；/rpgadmin anomaly list|ack 由 AnomalyReviewCommand 消费 pending(offset,limit)/pendingCount/acknowledge/pending(UUID) 四个读侧方法（RpgAdminPlugin.java:97,155,761 装配与注册）；新增列 reviewer/review_note/reviewed_at 有写有读；81 张表零消费者 0、代码引用但 DDL 无 0。④ 未改任何 src/main 源码。",
+  "changed_files": [
+    "plan/gap-matrix-v6.md",
+    "plan/verdict-v6.json",
+    "plan/tasks-w11.json",
+    "plan/world-state.json",
+    ".cnb/agent-out/W11-A1-recheck-and-final-verdict.json"
+  ],
+  "evidence": {
+    "recheck_1_G303_SCSTALE": {
+      "variant_landed": {
+        "cmd": "F=plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java; python3 - \"$F\" <<'PY' (t.replace(\"Bukkit.getPlayer(player.getUniqueId()) == player\",\"/*MUTATED*/\")) ; grep -n MUTATED \"$F\"; grep -c \"Bukkit.getPlayer(player.getUniqueId()) == player\" \"$F\"",
+        "hit": "replaced occurrences: 1 / 743:        return player != null && player.isOnline() && /*MUTATED*/ / 0（变异确实落盘）"
+      },
+      "form1_inherited": {
+        "cmd": "sh scripts/check-source-contract.sh --all ; echo EXIT1=$?",
+        "hit": "SOURCE_CONTRACT_CHECKS=238 SPECS=27 / SOURCE_CONTRACT_GATE=RED ClassAsyncLifecycleContractTest.java::asynchronousClassUiRejectsOldConnectionsAndPluginShutdown: 必须出现但缺失 -> 'Bukkit.getPlayer(player.getUniqueId()) == player' / EXIT1=1"
+      },
+      "form2_wrapper": {
+        "cmd": "sh scripts/check-source-contract.sh plugins/rpg-classes/src/test/java/cn/originalrpg/classes/ClassAsyncLifecycleContractTest.java asynchronousClassUiRejectsOldConnectionsAndPluginShutdown ; echo EXIT2=$?",
+        "hit": "SOURCE_CONTRACT_CHECKS=18 SPECS=1 / SOURCE_CONTRACT_GATE=RED ... / EXIT2=1"
+      },
+      "form3_devnull": {
+        "cmd": "sh scripts/check-source-contract.sh --all < /dev/null ; echo EXIT3=$?",
+        "hit": "SOURCE_CONTRACT_GATE=RED ... / EXIT3=1"
+      },
+      "form4_empty_pipe": {
+        "cmd": "true | sh scripts/check-source-contract.sh --all ; echo EXIT4=$?",
+        "hit": "SOURCE_CONTRACT_GATE=RED ... / EXIT4=1"
+      },
+      "form5_data_pipe": {
+        "cmd": "echo \"print('HIJACKED')\" | sh scripts/check-source-contract.sh --all ; echo EXIT5=$?",
+        "hit": "SOURCE_CONTRACT_GATE=RED ...（打印的是门禁自己的判据行，不是 HIJACKED）/ EXIT5=1"
+      },
+      "poison_valid_python": {
+        "cmd": "printf \"import json,sys\\nprint('SOURCE_CONTRACT_GATE=GREEN');sys.exit(0)\\n\" | sh scripts/check-source-contract.sh --all",
+        "hit": "SOURCE_CONTRACT_CHECKS=238 SPECS=27 / SOURCE_CONTRACT_GATE=RED ... / HIJACK_VALID_PY_EXIT=1"
+      },
+      "poison_big_stdin": {
+        "cmd": "yes \"print('GREEN')\" | head -100000 | sh scripts/check-source-contract.sh --all",
+        "hit": "HIJACK_BIG_STDIN_EXIT=1 / SOURCE_CONTRACT_GATE=RED ..."
+      },
+      "wrapper_no_redirectInput": {
+        "cmd": "sed -n '52,62p' plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobRewardAsyncLifecycleContractTest.java",
+        "hit": "Process process = new ProcessBuilder(\"sh\", gate.toString(), SPEC_KEY, method).directory(root.toFile()).redirectErrorStream(true).start();  ... assertEquals(0, process.exitValue(), ...) —— 无 redirectInput ⇒ stdin 继承（= form1）；退出码非 0 即断言失败"
+      },
+      "wrappers_all_hit_spec": {
+        "cmd": "python3 - <<'PY'（遍历 *ContractTest，抽 SPEC_KEY 与 assertContractHolds(\"method\")，与 scripts/source-contract-specs/all.json 对表）",
+        "hit": "wrapper files using gate: 27 / assertContractHolds calls: 45 / mismatches: 0"
+      },
+      "tail_exit_trap": {
+        "cmd": "sh scripts/check-source-contract.sh --all 2>&1 | tail -2; echo TAIL_EXIT=$?",
+        "hit": "SOURCE_CONTRACT_CHECKS=238 SPECS=27 / TAIL_EXIT=0（tail 的退出码恒 0，不是门禁的；同命令写文件后 REAL_EXIT=1）"
+      },
+      "selftest_negative_control": {
+        "cmd": "sh scripts/selftest-gates.sh（§4b 段）",
+        "hit": "== 4b. source-contract 门禁必须能真的变红（负向对照）== / [OK] 不可能满足的顺序契约 → 1 (exit=1) / [OK] 真实顺序契约 → 0 (exit=0) / [OK] 禁止片段命中 → 1 (exit=1) / [OK] 禁止片段未命中 → 0 (exit=0) / 门禁自测汇总：PASS=67 FAIL=0 / GATE_SELFTEST=GREEN"
+      },
+      "restored": {
+        "cmd": "cp /tmp/RpgClassesPlugin.java.bak <原文件>; git status --short; grep -c \"Bukkit.getPlayer(player.getUniqueId()) == player\" \"$F\"; grep -c MUTATED \"$F\"; sh scripts/check-source-contract.sh --all; echo RESTORED_EXIT=$?",
+        "hit": "（git status 空）/ 1 / 0 / SOURCE_CONTRACT_CHECKS=238 SPECS=27 / SOURCE_CONTRACT_GATE=GREEN / RESTORED_EXIT=0"
+      },
+      "secondary_observation": {
+        "cmd": "sh scripts/check-source-contract.sh plugins/rpg-classes/src/test/java/cn/originalrpg/classes/ClassAsyncLifecycleContractTest.java noSuchMethodNameAtAll ; echo EXIT_B=$?",
+        "hit": "SOURCE_CONTRACT_CHECKS=0 SPECS=1 / SOURCE_CONTRACT_GATE=GREEN / EXIT_B=0（门禁对不存在的 method 会空跑；现状安全——27 个包装器 method 全部存在。记为观察项）"
+      },
+      "fail_closed_bad_key": {
+        "cmd": "sh scripts/check-source-contract.sh plugins/nonexistent/FooContractTest.java someMethod ; echo EXIT_A=$?",
+        "hit": "SOURCE_CONTRACT_GATE=RED 规格里没有 plugins/nonexistent/FooContractTest.java / EXIT_A=2"
+      },
+      "verdict": "假缺口，撤掉。here-doc 完整覆盖继承 stdin；上游不能 hijack 门禁逻辑；27 个包装器无空跑。"
+    },
+    "recheck_2_GENV_PENDING": {
+      "build_list": {
+        "cmd": "cnb build get-build-logs --repo xzqkjmnbvc2026/sivitahub --targetRef main --page-size 6",
+        "hit": "最新：sn=cnb-kb4-1k3uk7cro status=pending event=push sha=6d12e0301120e6a6c21dd8b03599d0c009ad497c（= 当前 main HEAD）；次新：cnb-q2d-1k3uj566m success api_trigger_gate sha=a9114d3；cnb-fk2-1k3uj4qnt success push sha=a9114d3"
+      },
+      "current_main_head_gate_status": {
+        "cmd": "cnb build get-build-status --repo xzqkjmnbvc2026/sivitahub --sn cnb-kb4-1k3uk7cro",
+        "hit": "采样1 status=pending：stage-1 success(545955ms) / stage-2 start,0 / stage-3.. pending ；采样2(180s) pending：stage-2 success(106803ms) / stage-3 success(514ms) / stage-4 compile start,0 ；采样3(300s) status=success：11 格中 8 个门 stage 全 success 且耗时非零（Prepare 3960 / stage-0 27671 / stage-1 545955 / stage-2 106803 / stage-3 514 / stage-4 159066 / stage-5 37176 / stage-6 8287 / beforeEnd 499 / end 798）"
+      },
+      "current_main_head_judgement_lines": {
+        "cmd": "cnb build build-runner-download-log --repo xzqkjmnbvc2026/sivitahub --pipelineId cnb-kb4-1k3uk7cro-001  （下载 runner 日志，逐行解析运行时输出行）",
+        "hit": "GATE_SELFTEST=GREEN（门禁自测汇总 PASS=67 FAIL=0）/ DDL 表数: 81 / CMD_REFERENCE_GATE=GREEN / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / RESOURCE_PACK_GATE=GREEN / BUILD_EXIT=0 SECONDS=133 / COMPILE_GATE=GREEN / SUM tests=1091 failed=0 errors=0 skipped=2 modules=26 / NO_XML modules=0 期望模块数=26 / SUMMARY_GATE=GREEN / ENV_ANNOTATIONS=8 / TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=36 / TEST_GATE=GREEN / JAR_COUNT=56 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0 / ASSEMBLE_EXIT=0 JARCHECK_EXIT=0 SECONDS=7 / PACKAGE_GATE=GREEN"
+      },
+      "crosscheck_a9114d3": {
+        "cmd": "cnb build get-build-logs --repo xzqkjmnbvc2026/sivitahub --sha a9114d3ec71eb8e289caf856c4f65db898f4adf3 --page-size 20",
+        "hit": "4 个构建全 success：cnb-rsl-1k3uj57rd(push) / cnb-2gk-1k3uj57nj(api_trigger_npc) / cnb-q2d-1k3uj566m(api_trigger_gate) / cnb-fk2-1k3uj4qnt(push)"
+      },
+      "crosscheck_q2d_judgement_lines": {
+        "cmd": "cnb build build-runner-download-log --repo xzqkjmnbvc2026/sivitahub --pipelineId cnb-q2d-1k3uj566m-001",
+        "hit": "GATE_SELFTEST=GREEN(PASS=67 FAIL=0) / DDL 表数: 81 / CMD_REFERENCE_GATE=GREEN / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / RESOURCE_PACK_GATE=GREEN / COMPILE_GATE=GREEN(BUILD_EXIT=0 SECONDS=135 TASKS_DONE=28) / SUM tests=1091 failed=0 modules=26 / TEST_GATE=GREEN / PACKAGE_GATE=GREEN(JAR_COUNT=56)"
+      },
+      "verdict": "假缺口，时序假象，撤掉。stage-N `start,0` 是在跑中的实时显示；当前 main HEAD 自己的门 success 且八门判据行齐全。"
+    },
+    "w9_new_artifacts_zero_consumer": {
+      "spec_keys": {
+        "cmd": "python3 - <<'PY'（27 个 spec key：文件是否存在 / 声明的生产文件是否存在 / 是否有 *ContractTest 真实执行门禁）",
+        "hit": "spec keys: 27 / without an existing test file: 0 / 声明的生产文件缺失: 0 / 有规格但没有测试类执行门禁: 0"
+      },
+      "anomaly_entry": {
+        "cmd": "grep -rn '\\.pending(\\|\\.acknowledge(\\|pendingCount' plugins --include=*.java | grep -v src/test",
+        "hit": "AnomalyReviewCommand.java:104 pending(offset, limit) / :111 pendingCount() / :160 acknowledge(playerId, reviewer, note) / :173 pending(playerId)；RpgAdminPlugin.java:97-101 装配、:155 与 :761 的 anomaly 分支；plugin.yml:11 usage 含 anomaly <list ...|ack ...>"
+      },
+      "anomaly_columns": {
+        "cmd": "grep -rn 'reviewer|review_note|reviewed_at' plugins （Database.java:940-942,950-956 定义；JdbcProgressionAnomalyService 写；pending 映射读；JdbcProfileService.java:599 快照刷新时清空）",
+        "hit": "有写有读；AnomalyReviewCommandTest 用真 H2 + 真 JdbcProgressionAnomalyService 断言库里那两格"
+      },
+      "ddl_tables": {
+        "cmd": "sh scripts/check-ddl-consumers.sh ; echo EXIT=$?",
+        "hit": "DDL 表数: 81 / 豁免清单: 0 条已登记 / 已注册指令数: 43 / 指令豁免 9 条 / CMD_REFERENCE_GATE=GREEN / 反向检查扫描文件数: 549 / 代码引用的 rpg_* 表名: 81 个 / 反向豁免清单: 0 条 / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / EXIT=0"
+      }
+    },
+    "local_gates_rerun": {
+      "cmd": "逐一 sh scripts/<gate>.sh ; echo EXIT=$?",
+      "hit": "check-ddl-consumers.sh EXIT=0（三向 GREEN）/ check-resource-pack.sh EXIT=0（RUN=8 SKIPPED=0）/ selftest-gates.sh EXIT=0（PASS=67 FAIL=0）/ check-source-contract.sh EXIT=0（GREEN）/ check-config-fallbacks.sh EXIT=0 / check-trusted-menu-holders.sh EXIT=0 / check-repo-artifacts.sh EXIT=0 / install-datapacks.sh --check EXIT=0（packs=sivita-navigation）/ check-file-deps.sh EXIT=0"
+    },
+    "limitation": "本容器无 JDK（command -v java 无输出、/usr/lib/jvm 不存在）⇒ compile/test/assemble 不能本地复跑，只能用 CNB 门运行记录（sn=cnb-kb4-1k3uk7cro 与交叉印证 sn=cnb-q2d-1k3uj566m）。"
+  },
+  "pr_url": "",
+  "risks": [
+    "G-303-SCSTALE 与 G-ENV-PENDING 本轮判为假缺口并撤掉；若上一轮 v5 的结论已被用作后续决策依据，需以本文件为准回滚该依据。",
+    "门禁对「存在 spec key 但不存在的 method」会空跑并打印 SOURCE_CONTRACT_GATE=GREEN exit=0（本轮实测 SOURCE_CONTRACT_CHECKS=0）。现状安全（27 个包装器 method 全部存在，mismatches=0），但将来若改测试方法名而不同步改规格，会静默空跑。建议加入「method 非空且匹配 0 条 check ⇒ 非零退出」的加固（本轮未实施，超出最小改动范围）。",
+    "done=true 的第三条（剩余 only REQUIRES_HUMAN）依赖 [R]/[H] 级证据在真实 Paper / 生产机上采集；本仓无 server/、本容器无 JDK，无法自行取得，属观测受限而非实现缺口。"
+  ],
+  "next_steps": [
+    "项目收口：plan/verdict-v6.json done=true、remaining=0、tasks-w11.json tasks=[]。",
+    "待人类在真实环境取证：[H] H-001（生产机无人维护窗口跑 scripts/maintain-world-coverage.sh 补 5435 个四角区块）、[R] U-003（真实 Paper + 纯原版客户端握手）、[R] W7-A2 的 4 条 unproven（G-207 内存态计数器 / G-205 启动对账 / G-209 的 20 tick 表现层推理值 / G-208 启动 fail-closed 的真实 Paper 验证）。",
+    "可选加固（非缺口）：给 scripts/check-source-contract.sh 增加「method 非空但匹配 0 条 check ⇒ 非零退出」的 fail-closed 判据，并在 selftest-gates.sh 加一条负向对照。"
+  ]
+}
