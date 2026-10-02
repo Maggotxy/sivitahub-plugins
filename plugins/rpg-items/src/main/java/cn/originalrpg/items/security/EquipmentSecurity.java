@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.List;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Collections;
@@ -34,7 +35,8 @@ public final class EquipmentSecurity implements EquipmentService {
             "sulfur-depths", "sulfur-depths-hidden",
             "storm-vault", "storm-vault-hidden");
 
-    private final SecretKeySpec key;
+    private final SecretKeySpec signingKey;
+    private final List<SecretKeySpec> verificationKeys;
     private final NamespacedKey itemId = key("rpgitems:item_id");
     private final NamespacedKey crafter = key("rpgitems:crafter");
     private final NamespacedKey owner = key("rpgitems:owner");
@@ -65,10 +67,29 @@ public final class EquipmentSecurity implements EquipmentService {
             });
 
     public EquipmentSecurity(byte[] secret) {
+        this(secret, List.of());
+    }
+
+    /**
+     * G-003 轮换支持：{@code secret} 是当前签名密钥，{@code retiredSecrets} 是被它
+     * 替换下来的旧密钥（新→旧）。新装备只用当前密钥签名，校验时按顺序尝试全部密钥，
+     * 因此轮换期间的旧装备不会失效。
+     */
+    public EquipmentSecurity(byte[] secret, List<byte[]> retiredSecrets) {
         if (secret.length < 32) {
             throw new IllegalArgumentException("Equipment signing secret must contain at least 32 bytes");
         }
-        key = new SecretKeySpec(secret.clone(), HMAC);
+        signingKey = new SecretKeySpec(secret.clone(), HMAC);
+        java.util.ArrayList<SecretKeySpec> accepted = new java.util.ArrayList<>(1 + retiredSecrets.size());
+        accepted.add(signingKey);
+        for (byte[] retired : retiredSecrets) {
+            if (retired == null || retired.length < 32) {
+                throw new IllegalArgumentException(
+                        "Retired equipment signing secret must contain at least 32 bytes");
+            }
+            accepted.add(new SecretKeySpec(retired.clone(), HMAC));
+        }
+        verificationKeys = List.copyOf(accepted);
     }
 
     @Override
@@ -143,7 +164,7 @@ public final class EquipmentSecurity implements EquipmentService {
             Optional<EquipmentSnapshot> cached = inspectionCache.get(cacheKey);
             if (cached != null) return cached;
             byte[] actual = Base64.getDecoder().decode(stored);
-            if (!MessageDigest.isEqual(digest(canonical), actual)) {
+            if (!matchesAnyKey(canonical, actual)) {
                 inspectionCache.put(cacheKey, Optional.empty());
                 return Optional.empty();
             }
@@ -334,10 +355,23 @@ public final class EquipmentSecurity implements EquipmentService {
                 + data.getOrDefault(dungeonCoreSource, PersistentDataType.STRING, "");
     }
 
+    /** 新签名：只用当前密钥。 */
     private byte[] digest(String value) {
+        return digest(value, signingKey);
+    }
+
+    /** 校验：轮换集合里任意一把密钥匹配即通过。 */
+    private boolean matchesAnyKey(String value, byte[] expected) {
+        for (SecretKeySpec candidate : verificationKeys) {
+            if (MessageDigest.isEqual(digest(value, candidate), expected)) return true;
+        }
+        return false;
+    }
+
+    private static byte[] digest(String value, SecretKeySpec secret) {
         try {
             Mac mac = Mac.getInstance(HMAC);
-            mac.init(key);
+            mac.init(secret);
             return mac.doFinal(value.getBytes(StandardCharsets.UTF_8));
         } catch (GeneralSecurityException exception) {
             throw new IllegalStateException("HMAC-SHA256 unavailable", exception);

@@ -1,0 +1,30 @@
+{
+  "task_id": "W1-A3-signing-key-env",
+  "status": "success",
+  "summary": "G-003 修复：装备 HMAC 签名密钥不再落盘。新增 EquipmentSigningMaterial（唯一来源=环境变量；缺失即 fail-closed），支持当前密钥 + 最多 3 把退役密钥的轮换校验集合；旧 config.yml 明文密钥字段启动时检测并告警（不静默删除）。新增 12 个行为级测试覆盖 fail-closed 与双密钥旧签名可校验，rpg-items 44 测试全绿。",
+  "changed_files": [
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentSigningMaterial.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentSecurity.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyBlueprintService.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java",
+    "plugins/rpg-items/src/main/resources/config.yml",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/EquipmentSigningMaterialTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/EquipmentSigningKeyWiringContractTest.java",
+    ".cnb/agent-out/W1-A3-signing-key-env.json"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/2",
+  "risks": [
+    "属主范围：rpg-sulfur（G-003 同模式）与 rpg-community/AccountCommand 仍有明文 config 回退，但它们的消费者/语义超出允许路径，本次未改动，需另立任务。",
+    "RpgItems 是 RpgCore 的 depend，密钥缺失时它不注册 EquipmentService/EquipmentProgressService，会让依赖这两项服务的插件（如 RpgMarket）启动失败 —— 这是 fail-closed 的传播结果，属预期但会放大启动失败半径，建议运维在密钥缺失时先看 RpgItems 日志。",
+    "密钥长度校验仍为 >=32 字节（沿用原实现），未强制 HMAC-SHA256 推荐的 64 字节。",
+    "轮换窗口内两代密钥都可校验，等于攻击面在窗口期翻倍；退役槽位必须在旧装备换签/退役后主动移除（PR 已写明流程）。",
+    "全仓 compileJava 门禁仍为 RED：8 个既有依赖缺失失败（G-401/G-403，pristine 基线同样失败），非本任务引入；rpg-items 本身编译与测试均绿。"
+  ],
+  "next_steps": [
+    "人工部署步骤：注入 RPG_ITEM_SIGNING_KEY（Base64，>=32 字节）后再启动；然后手工删除 RpgItems/config.yml 里的 security.signing-key 行。",
+    "轮换操作：把当前密钥值搬到 RPG_ITEM_SIGNING_KEY_PREVIOUS、把新密钥注入 RPG_ITEM_SIGNING_KEY → 重启 → 等旧装备完成换签/退役 → 移除 _PREVIOUS 槽位。",
+    "建议后续任务：把同一模式同步到 rpg-sulfur（RPG_IMPRINT_SIGNING_KEY）与 rpg-community/AccountCommand。",
+    "建议后续任务：确认 RpgItems 插件描述符是否应改为 softdepend，以缩小密钥缺失时的启动失败半径。",
+    "建议后续任务：G-302 —— 用行为级测试替换剩余 *ContractTest 的源码字符串断言模式。"
+  ]
+}

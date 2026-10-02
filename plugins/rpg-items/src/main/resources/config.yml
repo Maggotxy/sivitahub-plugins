@@ -47,8 +47,16 @@ legacy:
   minimum-limit-break: 2
   # The blueprint is consumed on the forge attempt and never copies stats, rarity or slot count.
   inheritance-chance: 0.18
+# 装备 HMAC 签名密钥**不在这里配置**（G-003）：明文写进 config.yml 等于把装备唯一性 /
+# 解绑 / 传承 / 市场托管的安全押在一份会随备份与分发扩散的明文文件上。
+# 密钥只能由外部注入：
+#   RPG_ITEM_SIGNING_KEY          当前密钥（Base64，至少 32 字节）
+#   RPG_ITEM_SIGNING_KEY_PREVIOUS  上一代密钥（轮换期校验用；可再加 _2/_3，最多 3 把）
+# 缺失时插件不会生成密钥，而是拒绝启用依赖签名的功能（fail-closed）。
+# 轮换：旧密钥降级到 _PREVIOUS 槽位 → 重启 → 等旧装备自然换签/退役 → 移除该槽位。
 security:
-  # Empty on first start; the plugin generates and persists a 256-bit key.
+  # 仅用于检测历史遗留的明文密钥字段；本插件只告警，不会自动删除。
+  # 迁移：把值搬到环境变量后，手工删除下面的 signing-key 行。
   signing-key: ""
 visual-effects:
   enabled: true

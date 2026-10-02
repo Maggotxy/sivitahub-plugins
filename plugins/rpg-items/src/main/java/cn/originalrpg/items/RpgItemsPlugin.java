@@ -16,28 +16,41 @@ import cn.originalrpg.items.forge.EquipmentOperationCoordinator;
 import cn.originalrpg.api.service.ProfileService;
 import cn.originalrpg.api.model.EquipmentTraitCatalog;
 import cn.originalrpg.items.security.EquipmentSecurity;
+import cn.originalrpg.items.security.EquipmentSigningMaterial;
+import cn.originalrpg.items.security.EquipmentSigningMaterial.FailClosedDecision;
 import cn.originalrpg.items.security.EquipmentDurabilityListener;
 import cn.originalrpg.items.security.AuthoritativeItemProcessingListener;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.ServicePriority;
 
+import java.util.List;
 import java.util.Objects;
-import java.security.SecureRandom;
-import java.util.Base64;
 
 public final class RpgItemsPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        // Merge newly introduced catalog keys into existing installations while
-        // preserving the generated signing key and operator-tuned values.
+        // Merge newly introduced catalog keys while preserving operator-tuned values.
+        // 签名密钥不在 config.yml 里，因此这里不再需要为它回写配置。
         getConfig().options().copyDefaults(true);
         saveConfig();
         validateRareTraits();
-        byte[] signingKey = signingKey();
-        EquipmentSecurity security = new EquipmentSecurity(signingKey);
-        LegacyBlueprintService blueprints = new LegacyBlueprintService(signingKey);
+        warnAboutLegacyPlaintextKey();
+        FailClosedDecision signingGate = signingKeyGate();
+        if (signingGate.disabled()) {
+            getLogger().severe(signingGate.reason());
+            return;
+        }
+        EquipmentSigningMaterial material = EquipmentSigningMaterial.fromEnvironment();
+        if (material.rotationCount() > 1) {
+            getLogger().warning("装备签名密钥轮换中：接受 " + material.rotationCount()
+                    + " 把密钥（1 当前 + " + (material.rotationCount() - 1)
+                    + " 退役）；新装备只用当前密钥签名。");
+        }
+        byte[] signingKey = material.current();
+        EquipmentSecurity security = new EquipmentSecurity(signingKey, signingKeyRotationTail(material));
+        LegacyBlueprintService blueprints = new LegacyBlueprintService(signingKey, signingKeyRotationTail(material));
         MessageService messages = Objects.requireNonNull(
                 getServer().getServicesManager().load(MessageService.class), "MessageService");
         EquipmentOperationService equipmentOperations = Objects.requireNonNull(
@@ -103,23 +116,36 @@ public final class RpgItemsPlugin extends JavaPlugin {
         getServer().getServicesManager().unregisterAll(this);
     }
 
-    private byte[] signingKey() {
-        String encoded = System.getenv("RPG_ITEM_SIGNING_KEY");
-        if (encoded == null || encoded.isBlank()) {
-            encoded = getConfig().getString("security.signing-key", "");
-        }
-        if (encoded == null || encoded.isBlank()) {
-            byte[] generated = new byte[32];
-            new SecureRandom().nextBytes(generated);
-            encoded = Base64.getEncoder().encodeToString(generated);
-            getConfig().set("security.signing-key", encoded);
-            saveConfig();
-            getLogger().warning("Generated a local equipment signing key. Back up RpgItems/config.yml before moving worlds.");
-        }
+    /** 校验集合里除当前密钥之外的退役密钥（新→旧）。 */
+    private static List<byte[]> signingKeyRotationTail(EquipmentSigningMaterial material) {
+        List<byte[]> keys = material.verification();
+        return List.copyOf(keys.subList(1, keys.size()));
+    }
+
+    /**
+     * G-003：签名密钥只从环境变量读取。缺失即 fail-closed —— 拒绝启用依赖签名的
+     * 功能（forge / salvage / unbind / legacy / 市场托管），而不是生成一把并落盘。
+     */
+    private FailClosedDecision signingKeyGate() {
         try {
-            return Base64.getDecoder().decode(encoded);
-        } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException("security.signing-key must be Base64", exception);
+            EquipmentSigningMaterial.fromEnvironment();
+            return new FailClosedDecision(false, "");
+        } catch (IllegalStateException exception) {
+            return EquipmentSigningMaterial.failClosed(exception.getMessage());
         }
+    }
+
+    /**
+     * G-003：旧安装的 config.yml 可能残留明文密钥。这里只检测并告警，
+     * 不静默删除用户数据；迁移动作由运维完成。
+     */
+    private void warnAboutLegacyPlaintextKey() {
+        List<String> legacyPaths = EquipmentSigningMaterial.legacyConfigPaths(
+                getConfig().getString(EquipmentSigningMaterial.LEGACY_CONFIG_PATH, ""),
+                getConfig().getStringList(EquipmentSigningMaterial.LEGACY_PREVIOUS_CONFIG_PATH));
+        if (legacyPaths.isEmpty()) return;
+        getLogger().severe("检测到 config.yml 里残留明文装备签名密钥字段 " + legacyPaths
+                + "。明文密钥不再被读取，且会随配置文件一起被备份/分发。");
+        getLogger().severe("迁移步骤：" + EquipmentSigningMaterial.REMEDIATION);
     }
 }
