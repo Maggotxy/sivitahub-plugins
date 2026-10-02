@@ -80,7 +80,15 @@ public final class ProgressionRules {
         return STAGE_BUDGETS[ascension];
     }
 
-    /** Total experience from start (0-1) to given effective level. */
+    /**
+     * Total experience from start (0-1) to given effective level.
+     *
+     * <p>口径（单一来源）：全程只累加 {@link #experienceToNextLocalLevel(int, int)} 的实走值，
+     * 已完成阶段也用实走和而不是 {@link #totalExperienceForAscension(int)} 的名义预算。
+     * 原因是归一化取整会让实走和与预算相差 0-2 点；混用两套口径会在阶段边界产生回退
+     * （修复前 effective 91 的累计值小于 effective 90），破坏单调性。
+     * 预算方法只用于展示名义目标，不参与本方法计算。
+     */
     public static long totalExperienceToEffective(int effectiveLevel) {
         if (effectiveLevel < 1 || effectiveLevel > POST_ASCENSION_VERTICAL_CAP) {
             throw new IllegalArgumentException("effectiveLevel out of range");
@@ -88,9 +96,51 @@ public final class ProgressionRules {
         int asc = (effectiveLevel - 1) / LEVELS_PER_ASCENSION;
         int local = effectiveLevel - asc * LEVELS_PER_ASCENSION;
         long total = 0;
-        for (int a = 0; a < asc; a++) total += totalExperienceForAscension(a);
+        for (int a = 0; a < asc; a++) {
+            total += walkedStageExperience(a);
+        }
         for (int l = 1; l < local; l++) total += experienceToNextLocalLevel(asc, l);
         return total;
+    }
+
+    /** 某一转 29 级逐级实走经验之和（与升级循环同源）。 */
+    private static long walkedStageExperience(int ascension) {
+        long sum = 0;
+        for (int local = 1; local < LOCAL_LEVEL_CAP; local++) {
+            sum += experienceToNextLocalLevel(ascension, local);
+        }
+        return sum;
+    }
+
+    /**
+     * 本阶段（本转）已投入的经验。
+     * 口径说明：阶段总预算 {@link #totalExperienceForAscension(int)} 是名义设计值；
+     * 逐级实走经验由 {@link #experienceToNextLocalLevel(int, int)} 求和得到，
+     * 两者因归一化取整存在 0-2 点级差（见 ProgressionRulesTest）。本方法用实走值做进度，
+     * 预算只作分母，因此与 JdbcProfileService / JdbcDungeonRewardService 的升级循环同源，不会漂移。
+     */
+    public static long stageExperienceSpent(int ascension, int localLevel, long excessExperience) {
+        if (excessExperience < 0L) {
+            throw new IllegalArgumentException("excessExperience must not be negative");
+        }
+        int stageStartEffective = effectiveLevel(ascension, 1);
+        long before = totalExperienceToEffective(stageStartEffective);
+        long now = totalExperienceToEffective(effectiveLevel(ascension, localLevel));
+        return Math.max(0L, now - before) + excessExperience;
+    }
+
+    /**
+     * 本阶段剩余经验；已到本转上限或已溢出时返回 0。
+     *
+     * <p>到本地上限即视为阶段完成：名义预算与实走值存在 0-2 点取整差，
+     * 若不做此判定，满级玩家会看到"还差 1 点经验"这种假目标。
+     */
+    public static long stageExperienceRemaining(int ascension, int localLevel, long excessExperience) {
+        if (localLevel >= LOCAL_LEVEL_CAP) {
+            return 0L;
+        }
+        long budget = totalExperienceForAscension(ascension);
+        return Math.max(0L, budget - stageExperienceSpent(ascension, localLevel, excessExperience));
     }
 
     /** Legacy method – now delegates to local-level model (level is local). */

@@ -101,7 +101,10 @@ final class SivitaPlaceholderExpansion extends PlaceholderExpansion {
             case "branch" -> snapshot.branchId();
             case "ascension" -> Integer.toString(snapshot.ascension());
             case "level", "local_level" -> Integer.toString(snapshot.level());
-            case "effective_level" -> Integer.toString(snapshot.ascension() * 30 + snapshot.level());
+            // 有效等级/阶段预算/累计经验统一走 ProgressionRules，避免此处再复制 asc*30+level。
+            case "effective_level", "effective_level_cap", "experience", "experience_stage_budget",
+                    "experience_stage_spent", "experience_stage_remaining", "experience_total" ->
+                    ProgressionPlaceholders.value(snapshot, params.toLowerCase(java.util.Locale.ROOT));
             case "energy" -> Integer.toString(snapshot.energy());
             case "energy_max" -> Integer.toString(snapshot.energyCap());
             case "gold" -> snapshot.gold();

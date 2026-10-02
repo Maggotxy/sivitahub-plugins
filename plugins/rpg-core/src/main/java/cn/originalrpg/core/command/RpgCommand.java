@@ -103,10 +103,20 @@ public final class RpgCommand implements CommandExecutor, Listener {
             player.sendMessage(Component.text(messages.text(player, "profile.experience-cap"), NamedTextColor.GREEN));
         } else {
             long needed = ProgressionRules.experienceToNextLevel(profile.ascension(), profile.level());
+            // 阶段总预算与累计经验都取自 ProgressionRules，与 grantExperience 的升级循环同源。
+            long stageBudget = ProgressionRules.totalExperienceForAscension(profile.ascension());
+            long stageSpent = ProgressionRules.stageExperienceSpent(
+                    profile.ascension(), profile.level(), profile.experience());
             player.sendMessage(Component.text(messages.text(player, "profile.experience", Map.of(
                     "experience", profile.experience(),
                     "needed", needed,
-                    "remaining", Math.max(0L, needed - profile.experience()))), NamedTextColor.AQUA));
+                    "remaining", Math.max(0L, needed - profile.experience()),
+                    "stage_spent", stageSpent,
+                    "stage_budget", stageBudget,
+                    "stage_remaining", ProgressionRules.stageExperienceRemaining(
+                            profile.ascension(), profile.level(), profile.experience()),
+                    "effective_total", ProgressionRules.totalExperienceToEffective(profile.effectiveLevel()))),
+                    NamedTextColor.AQUA));
         }
         player.sendMessage(Component.text(messages.text(player, "profile.chapter", Map.of(
                 "season", chapter.seasonId(),
