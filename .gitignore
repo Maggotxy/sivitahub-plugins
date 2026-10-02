@@ -42,3 +42,8 @@ diagnostics/
 *.p12
 *.pfx
 .workbuddy-ai/
+
+# 编译期第三方 jar 由 scripts/fetch-deps.sh 拉取，不入库（避免仓库体积膨胀）。
+# 只入库 libs/vendor/README.md；vendor 下的自改版 jar 由人类从生产机取回。
+libs/*.jar
+libs/vendor/*.jar

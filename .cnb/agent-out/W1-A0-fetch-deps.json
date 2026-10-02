@@ -1,0 +1,115 @@
+{
+  "task_id": "W1-A0-fetch-deps",
+  "status": "success",
+  "summary": "构建自包含化完成：新增 scripts/fetch-deps.sh（7 个公开源 artifact 拉取到 libs/，sha256+sha1 双校验写死，失败非零退出）与 scripts/check-file-deps.sh（断言每个 compileOnly(files(...)) 都在清单里）。8 处 compileOnly(files(...)) 全部从被 gitignore 的 server/runtime/plugins、server/vendor 改指 libs/ 或 libs/vendor/。.cnb.yml 编译门在 compileJava 前依次跑 fetch-deps.sh 与 check-file-deps.sh。libs/*.jar 与 libs/vendor/*.jar 保持 gitignore（只入库脚本+校验值）。实测：干净克隆 fetch 7/7 校验通过、损坏 jar 自动重拉、拉不到非零退出、vendor 缺失给出明确报错；check 正向通过、反向注入未列清单依赖即 FAILED。",
+  "changed_files": [
+    ".gitignore",
+    ".cnb.yml",
+    "scripts/fetch-deps.sh",
+    "scripts/check-file-deps.sh",
+    "libs/vendor/README.md",
+    "plugins/rpg-integrations/build.gradle.kts",
+    "plugins/rpg-classes/build.gradle.kts",
+    "plugins/rpg-guide/build.gradle.kts",
+    "plugins/rpg-hub/build.gradle.kts",
+    "plugins/rpg-pets/build.gradle.kts",
+    "plugins/rpg-skills/build.gradle.kts",
+    "plugins/rpg-story/build.gradle.kts",
+    "plugins/rpg-essentials/build.gradle.kts",
+    ".cnb/agent-out/W1-A0-fetch-deps.json"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/4",
+  "risks": [
+    "BetterHud 归一化：原引用 BetterHud-bukkit-2.1.0-SNAPSHOT-447.jar 在公开源上不存在（上游 Releases 最高 2.0.0，Actions artifacts=0，Modrinth 无该项目 dev build）。scripts/fetch-deps.sh 固定到 1.14.1-bukkit 并改名为 libs/BetterHud-bukkit-1.14.1.jar，build.gradle.kts 已同步。1.14.1 提供 rpg-integrations 实际用到的全部 API（BetterHud.getInstance().getPlayerManager()、HudPlayer.isHudEnabled()/setHudEnabled()、HudPlayerJoinEvent extends PlayerEvent），已逐类核对 class 文件；但对应**运行时**应为生产机上的 2.1.0-SNAPSHOT-447，长期存在 API 漂移风险。**需要人类拍板**：是接受 1.14.1 作编译基线，还是把 447 也并入 vendor（REQUIRES_LOCAL）。",
+    "WorldEdit 拆成两个 artifact：worldedit-bukkit-7.4.4.jar 在上游 Maven（maven.enginehub.org）只有 140KB 的旧遗留发布事故产物，不含 rpg-hub 实际使用的 com.sk89q.worldedit.bukkit.BukkitAdapter 与 com.sk89q.worldedit.math.BlockVector2。已在 libs/ 同时引入 worldedit-core-7.4.4.jar（含 BlockVector2）与 worldedit-bukkit-7.4.4.jar（含 BukkitAdapter），rpg-hub/build.gradle.kts 改为两个 rootProject.file 引用。这是 build 层面的一个额外改动点，评审需确认是否接受。",
+    "essentialsx/dev+17-382de4f 是**精确匹配**的构建，只存在于官方 Jenkins ci.ender.zone build 1821 的 artifact（GitHub Releases 无 dev 版）。该 Jenkins 若清理历史 build，此 URL 会失效；届时需人工从本地补齐该 jar。",
+    "Citizens-2.0.43-b4231 同样来自官方 Jenkins ci.citizensnpcs.co build 4231 的 artifact（GitHub Releases 无），有与 EssentialsX 相同的 Jenkins 历史保留风险。",
+    "vendor 两个自改版 jar 已入库（git 追踪），.gitignore 新增 libs/vendor/*.jar 只影响新文件，不会 untrack 已有文件；已用 git status --ignored 验证。",
+    "未在本环境跑通 ./gradlew compileJava（本环境无 JDK，无法执行 Java 25 toolchain），编译绿需由 CNB 编译门复验。"
+  ],
+  "next_steps": [
+    "人类决策：BetterHud 编译基线选 1.14.1-bukkit（当前实现）还是把 2.1.0-SNAPSHOT-447 并入 libs/vendor（与 MyPet/worldguard 同路径，需从生产机 lamb 取回）。",
+    "在 CNB 触发编译门，确认 BUILD_EXIT=0 且 SECONDS>0；本次改动已在本地以 dash(/bin/sh) 验证两个脚本，但未验证 Gradle 编译。",
+    "可选加固：把 ci.ender.zone / ci.citizensnpcs.co 的两个 artifact 也镜像到仓库附件或 vendor，消除 Jenkins 历史被清理导致的不可复现风险。",
+    "同步更新 doc/cnb/gap-registry.md §F：G-401/G-402 可置为 MERGED，G-403 仍为 REQUIRES_LOCAL（并在全清单表里把 BetterHud 与 worldedit 的源标注改为实际使用的版本/artifact）。注意：gap-registry.md 不在本任务 allowed_paths 内，未改动。"
+  ],
+  "evidence": {
+    "fetch_runtime": [
+      {
+        "cmd": "sh scripts/fetch-deps.sh",
+        "result": "EXIT=0；7 个公开源 artifact 全部 sha256+sha1 校验通过，vendor 2 个存在性检查通过"
+      },
+      {
+        "cmd": "sh scripts/fetch-deps.sh --check",
+        "result": "EXIT=0（离线只校验）"
+      },
+      {
+        "cmd": "干净克隆模拟（/tmp/clone-sim，无任何 libs jar）",
+        "result": "7 个全部 GET+校验通过；vendor 缺失时 EXIT=1 并打印 libs/vendor/README.md 指引"
+      },
+      {
+        "cmd": "损坏 libs/AuthMe-6.0.0-Paper.jar 后重跑",
+        "result": "检出 sha256 不匹配 -> 重新下载 -> 校验通过 -> EXIT=0（自愈）"
+      },
+      {
+        "cmd": "把 AuthMe URL 改成不存在的版本后重跑",
+        "result": "EXIT=1，stderr 打印 [AuthMe-6.0.0-Paper.jar] 下载失败 + 失败条目清单"
+      }
+    ],
+    "gate": [
+      {
+        "cmd": "sh scripts/check-file-deps.sh",
+        "result": "EXIT=0，9 个 files(...) 依赖全部在清单内"
+      },
+      {
+        "cmd": "向 plugins/rpg-guide/build.gradle.kts 追加 compileOnly(files(rootProject.file(\"libs/NotInManifest.jar\"))) 后重跑",
+        "result": "EXIT=1，[FAIL] libs/NotInManifest.jar（反向验证门禁有效，验后已还原）"
+      }
+    ],
+    "source_checks": [
+      {
+        "cmd": "unzip -l BetterHud-bukkit-1.14.1.jar | grep kr/toxicity/hud/api",
+        "result": "88 个 API class，含 BetterHud/PlayerManager/HudPlayer/HudPlayerJoinEvent；逐类核对成员存在"
+      },
+      {
+        "cmd": "AuthMe-6.0.0-Paper.jar",
+        "result": "fr/xephi/authme/api/v3/AuthMeApi.class、fr/xephi/authme/events/{Login,Logout,Register}Event.class 均存在"
+      },
+      {
+        "cmd": "worldedit-core-7.4.4.jar",
+        "result": "com/sk89q/worldedit/math/BlockVector2.class 存在，常量池含 at(II)Lcom/sk89q/worldedit/math/BlockVector2;"
+      },
+      {
+        "cmd": "worldedit-bukkit-7.4.4.jar",
+        "result": "com/sk89q/worldedit/bukkit/BukkitAdapter.class 存在"
+      },
+      {
+        "cmd": "EssentialsX-2.22.1-dev+17-382de4f.jar",
+        "result": "com/earth2me/essentials/CommandSource.class、net/essentialsx/api/v2/events/TeleportRequestResponseEvent.class 存在"
+      },
+      {
+        "cmd": "Citizens-2.0.43-b4231.jar",
+        "result": "net/citizensnpcs/api/{CitizensAPI,ai/Navigator,event/DespawnReason,npc/NPCRegistry,trait/trait/Equipment,trait/trait/PlayerFilter}.class、net/citizensnpcs/trait/{SkinTrait,LookClose}.class 均存在"
+      },
+      {
+        "cmd": "BetonQuest-3.1.0.jar",
+        "result": "org/betonquest/betonquest/api 下 12 个被引用类全部存在"
+      }
+    ],
+    "portability": [
+      {
+        "cmd": "readlink -f /bin/sh",
+        "result": "/usr/bin/dash —— 两个脚本均在该 dash 下实测运行"
+      },
+      {
+        "cmd": "grep bash-isms (PIPESTATUS, <<<, [[, 数组等)",
+        "result": "仅命中脚本里说明「不使用」的注释行，无实际 bash-ism"
+      }
+    ]
+  },
+  "unproven": [
+    "./gradlew compileJava 真实编译（本环境无 JDK，Java 25 toolchain 不可用）",
+    "CNB 编译门在 eclipse-temurin:25-jdk 镜像内跑通 fetch-deps.sh（已探测关键域名可达：services.gradle.org / repo.papermc.io / repo1.maven.org / maven.enginehub.org / ci.ender.zone / ci.citizensnpcs.co / github.com 均 200）"
+  ],
+  "blockers": []
+}

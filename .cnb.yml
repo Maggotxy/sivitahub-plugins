@@ -19,6 +19,10 @@
           set -e
           echo "java: $(java -version 2>&1 | head -1)"
           chmod +x gradlew
+          # 干净克隆的自包含性：第三方编译期 jar 不在版本控制里，编译前先拉取 + 校验
+          sh scripts/fetch-deps.sh
+          # 门禁：每个 compileOnly(files(...)) 都必须在 fetch-deps.sh 的清单里
+          sh scripts/check-file-deps.sh
           export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
           export GRADLE_USER_HOME=/root/.gradle
           start=$(date +%s)
@@ -59,6 +63,8 @@ $:
           script: |
             set -e
             chmod +x gradlew
+            sh scripts/fetch-deps.sh
+            sh scripts/check-file-deps.sh
             export GRADLE_USER_HOME=/root/.gradle
             ./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 \
               compileJava > /tmp/pre.log 2>&1 && echo "PRE_GATE=GREEN" || { tail -60 /tmp/pre.log; echo "PRE_GATE=RED"; }
