@@ -36,12 +36,14 @@ public final class EquipmentLifecycle {
         return switch (from) {
             case CREATED -> to == State.BOUND || to == State.UNBOUND || to == State.SALVAGED
                     || to == State.QUARANTINED;
+            // DESTROYED 是 BOUND/UNBOUND 上「分解到底」的第二个终态出口
+            // （W3-A3）：账本用它区分「分解到精华」（SALVAGED）与「明确销毁」。
             case BOUND -> to == State.UNBOUND || to == State.LISTED || to == State.SALVAGED
                     || to == State.SACRIFICED || to == State.LEGACY_EXTRACTED
-                    || to == State.SEASON_ATTUNED || to == State.QUARANTINED;
+                    || to == State.SEASON_ATTUNED || to == State.DESTROYED || to == State.QUARANTINED;
             case UNBOUND -> to == State.BOUND || to == State.LISTED || to == State.SALVAGED
                     || to == State.SACRIFICED || to == State.LEGACY_EXTRACTED
-                    || to == State.SEASON_ATTUNED || to == State.QUARANTINED;
+                    || to == State.SEASON_ATTUNED || to == State.DESTROYED || to == State.QUARANTINED;
             case LISTED -> to == State.SOLD || to == State.UNBOUND || to == State.QUARANTINED;
             case SOLD -> to == State.BOUND || to == State.UNBOUND || to == State.LISTED || to == State.QUARANTINED;
             case SALVAGED, LEGACY_EXTRACTED, DESTROYED -> false;
@@ -82,7 +84,11 @@ public final class EquipmentLifecycle {
             case REFINEMENT, LIMIT_BREAK -> State.BOUND;
             case UNBIND -> State.UNBOUND;
             case LEGACY -> State.LEGACY_EXTRACTED;
+            // 分解与明确销毁是同一类「回收到底、物品永久离开流通」的操作，
+            // 差别只在第一次输入是否已足以表达意图：/salvage 一步确认即 SALVAGED，
+            // /destroy 需要再确认一次，落成终态 DESTROYED。
             case SALVAGE -> State.SALVAGED;
+            case DESTROY -> State.DESTROYED;
             case FORGE -> throw new IllegalStateException("handled above");
         };
         return current == next || isValidTransition(current, next) ? next : null;
@@ -100,8 +106,20 @@ public final class EquipmentLifecycle {
         if (kind == null) return null;
         return switch (kind) {
             case REFINEMENT, LIMIT_BREAK, FORGE -> State.CREATED;
-            case UNBIND, SALVAGE, LEGACY -> State.BOUND;
+            case UNBIND, SALVAGE, LEGACY, DESTROY -> State.BOUND;
         };
+    }
+
+    /**
+     * 终态是否是「分解走到底」的那一类（SALVAGED / DESTROYED）。
+     *
+     * <p>C-008 的两条退出路径——/salvage 分解与 /destroy 明确销毁——最终都
+     * 必须走完整个操作并产出绑定精华；只发一条结果消息、物品未变的不变（no-op）
+     * 操作会把已花的金币留在一个从未推进的账本身份上，因此判定为不合法。</p>
+     */
+    public static boolean descendsToTerminalExit(State from, State to) {
+        return (from == State.BOUND || from == State.UNBOUND)
+                && (to == State.SALVAGED || to == State.DESTROYED);
     }
 
     public static boolean isExitPath(State state) {
@@ -119,6 +137,29 @@ public final class EquipmentLifecycle {
 
     public static boolean requiresExitPath() {
         // C-008: every persistently farmable high-value item type must declare at least one exit
+        // TODO(Phase 7 / codex/endgame-pipeline)：C-008 列出的第五条退出路径
+        // 「赛季调谐」（SEASON_ATTUNED）在当前 Phase 下没有触发者。判定依据
+        // （全部可复现，见 EquipmentExitPathReachabilityTest 的「当前无入口」断言）：
+        //   - plugins/*/src/main 里 grep 'SEASON_ATTUNED' 只命中本文件；
+        //   - EquipmentOperationKind 里没有任何 kind 会产出 SEASON_ATTUNED 结果态；
+        //   - rpg-items 的 plugin.yml / config.yml / 插件启动路径都没有占位入口。
+        // 依赖顺序（docs/planning/long-term-game-economy-v1.yaml 的 phases）：
+        //   Phase 3 仿真器给出装备 创建/退出 比值结论
+        //     -> Phase 4 codex/equipment-exit-market-v2 定调谐的产物语义
+        //     -> Phase 7 codex/endgame-pipeline 提供内容触发者（换季调谐事件）。
+        // 因此本任务（W3-A3-exit-path-remaining）不硬造指令，登记为待接入。
+        //
+        // 接入合同（Phase 7 必须逐条满足，否则不要删本 TODO）：
+        //   1. 复用本状态机：给 EquipmentOperationKind 追加调谐 kind，或新增一个
+        //      调用 afterOperation 的调谐服务；禁止新造第二套装备状态机。
+        //   2. 结果态必须是 SEASON_ATTUNED，且 afterOperation 要能真的返回它
+        //      （SEASON_ATTUNED 当前只出现在 isValidTransition 的目标位）。
+        //   3. 调谐的换季结算必须走 SeasonSettlementService（C-010），不得只改
+        //      season-id；调谐产物不得成为 support_credit 的兑换出口（C-012：
+        //      season_attunement 在 forbidden_sinks 里）。
+        //   4. 交付必须经唯一托管市场邮箱（C-009），与 /salvage、/destroy 同一通道。
+        //   5. 接线同时删除本 TODO，并同步更新 EquipmentExitPathReachabilityTest
+        //      的「当前无入口」断言与 plugin.yml / config.yml 的占位面断言。
         return true;
     }
 }

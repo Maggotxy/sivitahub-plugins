@@ -61,10 +61,57 @@ public final class EquipmentExitPathRules {
     /**
      * 确认 C-008 的「只进不出视为设计缺陷」不成立：每种高价值物品类型都必须
      * 至少有一条可用退出路径。供启动自检与测试使用。
+     *
+     * <p>原实现只写死检查 SALVAGE 一条：只要分解还在，销毁（DESTROYED）整条
+     * 退出路径消失也逃得过启动自检。现在改为逐条枚举 {@link EquipmentOperationKind}，
+     * 每个声明为「分解到底」的操作都必须真的落在状态机认可的退出终态上。</p>
      */
     public static boolean hasExitPath() {
-        return EquipmentLifecycle.requiresExitPath() && EquipmentLifecycle.isExitPath(
-                EquipmentLifecycle.afterOperation(EquipmentOperationKind.SALVAGE,
-                        EquipmentLifecycle.seedForOperation(EquipmentOperationKind.SALVAGE)));
+        return exitPathFailures().isEmpty();
+    }
+
+    /**
+     * 启动自检的失败原因清单：哪一条退出路径不成立，说清楚到具体 kind。
+     *
+     * <p>返回空列表表示自检通过。启动路径只把它当布尔用，但两个分支都有
+     * 行为级测试直接断言，避免自检退化成一个永远为真的日志。</p>
+     */
+    public static java.util.List<String> exitPathFailures() {
+        return exitPathFailures(DestroyRules::descendsToTerminal, EquipmentOperationKind.values());
+    }
+
+    /**
+     * 注入口径与 kind 集合的重载：让「自检真的逐条验过每个 kind」可被直接断言，
+     * 而不是只能相信实现里写了一句 for 循环。
+     *
+     * @param descends 哪些 kind 算「分解到底」（生产路径固定为 {@link DestroyRules#descendsToTerminal}）
+     * @param kinds    要验的操作集合（生产路径为全部 kind）
+     */
+    static java.util.List<String> exitPathFailures(
+            java.util.function.Predicate<EquipmentOperationKind> descends,
+            EquipmentOperationKind[] kinds) {
+        java.util.List<String> failures = new java.util.ArrayList<>();
+        if (!EquipmentLifecycle.requiresExitPath()) {
+            failures.add("状态机声明了必须存在退出路径，但 requiresExitPath() 返回 false");
+            return java.util.List.copyOf(failures);
+        }
+        if (descends == null || kinds == null) {
+            failures.add("退出路径自检没有可用的 kind 来源");
+            return java.util.List.copyOf(failures);
+        }
+        int inspected = 0;
+        for (EquipmentOperationKind kind : kinds) {
+            if (kind == null || !descends.test(kind)) continue;
+            inspected++;
+            if (!DestroyRules.outcomeIsTerminal(kind)) {
+                failures.add(kind + " 声明为分解到底，但结果态不是状态机认可的退出终态");
+            } else if (!isExitPath(kind)) {
+                failures.add(kind + " 的结果态未被状态机视为退出路径");
+            }
+        }
+        if (inspected == 0) {
+            failures.add("没有任何 kind 声明为分解到底：C-008 的拆解类退出路径已整条消失");
+        }
+        return java.util.List.copyOf(failures);
     }
 }

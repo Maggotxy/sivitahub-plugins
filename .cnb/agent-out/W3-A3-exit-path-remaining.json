@@ -1,0 +1,113 @@
+{
+  "task_id": "W3-A3-exit-path-remaining",
+  "status": "success",
+  "summary": "本轮是对上一轮已完成接线成果的**独立复核 + 三处真实缺陷修复**，不是重做。复核方式：先在本机补装 JDK 25 跑通编译门与全量测试，再对已接线路径做**变异测试**（负向对照），并对照 origin/main 跑同一套测试确定失败基线。结论：①DESTROYED 退出路径确实接线（/destroy -> 装备托管出站 -> 市场邮箱，真实 H2 落 rpg_equipment_states.state=DESTROYED），②SEASON_ATTUNED 当前 Phase 确实无触发者，登记合理。但复核发现三处真实缺陷，本轮修掉：(1) C-009 交付通道判据死在 held.setAmount(0)+player.saveData() 之后 —— 判据一旦不成立，装备已从手上消失、恢复信封已落 playerdata 才抛异常，把可回放的托管操作变成玩家物品凭空消失且无任何结算记录；已前置到 operations.stage() 之前并改为可读的失败关闭分支（不再用异常终止已暂停的玩家操作），新增顺序断言 + 变异对照。(2) 启动自检 hasExitPath() 写死只验 SALVAGE 一条 —— 销毁整条退出路径消失时自检仍为真；已改为逐条枚举 EquipmentOperationKind 并经唯一口径 descendsToTerminal，新增可注入 kind 的 exitPathFailures(...) 重载让「真的逐条验过」可断言，启动日志改为打印具体失败项。(3) DestroyRules <-> DestroyDeliveryRules 互相调用（deliveryLane->laneFor->descendsToTerminal 成环），且 DestroyDeliveryRulesTest 只断言返回值、把口径与消费者一起钉死成常量，无法发现判定表被改坏；已解除反向依赖并把口径抽成可注入的 TerminalExit，新增正反注入断言（实测：把 laneFor 改成常量 MESSAGE_ONLY 后该用例失败）。另外把 outcomeIsTerminal 的终态口径收窄为 EquipmentLifecycle.descendsToTerminalExit(from,to)（原用 isTerminal 会把 LEGACY_EXTRACTED 误判成「分解到底」），并给 EquipmentLifecycle 的 SEASON_ATTUNED TODO 补上 Phase 7 接入合同（5 条前置条件、依赖链、C-010/C-012/C-009 约束）。",
+  "changed_files": [
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyDeliveryRules.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyRules.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyDeliveryRulesTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyRulesTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'SEASON_ATTUNED' plugins/*/src/main",
+        "hit": "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:22:        SEASON_ATTUNED,     //新赛季调谐\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:43:                    || to == State.SEASON_ATTUNED || to == State.DESTROYED || to == State.QUARANTINED;\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:46:                    || to == State.SEASON_ATTUNED || to == State.DESTROYED || to == State.QUARANTINED;\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:51:            case SEASON_ATTUNED -> to == State.BOUND || to == State.SALVAGED || to == State.QUARANTINED;\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:127:                || state == State.SEASON_ATTUNED || state == State.DESTROYED;\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:141:        // 「赛季调谐」（SEASON_ATTUNED）在当前 Phase 下没有触发者。判定依据\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:143:        //   - plugins/*/src/main 里 grep 'SEASON_ATTUNED' 只命中本文件；\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:144:        //   - EquipmentOperationKind 里没有任何 kind 会产出 SEASON_ATTUNED 结果态；\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:155:        //   2. 结果态必须是 SEASON_ATTUNED，且 afterOperation 要能真的返回它\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:156:        //      （SEASON_ATTUNED 当前只出现在 isValidTransition 的目标位）。"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'DESTROYED' plugins/*/src/main | sed 's/:.*//' | sort -u",
+        "hit": "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java\nplugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcEquipmentLedgerAuditService.java\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyRules.java\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyedTerminalTicket.java\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java\nplugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentDurabilityListener.java"
+      },
+      {
+        "cmd": "grep -rn --include=*.java \"EquipmentOperationKind.DESTROY\" plugins/rpg-items/src/main",
+        "hit": "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java:97:                equipment.isTradeUnlocked(held), EquipmentOperationKind.DESTROY)) {\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java:131:                equipment.isTradeUnlocked(held), EquipmentOperationKind.DESTROY)) {\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java:147:                operationId, player.getUniqueId(), EquipmentOperationKind.DESTROY,\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java:155:        if (DestroyRules.deliveryLane(EquipmentOperationKind.DESTROY)\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyRules.java:24:        return kind == EquipmentOperationKind.DESTROY || kind == EquipmentOperationKind.SALVAGE;"
+      },
+      {
+        "cmd": "grep -rn 'attun' plugins/rpg-items/src/main/resources/plugin.yml plugins/rpg-items/src/main/resources/config.yml",
+        "hit": "(无命中)"
+      },
+      {
+        "cmd": "grep -rn 'TODO(Phase 7 / codex/endgame-pipeline)' plugins/*/src/main",
+        "hit": "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:140:        // TODO(Phase 7 / codex/endgame-pipeline)：C-008 列出的第五条退出路径"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'descendsToTerminalExit' plugins/*/src/main plugins/*/src/test",
+        "hit": "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:120:    public static boolean descendsToTerminalExit(State from, State to) {\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyRules.java:33:     * <p>终态判定用 {@link EquipmentLifecycle#descendsToTerminalExit}(from, to)\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyRules.java:42:        return outcome != null && EquipmentLifecycle.descendsToTerminalExit(from, outcome);\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyRulesTest.java:36:                assertTrue(EquipmentLifecycle.descendsToTerminalExit(from, to),\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyRulesTest.java:53:        assertFalse(EquipmentLifecycle.descendsToTerminalExit(EquipmentLifecycle.State.SALVAGED, null));\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyRulesTest.java:61:     * {@code descendsToTerminalExit(from, to)} 而不是 {@code isTerminal(outcome)}\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyRulesTest.java:71:        assertFalse(EquipmentLifecycle.descendsToTerminalExit(EquipmentLifecycle.State.BOUND, legacy),\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyRulesTest.java:77:            boolean descends = EquipmentLifecycle.descendsToTerminalExit(from, to);\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyRulesTest.java:84:        assertFalse(EquipmentLifecycle.descendsToTerminalExit(null, EquipmentLifecycle.State.DESTROYED));"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'exitPathFailures' plugins/*/src/main plugins/*/src/test",
+        "hit": "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java:70:        return exitPathFailures().isEmpty();\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java:79:    public static java.util.List<String> exitPathFailures() {\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java:80:        return exitPathFailures(DestroyRules::descendsToTerminal, EquipmentOperationKind.values());\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java:90:    static java.util.List<String> exitPathFailures(\nplugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java:45:        java.util.List<String> exitPathFailures = EquipmentExitPathRules.exitPathFailures();\nplugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java:46:        if (!exitPathFailures.isEmpty()) {\nplugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java:48:                    + \"拒绝启用，以免出现只进不出的物品池。明细：\" + exitPathFailures);\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:85:        assertEquals(java.util.List.of(), EquipmentExitPathRules.exitPathFailures(),\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:87:                        + EquipmentExitPathRules.exitPathFailures());\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:90:        assertEquals(java.util.List.of(), EquipmentExitPathRules.exitPathFailures(\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:97:        assertEquals(java.util.List.of(), EquipmentExitPathRules.exitPathFailures(\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:103:        assertEquals(java.util.List.of(), EquipmentExitPathRules.exitPathFailures(\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:113:        assertFalse(EquipmentExitPathRules.exitPathFailures(kind -> false,\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:116:        assertEquals(1, EquipmentExitPathRules.exitPathFailures(kind -> false,\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:118:        assertTrue(EquipmentExitPathRules.exitPathFailures(kind -> false,\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:122:        assertFalse(EquipmentExitPathRules.exitPathFailures(null,\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:124:        assertFalse(EquipmentExitPathRules.exitPathFailures(DestroyRules::descendsToTerminal,\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:128:        assertFalse(EquipmentExitPathRules.exitPathFailures(DestroyRules::descendsToTerminal,\nplugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java:134:        assertTrue(EquipmentExitPathRules.exitPathFailures(DestroyRules::descendsToTerminal,"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "JAVA_HOME=/opt/jdk25 PATH=/opt/jdk25/bin:$PATH GRADLE_USER_HOME=/root/.gradle sh gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 compileJava --rerun-tasks",
+        "result": "BUILD SUCCESSFUL in 13s / BUILD_EXIT=0 SECONDS=14 TASKS=28（全量编译门，覆盖 26 个子工程；--rerun-tasks 强制真编译）"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk25 PATH=/opt/jdk25/bin:$PATH GRADLE_USER_HOME=/root/.gradle sh gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-items:test :plugins:rpg-api:test :plugins:rpg-market:test --rerun-tasks",
+        "result": "BUILD SUCCESSFUL in 14s / exit=0；rpg-items tests=101 failures=0 errors=0 skipped=0（上一轮 94 → 本轮 +7）、rpg-api tests=85 failures=0、rpg-market tests=50 failures=0（由 build/test-results/test/TEST-*.xml 汇总）"
+      },
+      {
+        "cmd": "sh gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 test  （本分支全量）",
+        "result": "TOTAL tests=955 failures=9 errors=0；9 个失败全部落在 server/ 运行时目录缺失导致的环境性失败（NoSuchFileException: /workspace/server/config 等），与退出路径无关"
+      },
+      {
+        "cmd": "git worktree add /tmp/mainwt origin/main && （在 /tmp/mainwt）sh gradlew --no-daemon --continue test",
+        "result": "origin/main 基线 TOTAL tests=922 failures=9 errors=0，**失败用例名与本分支完全一致**（LanguageBundleContractTest×2 / GuidePlayerActionContractTest / HelpTopicTest / WorldTravelConfigurationContractTest×2 / StoryJourneyOrderContractTest / SurvivalPerformanceConfigurationContractTest×2 / SchemaManifestContractTest）。逐模块对比：只有 rpg-items 从 68 → 101（+33，含上一轮与本轮），其余 23 个模块测试数与失败数**完全相同** ⇒ 本分支未引入回归，9 个失败是预先存在的环境问题"
+      },
+      {
+        "cmd": "变异对照 A（本轮修复 (2) 的负向对照）：把 EquipmentExitPathRules.exitPathFailures(descends,kinds) 的实体退回「写死只验 SALVAGE」",
+        "result": "EquipmentExitPathRulesTest > theStartupSelfCheckReportsBrokenOrEmptyExitCoverage() FAILED ⇒ 新测试确实能抓住「自检漏检销毁」这个退化；还原后 BUILD SUCCESSFUL"
+      },
+      {
+        "cmd": "变异对照 B（本轮修复 (1) 的负向对照）：把交付通道判据搬回 held.setAmount(0)/player.saveData() 之后",
+        "result": "EquipmentExitPathReachabilityTest > theMailboxLaneGateFailsClosedBeforeAnyStateIsMutated() FAILED ⇒ 顺序断言真的读源码位置；还原后 BUILD SUCCESSFUL"
+      },
+      {
+        "cmd": "变异对照 C（本轮修复 (3) 的负向对照）：把 DestroyDeliveryRules.laneFor(kind,terminalExit) 改成忽略入参、常量返回 MESSAGE_ONLY",
+        "result": "DestroyDeliveryRulesTest tests=6 failures=3（nonTerminalOperationsNeverClaimTheMailbox / theLaneFollowsTheInjectedTerminalExitPredicateInsteadOfBeingABakedInConstant / onlyTheTwoTerminalExitKindsClaimTheMailbox）⇒ 口径真的被读取；还原后 6/6 通过"
+      },
+      {
+        "cmd": "变异对照 D（上一轮既有守卫复核）：删掉 EquipmentTerminalStateListener.onDrop 的 event.setCancelled(true)",
+        "result": "TerminalDropGuardTest tests=3 failures=2（terminalEquipmentCannotBeDroppedBackIntoTheWorld / ledgerBackedTerminalStateIsAlsoBlockedWhenTheTicketIsMissing），而 ordinaryGearIsStillDroppable 仍绿 ⇒ 上一轮的丢弃守卫是真行为且不误伤；还原后 3/3 通过"
+      },
+      {
+        "cmd": "./gradlew :plugins:rpg-items:test 后按 TEST-*.xml 汇总退出路径相关用例",
+        "result": "EquipmentExitPathRulesTest tests=8 failures=0；DestroyDeliveryRulesTest tests=6 failures=0；DestroyRulesTest tests=6 failures=0；EquipmentExitPathReachabilityTest tests=6 failures=0；DestroyGateTest tests=4 failures=0；DestroyEscrowEndToEndTest tests=3 failures=0；DestroyOutboxIntegrationTest tests=3 failures=0；TerminalDropGuardTest tests=3 failures=0"
+      }
+    ]
+  },
+  "unproven": [
+    "[R] Runtime：未在真实 Paper + PostgreSQL 上跑 /destroy、/drop 与启动自检，未做 TPS/MSPT/JDBC 观测。本轮全部证据为 [S]源码 + [T]测试。",
+    "[H] Human：未做真人客户端交互验收（确认窗口、背包满、断线重登、双击、丢弃被拒提示）。",
+    "本轮修复 (1) 的失败关闭分支在真实 Paper 上「装备仍在手上」这一点未做运行验证（只有源码顺序断言 + 变异对照）。",
+    "启动自检 exitPathFailures() 在真实插件启用流程里的日志与拒绝启用行为未运行验证（RpgItemsPlugin.onEnable 需要完整 Paper 环境）。",
+    "经济投放决策未验证：/salvage 与 /destroy 两条销毁入口并存对高价值装备 创建/退出 比值的影响，仍需 Phase 3 仿真器评估。",
+    "SEASON_ATTUNED 的玩家可见语义（调谐后还能否继续锻造/精炼）属 Phase 4 设计缺口，本轮不猜。",
+    "EquipmentTerminalStateListener 的数据库读回退分支在测试中以固定账本桩覆盖，未覆盖「H2 掉线 + 墓碑缺失」的真实时序。"
+  ],
+  "blockers": [],
+  "risks": [
+    "本轮针对上一轮的修复点：上一轮 status=success 但复核发现三处真实缺陷，已全部修掉并各自附变异对照（见 evidence.test 的对照 A/B/C）。(1) C-009 交付通道判据从 held.setAmount(0)+saveData() 之后**前置到 operations.stage() 之前**，并把 throw 改成「提示 + severe 日志 + return」的失败关闭分支——原写法会在玩家装备已被清空、恢复信封已落 playerdata 之后才抛异常，玩家物品凭空消失且无结算记录。(2) 启动自检 hasExitPath() 从「写死只验 SALVAGE」改为「逐条枚举 EquipmentOperationKind + 唯一口径 descendsToTerminal」，并新增可注入的 exitPathFailures(descends,kinds) 重载，让「真的逐条验过」成为可失败断言；RpgItemsPlugin 启动日志改为打印具体失败项。(3) 解除 DestroyRules <-> DestroyDeliveryRules 的互相调用成环：DestroyDeliveryRules 不再反向依赖 DestroyRules，口径由调用方注入（生产路径仍接 DestroyRules::descendsToTerminal），DestroyDeliveryRulesTest 从「只断言常量返回值」升级为「正反注入都必须真的改变通道」，并新增 lanesAgree() 断言成功通道与退回通道不分裂（C-009）。",
+    "附加收窄：outcomeIsTerminal 不再用 EquipmentLifecycle.isTerminal(outcome)（LEGACY_EXTRACTED 也是终态，会被误判成「分解到底」），改用 EquipmentLifecycle.descendsToTerminalExit(from,to)，与指令侧/账本侧同口径；新增 terminalExitIsNarrowerThanTerminalStateSoLegacyIsNotTreatedAsSalvage 锁定该区分。",
+    "被断言为「当前无入口」的路径：SEASON_ATTUNED 保持无生产入口，EquipmentLifecycle 的 TODO 已补 Phase 7 接入合同（复用本状态机、结果态必须真能被 afterOperation 返回、换季必须走 SeasonSettlementService/C-010、不得成为 support_credit 出口/C-012、交付必须经唯一市场邮箱/C-009、删 TODO 时同步可达性断言）。EquipmentExitPathReachabilityTest 断言其 src/main 命中集合恰好等于状态机文件、枚举无 kind 产出它、且 plugin.yml/config.yml/启动路径都不得出现占位入口。",
+    "改动边界：全部改动在 plugins/rpg-items/** 与 .cnb/agent-out/**（allowed_paths）内；plugins/rpg-api/**/EquipmentLifecycle.java 是**本分支既有**的改动文件（git diff origin/main 可见），本轮只在其 TODO 注释内补充接入合同，未新增越界文件。未改 .cnb.yml、未改依赖版本、未改宪法、未新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本、未内存补偿铸币。",
+    "evidence.changed_files 用 git diff --name-only HEAD 只列出**本轮增量**改动（10 个文件）；整条分支相对 main 共 27 个文件，上一轮已提交的部分不在其中。",
+    "已登记但未落盘的风险：docs/ECONOMY.md / docs/SEASON_ENDGAME.md / docs/CODEX_LONG_TERM_EXECUTION_PLAN.md 三处的「调谐待接入」登记只写在 PR 描述、EquipmentLifecycle TODO 与 .cnb/agent-out 证据文件里，未改那三份文档（不在本任务 allowed_paths 内）；doc/cnb/gap-registry.md 的 W3 行同样未更新。"
+  ],
+  "next_steps": [
+    "待 Phase 7（codex/endgame-pipeline）接入 SEASON_ATTUNED 触发者：必须复用 EquipmentLifecycle（不得新造第二套装备状态机）、走 SeasonSettlementService 换季事务（C-010）、产物交付经唯一市场邮箱（C-009）、不得成为 support_credit 兑换出口（C-012）；接入时删除 EquipmentLifecycle 的 TODO 并同步 EquipmentExitPathReachabilityTest 的「当前无入口」与 plugin.yml/config.yml 占位面断言。",
+    "Phase 3 仿真器上线后，用真实配置评估 /salvage 与 /destroy 并存、以及终态丢弃守卫对被复制装备的影响，再决定是否保留两个入口。",
+    "补 [R] 真实 Paper + PostgreSQL 运行证据：/destroy 全流程、/drop 与死亡掉落守卫、启动自检失败时拒绝启用、断线重登恢复；补 [H] 真人交互验收。",
+    "把「调谐待接入」登记同步进 docs/ECONOMY.md、docs/SEASON_ENDGAME.md、docs/CODEX_LONG_TERM_EXECUTION_PLAN.md 与 doc/cnb/gap-registry.md（需放开对应 allowed_paths）。",
+    "全量 test 门当前有 9 个环境性失败（server/ 运行时目录在干净克隆里不存在）；建议后续任务把这类依赖 server/ 的契约测试改为可跳过或改为读取仓库内 fixture，否则「全量测试门」无法作为机械判据。"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/25"
+}

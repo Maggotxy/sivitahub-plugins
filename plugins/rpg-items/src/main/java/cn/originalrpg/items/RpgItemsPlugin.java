@@ -7,6 +7,8 @@ import cn.originalrpg.items.forge.LegacyBlueprintService;
 import cn.originalrpg.items.forge.LegacyCommand;
 import cn.originalrpg.items.forge.EquipmentRecoveryListener;
 import cn.originalrpg.items.forge.EquipmentExitPathRules;
+import cn.originalrpg.items.forge.DestroyCommand;
+import cn.originalrpg.items.forge.EquipmentTerminalStateListener;
 import cn.originalrpg.api.service.EquipmentService;
 import cn.originalrpg.api.service.EquipmentProgressService;
 import cn.originalrpg.api.service.MessageService;
@@ -14,6 +16,7 @@ import cn.originalrpg.api.service.ForgeImprintService;
 import cn.originalrpg.api.service.EquipmentOperationService;
 import cn.originalrpg.api.service.EquipmentOperationSessionService;
 import cn.originalrpg.items.forge.EquipmentOperationCoordinator;
+import cn.originalrpg.api.service.EquipmentLedgerAuditService;
 import cn.originalrpg.api.service.ProfileService;
 import cn.originalrpg.api.model.EquipmentTraitCatalog;
 import cn.originalrpg.items.security.EquipmentSecurity;
@@ -39,9 +42,10 @@ public final class RpgItemsPlugin extends JavaPlugin {
         validateRareTraits();
         // C-008：高价值装备必须有退出路径。启动自检，缺一条就拒绝启用，
         // 避免「只进不出」的物品池在无人察觉时上线。
-        if (!EquipmentExitPathRules.hasExitPath()) {
+        java.util.List<String> exitPathFailures = EquipmentExitPathRules.exitPathFailures();
+        if (!exitPathFailures.isEmpty()) {
             getLogger().severe("C-008 自检失败：装备状态机没有可用的退出路径（分解/献祭/传承/调谐/销毁），"
-                    + "拒绝启用，以免出现只进不出的物品池。");
+                    + "拒绝启用，以免出现只进不出的物品池。明细：" + exitPathFailures);
             return;
         }
         warnAboutLegacyPlaintextKey();
@@ -65,6 +69,8 @@ public final class RpgItemsPlugin extends JavaPlugin {
                 getServer().getServicesManager().load(EquipmentOperationService.class), "EquipmentOperationService");
         ProfileService profiles = Objects.requireNonNull(
                 getServer().getServicesManager().load(ProfileService.class), "ProfileService");
+        EquipmentLedgerAuditService ledgerAudit = Objects.requireNonNull(
+                getServer().getServicesManager().load(EquipmentLedgerAuditService.class), "EquipmentLedgerAuditService");
         getServer().getServicesManager().register(EquipmentService.class, security, this, ServicePriority.Normal);
         ForgeImprintService imprints = getServer().getServicesManager().load(ForgeImprintService.class);
         EquipmentOperationCoordinator operationSessions = new EquipmentOperationCoordinator(
@@ -80,13 +86,19 @@ public final class RpgItemsPlugin extends JavaPlugin {
         SalvageCommand salvage = new SalvageCommand(this, security, messages, operationSessions);
         UnbindCommand unbind = new UnbindCommand(this, security, messages, forge, operationSessions);
         LegacyCommand legacy = new LegacyCommand(this, security, messages, blueprints, operationSessions);
+        DestroyCommand destroy = new DestroyCommand(this, security, messages, operationSessions);
         Objects.requireNonNull(getCommand("salvage"), "salvage command").setExecutor(salvage);
         Objects.requireNonNull(getCommand("unbind"), "unbind command").setExecutor(unbind);
         Objects.requireNonNull(getCommand("legacy"), "legacy command").setExecutor(legacy);
+        Objects.requireNonNull(getCommand("destroy"), "destroy command").setExecutor(destroy);
         getServer().getPluginManager().registerEvents(forge, this);
         getServer().getPluginManager().registerEvents(salvage, this);
         getServer().getPluginManager().registerEvents(unbind, this);
         getServer().getPluginManager().registerEvents(legacy, this);
+        getServer().getPluginManager().registerEvents(destroy, this);
+        // C-008 终态守卫：账本已写终态的装备不能再靠死亡掉落回到世界。
+        getServer().getPluginManager().registerEvents(new EquipmentTerminalStateListener(
+                this, security, ledgerAudit), this);
         getServer().getPluginManager().registerEvents(
                 new AuthoritativeItemProcessingListener(security, messages), this);
         getServer().getPluginManager().registerEvents(new EquipmentDurabilityListener(

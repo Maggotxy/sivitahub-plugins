@@ -41,6 +41,11 @@ unbinding:
     rare: "1.25"
     epic: "1.75"
     legendary: "2.50"
+# C-008 第五条退出路径：分解到底的明确销毁。
+# 必须在 /salvage 之后二次确认，因此金币成本为 0（首次输入是遗漏确认，不能收费）。
+# 销毁产物与分解同源（绑定锻造精华），不结算金币、不掉落可交易物品、不退款。
+destroy:
+  confirmation-window-seconds: 15
 legacy:
   # Gold debit, source-item escrow and account-bound blueprint delivery settle in one durable operation.
   extraction-price: "6000.00"
