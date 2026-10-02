@@ -139,9 +139,15 @@ public final class EquipmentLifecycle {
         // C-008: every persistently farmable high-value item type must declare at least one exit
         // TODO(W3-A3-exit-path-remaining)：C-008 列出的第五条退出路径「赛季调谐」
         // （SEASON_ATTUNED）在当前 Phase 下没有触发者，本方法会对它返回 false，
-        // 这正是「只声明未接线」的机械证据。它属于 Phase 4「装备退出与市场 V2」
-        // 的新赛季调谐玩法，接入时必须走本状态机，不得新造第二套状态机，因此
-        // 该路径登记为「待 Phase 7 内容管线接入」，不在 rpg-items 里硬造指令。
+        // 这正是「只声明未接线」的机械证据。判定依据（全部可复现）：
+        //   - 全仓 grep 'SEASON_ATTUNED' 在 plugins/*/src/main 只命中本文件；
+        //   - EquipmentOperationKind 里没有任何 kind 会产出 SEASON_ATTUNED 结果态；
+        //   - rpg-items 的 plugin.yml / config.yml / 插件启动路径都不得出现占位入口。
+        // 该路径承载的是 Phase 4「装备退出与市场 V2」的新赛季调谐玩法（先要 Phase 3
+        // 仿真器给出退出率结论，再等 Phase 7「非副本终局与内容管线」提供内容触发者），
+        // 因此登记为「待 Phase 7 内容管线接入」，不在 rpg-items 里硬造指令。
+        // 接入时必须复用本状态机，不得新造第二套装备状态机；届时删除本 TODO，
+        // 并同步 EquipmentExitPathReachabilityTest 的「当前无入口」断言。
         return true;
     }
 }

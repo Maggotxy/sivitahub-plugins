@@ -39,6 +39,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>与 {@link SalvageCommand} 共用同一套托管出站（outbox）、幂等键与审计流水，
  * 只是结果态换成状态机里此前没有生产入口的 {@code DESTROYED}：物品永久离开
  * 流通，产物是账号绑定的锻造精华，不结算金币、不掉落可交易物品、不退款。</p>
+ *
+ * <p>交付通道与 {@code /salvage} 完全一致：产物经 outbox 进市场邮箱，由
+ * {@code /market claim} 取出（见 {@link DestroyDeliveryRules}）。原实现把产物
+ * 直接塞背包，背包已满就会静默丢掉玩家唯一的回报，并且绕开了唯一市场邮箱
+ * 通道（C-009）；这里改为只提交出站请求，不再改玩家背包。</p>
  */
 public final class DestroyCommand implements CommandExecutor, Listener {
     private final Plugin plugin;
@@ -156,6 +161,12 @@ public final class DestroyCommand implements CommandExecutor, Listener {
         // Force the complete original-equipment recovery envelope and its removal
         // into playerdata before the database/mailbox transaction may begin.
         player.saveData();
+        // C-009：产物只走托管出站 -> 市场邮箱，绝不直接改玩家背包。
+        // 直接塞背包时背包已满会把「唯一回报」静默丢掉，并且绕开市场邮箱领取门。
+        if (DestroyRules.deliveryLane(EquipmentOperationKind.DESTROY)
+                != DestroyDeliveryRules.Lane.ESCROW_MAILBOX) {
+            throw new IllegalStateException("销毁退出路径的产物必须经市场邮箱交付");
+        }
         operations.submit(player, request, settlement -> {
             active.remove(player.getUniqueId());
             if (settlement.status() == EquipmentOperationResult.Status.COMMITTED && currentSession(player)) {

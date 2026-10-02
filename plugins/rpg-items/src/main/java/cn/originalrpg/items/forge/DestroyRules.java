@@ -52,6 +52,22 @@ public final class DestroyRules {
     }
 
     /**
+     * 销毁产物的交付通道：必须与 {@code /salvage}、{@code /legacy} 一样经装备托管
+     * 出站进入市场邮箱，不能直接塞进玩家背包（背包满即静默丢失，且绕过唯一市场
+     * 邮箱通道 C-009）。
+     */
+    public static DestroyDeliveryRules.Lane deliveryLane(EquipmentOperationKind kind) {
+        return DestroyDeliveryRules.laneFor(kind);
+    }
+
+    /**
+     * 结算被拒时原物退回的通道。拒绝不能吞装备。
+     */
+    public static DestroyDeliveryRules.Lane refundLane(EquipmentOperationKind kind) {
+        return DestroyDeliveryRules.refundLaneFor(kind);
+    }
+
+    /**
      * 已进终态的装备不再允许锻造/对话/丢弃触发的任何耐久变化。
      *
      * <p>未携带墓碑子键的旧装备不受影响，避免把历史装备误判成已销毁。</p>
