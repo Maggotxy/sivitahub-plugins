@@ -83,6 +83,7 @@ import java.util.logging.Level;
 
 public final class RpgCorePlugin extends JavaPlugin {
     private Database database;
+    private cn.originalrpg.core.persistence.MechanismRegistry mechanisms;
     private ThreadPoolExecutor databaseExecutor;
     private ScheduledExecutorService nodeLeaseExecutor;
     private JdbcNodeLease nodeLease;
@@ -98,7 +99,8 @@ public final class RpgCorePlugin extends JavaPlugin {
             database = Database.open(getConfig());
             database.migrate();
             // Phase 0: mechanism registry & Kill Switch (C-005)
-            new cn.originalrpg.core.persistence.MechanismRegistry(database.dataSource()).initialize();
+            mechanisms = new cn.originalrpg.core.persistence.MechanismRegistry(database.dataSource());
+            mechanisms.initialize();
             getLogger().info("Mechanism registry initialized (C-005): hunt/dungeon/commission/market/season/starlight/community switches ready.");
             int maximumPoolSize = Math.clamp(getConfig().getInt("database.maximum-pool-size", 6), 2, 32);
             int databaseThreads = Math.clamp(getConfig().getInt("database.executor-threads", maximumPoolSize),
@@ -145,7 +147,7 @@ public final class RpgCorePlugin extends JavaPlugin {
                     chapters::maximumOpenAscension);
             JdbcEconomyService economy = new JdbcEconomyService(database.dataSource(), databaseExecutor, startingBalance);
             JdbcActivityEconomyService activityEconomy = new JdbcActivityEconomyService(
-                    database.dataSource(), databaseExecutor, startingBalance);
+                    database.dataSource(), databaseExecutor, startingBalance, mechanisms);
             JdbcCommissionEvidenceService commissionEvidence = new JdbcCommissionEvidenceService(
                     database.dataSource(), databaseExecutor);
             JdbcEconomyAnalyticsService economyAnalytics = new JdbcEconomyAnalyticsService(
@@ -157,12 +159,13 @@ public final class RpgCorePlugin extends JavaPlugin {
                     ZoneId.of(getConfig().getString(
                             "commerce.admin-starlight.timezone", "Asia/Shanghai")));
             JdbcCommerceService commerce = new JdbcCommerceService(
-                    database.dataSource(), databaseExecutor, startingBalance, starlightPolicy);
+                    database.dataSource(), databaseExecutor, startingBalance, starlightPolicy, mechanisms);
             JdbcCurrencyExchangeService currencyExchange = new JdbcCurrencyExchangeService(
                     database.dataSource(), databaseExecutor, startingBalance,
                     getConfig().getConfigurationSection("wealth-exchange"));
             YamlMessageService messages = new YamlMessageService(this);
-            JdbcMarketService market = new JdbcMarketService(database.dataSource(), databaseExecutor, startingBalance);
+            JdbcMarketService market = new JdbcMarketService(
+                    database.dataSource(), databaseExecutor, startingBalance, mechanisms);
             JdbcEquipmentOperationService equipmentOperations = new JdbcEquipmentOperationService(
                     database.dataSource(), databaseExecutor, startingBalance);
             JdbcEquipmentLedgerAuditService equipmentLedger = new JdbcEquipmentLedgerAuditService(
@@ -187,12 +190,14 @@ public final class RpgCorePlugin extends JavaPlugin {
             JdbcDungeonEntryService dungeonEntries = new JdbcDungeonEntryService(
                     database.dataSource(), databaseExecutor, profiles, startingEnergy, energyPerStamina, nodeLease);
             JdbcDungeonRewardService dungeonRewards = new JdbcDungeonRewardService(
-                    database.dataSource(), databaseExecutor, profiles);
+                    database.dataSource(), databaseExecutor, profiles, mechanisms);
             JdbcSeasonExpeditionService seasonExpeditions = new JdbcSeasonExpeditionService(
                     database.dataSource(), databaseExecutor,
                     Math.clamp(getConfig().getInt("season-expedition.weekly-honor", 100), 0, 1_000),
-                    Math.clamp(getConfig().getInt("season-expedition.server-first-bonus", 50), 0, 1_000));
-            JdbcCommunityService communities = new JdbcCommunityService(database.dataSource(), databaseExecutor);
+                    Math.clamp(getConfig().getInt("season-expedition.server-first-bonus", 50), 0, 1_000),
+                    mechanisms);
+            JdbcCommunityService communities = new JdbcCommunityService(
+                    database.dataSource(), databaseExecutor, mechanisms);
             var recoveredEntries = StartupGate.await(
                     dungeonEntries.recoverAll(), startupTimeout, "Dungeon reservation recovery gate");
             if (recoveredEntries.reservations() > 0) {

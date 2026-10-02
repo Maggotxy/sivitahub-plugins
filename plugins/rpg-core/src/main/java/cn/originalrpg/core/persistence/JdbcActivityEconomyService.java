@@ -44,11 +44,34 @@ public final class JdbcActivityEconomyService implements ActivityEconomyService 
     private final DataSource dataSource;
     private final Executor executor;
     private final BigDecimal startingBalance;
+    /** C-005 Kill Switch；为 null 表示未接入（仅测试/独立构建场景）。 */
+    private final MechanismRegistry mechanisms;
 
     public JdbcActivityEconomyService(DataSource dataSource, Executor executor, BigDecimal startingBalance) {
+        this(dataSource, executor, startingBalance, null);
+    }
+
+    public JdbcActivityEconomyService(
+            DataSource dataSource, Executor executor, BigDecimal startingBalance, MechanismRegistry mechanisms
+    ) {
         this.dataSource = dataSource;
         this.executor = executor;
         this.startingBalance = money(startingBalance);
+        this.mechanisms = mechanisms;
+    }
+
+    /**
+     * C-005 Kill Switch 闸门：机制被关闭时铸币/发币路径拒绝产生任何输出。
+     * HUNTING/DUNGEON 有独立开关，其余（采掘/探索/团队/引导）走委托口径。
+     * 未接入注册表（mechanisms == null）时保持旧行为，仅供未部署注册表的单测使用。
+     */
+    private boolean faucetEnabled(EconomyActivity activity) {
+        if (mechanisms == null) return true;
+        return switch (activity) {
+            case HUNTING -> mechanisms.requireEnabled(MechanismRegistry.HUNT_GOLD);
+            case DUNGEON -> mechanisms.requireEnabled(MechanismRegistry.DUNGEON_GOLD);
+            default -> mechanisms.requireEnabled(MechanismRegistry.COMMISSION_GOLD);
+        };
     }
 
     @Override
@@ -73,6 +96,7 @@ public final class JdbcActivityEconomyService implements ActivityEconomyService 
             return CompletableFuture.completedFuture(new ActivityRewardResult(
                     ActivityRewardResult.Status.INVALID, null, zero(), 0));
         }
+        if (!faucetEnabled(activity)) return faucetDenied();
         return rewardBatch(playerId, activity, List.of(new ActivityRewardRequest(
                 requestedGold, requestedMerit, idempotencyKey, reason)), dailyGoldCap, dailyMeritCap);
     }
@@ -93,6 +117,7 @@ public final class JdbcActivityEconomyService implements ActivityEconomyService 
             return CompletableFuture.completedFuture(new ActivityRewardResult(
                     ActivityRewardResult.Status.INVALID, null, zero(), 0));
         }
+        if (!faucetEnabled(activity)) return faucetDenied();
         return applyRewards(playerId, activity, List.of(new ActivityRewardRequest(
                 requestedGold, requestedMerit, idempotencyKey, reason)), dailyGoldCap, dailyMeritCap, true);
     }
@@ -112,7 +137,14 @@ public final class JdbcActivityEconomyService implements ActivityEconomyService 
             return CompletableFuture.completedFuture(new ActivityRewardResult(
                     ActivityRewardResult.Status.INVALID, null, zero(), 0));
         }
+        if (!faucetEnabled(activity)) return faucetDenied();
         return applyRewards(playerId, activity, List.copyOf(rewards), dailyGoldCap, dailyMeritCap, false);
+    }
+
+    /** 关闭态的 fail-closed 结果：不写账本、不消耗额度、不使用幂等键。 */
+    private CompletionStage<ActivityRewardResult> faucetDenied() {
+        return CompletableFuture.completedFuture(new ActivityRewardResult(
+                ActivityRewardResult.Status.INVALID, null, zero(), 0));
     }
 
     private CompletionStage<ActivityRewardResult> applyRewards(
@@ -313,6 +345,10 @@ public final class JdbcActivityEconomyService implements ActivityEconomyService 
                 || unitItemPayload == null || unitItemPayload.isBlank()
                 || unitItemPayload.length() > MAX_DAILY_ITEM_PAYLOAD
                 || !validText(idempotencyKey, reason)) {
+            return CompletableFuture.completedFuture(DailyItemRewardResult.invalid());
+        }
+        // C-005：每日物品发放同样属于可再生发物口，受委托口径 Kill Switch 约束。
+        if (mechanisms != null && !mechanisms.requireEnabled(MechanismRegistry.COMMISSION_GOLD)) {
             return CompletableFuture.completedFuture(DailyItemRewardResult.invalid());
         }
         return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
