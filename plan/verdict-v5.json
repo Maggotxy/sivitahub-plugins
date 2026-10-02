@@ -1,0 +1,83 @@
+{
+  "done": false,
+  "impossible": false,
+  "round": 13,
+  "basis": "main @ a9114d3（= 本任务分支基点，与 origin/main 同一 commit；git ls-remote 已核对）",
+  "reason": "按 done=true 的三条必要条件逐条核验，第 ① 与 ② 条均不成立，故 done=false。①「差集矩阵里没有声明未接线项，且没有可派工的实现缺口」不成立：verdict-v4 的 2 条本轮已逐条实测闭环 —— G-302 的 2 个类（MobRewardAsyncLifecycleContractTest / PetRevivalLifecycleContractTest）已把断言全部迁进 scripts/source-contract-specs/all.json，两个类改为真实执行 scripts/check-source-contract.sh 并断言 exitValue()==0，7 个 @Test 方法数不变（V-102/V-103）；G-ANOMALY-ACK 已由 /rpgadmin anomaly <list|ack> 接线，pending(offset,limit) / pendingCount() / acknowledge(playerId,reviewer,note) / pending(playerId) 四条读侧方法各有 1 个真实 src/main 调用点，reviewer/review_note/reviewed_at 三列有真实读写（V-104/V-105）。但本轮实测到 2 条**新的可派工实现缺口**：G-303-SCSTALE —— scripts/check-source-contract.sh:34 的 exec python3 - <<EOF 让门禁从继承来的 stdin 读代码而不是读自身 here-doc，实测在有变异体在场时（git status 显示文件被改、required 字面量已消失、BROKEN 命中 1）单方法门禁与全量门禁都输出 SOURCE_CONTRACT_GATE=GREEN 且 exit=0（V-110 三次独立观察一致），而 27 个 *ContractTest 全部依赖该脚本的退出码，会一起假绿；G-ENV-PENDING —— main HEAD a9114d3 的 push（cnb-fk2-1k3uj4qnt）与 api_trigger_gate（cnb-q2d-1k3uj566m）以及 6a244ed 的 push（cnb-p6b-1k3uj3pir）三次运行在审计时全部卡在 stage-1（start,0，duration: 0），一门未跑，门禁需要在 CNB Runner 的非交互 sh 环境里被真实执行并留下判据行。两缺口都是实现工作、不需要人拍板。②「八门在当前 main 上全绿」不成立：查不到可采信的运行记录，见 gates.findings。③「剩余问题只有 REQUIRES_HUMAN」不成立：剩余的可派工缺口不是人类取舍。",
+  "condition_1_no_declared_unwired": false,
+  "condition_1_note": "「声明未接线」项 = 0 条（81 张表零消费者 0、代码引用但 DDL 无 0、24 个 config.yml 顶层键零读取方 0、W9 新引入物无零消费者）。但「可派工的实现缺口」= 2 条（G-303-SCSTALE / G-ENV-PENDING），故第 ① 条整体不成立。",
+  "condition_2_gates_green_on_current_main": false,
+  "condition_2_evidence": "查不到。main HEAD a9114d3 的两次运行（push cnb-fk2-1k3uj4qnt / api_trigger_gate cnb-q2d-1k3uj566m）与 6a244ed 的 push（cnb-p6b-1k3uj3pir）在审计时 status=pending，11 格里前 5 格 success（Prepare / 准备下载器 / 门禁自测的父级计数），stage-1 为 start,0，stage-2..stage-8 全部 pending，即**一门都没有跑出判据行**。最近一次全绿记录是 cnb-ihu-1k3ug6u6p（push）与 cnb-ves-1k3ug78vf（api_trigger_gate），sha=c63f446 —— 早于 W9 的两次合入，不能代表当前 main。",
+  "condition_3_only_requires_human_remains": false,
+  "condition_3_note": "G-303-SCSTALE 与 G-ENV-PENDING 都是 CNB NPC 可独立完成的实现工作（改门禁取源码的方式 + 在非交互环境自证），不需要人类决策。",
+  "remaining": 2,
+  "remaining_ids": [
+    "G-303-SCSTALE(check-source-contract.sh:34 用 `exec python3 - <<'PY'` 从继承的 stdin 读代码；实测有变异体在场仍输出 SOURCE_CONTRACT_GATE=GREEN exit=0；27 个 *ContractTest 共用该退出码 ⇒ 一起假绿)",
+    "G-ENV-PENDING(当前 main HEAD 的 push / api_trigger_gate 与 6a244ed 的 push 三次质量门运行全部卡在 stage-1 start,0 ⇒ 八门在非交互 CI 环境下拿不到判据行，本轮无法采信)"
+  ],
+  "needs_human": [
+    "H-001 原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/main-world-coverage.sh（生产机写操作，L-006 只读）。",
+    "U-003 纯原版客户端能否真握手进服，需真实 Paper + 真实客户端（生产机只读）。",
+    "G-302 迁移后的 [R] 级证据：关服排空顺序、在途写入归属、延迟邮件重放、复苏 saga 等运行期行为仍未在真实 Paper 运行时被验证（rpg-mobs / rpg-pets 无 MockBukkit/Mockito，生产类依赖真实 Plugin / Bukkit.getScheduler() / ProfileService，JUnit 进程内无法构造对象）。静态契约门禁是可保证的强度上限。",
+    "G-ANOMALY-ACK 的 [R] 与 [H] 级证据：未在真实 Paper + PostgreSQL 上跑过 /rpgadmin anomaly list|ack（本沙箱无 Paper、无 PostgreSQL，行为级证据是真实 H2 + 真实 JDBC 事务）；[H] 要求的「真人真的复核并署名」也未发生。",
+    "W7-A2 遗留的 4 条 unproven（G-207 计数器是内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）都需要真实 Paper 运行环境，属 [R] 级证据。",
+    "真人复核异常后的处置策略（是否据此回填 rpg_profiles，还是只保留结论）属设计取舍，需人类拍板；本轮严格不做自动改档案（C-013）。"
+  ],
+  "gates": {
+    "evidence_sn_queryable_for_current_main": false,
+    "findings": "本容器无 JDK（command -v java 无输出、/usr/lib/jvm 不存在），compile / test / assemble 不能本地复跑。用 cnb build get-build-logs --targetRef main 查到 main HEAD 的两次运行与 6a244ed 的一次运行，全部 pending 且停在 stage-1：cnb-fk2-1k3uj4qnt(push, sha=a9114d3, pending) / cnb-q2d-1k3uj566m(api_trigger_gate, sha=a9114d3, pending) / cnb-p6b-1k3uj3pir(push, sha=6a244ed, pending)。上一条成功记录：cnb-ves-1k3ug78vf(api_trigger_gate, sha=c63f446) 与 cnb-ihu-1k3ug6u6p(push, sha=c63f446)，均早于 W9 合入。",
+    "last_green_reference_sn": "cnb-ves-1k3ug78vf",
+    "last_green_reference_sha": "c63f446a4834e126849454e5b17f3cf6076294db",
+    "last_green_reference_relation": "main 祖先，早于 W9 的 6a244ed 与 a624b61 ⇒ 不能代表当前 main",
+    "last_green_reference_stages": {
+      "prepare": "success,3563,Prepare,prepare",
+      "prepare_downloader": "success,60377,准备下载器（必须是第一个 stage）,stage-0",
+      "gate_selftest": "success,562533,门禁自测（负向对照）,stage-1 → GATE_SELFTEST=GREEN / PASS=67 FAIL=0",
+      "ddl_dual": "success,107056,DDL 门禁（G-301 消费者 + G-302 注册，双向）,stage-2 → DDL 表数 81 / 豁免 0 / CMD_REFERENCE_GATE=GREEN / 已注册指令数 43 / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN",
+      "resource_pack": "success,584,素材门禁（W7-A1）,stage-3 → RESOURCE_PACK_GATE=GREEN / RUN=8 SKIPPED=0",
+      "compile": "success,160040,compile,stage-4 → COMPILE_GATE=GREEN / BUILD_EXIT=0 SECONDS=132 / TASKS_DONE=28 / ATTEMPTS=1 / check-file-deps: OK",
+      "test": "success,36212,test,stage-5 → TEST_GATE=GREEN / SUM tests=1081 failed=0 errors=0 skipped=2 modules=26 / NO_XML modules=0 / SUMMARY_GATE=GREEN / ENV_ANNOTATIONS=8 / EXCLUDED_TAG_SEEN_IN_LOG=26 ENV_TAG_LINE=26",
+      "assemble": "success,7221,assemble,stage-6 → PACKAGE_GATE=GREEN / JAR_COUNT=56 / JAR_BYTES=3953909 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0 / ASSEMBLE_EXIT=0",
+      "before_end": "success,427,BeforeEnd,beforeEnd",
+      "debug_detection": "skipped,0,DebugDetection,debugDetection",
+      "end": "success,593,End,end"
+    },
+    "note_on_last_green_reference": "上表 11 格是该 sn 的原文判据行，属**历史**记录；本轮未把它当作当前 main 的证据。",
+    "local_rerun": {
+      "gate_selftest": "GREEN (PASS=67 FAIL=0) exit=0",
+      "ddl_consumer": "GREEN（DDL 表数 81 / 豁免 0 条 / 零消费者 0 张）",
+      "ddl_registration": "GREEN（代码引用的 81 个 rpg_* 表名全部在 DDL 里 / 反向豁免 0 条）",
+      "cmd_reference": "GREEN（已注册指令 43 条 / 豁免 9 条）",
+      "resource_pack": "GREEN（RUN=8 SKIPPED=0）",
+      "source_contract": "SOURCE_CONTRACT_GATE=GREEN（238 checks / 27 specs）**但该 GREEN 不可采信，见 G-303-SCSTALE**",
+      "config_fallback": "GREEN",
+      "trusted_menu": "GREEN",
+      "repo_artifact": "GREEN",
+      "datapack_check": "GREEN（packs=sivita-navigation）",
+      "file_deps": "OK",
+      "env_tests": "8 个 @Tag(env) 方法清单非空"
+    }
+  },
+  "closed_since_v4": [
+    "G-302（最后 2 个纯源码字符串断言测试类）—— 断言逐条迁进 scripts/source-contract-specs/all.json（27 规格键 / 45 method / 186 required + 38 forbidden + 14 ordered = 238 判据，自洽）；两个类改为真执行门禁 + 断言 exitValue()==0；mobs 3 个 @Test、pets 4 个 @Test 全部保留；27 个 *ContractTest 全部用 exitValue() 判绿/红，无「读了输出却不判退出码」的",
+    "G-ANOMALY-ACK（ProgressionAnomalyService 读侧零消费者）—— /rpgadmin anomaly <list|ack> 落地 rpg-admin；pending(offset,limit):104 / pendingCount():111 / acknowledge(playerId,reviewer,note):160 / pending(playerId):173 四条真实调用点；plugin.yml usage 含 anomaly <list|ack>；reviewer/review_note/reviewed_at 三列 CREATE + 三条 ALTER TABLE ADD COLUMN IF NOT EXISTS 存量升级 + 真实读写"
+  ],
+  "verified_unchanged_since_v4": [
+    "DDL 双向门禁：81 张表 / 0 条豁免 / 0 张零消费者 / 0 个反向缺口（独立逐张复核一致）",
+    "24 个 config.yml 的顶层键在 src/main 中零命中数 = 0（本轮新增全量对账；W9 三个提交未改任何 config.yml，故「W9 新增配置键」为空集）",
+    "W9 新引入物零消费者复检：all.json 的 pathFragments/files/checks(method,required,forbidden,ordered) 全部被脚本读取或有值；/rpgadmin anomaly 的 list 与 ack 两条路径都在；三列都有读写 —— 未发现新的零消费者"
+  ],
+  "not_a_gap": [
+    "SACRIFICED —— C-008 十二条状态机里的预留态；EquipmentExitPathReachabilityTest.java:103 用 assertEquals(List.of(LIFECYCLE_ONLY), productionReferences(\"SACRIFICED\")) 显式承认「当前无入口」。当缺口属造假缺口。",
+    "EquipmentOperationKind.SEASON_ATTUNEMENT 零消费者 —— 刻意设计：调谐不经玩家操作 outbox（EquipmentLifecycle.afterOperation 的 case SEASON_ATTUNEMENT -> null），触发者是换季结算（JdbcSeasonSettlementService.java:351）。",
+    "isAuthoritativeNamespace 字面量零命中 —— 间接接线：实际消费点在 AuthoritativeItemPolicy.isAuthoritativeKey 内部（:86），上游是 EquipmentSecurity.java:104,114 与 ForgeListener.java:950,967。",
+    "all.json 的 pathFragments 字段脚本从不读 —— 是 W5-A2 就存在的既有形态（全部 27 个规格里都是空列表），非 W9 引入，不构成新零消费者；只登记为清理项，不计入 remaining。",
+    "config.yml 的二级以下叶子键 —— 本仓大量用 getConfigurationSection(prefix) + getKeys(false) 动态遍历，无法用字面量 grep 判定未接线；本轮只做顶层键全量对账，不把「无法判定」写成「缺口」。"
+  ],
+  "artifacts": [
+    "plan/gap-matrix-v5.md",
+    "plan/verdict-v5.json",
+    "plan/tasks-w10.json",
+    "plan/world-state.json"
+  ]
+}
