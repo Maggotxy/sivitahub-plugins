@@ -76,7 +76,7 @@ public final class JdbcNodeLease {
         return nodeId;
     }
 
-    String processToken() {
+    public String processToken() {
         return processToken;
     }
 

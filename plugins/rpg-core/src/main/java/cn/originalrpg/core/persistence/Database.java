@@ -982,20 +982,35 @@ public final class Database implements AutoCloseable {
                 CREATE TABLE IF NOT EXISTS rpg_session_leases (
                     player_uuid VARCHAR(36) PRIMARY KEY,
                     node_id VARCHAR(64) NOT NULL,
+                    node_process_token VARCHAR(36) NULL,
                     lease_expires_at TIMESTAMP NOT NULL,
                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
+                "ALTER TABLE rpg_session_leases ADD COLUMN IF NOT EXISTS node_process_token VARCHAR(36)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_session_leases_expiry"
+                        + " ON rpg_session_leases (lease_expires_at)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_outbox (
                     event_id VARCHAR(36) PRIMARY KEY,
                     aggregate_type VARCHAR(32) NOT NULL,
                     aggregate_id VARCHAR(36) NOT NULL,
+                    idempotency_key VARCHAR(96) NULL,
                     payload TEXT NOT NULL,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    last_error VARCHAR(240) NULL,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     processed_at TIMESTAMP NULL
                 )
                 """,
+                "ALTER TABLE rpg_outbox ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(96)",
+                "ALTER TABLE rpg_outbox ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE rpg_outbox ADD COLUMN IF NOT EXISTS last_error VARCHAR(240)",
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_rpg_outbox_idempotency
+                    ON rpg_outbox (idempotency_key)
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_rpg_outbox_pending ON rpg_outbox (processed_at, created_at)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_equipment_states (
                     item_id VARCHAR(36) PRIMARY KEY,

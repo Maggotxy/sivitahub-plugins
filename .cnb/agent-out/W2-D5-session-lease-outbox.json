@@ -1,0 +1,82 @@
+{
+  "task_id": "W2-D5-session-lease-outbox",
+  "status": "success",
+  "summary": "补 G-102（Phase 8 多服前置）：rpg_session_leases 与 rpg_outbox 从「只有 DDL」接线为真实消费者。实现 Transactional Outbox 最小可用版本（同事务写事件 -> 后台消费者投递 -> 成功标记 processed_at；失败累加 attempts+last_error 并重试；idempotency_key 唯一去重），并把 outbox 写入口接进 rpg-core 的副本结算事务。Session Lease 只做读侧判定（本节点是否持有效租约），写侧留待 Velocity 多服阶段。两机制均由配置开关控制、默认关闭，单实例零影响。",
+  "changed_files": [
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/OutboxRegistry.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcOutboxRegistry.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/OutboxEvent.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/OutboxDispatcher.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcSessionLease.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/SessionLeaseListener.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcDungeonRewardService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcNodeLease.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java",
+    "plugins/rpg-core/src/main/resources/config.yml",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/TransactionalOutboxTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSessionLeaseReadSideTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/DungeonRewardOutboxWiringTest.java",
+    ".cnb/agent-out/W2-D5-session-lease-outbox.json"
+  ],
+  "pr_url": "",
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java -e 'rpg_session_leases' -e 'rpg_outbox' plugins tools | grep -v '/build/' | grep -v src/test",
+        "hit": "plugins/rpg-core/.../JdbcOutboxRegistry.java:36 INSERT INTO rpg_outbox; OutboxDispatcher.java:112/143/165 FROM/UPDATE rpg_outbox; JdbcSessionLease.java:71 SELECT ... FROM rpg_session_leases; 另有 Database.java 的 DDL 与 SchemaManifest.java 的表名声明。接线前该命令只命中 Database.java 的 DDL（plan/gap-matrix.md M-003/M-004）。"
+      },
+      {
+        "cmd": "DDL_GATE_IGNORE_EXEMPT=1 sh scripts/check-ddl-consumers.sh",
+        "hit": "接线前 UNWIRED=7（含 rpg_outbox、rpg_session_leases）；接线后 DDL_CONSUMER_GATE=RED UNWIRED=6，两表均被判定为「已接线」。"
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "hit": "DDL_CONSUMER_GATE=GREEN（75 张表，6 张未接线进入可审计豁免清单）。"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-core:compileJava",
+        "result": "BUILD SUCCESSFUL in 8s（无 warning/error）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:test",
+        "result": "219 tests completed, 2 failed；2 个失败均为接线前既存的环境依赖失败 LanguageBundleContractTest#quickActionTaskButtonUsesTheUnifiedTaskCenter / #projectYamlFilesParseWithoutDuplicateKeys（NoSuchFileException: server/datapacks/...、server/config，server/ 目录不在版本控制内）。基线（HEAD 4a50c98 干净检出）为 205 tests / 2 failed，同样这 2 个，证明本次新增 14 个测试全绿且无回归。"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:test --tests 'cn.originalrpg.core.persistence.*' --tests 'cn.originalrpg.core.FailStopCoordinatorTest' --tests 'cn.originalrpg.core.StartupGateTest'",
+        "result": "BUILD SUCCESSFUL（排除既存环境依赖测试后全绿）"
+      },
+      {
+        "cmd": "TransactionalOutboxTest: 4 passed / JdbcSessionLeaseReadSideTest: 6 passed / DungeonRewardOutboxWiringTest: 4 passed",
+        "result": "全部通过（行为级：执行真实 SQL 与真实投递处理器并断言结果）"
+      }
+    ],
+    "negative_control": [
+      {
+        "what": "把 OutboxDispatcher 失败分支的 recordDeferral 改成 markProcessed（即吞掉失败事件）",
+        "result": "TransactionalOutboxTest#failedDeliveryIsRetriedWithIncrementingAttemptsAndNeverLosesTheEvent 变红（expected 1 unprocessed but was 0）"
+      },
+      {
+        "what": "把 JdbcOutboxRegistry 的 ON CONFLICT DO NOTHING 去掉（即不幂等）",
+        "result": "TransactionalOutboxTest#duplicateIdempotencyKeyKeepsExactlyOneRowAndDeliversOnce 变红（主键/唯一键冲突）"
+      },
+      {
+        "what": "基线对照",
+        "result": "清洁 HEAD 检出跑 :plugins:rpg-core:test = 205 tests / 2 failed；本分支 = 219 tests / 同样 2 failed。新增测试全绿。"
+      }
+    ],
+    "toolchain": {
+      "java": "Temurin 25.0.4.1+1（本 NPC 容器用 /opt/adoptium 拉取安装）",
+      "gradle": "9.1.0 (wrapper)",
+      "note": "容器初始无 JDK；scripts/fetch-deps.sh 拉齐 libs/ 后编译。"
+    }
+  },
+  "unproven": [
+    "Session Lease 写侧（acquire/renew/handoff）未实现：需 Velocity 多服阶段确定玩家路由与 fencing token 传递后才能落地（docs/SCALE_ARCHITECTURE.md S1）。本次只做读侧判定。",
+    "Outbox 消费者目前是「框架 + 空 handler 列表」：真实业务事件（副本结算）已能落库，但跨服投递的接收端（inbox）与具体 handler 需在第二节点存在后再接。",
+    "两节点真实 PostgreSQL kill -9 切服演练仍未执行（属 [R] Runtime，需预发布专机）。"
+  ],
+  "blockers": []
+}
