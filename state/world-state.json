@@ -5,7 +5,7 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 4,
+  "round": 5,
   "max_round": 12,
   "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
   "gate": {
@@ -142,6 +142,42 @@
       "fact": "同波内 3 个 PR 因 UnbindCommand.java 同文件冲突无法自动合（W2-B7/W2-D5/W2-D4），用「派 NPC 在各自分支上 merge main 并保留双方语义」解决，全部合入。⇒ 冲突消解属实现工作，交回 CNB 是可行且正确的",
       "source": "out-w2fix/report.json；PR#11/#16/#21 merged=true",
       "level": "[S]"
+    },
+    {
+      "id": "E-021",
+      "fact": "★ 质量门升级并首次全绿：sn=cnb-5e4-1k3tsd1ed，FINAL_STATUS=success。五个门同时 GREEN —— COMPILE_GATE（26 子工程）、TEST_GATE（SUM tests=986 failed=0 errors=0 skipped=2 modules=26）、PACKAGE_GATE（JAR_COUNT=56 / JAR_CHECKED=25 且 JAR_MISSING_PLUGIN_YML=0 / ASSEMBLE_EXIT=0）、DDL_CONSUMER_GATE、CMD_REFERENCE_GATE",
+      "source": "sn=cnb-5e4-1k3tsd1ed 各 stage 输出",
+      "level": "[S]"
+    },
+    {
+      "id": "E-022",
+      "fact": "W3-A2 把全量测试从「948 tests / 10 failed，且 rpg-combat 因 compileTestJava 报错根本没跑」修到「26 模块 986 tests / 0 failed / 2 skipped」，其中 2 个失败是真缺陷（含 tools/db-migration 的 SchemaManifest 漏登记 rpg_session_leases / rpg_outbox）；跳过的 2 个是真实 PostgreSQL 条件测试",
+      "source": ".cnb/agent-out/W3-A2-full-test-gate.json",
+      "level": "[S]"
+    },
+    {
+      "id": "E-023",
+      "fact": "W3-A4 判定 8 张豁免表：4 条已在 W2 接线（旧豁免未删是「模糊状态」实例，已删）；剩 4 张全部为「落库先行」（PENDING），无一张废弃、无一张建议删表；门禁脚本引入 PENDING|ABANDONED 显式分类 + docs/planning/deferred-tables.md 逐条锚点",
+      "source": ".cnb/agent-out/W3-A4-exempt-tables-judgement.json",
+      "level": "[S]"
+    },
+    {
+      "id": "E-024",
+      "fact": "W3-A3 对已接线路径做独立复核 + 变异测试，发现并修掉 3 处真实缺陷（其一：C-009 交付通道判据死在 held.setAmount(0)+player.saveData() 之后 ⇒ 判据不成立时玩家物品凭空消失且无结算记录）",
+      "source": ".cnb/agent-out/W3-A3-exit-path-remaining.json",
+      "level": "[S]"
+    },
+    {
+      "id": "E-025",
+      "fact": "★ G-106（血契）是**设计裁决**，不是接线 bug：W3-A1 用 5 条一致证据证明 vanished-horizon 是三转技能（ClassBranchGraph 2/2/1 强制 + 六职业 menu-slot 31 + validateCatalog 强制技能门==分支 stage + lang/zh_cn.yml:1666 + CONTENT_DEPTH_AUDIT.md），而 5 份文档把血契钉在二转。4 种修法全部需要跨模块改动（rpg-classes 分支图 / rpg-core 行为测试 / lang 分支说明）⇒ REQUIRES_HUMAN",
+      "source": ".cnb/agent-out/W3-A1-bloodpact-fix.json 的 blockers",
+      "level": "[S]"
+    },
+    {
+      "id": "E-026",
+      "fact": "CNB 出网间歇性再次命中：sn=cnb-jvs-1k3tr78iv 里 6/7 个 jar 下载成功、EssentialsX 在 ci.ender.zone read timeout ⇒ 整门 RED 且 test/assemble 被跳过。已给 fetch-deps.sh 加 4 次退避重试 + 单次超时 180s→300s，之后同一门全绿",
+      "source": "sn=cnb-jvs-1k3tr78iv vs cnb-5e4-1k3tsd1ed",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -177,11 +213,13 @@
     "L-008"
   ],
   "open_questions_for_human": [
-    "跨 Phase 抢跑是否批准：G-001（防御失效）与 G-002（Kill Switch）属 Phase 0 范畴，但 G-101/G-107 属 Phase 1 —— 是否允许 Phase 0 与 Phase 1 并行？"
+    "★ G-106 血契：代码与文档冲突，需人类选一条修法。证据：vanished-horizon 是三转技能（5 条一致证据），但 5 份文档把血契钉在二转。可选：(a) 改 HiddenPathRules.requiredSkill(BLOODPACT) 为某个二转技能并同步 rpg-core 测试种子与文档；(b) 把血契改为三转并同步 5 份文档；(c) 改 rpg-classes 的分支图把 unseen 降为二转（会破坏 2/2/1 强制不变式，已机械复现为 2/3/0）。",
+    "G-201/202/203/207/208/209：文档已订正为实测值；是否要把**行为**改成文档承诺值（如星弹预警 1.1-1.8s → 0.4-0.8s）属设计取舍。",
+    "G-206：#minecraft:quick_actions 数据包不在本仓（VCS 缺口），需人类决定是否纳入版本控制。"
   ],
-  "next_action": "等 W3 五个任务；合入后触发门（这次门里应含 test + assemble 阶段）；若 W3-A5 的 verdict-v2 判 done=true 则目标达成，否则按 plan/tasks-w4.json 继续",
+  "next_action": "等 W4 四个任务；合入后再触发一次质量门；若全绿且 verdict 判 done，则整套收口。G-106 与三条设计取舍留待人类拍板。",
   "updated_by": "WorkBuddy AI（本地调度）",
-  "updated_at": "2026-10-02T07:30:00Z",
+  "updated_at": "2026-10-02T08:55:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
@@ -212,6 +250,14 @@
     "W1": "DONE（编译门 GREEN sn=cnb-slt-1k3te83u2）",
     "W2": "DONE（15/15 合入，编译门 GREEN sn=cnb-l7u-1k3tn45sp）",
     "W3+": "待 W2 合入后由 Planner 决定（prompt 必须带 merged_gaps）",
-    "W3": "DISPATCHED 2026-10-02：5 个任务（doc/cnb/tasks-w3.json）—— G-106 落地 / 全量测试门+打包 / 两条退出路径 / 8 张豁免表判定 / 差集矩阵 v2"
+    "W3": "DONE 2026-10-02：5/5 合入；A2/A3/A4 成功，A1（G-106）判为设计裁决需人类拍板。质量门升级为 编译→测试→打包 并首次全绿（sn=cnb-5e4-1k3tsd1ed）",
+    "W4": "DISPATCHED 2026-10-02：plan/tasks-w4.json 4 个任务（G-101 驱动入口 / G-107 下半 / G-115 / G-302）"
+  },
+  "gates": {
+    "compile": "GREEN",
+    "test": "GREEN (986 tests / 0 failed / 2 skipped / 26 modules)",
+    "package": "GREEN (56 jars / 25 plugin jars 全含 plugin.yml)",
+    "ddl_consumer": "GREEN",
+    "cmd_reference": "GREEN"
   }
 }
