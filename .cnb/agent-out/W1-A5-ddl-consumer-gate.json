@@ -7,7 +7,7 @@
     "scripts/check-ddl-consumers.sh",
     ".cnb/agent-out/W1-A5-ddl-consumer-gate.json"
   ],
-  "pr_url": "待创建",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/1",
   "risks": [
     "消费检测基于 SQL 关键字正则（SELECT/INSERT/UPDATE/DELETE/MERGE），非静态类型分析；若消费者用动态拼接表名（如字符串变量）会漏判。当前仓库未发现该写法。",
     "豁免清单 8 条以注释形式写明理由，但仍需人工在后续 Phase 落地时移除豁免、接入真实消费者。",
