@@ -1,0 +1,66 @@
+{
+  "_comment": "第六波：把 gap-matrix-v3 里最后剩下的真实缺口收完（4 张 PENDING 表 / SEASON_ATTUNED 入口 / quick_actions 数据包 / G-106 血契）。",
+  "tasks": [
+    {
+      "id": "W6-A1-pending-tables-wiring",
+      "mode": "implement",
+      "goal": "把 DDL 消费者门禁里最后 4 张 **PENDING**（落库先行、消费者未接线）的表接上真实消费者。\n这 4 张是 gap-matrix-v3 与 W3-A4 判定里唯一剩下的「声明未接线」结构性缺口。\n\n清单（先自己 grep 确认零消费者，命令写进证据）：\n1) `rpg_market_buy_orders` —— 市场买单簿（Phase 4 装备退出与市场 V2）。读 `docs/ECONOMY.md` / `docs/GAME_DESIGN.md` 里关于买单的条款，接上「挂买单 → 撮合 → 成交/撤单」的最小闭环。\n2) `rpg_progression_anomalies` —— 成长异常清单（Phase 1，dry-run 冻结期预留）。接上「检测到异常成长（如经验/技能点跳变）→ 落一条异常记录」的写入口，并把 [H] 门禁语义按文档实现。\n3) `rpg_support_credit_accounts` + `rpg_support_credit_ledger` —— support_credit 独立账本（Phase 5，宪法 C-012 物理隔离）。接上账本服务（充值/消费/流水），**必须与 gold/merit/starlight 物理隔离**，并且遵守 AGENTS.md §1.3 的禁止连接清单。\n\n要求：\n① 每张表都要有 src/main 的真实读写调用点（不是只有 DDL）\n② 每张表都要有**行为级测试**（真实 H2 + 真实 JDBC 事务），覆盖正常路径 + 至少一条失败/回滚路径\n③ 资金动作必须走「幂等键 + 审计流水 + 事务」三件套，禁止内存补偿\n④ 改完 `scripts/check-ddl-consumers.sh` 的豁免清单：这 4 条应从 PENDING 移除（因为已接线）；如果某一条你判定确实不该在本轮接线，**不要硬接**：在 PR 里说明理由并把它的分类改成 ABANDONED 或保留 PENDING 并给出时点\n⑤ 跑 `./gradlew --no-daemon test` 确认全绿，并把 modules/tests 汇总写进证据。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 质量门 `.cnb.yml`：准备下载器 → 门禁自测 → DDL 消费者门禁 → compile → test → assemble；判据全是退出码，测试门还要求 modules>=26 且 @Tag(env) 测试清单非空\n- 编译期第三方 jar 在 libs/ 与 libs/vendor/；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 最高约束；AGENTS.md 执行边界；L-009 已授权跨 Phase 并行\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-market/**",
+        "plugins/rpg-core/**",
+        "plugins/rpg-economy/**",
+        "plugins/rpg-api/**",
+        "scripts/check-ddl-consumers.sh",
+        "docs/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。改完自己跑相关模块 compileJava + test 并把命令与输出写进证据文件。"
+    },
+    {
+      "id": "W6-A2-season-attuned-entry",
+      "mode": "implement",
+      "goal": "补 G-110 最后一条：`SEASON_ATTUNED`（赛季调谐）退出路径**仍无 src/main 生产入口**，W3-A3 把它登记为「待 Phase 7 内容管线接入」。本轮把它接上。\n\n现状（自己 grep 确认）：\n```\n$ grep -rn --include=*.java 'SEASON_ATTUNED' plugins/*/src/main\n→ 只命中 EquipmentLifecycle.java 自身（W2-B3 已把 isExitPath/requiresExitPath 接给 /salvage 等路径，  但 SEASON_ATTUNED 这条没有触发者）\n```\n\n要求：\n① 读 `docs/SEASON_ENDGAME.md` 与 `docs/GAME_DESIGN.md` 里关于「赛季调谐」的条款，搞清它应该是：把一件装备绑定到当前赛季（调谐）、还是赛季结束时的强制处置。按文档语义实现，不要发明。\n② 在 `rpg-items` / `rpg-core` 侧接上真实入口（指令 + 权限 + 配置开关，**默认关闭**，符合 L-009）\n③ 行为级测试：调谐成功后装备状态确实变为 SEASON_ATTUNED；赛季切换时调谐装备按文档处置；未启用开关时零影响\n④ 如果读文档后发现**该路径在当前设计里确实不该有玩家入口**（例如它只是赛季结算的内部终态），那就把它接成**内部调用点**（由赛季结算服务调用），并在 PR 里给出文档依据；**不要硬造一条玩家指令**。\n⑤ 把 `EquipmentLifecycle` 上指向该任务的 TODO 注释更新为已完成或改为指向新入口。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 质量门 `.cnb.yml`：准备下载器 → 门禁自测 → DDL 消费者门禁 → compile → test → assemble；判据全是退出码，测试门还要求 modules>=26 且 @Tag(env) 测试清单非空\n- 编译期第三方 jar 在 libs/ 与 libs/vendor/；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 最高约束；AGENTS.md 执行边界；L-009 已授权跨 Phase 并行\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-items/**",
+        "plugins/rpg-core/**",
+        "plugins/rpg-api/**",
+        "docs/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。改完自己跑相关模块 compileJava + test 并把命令与输出写进证据文件。"
+    },
+    {
+      "id": "W6-A3-quick-actions-datapack",
+      "mode": "implement",
+      "goal": "修 G-206：`#minecraft:quick_actions` 数据包**没有纳入版本控制**，却被 `server/bin/verify-installation.sh` 硬依赖。\n这是 gap-matrix 里唯一一条「VCS 缺口」而非源码缺口的问题 —— 但它会让部署校验在生产机上失败。\n\n现状（自己确认）：\n```\n$ grep -rn 'quick_actions' . 2>/dev/null | head\n→ verify-installation.sh 里引用了它，但仓库里没有对应数据包文件\n```\n\n要求：\n① 在仓库里新建数据包源码目录（例如 `datapacks/quick_actions/`），按 Minecraft 数据包规范写出 `pack.mcmeta` 与 `data/minecraft/tags/function/quick_actions.json`（**只写 tag 声明与它引用的函数**，不要凭空发明玩法内容；tag 的成员按 verify-installation.sh 的期望与文档写）\n② 写一个安装/校验脚本（`scripts/install-datapacks.sh` 或并入现有脚本），把数据包从仓库部署到服务器的 `world/datapacks/`，并支持 `--check` 只校验\n③ 更新 `server/bin/verify-installation.sh` 的引用：它现在依赖一个仓外产物，改成依赖仓库内的数据包（若 `server/` 不在本仓，就在 `docs/` 里写清部署步骤并让脚本从 `datapacks/` 取）\n④ 加一条门禁或测试：断言「verify-installation.sh 引用的每个文件/数据包都在仓库里存在」——把这类「依赖仓外产物」的问题在 CI 拦下来\n⑤ 证据里给出 `pack.mcmeta` 与 tag json 的内容，以及你的校验脚本输出。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 质量门 `.cnb.yml`：准备下载器 → 门禁自测 → DDL 消费者门禁 → compile → test → assemble；判据全是退出码，测试门还要求 modules>=26 且 @Tag(env) 测试清单非空\n- 编译期第三方 jar 在 libs/ 与 libs/vendor/；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 最高约束；AGENTS.md 执行边界；L-009 已授权跨 Phase 并行\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "datapacks/**",
+        "scripts/**",
+        "docs/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "不要改任何 plugins/ 下的源码。不要发明玩法内容，只做「把被依赖的产物纳入版本控制」这件事。"
+    },
+    {
+      "id": "W6-A4-g106-bloodpact-resolution",
+      "mode": "implement",
+      "goal": "解决 G-106（血契不可达成）。这是一条**跨模块的设计冲突**，前两轮都因为 allowed_paths 太窄而无法落地；本轮已放开路径。人类已给出「把全部玩法机制解决完」的授权，因此**要求你在本轮做出决定并落地**，但必须留下可回滚的说明。\n\n冲突事实（W3-A1 已用 5 条一致证据证明，自己复跑确认）：\n- `plugins/rpg-api/.../HiddenPathRules.java` 的 `minimumAscension(BLOODPACT) = 2`\n- 它的前置技能 `vanished-horizon` 属于 `unseen` 分支，而 `ClassBranchGraph` 强制每职业 2/2/1 个 stage 1/2/3 启用分支，`unseen` 是刺客唯一的 stage-3 分支；`RpgSkillsPlugin.validateCatalog()` 又强制「技能 minimum-ascension == 分支 stage」；六职业 menu-slot 31 全为三转汇合技；`lang/zh_cn.yml:1666` 的分支说明写「unseen: 虚步与毒理在此汇合」；`CONTENT_DEPTH_AUDIT.md:9/23` 同证。\n- 而 5 份文档（`GAME_DESIGN.md:106` 等）把血契钉在**二转**。\n\n**本轮采用方案 (b)：把血契改为三转。** 理由（写进 PR）：\n1) 它只改**一个常量**（`minimumAscension(BLOODPACT)` 2 → 3），不动 `ClassBranchGraph` 的 2/2/1 强制不变式（方案 c 会把它变成 2/3/0，已被机械复现为破坏）；\n2) 不需要**新选一个前置技能**（方案 a 需要凭空指定一个二转技能，属发明设计）；\n3) 与 5 条代码级证据一致 —— 代码里 `vanished-horizon` 就是三转，改文档比改分支图代价小。\n\n要求：\n① 改 `HiddenPathRules.minimumAscension(BLOODPACT)` 为 3\n② 同步 5 份文档里「血契二转」的表述为三转，**逐处列出**你改了哪一行（文件:行号 + 改前 → 改后）\n③ 同步 `plugins/rpg-core` 里断言「二转 + 已学 vanished-horizon ⇒ eligible」的测试种子（`JdbcServicesTest.hiddenPathRequiresTheMatchingRedeemedHiddenBossBook` / `hiddenPathRequiresTheWholeRouteAndSerializesTheFinalSeat` 等，自己 grep 找全）\n④ 让 W2-D3 加的可达性自检**通过**（它现在应该报这条矛盾）\n⑤ 行为级测试：三转 + 已学前置 ⇒ 血契 eligible；二转 ⇒ 不可达且给出正确原因\n⑥ **PR 里必须有一节「如需回滚」**：写清把哪几处改回什么值即可恢复原状，并注明「本条为本地按人类授权做出的设计裁决，可回滚」。\n⑦ 跑 `./gradlew --no-daemon test` 确认全绿（涉及 rpg-api / rpg-skills / rpg-core 三个模块）。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 质量门 `.cnb.yml`：准备下载器 → 门禁自测 → DDL 消费者门禁 → compile → test → assemble；判据全是退出码，测试门还要求 modules>=26 且 @Tag(env) 测试清单非空\n- 编译期第三方 jar 在 libs/ 与 libs/vendor/；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 最高约束；AGENTS.md 执行边界；L-009 已授权跨 Phase 并行\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-api/**",
+        "plugins/rpg-skills/**",
+        "plugins/rpg-core/**",
+        "docs/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。改完自己跑相关模块 compileJava + test 并把命令与输出写进证据文件。"
+    }
+  ]
+}
