@@ -85,6 +85,17 @@ final class WorldEventListener implements Listener {
     private final Set<UUID> activeBloodMoons = new HashSet<>();
     private final Map<UUID, BossBar> bloodMoonBars = new HashMap<>();
     private final Set<UUID> bloodMoonCreepers = new HashSet<>();
+    /**
+     * G-207：血月的每日场次计数器（内存态，按生存世界的游戏内天数计）。
+     *
+     * <p><b>一致性说明</b>：计数只限制「同一天内还能开几场」这种分钟级节流，
+     * 不参与任何金币/功勋/物品结算 —— 那部分仍由数据库账本与幂等键保证。
+     * 重启丢失计数器最多让当天多开几场，不会铸币也不会重复发奖。本仓是单服 Alpha，
+     * 多服时该上限属于「单节点节流」，权威上限仍由日额度表承担；取内存态是刻意的，
+     * 不为一个节流计数引入新表。
+     */
+    private long bloodMoonCapDay = Long.MIN_VALUE;
+    private int bloodMoonEventsToday;
     private BukkitTask feedbackTask;
     private BukkitTask creeperTelegraphTask;
 
@@ -136,6 +147,8 @@ final class WorldEventListener implements Listener {
         activeBloodMoons.clear();
         bloodMoonCreepers.clear();
         chains.clear();
+        bloodMoonCapDay = Long.MIN_VALUE;
+        bloodMoonEventsToday = 0;
     }
 
     private void updateWorldFeedback() {
@@ -146,14 +159,22 @@ final class WorldEventListener implements Listener {
         ServerLoadState load = load();
         for (World world : plugin.getServer().getWorlds()) {
             if (!isOverworld(world)) continue;
-            boolean active = isBloodMoon(world);
-            if (active && activeBloodMoons.add(world.getUID())) {
+            boolean scheduled = isBloodMoon(world);
+            boolean tracked = activeBloodMoons.contains(world.getUID());
+            // G-207：血月在首次被观测到时先占一个当日名额。名额用尽则当天不再播报
+            // 开场与特效，等同「今日这场事件不发放」；判据是显式计数，不是日额度除法。
+            // 被上限拒绝时不写入 activeBloodMoons，因此后续脉冲会重复尝试并继续被拒，
+            // 直到跨日重置 —— 这正是「同一天第 4 场必须被拒」的期望行为。
+            boolean claimed = scheduled && !tracked && claimBloodMoonDailySlot(world);
+            if (claimed) activeBloodMoons.add(world.getUID());
+            boolean active = claimed || (scheduled && tracked);
+            if (claimed) {
                 if (world.getTime() <= WorldEventRules.NIGHT_START + 200L) {
                     world.getPlayers().forEach(this::bloodMoonStarted);
                 } else {
                     world.getPlayers().forEach(this::updateBloodMoonBar);
                 }
-            } else if (!active && activeBloodMoons.remove(world.getUID())) {
+            } else if (!scheduled && activeBloodMoons.remove(world.getUID())) {
                 world.getPlayers().forEach(this::bloodMoonEnded);
             }
             if (!active) continue;
@@ -169,6 +190,29 @@ final class WorldEventListener implements Listener {
             if (player != null) player.hideBossBar(bloodMoonBars.get(playerId));
             bloodMoonBars.remove(playerId);
         }
+    }
+
+    /**
+     * 占用本日的血月场次名额（G-207）。
+     *
+     * <p>跨日时先重置计数器再判定，所以「第 4 场必须被拒」与「次日重新计数」是同一条代码路径。
+     * 计数器按世界计：每个生存世界每天各有自己的名额，与 {@code blood-moon.every-nights}
+     * 的周期调度正交 —— 周期决定哪天会来，本上限决定那天最多算几场。
+     */
+    private boolean claimBloodMoonDailySlot(World world) {
+        int dailyCap = Math.clamp(plugin.getConfig().getInt(
+                "blood-moon.maximum-events-per-day", 3), 0, 64);
+        long day = Math.max(0L, world.getFullTime()) / WorldEventRules.DAY_TICKS;
+        // 跨日重置与「名额用完即拒」都在同一条纯规则里，避免调用方各自实现一遍。
+        if (!WorldEventRules.dailyEventAllowed(day, bloodMoonCapDay, bloodMoonEventsToday, dailyCap)) {
+            return false;
+        }
+        if (day != bloodMoonCapDay) {
+            bloodMoonCapDay = day;
+            bloodMoonEventsToday = 0;
+        }
+        bloodMoonEventsToday++;
+        return true;
     }
 
     private void bloodMoonStarted(Player player) {

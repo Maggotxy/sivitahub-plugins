@@ -85,6 +85,34 @@ final class BossAttackRules {
         return pattern(sequence);
     }
 
+    /**
+     * 预警窗口的表现层硬下限（G-209）。
+     *
+     * <p>文档早期承诺 0.4–0.8 秒（8–16 tick），但同帧发送的预警文案是中位数 24 个中文字符
+     * 的完整躲避指令，读不完就等于没有预警。实测下限：
+     * <ul>
+     *   <li>图案在 tick 0 立即绘制，之后每 5 tick 重绘一次 —— 8 tick 窗口只有 1 次重绘；</li>
+     *   <li>中文快读约 7 字/秒，18–31 字需要 2.6–4.4 秒。</li>
+     * </ul>
+     * 因此配置最低只能取 20 tick（1.0 秒）：0.4–0.8 秒能做到"画面有图案"，但做不到
+     * "玩家看得懂要往哪躲"，而后者才是预警的设计意图（见 docs/GAME_DESIGN.md §Boss 预警）。
+     */
+    static final int MINIMUM_READABLE_TELEGRAPH_TICKS = 20;
+
+    /** 把配置的预警窗口收敛到表现层能保证的区间：下限见上，上限 80 tick。 */
+    static long readableTelegraphTicks(long configured) {
+        return Math.clamp(configured, MINIMUM_READABLE_TELEGRAPH_TICKS, 80L);
+    }
+
+    /** 预警窗口内实际发生的重绘次数（tick 0 的首次绘制另算）。 */
+    static int telegraphRedraws(long telegraphTicks) {
+        int redraws = 0;
+        for (long elapsed = 1; elapsed < telegraphTicks; elapsed++) {
+            if ((telegraphTicks - elapsed) % 5L == 0L) redraws++;
+        }
+        return redraws;
+    }
+
     static boolean hits(Pattern pattern, double deltaX, double deltaZ) {
         double distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
         if (distanceSquared > pattern.radius() * pattern.radius()) return false;

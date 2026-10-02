@@ -52,7 +52,9 @@ final class DungeonConfigurationContractTest {
             assertTrue(number(boss, "rpg-experience") > 0.0, id);
             Map<String, Object> abilities = map(boss, "abilities");
             assertTrue(number(abilities, "interval-ticks") >= 80.0, id);
-            assertTrue(number(abilities, "telegraph-ticks") >= 20.0, id);
+            // G-209：文档承诺的 0.4–0.8s 低于表现层可读下限，配置必须 >= 该下限（见 BossAttackRules）。
+            assertTrue(number(abilities, "telegraph-ticks")
+                    >= BossAttackRules.MINIMUM_READABLE_TELEGRAPH_TICKS, id);
             assertTrue(number(abilities, "damage") > 0.0, id);
 
             Map<String, Object> rewards = map(dungeon, "rewards");

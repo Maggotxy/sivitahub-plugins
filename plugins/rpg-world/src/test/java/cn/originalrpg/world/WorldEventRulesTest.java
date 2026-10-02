@@ -15,6 +15,30 @@ class WorldEventRulesTest {
     }
 
     @Test
+    void theFourthBloodMoonOfTheSameDayIsRejectedAndTheNextDayResets() {
+        // G-207 行为级验收：文档承诺「每日最多 3 场」，这里显式断言第 4 场被拒。
+        int cap = 3;
+        long day = 7L;
+        long counterDay = Long.MIN_VALUE;
+        int used = 0;
+        for (int event = 1; event <= 3; event++) {
+            assertTrue(WorldEventRules.dailyEventAllowed(day, counterDay, used, cap), "第 " + event + " 场");
+            counterDay = day;
+            used++;
+        }
+        assertFalse(WorldEventRules.dailyEventAllowed(day, counterDay, used, cap), "第 4 场必须被拒");
+
+        // 跨日重置：同一天连续拒，次日重新放行。
+        assertTrue(WorldEventRules.dailyEventAllowed(day + 1, counterDay, used, cap), "次日必须恢复");
+    }
+
+    @Test
+    void aZeroDailyCapMeansNoEventLimit() {
+        assertTrue(WorldEventRules.dailyEventAllowed(1L, 1L, 99L, 0));
+        assertTrue(WorldEventRules.dailyEventAllowed(1L, 1L, 99L, -1));
+    }
+
+    @Test
     void bloodMoonCountdownMatchesTheLiveSevenNightCycle() {
         assertEquals(7L, WorldEventRules.bloodMoon(0L, 0L, 7).nightsUntil());
         assertEquals(1L, WorldEventRules.bloodMoon(6L * 24_000L, 6_000L, 7).nightsUntil());

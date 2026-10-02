@@ -91,6 +91,15 @@ final class EconomicActivityListener implements Listener {
     private final Set<UUID> writesInFlight = new HashSet<>();
     private final Set<UUID> profileLoadsInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final Set<UUID> cappedPlayers = new HashSet<>();
+    /**
+     * G-207：袭击的每日场次计数器（进程内）。
+     *
+     * <p>一致性：名额在结算前占用，重复事件靠 {@code raidId} 识别（同一场袭击重放不会
+     * 吃掉第二个名额）；真正的奖励幂等仍由账本键 {@code raid:<raidId>:<player>} 保证。
+     * 重启会丢计数器 —— 那是刻意的：本仓是单服 Alpha，多服时这属于「单节点节流」，
+     * 权威上限仍是日额度表与账本幂等键。
+     */
+    private final DailyEventCounter raidEvents = new DailyEventCounter();
     private final Set<UUID> backpressureWarned = new HashSet<>();
     private final int maxBatchSize;
     private final int maxFlushesPerTick;
@@ -294,6 +303,17 @@ final class EconomicActivityListener implements Listener {
         if (raidId == null) {
             raidId = UUID.randomUUID().toString();
             event.getRaid().getPersistentDataContainer().set(raidRewardId, PersistentDataType.STRING, raidId);
+        }
+        // G-207：袭击「每日最多 3 场」是显式第一类约束，不再依赖 1800/600 的除法巧合。
+        // 名额按整个袭击（不是按玩家）计；超出后当天不再发放，但既有幂等键仍保证不重复发。
+        if (!raidEvents.tryClaim(LocalDate.now().toEpochDay(),
+                Math.clamp(plugin.getConfig().getInt("caps.RAID.maximum-events-per-day", 3), 0, 64),
+                raidId)) {
+            for (Player player : event.getWinners()) {
+                player.sendMessage(Component.text(
+                        messages.text(player, "economy.activity-cap"), NamedTextColor.YELLOW));
+            }
+            return;
         }
         for (Player player : event.getWinners()) {
             grantCommissionEvidence(player, "raid");

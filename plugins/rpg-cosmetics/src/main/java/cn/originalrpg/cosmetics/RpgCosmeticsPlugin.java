@@ -24,6 +24,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -43,6 +44,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.util.Vector;
 
+import java.io.File;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -60,7 +62,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class RpgCosmeticsPlugin extends JavaPlugin
         implements Listener, CommandExecutor, TabCompleter, CosmeticEffectService {
-    private static final String AURA_VOUCHER_MARKER = "founder_cosmetic";
+    /** marker 的唯一字面量来源是 {@link CosmeticCatalog}，避免与收费模块漂移。 */
+    private static final String AURA_VOUCHER_MARKER = CosmeticCatalog.PRISMATIC_AURA.voucherMarker();
     private static final Color[] PRISMATIC = {
             Color.fromRGB(245, 88, 88), Color.fromRGB(244, 174, 65), Color.fromRGB(100, 218, 125),
             Color.fromRGB(70, 202, 235), Color.fromRGB(133, 100, 234), Color.fromRGB(232, 105, 211)
@@ -108,12 +111,55 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
         }
         rewardMarkerKey = Objects.requireNonNull(NamespacedKey.fromString("rpgcommerce:reward_marker"));
         rewardOwnerKey = Objects.requireNonNull(NamespacedKey.fromString("rpgcommerce:owner"));
+        validateCommerceCatalog();
         registerCommand("aura");
         registerCommand("trail");
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getServicesManager().register(CosmeticEffectService.class, this, this, ServicePriority.Normal);
         long interval = Math.clamp(getConfig().getLong("render.interval-ticks", 5L), 2L, 40L);
         getServer().getScheduler().runTaskTimer(this, this::render, interval, interval);
+    }
+
+    /**
+     * G-205：把「渲染模块"以为"的解锁契约」和「收费模块实际在卖的契约」对账。
+     *
+     * <p>外观定价归属 {@code rpg-commerce}（星辉账本、周额度、幂等键都在那里），
+     * {@code rpg-cosmetics} 只渲染。但渲染侧的解锁键与凭证 marker 是硬编码的：
+     * commerce 侧改了 id / marker / 价格而 cosmetics 没跟上时，玩家会买到一张
+     * 永远解锁不了的凭证。这里在启动时逐条比对，不一致就点名报错。
+     *
+     * <p>同一组断言在构建期由 {@code CosmeticCatalogTest#theCatalogMatchesTheCommercePricingTable}
+     * 直接读 {@code rpg-commerce/config.yml} 复核 —— 运行期这一份是给运维换配置用的兜底，
+     * 不是唯一防线。
+     */
+    private void validateCommerceCatalog() {
+        File commerceConfig = new File(getDataFolder().getParentFile(), "rpg-commerce/config.yml");
+        if (!commerceConfig.isFile()) {
+            getLogger().warning("cosmetics: 找不到 rpg-commerce/config.yml，跳过外观定价对账（"
+                    + commerceConfig.getPath() + "）");
+            return;
+        }
+        YamlConfiguration catalog = YamlConfiguration.loadConfiguration(commerceConfig);
+        for (CosmeticCatalog entry : CosmeticCatalog.values()) {
+            String path = "products." + entry.productId();
+            if (!catalog.isConfigurationSection(path)) {
+                getLogger().severe("cosmetics: 外观商品 " + entry.productId()
+                        + " 不在 rpg-commerce 的商品目录里，凭证将无法解锁；请同步 rpg-commerce/config.yml");
+                continue;
+            }
+            String marker = catalog.getString(path + ".marker");
+            long points = catalog.getLong(path + ".points", -1L);
+            if (!entry.voucherMarker().equals(marker)) {
+                getLogger().severe("cosmetics: 外观商品 " + entry.productId() + " 的 marker 期望 "
+                        + entry.voucherMarker() + "，rpg-commerce 配置为 " + marker
+                        + "；解锁键不一致会导致购买后无法解锁");
+            }
+            if (points != entry.starlightCost()) {
+                getLogger().severe("cosmetics: 外观商品 " + entry.productId() + " 的星辉价格期望 "
+                        + entry.starlightCost() + "，rpg-commerce 配置为 " + points
+                        + "；两侧价格表已漂移");
+            }
+        }
     }
 
     @Override

@@ -15,7 +15,7 @@
 - 图鉴：`rpg_season_player_progress` + `rpg_season_personal_bests` 竞速榜
 
 ## 3. 验收门槛（M3后）
-- 手工场景机关真人可读（预警形状/颜色；当前 `telegraph-ticks` 28–36 tick ≈1.4–1.8s，与早期 0.4-0.8s 承诺不符，见 G-209）
+- 手工场景机关真人可读（预警形状/颜色；当前 `telegraph-ticks` 20 tick = 1.0s，是表现层保证的最快值：早期 0.4–0.8s 承诺下预警文案读不完，见 G-209 与 `BossAttackRules.MINIMUM_READABLE_TELEGRAPH_TICKS`）
 - BetterModel 64/20/0 降级不丢判定
 - 6关 × 3词缀 =18 组合实测 P95 MSPT <45ms
 

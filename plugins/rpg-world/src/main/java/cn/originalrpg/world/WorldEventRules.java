@@ -13,6 +13,25 @@ final class WorldEventRules {
         return lowestNearbyLevel >= Math.max(1, minimumLevel);
     }
 
+    /**
+     * 每日事件场次上限判定的唯一实现（G-207）。
+     *
+     * <p>文档承诺「血月/袭击每日最多 3 场」，但历史实现里 3 只是
+     * {@code 1800/600} 与 {@code 24/8} 两条日额度的除法结果，不是显式场次上限：
+     * 任何一天都可以靠更小的单场结算刷新更多场次。这里把「每日几场」提升为
+     * 独立的第一类约束，与金币/功勋额度并行生效。
+     *
+     * @param day            事件当天（以游戏内天数或账号日键折算，跨日即重置）
+     * @param countedDay     计数器当前所属的天
+     * @param countedEvents  计数器在该天已放行的场次
+     * @param dailyCap       配置的每日场次上限；{@code <= 0} 表示该事件不设场次上限
+     */
+    static boolean dailyEventAllowed(long day, long countedDay, long countedEvents, int dailyCap) {
+        if (dailyCap <= 0) return true;
+        if (day != countedDay) return true;
+        return Math.max(0L, countedEvents) < dailyCap;
+    }
+
     static BloodMoonTiming bloodMoon(long fullTime, long worldTime, int configuredInterval) {
         int interval = Math.max(1, configuredInterval);
         long day = Math.max(0L, fullTime) / DAY_TICKS;

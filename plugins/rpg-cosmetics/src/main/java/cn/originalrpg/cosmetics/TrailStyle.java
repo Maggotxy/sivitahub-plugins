@@ -6,6 +6,8 @@ import java.util.Optional;
 enum TrailStyle {
     OFF("off", Shape.NONE, null),
     WAKE("wake", Shape.WAKE, null),
+    // G-205：marker 的唯一权威是 CosmeticCatalog（启动时与 rpg-commerce 对账），
+    // 这里保留的是渲染侧标识。两者不一致由 CosmeticCatalogTest 直接断言。
     WINGS("wings", Shape.WINGS, "elytra_wings"),
     COMET("comet", Shape.COMET, "elytra_comet");
 
