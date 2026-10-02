@@ -1,0 +1,27 @@
+{"out":"forged_assassin_weapon.png","prompt":"Original forged assassin dagger, narrow asymmetrical moonsteel blade, violet shadow crystal in the pommel","subject":"single assassin dagger"}
+{"out":"forged_warrior_weapon.png","prompt":"Original forged warrior battle axe, heavy chipped moonsteel head, compact crimson power core","subject":"single warrior battle axe"}
+{"out":"forged_mage_weapon.png","prompt":"Original arcane mage staff, dark alloy shaft, suspended violet rune crystal at the top","subject":"single mage staff"}
+{"out":"forged_ranger_weapon.png","prompt":"Original ranger recurve bow, pale metal limbs, cyan energy string and compact crystal grip","subject":"single ranger bow"}
+{"out":"forged_healer_weapon.png","prompt":"Original healer wand, pale alloy branch, cyan restorative crystal held in a small halo","subject":"single healer wand"}
+{"out":"forged_shield.png","prompt":"Original forged guardian shield, compact moonsteel kite silhouette, layered charcoal plates, cyan barrier rune and restrained gold rivets","subject":"single fantasy guardian shield"}
+{"out":"forged_helmet.png","prompt":"Original moonsteel forged helmet, face guard with cyan inlay and one gold rank mark","subject":"single fantasy helmet icon"}
+{"out":"forged_chestplate.png","prompt":"Original moonsteel forged chestplate, layered plates, cyan core and restrained gold trim","subject":"single fantasy chestplate icon"}
+{"out":"forged_leggings.png","prompt":"Original moonsteel forged leggings, articulated plates with cyan joint inlays","subject":"single fantasy leggings icon"}
+{"out":"forged_boots.png","prompt":"Original moonsteel forged boots, reinforced toes and cyan ankle inlays","subject":"single pair of fantasy boots icon"}
+{"out":"mutation_shard.png","prompt":"Jagged original mutation shard, translucent cyan crystal with a dark unstable center","subject":"single magical crafting shard"}
+{"out":"mutation_core.png","prompt":"Original mutation core, dense violet crystal around a bright cyan fractured heart","subject":"single rare magical crafting core"}
+{"out":"hunt_crystal.png","prompt":"Original hunt-chain crystal, sharp icy cyan prism with three small tally cuts","subject":"single hunting reward crystal"}
+{"out":"blood_moon_essence.png","prompt":"Original blood moon essence, red crescent crystal surrounding a dark floating ember","subject":"single rare blood moon material"}
+{"out":"dungeon_core.png","prompt":"Original ancient dungeon core, cracked stone octahedron with cyan runes and gold corner clamps","subject":"single dungeon crafting core"}
+{"out":"hidden_ticket.png","prompt":"Original hidden dungeon ticket, torn charcoal paper seal with a violet key-shaped rune, no letters","subject":"single secret entrance ticket"}
+{"out":"ancient_echo_skill_book.png","prompt":"Original ancient echo skill book, closed dark grimoire with a cyan sound-wave rune and gold clasp","subject":"single magical skill book"}
+{"out":"common_insight_skill_book.png","prompt":"Original common insight skill book, small closed slate-blue field notebook with one simple cyan spark rune and a plain iron clasp, visibly less ornate than an ancient grimoire","subject":"single common magical skill book"}
+{"out":"protection_stone.png","prompt":"Original enhancement protection stone, compact steel-gray shield-shaped gem with cyan inner barrier rune","subject":"single enhancement protection stone"}
+{"out":"lucky_charm.png","prompt":"Original enhancement lucky charm, small gold four-point talisman surrounding a violet crystal","subject":"single enhancement lucky charm"}
+{"out":"elite_swift_mask.png","prompt":"Original swift elite monster mask, angular moonsteel face, cyan speed slashes and narrow glowing eyes","subject":"single square monster head mask texture"}
+{"out":"elite_berserk_mask.png","prompt":"Original berserk elite monster mask, cracked dark iron face, crimson rage seams and gold eyes","subject":"single square monster head mask texture"}
+{"out":"elite_armored_mask.png","prompt":"Original armored elite monster mask, layered steel fortress face, gold rivets and cold cyan eyes","subject":"single square monster head mask texture"}
+{"out":"elite_shadow_mask.png","prompt":"Original shadow elite monster mask, charcoal faceless shell, violet fractures and pale eyes","subject":"single square monster head mask texture"}
+{"out":"ancient_boss_mask.png","prompt":"Original ancient ruins boss mask, weathered stone guardian face, cyan runes and restrained gold crown fragments","subject":"single square dungeon boss head mask texture"}
+{"out":"hidden_boss_mask.png","prompt":"Original hidden ruins boss mask, obsidian skull guardian face, violet echo runes and crimson inner glow","subject":"single square hidden dungeon boss head mask texture"}
+{"out":"legacy_blueprint.png","prompt":"Single ancient equipment legacy scroll with cyan forging geometry, an amethyst-purple seal and a few gold fasteners; readable blocky Minecraft pixel-art style; no text, no logo; perfectly flat solid green chroma-key background for local removal","subject":"single equipment legacy blueprint item icon"}

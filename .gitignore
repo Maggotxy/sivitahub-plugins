@@ -49,3 +49,4 @@ libs/*.jar
 # 2.1.0-SNAPSHOT-447）或 Sivita 自改版（MyPet / WorldGuard），CI 无法下载，
 # 不入库则干净克隆永远编不过。详见 libs/vendor/README.md。
 !libs/vendor/*.jar
+resource-pack/**/__pycache__/
