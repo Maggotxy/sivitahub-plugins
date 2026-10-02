@@ -87,6 +87,12 @@
         "exit": 0,
         "expected": 0,
         "result": "PASS（最小 PATH 下也绿，无隐式环境依赖）"
+      },
+      {
+        "cmd": "CNB 全量质量门（push, sn=cnb-hf3-1k3u4m6nc）",
+        "exit": 0,
+        "expected": 0,
+        "result": "「素材门禁（W7-A1）」stage success（516ms）RESOURCE_PACK_GATE=GREEN RUN=8 SKIPPED=0；「门禁自测（负向对照）」stage success（4.2s）PASS=56 FAIL=0 GATE_SELFTEST=GREEN"
       }
     ],
     "negative_control": {
@@ -206,6 +212,39 @@
         }
       ],
       "repo_pollution_check": "sh -c 'cd <clean-clone> && sh scripts/selftest-gates.sh; git status --short' → 输出为空"
+    },
+    "ci": {
+      "sn": "cnb-hf3-1k3u4m6nc",
+      "pipeline": "cnb-hf3-1k3u4m6nc-001",
+      "sha": "95658dc20627a78d5e58d3bd9bee6d284baa93f1",
+      "event": "push",
+      "targetRef": "agent/W7-A1-asset-gate",
+      "stages": [
+        {
+          "name": "准备下载器（必须是第一个 stage）",
+          "status": "success",
+          "duration_ms": 22015
+        },
+        {
+          "name": "门禁自测（负向对照）",
+          "status": "success",
+          "duration_ms": 4243,
+          "result": "PASS=56 FAIL=0 GATE_SELFTEST=GREEN —— §7 十四条素材负向对照 + §8 接线自证在真实 CI 上全部通过"
+        },
+        {
+          "name": "DDL 消费者门禁（G-301）",
+          "status": "success",
+          "duration_ms": 116637,
+          "result": "DDL_CONSUMER_GATE=GREEN / CMD_REFERENCE_GATE=GREEN —— 素材门禁接在它旁边，互不影响"
+        },
+        {
+          "name": "素材门禁（W7-A1）",
+          "status": "success",
+          "duration_ms": 516,
+          "result": "RESOURCE_PACK_GATE=GREEN RUN=8 SKIPPED=0（8/8 判据 OK）",
+          "log_tail": "RESOURCE_PACK_GATE: 校验 /workspace/resource-pack\n  [OK  ] manifest\n      物品定义 81 / 可达模型 119 / 可达纹理 115\n  [OK  ] closure\n      115 张物品 PNG 全部 32x32 二值 alpha\n  [OK  ] textures\n      U+E000..U+E00A 十一码位 ↔ 99x9 图集；U+E020..U+E04F 四十八码位 ↔ 432x9 图集\n  [OK  ] hud\n      U+E100..U+E107 八码位 ↔ 八张 32x32 旅程图\n  [OK  ] journey\n      en_us/zh_cn 键集合一致（各 18 键）\n  [OK  ] lang\n      33 段方向分发 ↔ 32 帧模型 + 32 帧纹理（scale=32.0 target=spawn）\n  [OK  ] compass\n      pack.mcmeta 精确声明资源格式 88（min=max=88，无 overlays）\n  [OK  ] packmeta\n  （判据：manifest closure textures hud journey lang compass packmeta）\n  RUN=8 SKIPPED=0\nRESOURCE_PACK_GATE=GREEN\nFinished, code: 0, duration: 0.5s"
+        }
+      ]
     }
   },
   "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/41",
