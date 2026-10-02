@@ -7,11 +7,12 @@
 #
 # 本仓定位：**CNB 为唯一真相源与执行体**。质量门是唯一机械判据，门不绿不算完成。
 
-# 质量门 = 三个阶段，判据全部是退出码 + SECONDS>0
+# 质量门 = 五个阶段，判据全部是退出码 + SECONDS>0
 # （SECONDS>0 是为了防止「缓存命中后 0 秒通过」被当成真执行）：
-#   1. DDL/指令引用门禁 + compileJava   —— 编译门
-#   2. test                              —— 全量测试门（26 子工程）
-#   3. assemble                          —— 打包门（各插件 jar）
+#   1. 门禁自测（负向对照）              —— 先证明「门禁自己会红」
+#   2. DDL/指令引用门禁 + compileJava   —— 编译门
+#   3. test                              —— 全量测试门（26 子工程）
+#   4. assemble                          —— 打包门（各插件 jar + plugin.yml 校验）
 #
 # 测试门的「环境依赖测试」处理方式（W3-A2 决策，见 PR 描述）：
 #   本仓按设计只含 plugins/ docs/ tools/，**不含 server/ 与 resource-pack/**，
@@ -21,6 +22,17 @@
 #   「被排除的清单」逐条打印出来 —— 是显式分类，不是静默跳过。
 #   禁止的做法（本仓不做）：删测试 / @Disabled / 把断言改恒真 / -x test。
 #
+# 门禁自身逻辑的机械自证（scripts/selftest-gates.sh，作为第一个 stage 跑）：
+#   测试门与打包门最危险的不是报红，而是「永远绿」或「永远红」。
+#   W3-A2 实测抓到两处「看起来在跑、实际从不生效」的判据：
+#     ① 按模块汇总曾只统计「有失败用例」的模块：rpg-combat 整个模块因 compileTestJava
+#        失败而根本没跑，却因为「没有失败用例」被算成绿（模块漏跑 = 假绿）。
+#        现在 NO_XML 计入 RED，且要求跑过的模块数 >= 26。
+#     ② env 排除清单的抽取曾用 `grep -o -A1 | grep -oE`：`-A1` 会插入 `--` 分隔行，
+#        下游一行都匹配不到，清单恒为空 → 「排除清单」段落永远打印「（无）」。
+#        改用 scripts/list-env-tests.sh（awk 取下一行），并在门里断言清单非空。
+#   自测脚本用最小夹具复跑这些判定分支，改坏任何一个都会让门直接红。
+#
 # 门禁同一套阶段被 push 与 api_trigger_gate 共用（YAML 锚点）。
 # `docker:` 必须写在 job 级（与 `stages:` 同级），写 stage 级会被静默忽略。
 .quality_gate: &quality_gate
@@ -28,6 +40,16 @@
     docker:
       image: eclipse-temurin:25-jdk
     stages:
+      - name: 门禁自测（负向对照）
+        script: |
+          # 先证明「门禁自己会红」：用最小夹具把汇总脚本 / jar 校验 / env 清单抽取
+          # 的每个判定分支都跑一遍（scripts/selftest-gates.sh）。
+          # 没有这一步，改坏一个判据会静默变成假门禁 —— 见 W3-A2 实测：
+          # `grep -o -A1` 抽取 env 清单恒为空、`"...\benv\b"` 里的 \b 被 shell 吃掉，
+          # 两处都让门禁「看起来在跑」但从不生效。自测就是拦这类复发的。
+          set -e
+          chmod +x scripts/*.sh scripts/*.py
+          sh scripts/selftest-gates.sh
       - name: DDL 消费者门禁（G-301）
         script: |
           set -e
@@ -101,84 +123,136 @@
           # 全量测试门：26 个子工程全部跑 test（不用 -x test 绕过，不跳过任何模块）。
           # --continue 保证单个模块失败不会让后面的模块被静默跳过 —— 每个模块都真的跑了、
           # 都在下面「按模块结果」里报告。
-          # env 标签的测试被显式排除（理由见文件头注释），且事后逐条打印排除清单。
+          # 按模块汇总放在 scripts/dump-test-results.py 里（不要在这里内联 python：
+          # 该脚本对「模块漏跑」的判定是门禁的一半语义，独立成文件才能被单元自测覆盖）。
+          # 排除清单的抽取放在 scripts/list-env-tests.sh 里，理由同上（它自己被自测覆盖）。
           set -e
-          chmod +x gradlew scripts/dump-test-results.py
+          chmod +x gradlew scripts/*.sh scripts/*.py
           export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
           export GRADLE_USER_HOME=/root/.gradle
-          start=$(date +%s)
+          test_start=$(date +%s)
           set +e
-          ./gradlew --no-daemon --continue             -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4             -Dorg.gradle.internal.http.connectionTimeout=60000             -Dorg.gradle.internal.http.socketTimeout=60000             -Dorg.gradle.jvmargs="-Xmx1536m -Dfile.encoding=UTF-8"             test -PexcludeTags=env > /tmp/test.log 2>&1
+          ./gradlew --no-daemon --continue \
+            -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 \
+            -Dorg.gradle.internal.http.connectionTimeout=60000 \
+            -Dorg.gradle.internal.http.socketTimeout=60000 \
+            -Dorg.gradle.jvmargs="-Xmx1536m -Dfile.encoding=UTF-8" \
+            test -PexcludeTags=env > /tmp/test.log 2>&1
           rc=$?
           set -e
-          end=$(date +%s)
+          test_end=$(date +%s)
 
           echo "===== 测试日志错误段（失败时上下文）====="
           grep -nE "FAILED|SKIPPED|tests completed|execution failed" /tmp/test.log | head -200 || true
           echo "-----"
 
-          # 按模块结果：直接读 build/test-results/test/*.xml，
-          # 所以「某个模块根本没跑」也会以 NO_XML 显式暴露出来。
+          # 按模块结果：直接读 build/test-results/test/*.xml。
+          # 「某个模块根本没跑」会以 NO_XML 显式暴露，并被 dump-test-results.py 计入 RED
+          # （旧的 `SUMMARY_EXIT=0` 就是这么漏掉 rpg-combat 整个模块的）。
           echo "===== 按模块结果（test-results XML 汇总）====="
           set +e
-          python3 scripts/dump-test-results.py
+          python3 scripts/dump-test-results.py --min-modules 26
           summary_rc=$?
           set -e
 
           echo "===== 被显式排除的环境依赖测试（@Tag env）====="
-          excluded=$(grep -rlE '@Tag\([A-Za-z.]*DeploymentEnvironmentFixtures\.TAG\)'               plugins/*/src/test tools/*/src/test 2>/dev/null || true)
-          if [ -z "$excluded" ]; then
-            echo "（无）"
+          # 排除清单必须自己自证，否则「跑过了」和「静默跳过」在日志里长得一样：
+          #   a) 源码里带 @Tag(env) 的测试方法名要逐条打印出来（可审计的排除清单）
+          #   b) 门禁确实把 -PexcludeTags=env 生效了 —— 用 Gradle 自己的输出做证据
+          #      （原句："excluding tests with tag: env"；用 grep -F 避免转义歧义）
+          #   c) 任何一个被排除的测试名都不许出现在测试日志里
+          sh scripts/list-env-tests.sh > /tmp/env-methods.txt
+          env_annotations=$(wc -l < /tmp/env-methods.txt | tr -d ' ')
+          if [ "$env_annotations" -gt 0 ]; then
+            sed 's/^/  - /' /tmp/env-methods.txt
           else
-            printf '%s\n' "$excluded" > /tmp/env-tagged-files.txt
-            grep -rhA1 '@Tag([A-Za-z.]*DeploymentEnvironmentFixtures\.TAG)'                 plugins/*/src/test tools/*/src/test 2>/dev/null               | grep -oE 'void [A-Za-z0-9_]+' | sed 's/^void /  - /' | sort -u
-            echo "  文件数: $(wc -l < /tmp/env-tagged-files.txt | tr -d ' ')"
+            echo "（源码里没有任何 @Tag(env) 的测试）"
+          fi
+          excluded_tag_seen=$(grep -ciF 'tests with tag' /tmp/test.log || true)
+          env_tag_line=$(grep -iF 'tests with tag' /tmp/test.log | grep -c 'env' || true)
+          echo "  ENV_ANNOTATIONS=$env_annotations"
+          echo "  EXCLUDED_TAG_SEEN_IN_LOG=$excluded_tag_seen ENV_TAG_LINE=$env_tag_line"
+          if [ "$env_annotations" -lt 1 ]; then
+            echo "TEST_GATE=RED(env 标签测试清单为空：排除清单失去意义，可能标签被误删)"
+            exit 1
+          fi
+          if [ "$env_tag_line" -lt 1 ]; then
+            echo "TEST_GATE=RED(日志里看不到 Gradle 排除 env 标签的记录：-PexcludeTags 没生效)"
+            exit 1
+          fi
+          # 逐行读「临时文件」，不要用管道喂 while：管道会开子 shell，循环里的
+          # 变量与 exit 都止步于子进程（实测踩过：env_leak 在循环外永远是空的）。
+          env_leak=''
+          while IFS= read -r m; do
+            [ -z "$m" ] && continue
+            if grep -qF "$m" /tmp/test.log; then env_leak="$env_leak $m"; fi
+          done < /tmp/env-methods.txt
+          if [ -n "$env_leak" ]; then
+            echo "TEST_GATE=RED(以下 env 测试仍然被执行：$env_leak)"
+            exit 1
           fi
 
           echo "===== 重新启用这些测试的方法（本机或完整部署环境）====="
           echo "  ./gradlew --no-daemon -PexcludeTags= test   # 空 excludeTags = 跑全部"
           echo "-----"
-          echo "TEST_EXIT=$rc SUMMARY_EXIT=$summary_rc SECONDS=$((end-start))"
+          echo "TEST_EXIT=$rc SUMMARY_EXIT=$summary_rc SECONDS=$((test_end-test_start))"
           if [ "$rc" -ne 0 ]; then echo "TEST_GATE=RED"; exit 1; fi
           if [ "$summary_rc" -ne 0 ]; then echo "TEST_GATE=RED(按模块汇总有失败或模块漏跑)"; exit 1; fi
-          if [ $((end-start)) -le 0 ]; then echo "TEST_GATE=SUSPECT(0s)"; exit 1; fi
+          if [ $((test_end-test_start)) -le 0 ]; then echo "TEST_GATE=SUSPECT(0s)"; exit 1; fi
           echo "TEST_GATE=GREEN"
       - name: assemble
         script: |
           # 打包门：产出全部 rpg-* 插件 jar（assemble 带 jar + sourcesJar），并列出产物清单与大小。
+          # 磁盘预检：打包门最容易的假红是「Gradle 没跑起来 / jar 没产出」，所以
+          # 先断言 build/libs 下真有 jar，再看每个插件 jar 是否含 plugin.yml。
           set -e
           export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
           export GRADLE_USER_HOME=/root/.gradle
-          start=$(date +%s)
+          asm_start=$(date +%s)
           set +e
-          ./gradlew --no-daemon --continue             -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4             assemble > /tmp/assemble.log 2>&1
+          ./gradlew --no-daemon --continue \
+            -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 \
+            -Dorg.gradle.internal.http.connectionTimeout=60000 \
+            -Dorg.gradle.internal.http.socketTimeout=60000 \
+            assemble > /tmp/assemble.log 2>&1
           rc=$?
           set -e
-          end=$(date +%s)
+          asm_end=$(date +%s)
           tail -n 40 /tmp/assemble.log
 
-          echo "===== jar 产物清单 ====="
-          jars=$(find plugins tools -path '*/build/libs/*.jar' -type f 2>/dev/null | sort)
-          if [ -z "$jars" ]; then echo "PACKAGE_GATE=RED 没有任何 jar 产物"; exit 1; fi
-          # 每行列出大小与相对路径；末尾汇总个数与总字节数
-          printf '%s\n' "$jars" | while IFS= read -r jar; do
+          echo "===== jar 产物清单（大小 / 路径）====="
+          # 用临时文件而不是 shell 变量传参：jar 列表可能很长，且下面被 while 子进程读，
+          # 变量会因 subshell 丢失（dash 下实测 JAR_COUNT 变成空）。
+          find plugins tools -path '*/build/libs/*.jar' -type f 2>/dev/null | sort > /tmp/jars.txt
+          if [ ! -s /tmp/jars.txt ]; then echo "PACKAGE_GATE=RED 没有任何 jar 产物"; exit 1; fi
+          while IFS= read -r jar; do
             [ -z "$jar" ] && continue
             size=$(wc -c < "$jar" | tr -d ' ')
             printf '  %10s  %s\n' "$size" "$jar"
-          done
+          done < /tmp/jars.txt
           echo "-----"
-          echo "JAR_COUNT=$(printf '%s\n' "$jars" | sed '/^$/d' | wc -l | tr -d ' ')"
-          echo "JAR_BYTES=$(printf '%s\n' "$jars" | while IFS= read -r j; do [ -n "$j" ] && wc -c < "$j"; done | awk '{s+=$1} END {print s+0}')"
+          # assemble 会用两个进程管道，不能用 ${PIPESTATUS}；改用两条独立命令 +
+          # 单条 awk 既算数又算字节，避免再次踩「命令替换里嵌套命令替换」的坑。
+          jar_count=$(wc -l < /tmp/jars.txt | tr -d ' ')
+          # 逐行累加字节数：awk 里用 getline 调 wc，避免「命令替换里再套命令替换」
+          # 在 dash 下被拆行（实测会产出空值）。
+          jar_bytes=$(awk '{ cmd = "wc -c < \"" $0 "\""; cmd | getline n; close(cmd); total += n } END { print total + 0 }' /tmp/jars.txt)
+          echo "JAR_COUNT=$jar_count"
+          echo "JAR_BYTES=$jar_bytes"
+          if [ "$jar_count" -lt 1 ]; then echo "PACKAGE_GATE=RED jar 数为 0"; exit 1; fi
 
           echo "===== 产物校验：每个插件 jar 必须含 plugin.yml（可被 Paper 加载）====="
           # 校验逻辑在 scripts/check-plugin-jars.py 里（用 python 读 zip，不用 unzip：
           # eclipse-temurin 镜像没有 unzip，实测会把 25 个完好的 jar 全部误报）。
-          printf '%s\n' "$jars" > /tmp/jars.txt
+          set +e
           python3 scripts/check-plugin-jars.py /tmp/jars.txt
+          jarcheck_rc=$?
+          set -e
           echo "-----"
-          echo "ASSEMBLE_EXIT=$rc SECONDS=$((end-start))"
-          if [ "$rc" -ne 0 ]; then echo "PACKAGE_GATE=RED"; exit 1; fi
-          if [ $((end-start)) -le 0 ]; then echo "PACKAGE_GATE=SUSPECT(0s)"; exit 1; fi
+          echo "ASSEMBLE_EXIT=$rc JARCHECK_EXIT=$jarcheck_rc SECONDS=$((asm_end-asm_start))"
+          if [ "$rc" -ne 0 ]; then echo "PACKAGE_GATE=RED(gradle assemble 非零退出)"; exit 1; fi
+          if [ "$jarcheck_rc" -ne 0 ]; then echo "PACKAGE_GATE=RED(有插件 jar 缺 plugin.yml)"; exit 1; fi
+          if [ $((asm_end-asm_start)) -le 0 ]; then echo "PACKAGE_GATE=SUSPECT(0s)"; exit 1; fi
           echo "PACKAGE_GATE=GREEN"
 
 $:
