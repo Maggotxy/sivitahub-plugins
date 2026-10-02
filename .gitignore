@@ -43,7 +43,9 @@ diagnostics/
 *.pfx
 .workbuddy-ai/
 
-# 编译期第三方 jar 由 scripts/fetch-deps.sh 拉取，不入库（避免仓库体积膨胀）。
-# 只入库 libs/vendor/README.md；vendor 下的自改版 jar 由人类从生产机取回。
+# 有公开源的编译期 jar 由 scripts/fetch-deps.sh 拉取，不入库（避免仓库体积膨胀）。
 libs/*.jar
-libs/vendor/*.jar
+# libs/vendor/ 下的 jar **必须入库**：它们是上游未公开发布的构建（BetterHud
+# 2.1.0-SNAPSHOT-447）或 Sivita 自改版（MyPet / WorldGuard），CI 无法下载，
+# 不入库则干净克隆永远编不过。详见 libs/vendor/README.md。
+!libs/vendor/*.jar

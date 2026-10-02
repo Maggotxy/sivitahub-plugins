@@ -137,23 +137,20 @@ fetch() {
 # 值 = 仓库相对路径，空格分隔。
 # PHASE_FETCH  = 本脚本负责下载 + 校验的 jar
 # PHASE_VENDOR = Sivita 自改版，本脚本只检查存在性，不下载
-PHASE_FETCH="libs/BetterHud-bukkit-1.14.1.jar libs/AuthMe-6.0.0-Paper.jar libs/EssentialsX-2.22.1-dev-382de4f.jar libs/worldedit-bukkit-7.4.4.jar libs/worldedit-core-7.4.4.jar libs/Citizens-2.0.43-b4231.jar libs/BetonQuest-3.1.0.jar"
-PHASE_VENDOR="libs/vendor/MyPet-4.0.0-Sivita.jar libs/vendor/worldguard-bukkit-7.0.18-Sivita.jar"
+PHASE_FETCH="libs/AuthMe-6.0.0-Paper.jar libs/EssentialsX-2.22.1-dev-382de4f.jar libs/worldedit-bukkit-7.4.4.jar libs/worldedit-core-7.4.4.jar libs/Citizens-2.0.43-b4231.jar libs/BetonQuest-3.1.0.jar"
+PHASE_VENDOR="libs/vendor/BetterHud-bukkit-2.1.0-SNAPSHOT-447.jar libs/vendor/MyPet-4.0.0-Sivita.jar libs/vendor/worldguard-bukkit-7.0.18-Sivita.jar"
 
-# 6 个有公开源的编译期依赖。
+# 6 个有公开源的编译期依赖（BetterHud 已转为 vendor，见下）。
 # 源优先级：Maven 仓库坐标 > 官方 CI artifact > GitHub Releases。
 # 校验值是 2026-10-02 首次拉取时的实测值（sha256 / sha1）。
 
 FAILED=""
 
-# 1) BetterHud —— 原引用 2.1.0-SNAPSHOT-447。上游从未发布 2.1.0 / build 447 的公开产物
-#    （toxicity188/BetterHud 的 Releases 只到 2.0.0，Actions artifacts 为 0），
-#    ⇒ 归一到最近可用正式版 1.14.1-bukkit（仍提供 kr.toxicity.hud.api 全部 API）。
-#    见 PR 描述里的 PENDING 说明。
-fetch "BetterHud-bukkit-1.14.1.jar" \
-    "https://github.com/toxicity188/BetterHud/releases/download/1.14.1/BetterHud-bukkit-1.14.1.jar" \
-    "4b29a7dcaab4c2a1dd5341595bf691286f186fb453f73c2afe39aaed5c3c0c0d" \
-    "687720ae5faeec81585566de8e756b2c308ae26c" || FAILED="$FAILED BetterHud-bukkit-1.14.1.jar"
+# 1) BetterHud —— 原引用 2.1.0-SNAPSHOT-447，上游从未公开发布该构建（Releases 只到 2.0.0，
+#    Actions artifacts 为 0）。**不能用近似版本代替**：实测拿 1.14.1 顶替后编译报
+#    `HudPlayerJoinEvent.player() cannot find symbol`（sn=cnb-j08-1k3tddubk），
+#    即 API 已漂移 —— 近似版本的危险在于「编译过了但语义不同」。
+#    ⇒ 改为 vendor：由人类从生产机取回与运行时完全同版本的 jar（见 libs/vendor/README.md）。
 
 # 2) AuthMe —— GitHub Releases 6.0.0 的 Paper 变体，文件名与上游完全一致
 fetch "AuthMe-6.0.0-Paper.jar" \
@@ -198,7 +195,7 @@ fetch "BetonQuest-3.1.0.jar" \
 
 # ---------------------------------------------------------------- vendor（自改版，脚本不下载）
 
-# 这两个是 Sivita 自改版，公开源不存在；由人类从生产机取回后放到 libs/vendor/。
+# 这些是 Sivita 自改版或上游未公开发布的构建，公开源不存在；由人类从生产机取回后放到 libs/vendor/。
 # 本脚本不做下载，只在缺失时给出明确报错。
 check_vendor() {
     name="$1"; dest="$VENDOR_DIR/$name"
@@ -211,6 +208,7 @@ check_vendor() {
         FAILED="$FAILED vendor/$name"
     fi
 }
+check_vendor "BetterHud-bukkit-2.1.0-SNAPSHOT-447.jar"
 check_vendor "MyPet-4.0.0-Sivita.jar"
 check_vendor "worldguard-bukkit-7.0.18-Sivita.jar"
 
@@ -220,4 +218,4 @@ if [ -n "$FAILED" ]; then
     echo "fetch-deps: 失败条目：$FAILED" >&2
     exit 1
 fi
-echo "fetch-deps: 全部就绪（libs/ 7 个公开源 artifact + vendor 2 个自改版）"
+echo "fetch-deps: 全部就绪（libs/ 6 个公开源 artifact + vendor 3 个本地取回）"
