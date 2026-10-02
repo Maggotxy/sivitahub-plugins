@@ -57,6 +57,43 @@ class MobGuideRulesTest {
     }
 
     @Test
+    void guidePlanCarriesStageBudgetAndLifetimeExperienceFromProgressionRules() {
+        PlayerProfile profile = new PlayerProfile(UUID.randomUUID(), Archetype.WARRIOR,
+                0, 4, 500L, 100, 100, 0, 0, Map.of(CoreAttribute.STRENGTH, 0));
+
+        MobGuideRules.GuidePlan plan = MobGuideRules.guidePlan(profile, 10L, 10L, 40L, DUNGEONS);
+
+        // 行为断言：阶段预算来自 ProgressionRules.totalExperienceForAscension(0)
+        assertEquals(cn.originalrpg.api.rules.ProgressionRules.totalExperienceForAscension(0),
+                plan.stageExperienceBudget());
+        // 已投入 = 走到 0转4级 的实走累计 + 当前等级零头 500
+        long reachedLevel4 = cn.originalrpg.api.rules.ProgressionRules.totalExperienceToEffective(4);
+        assertEquals(reachedLevel4 + 500L, plan.stageExperienceSpent());
+        assertEquals(plan.stageExperienceBudget() - plan.stageExperienceSpent(), plan.stageExperienceRemaining());
+        // 累计经验来自 ProgressionRules.totalExperienceToEffective(effectiveLevel=4)
+        assertEquals(reachedLevel4, plan.totalExperienceToEffective());
+    }
+
+    @Test
+    void cappedPlanStageSpentEqualsTheWalkedStageBudget() {
+        PlayerProfile profile = new PlayerProfile(UUID.randomUUID(), Archetype.WARRIOR,
+                0, 30, 900_000L, 100, 100, 0, 0, Map.of(CoreAttribute.STRENGTH, 0));
+
+        MobGuideRules.GuidePlan plan = MobGuideRules.guidePlan(profile, 10L, 10L, 40L, DUNGEONS);
+
+        long walked = 0L;
+        for (int local = 1; local < 30; local++) {
+            walked += cn.originalrpg.api.rules.ProgressionRules.experienceToNextLocalLevel(0, local);
+        }
+        assertTrue(plan.capped());
+        // 已投入 = 实走阶段和 + 当前等级零头
+        assertEquals(walked + 900_000L, plan.stageExperienceSpent());
+        assertEquals(0L, plan.stageExperienceRemaining());
+        // 累计口径只到"抵达该等级"的阈值，不含零头（与 totalExperienceToEffective(1)=0 一致）
+        assertEquals(walked, plan.totalExperienceToEffective());
+    }
+
+    @Test
     void cappedPlanDoesNotAdvertiseAnotherLevelExperienceTarget() {
         PlayerProfile profile = new PlayerProfile(UUID.randomUUID(), Archetype.WARRIOR,
                 0, 30, 900_000L, 100, 100, 0, 0, Map.of(CoreAttribute.STRENGTH, 0));

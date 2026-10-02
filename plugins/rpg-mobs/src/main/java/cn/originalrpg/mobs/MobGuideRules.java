@@ -73,6 +73,12 @@ final class MobGuideRules {
         boolean capped = profile.level() >= ProgressionRules.levelCap(profile.ascension());
         long needed = capped ? 0L
                 : ProgressionRules.experienceToNextLevel(profile.ascension(), profile.level());
+        // 阶段总预算（名义值）来自 ProgressionRules.totalExperienceForAscension()；
+        // 已投入本阶段的经验用 totalExperienceToEffective() 的差分还原，两者共用同一套
+        // 逐级经验来源，因此不会与升级循环（JdbcProfileService / JdbcDungeonRewardService）漂移。
+        long stageBudget = ProgressionRules.totalExperienceForAscension(profile.ascension());
+        long stageSpent = ProgressionRules.stageExperienceSpent(
+                profile.ascension(), profile.level(), profile.experience());
         return new GuidePlan(
                 profile.ascension(),
                 profile.level(),
@@ -80,6 +86,11 @@ final class MobGuideRules {
                 profile.experience(),
                 needed,
                 capped ? 0L : Math.max(0L, needed - profile.experience()),
+                stageBudget,
+                stageSpent,
+                ProgressionRules.stageExperienceRemaining(
+                        profile.ascension(), profile.level(), profile.experience()),
+                ProgressionRules.totalExperienceToEffective(effectiveLevel),
                 capped,
                 minimumMob,
                 maximumMob,
@@ -127,6 +138,10 @@ final class MobGuideRules {
             long experience,
             long neededExperience,
             long remainingExperience,
+            long stageExperienceBudget,
+            long stageExperienceSpent,
+            long stageExperienceRemaining,
+            long totalExperienceToEffective,
             boolean capped,
             int minimumMobLevel,
             int maximumMobLevel,
