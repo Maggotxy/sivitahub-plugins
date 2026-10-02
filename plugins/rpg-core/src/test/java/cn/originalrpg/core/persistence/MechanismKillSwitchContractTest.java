@@ -1,18 +1,20 @@
 package cn.originalrpg.core.persistence;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.Stream;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,28 +24,57 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * C-005 门禁：注册表里登记了机制却没有任何调用点，视为 Kill Switch 是死开关。
  *
- * <p>本测试用反射读取 {@link MechanismRegistry} 的机制常量，逐个在
- * {@code plugins/rpg-core/src/main} 内查找真实消费者。新增机制常量而不接
- * 消费者会让本测试失败。</p>
+ * <p>本测试用反射读取 {@link MechanismRegistry} 的机制常量，再用反射逐个检查
+ * {@code FAUCET_ENTRY_POINTS} 指向的消费者类里是否真的有「接 Kill Switch」的构造器
+ * （字节码层面），最后用真库（H2）验证关闭开关后资金动作 fail closed。</p>
+ *
+ * <p>行为化替换说明（G-302）：原实现 {@code Files.readString} 读 rpg-core/src/main 的
+ * 全部源码再 {@code contains("requireEnabled(MechanismRegistry.X)")}，这是字符串匹配，
+ * 与「机制能不能被关停」无关。现在改为：消费者的构造器必须接受
+ * {@link MechanismRegistry}（编译期接线），且 {@code JdbcSeasonSettlementService}
+ * 关闭机制后必须拒绝迁移且不落库（运行期行为）。</p>
  */
 final class MechanismKillSwitchContractTest {
 
     @Test
-    void everyRegisteredMechanismHasARealConsumerInMainSources() throws Exception {
+    void everyRegisteredMechanismHasAWiredConsumerClass() throws Exception {
         Map<String, String> mechanisms = registeredMechanismValues();
         assertFalse(mechanisms.isEmpty(), "Mechanism registry must declare at least one mechanism");
 
-        List<String> mainSources = readMainSources();
         Map<String, String> dead = new TreeMap<>();
         for (Map.Entry<String, String> entry : mechanisms.entrySet()) {
-            String fieldName = entry.getKey();
-            boolean wired = mainSources.stream().anyMatch(source ->
-                    source.contains("requireEnabled(MechanismRegistry." + fieldName + ")"));
-            if (!wired) dead.put(fieldName + "=" + entry.getValue(), "no requireEnabled(...) call site");
+            String consumer = MechanismRegistry.FAUCET_ENTRY_POINTS.get(entry.getValue());
+            if (consumer == null || !consumerAcceptsTheKillSwitch(consumer)) {
+                dead.put(entry.getKey() + "=" + entry.getValue(),
+                        "consumer " + consumer + " does not accept a MechanismRegistry");
+            }
         }
-
         assertTrue(dead.isEmpty(),
-                "C-005 违规：以下机制已注册但零消费者（Kill Switch 无法关停任何路径）: " + dead);
+                "C-005 违规：以下机制已注册但其消费者没接 Kill Switch（开关关不掉任何路径）: " + dead);
+    }
+
+    /**
+     * 反射检查 {@code FAUCET_ENTRY_POINTS} 指向的类是否在构造期就拿到 Kill Switch。
+     * 只看「类能否加载 + 构造器是否接受 MechanismRegistry」，不看源码文本：
+     * 消费者一旦被换成不接开关的实现，这里立即失败。
+     */
+    private static boolean consumerAcceptsTheKillSwitch(String simpleName) {
+        Class<?> consumer;
+        try {
+            consumer = Class.forName("cn.originalrpg.core.persistence." + simpleName);
+        } catch (ClassNotFoundException notInThisPackage) {
+            try {
+                consumer = Class.forName(simpleName);
+            } catch (ClassNotFoundException missing) {
+                return false;
+            }
+        }
+        for (Constructor<?> constructor : consumer.getDeclaredConstructors()) {
+            for (Class<?> parameter : constructor.getParameterTypes()) {
+                if (parameter == MechanismRegistry.class) return true;
+            }
+        }
+        return false;
     }
 
     @Test
@@ -85,24 +116,76 @@ final class MechanismKillSwitchContractTest {
         return result;
     }
 
-    private static List<String> readMainSources() throws IOException {
-        Path root = findRepositoryRoot().resolve("plugins/rpg-core/src/main/java");
-        assertTrue(Files.isDirectory(root), "Missing rpg-core main sources: " + root);
-        List<String> sources = new ArrayList<>();
-        try (Stream<Path> files = Files.walk(root)) {
-            for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
-                sources.add(Files.readString(file));
-            }
+    private HikariDataSource dataSource;
+    private java.util.concurrent.ExecutorService executor;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl("jdbc:h2:mem:killswitch_" + UUID.randomUUID()
+                + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");
+        config.setAutoCommit(false);
+        dataSource = new HikariDataSource(config);
+        executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute(SETTLEMENTS_DDL);
+            statement.execute(TRANSITIONS_DDL);
+            statement.execute(GATE_DDL);
+            connection.commit();
         }
-        return sources;
     }
 
-    private static Path findRepositoryRoot() {
-        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
-        while (current != null && !Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
-            current = current.getParent();
-        }
-        assertNotNull(current, "Cannot locate repository root from user.dir");
-        return current;
+    @AfterEach
+    void tearDown() {
+        executor.close();
+        dataSource.close();
     }
+
+    @Test
+    void disabledSeasonSettlementMechanismFailsClosedOnRealDatabase() throws Exception {
+        // 运行期行为断言：开关关掉后换季迁移必须被拒绝，且不落任何状态行。
+        MechanismRegistry registry = new MechanismRegistry(dataSource);
+        Field cache = MechanismRegistry.class.getDeclaredField("cache");
+        cache.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<String, Boolean> cacheValues = (Map<String, Boolean>) cache.get(registry);
+        cacheValues.put(MechanismRegistry.SEASON_SETTLEMENT, false);
+
+        JdbcSeasonSettlementService settlement =
+                new JdbcSeasonSettlementService(dataSource, executor, registry);
+        var result = settlement.advance("launch-1", null,
+                cn.originalrpg.api.rules.SeasonSettlementState.PREVIEWED, "console",
+                "kill switch closed").toCompletableFuture().join();
+
+        assertEquals(cn.originalrpg.api.model.SeasonSettlementResult.Status.BLOCKED, result.status(),
+                "关闭机制后必须返回 BLOCKED 而不是照常结算");
+        assertEquals(cn.originalrpg.api.rules.SeasonSettlementState.DRAFT,
+                settlement.state("launch-1").toCompletableFuture().join(),
+                "被拒绝的迁移不得推进状态");
+        // 拒绝必须计入指标：advance 自身已经问过一次开关，requireEnabled 再问一次即为 2。
+        assertFalse(registry.requireEnabled(MechanismRegistry.SEASON_SETTLEMENT));
+        assertEquals(2L, registry.metrics().get(MechanismRegistry.SEASON_SETTLEMENT).denied(),
+                "拒绝必须逐次计入指标（advance 一次 + 本次一次）");
+        assertEquals(0L, registry.metrics().get(MechanismRegistry.SEASON_SETTLEMENT).allowed(),
+                "被关停的机制不得有任何 allowed 计数");
+    }
+
+    private static final String SETTLEMENTS_DDL = "CREATE TABLE rpg_season_settlements ("
+            + " id VARCHAR(36) PRIMARY KEY, season_id VARCHAR(32) NOT NULL,"
+            + " status VARCHAR(24) NOT NULL, preview_hash VARCHAR(64), fact_digest VARCHAR(64),"
+            + " approved_by VARCHAR(64),"
+            + " created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+            + " updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)";
+
+    private static final String TRANSITIONS_DDL = "CREATE TABLE rpg_season_settlement_transitions ("
+            + " id VARCHAR(36) PRIMARY KEY, settlement_id VARCHAR(36) NOT NULL,"
+            + " from_state VARCHAR(24) NOT NULL, to_state VARCHAR(24) NOT NULL,"
+            + " actor VARCHAR(64) NOT NULL, reason VARCHAR(128) NOT NULL,"
+            + " fact_digest VARCHAR(64), request_hash VARCHAR(64) NOT NULL,"
+            + " transaction_version BIGINT NOT NULL, committed_at TIMESTAMP NULL,"
+            + " created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)";
+
+    private static final String GATE_DDL = "CREATE TABLE rpg_season_settlement_gate ("
+            + " singleton_id INTEGER PRIMARY KEY, settlement_id VARCHAR(36),"
+            + " updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)";
 }

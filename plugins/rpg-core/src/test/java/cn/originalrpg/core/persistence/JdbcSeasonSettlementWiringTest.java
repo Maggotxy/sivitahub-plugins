@@ -1,28 +1,32 @@
 package cn.originalrpg.core.persistence;
 
 import cn.originalrpg.api.rules.SeasonSettlementState;
+import cn.originalrpg.api.service.SeasonSettlementService;
 import cn.originalrpg.api.service.SeasonMeritWalletService;
+import cn.originalrpg.core.command.RpgCommand;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -116,18 +120,61 @@ final class JdbcSeasonSettlementWiringTest {
     }
 
     @Test
-    void settlementServiceIsConsumedOutsideItsOwnDefinitionFile() throws IOException {
-        Path root = repositoryRoot().resolve("plugins/rpg-core/src/main/java");
-        List<Path> consumers = new ArrayList<>();
-        try (Stream<Path> files = Files.walk(root)) {
-            for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
-                String name = file.getFileName().toString();
-                if (name.equals("JdbcSeasonSettlementService.java")) continue;
-                if (Files.readString(file).contains("SeasonSettlementService")) consumers.add(file);
-            }
+    void settlementServiceIsConsumedThroughTypedReflectionNotSourceText() throws Exception {
+        // 行为化替换：原来读 RpgCorePlugin.java 源码找 "SeasonSettlementService" 字符串。
+        // 现在用类型反射：构造参数 / 调用点必须在字节码层面成立。
+        // 换掉服务类型、或把服务从 /rpg 构造参数里摘掉，本测试都会失败。
+        // 注：RpgCorePlugin 不持有该服务（在 onEnable 的局部变量里构造并注册），
+        // 所以字段集合不作为判据。
+        assertTrue(constructorParameterTypes(RpgCommand.class).contains(SeasonSettlementService.class),
+                "C-010 违规：/rpg 与换季服务之间没有编译期依赖，九态没有玩家侧消费者");
+        assertTrue(constructorParameterTypes(JdbcSeasonSettlementService.class)
+                        .contains(MechanismRegistry.class),
+                "C-005/C-010 违规：换季服务没有接 Kill Switch（账本动作必须可熔断）");
+
+        // 注册调用点：字段类型对了也可能从未注册进 Bukkit ServicesManager。
+        // 反射只能证明调用点存在；「真的注册成功」是 Paper 运行期事实，留待部署环境验收。
+        // 注册调用点在字节码里被内联进 lambda，反射看不到 "register" 方法本身；
+        // 因此这里退一步断言「主类加载成功且声明了 onEnable」——真正的注册与状态机可达性
+        // 由 JdbcSeasonSettlementServiceTest / everySettlementStateIsReachableThroughTheServiceNotJustTheEnum 覆盖。
+        Class<?> plugin = Class.forName("cn.originalrpg.core.RpgCorePlugin");
+        assertNotNull(plugin.getDeclaredConstructor(), "RpgCorePlugin 必须可实例化");
+        assertTrue(Arrays.stream(plugin.getDeclaredMethods())
+                        .anyMatch(method -> method.getName().equals("onEnable")),
+                "C-010 违规：RpgCorePlugin 没有 onEnable，服务不可能被注册");
+    }
+
+    @Test
+    void unregisteredSeasonSettlementServiceIsDeniedByTheKillSwitch() throws Exception {
+        // 反射造出「没有任何注册动作」的换季服务，并让 Kill Switch 关掉换季机制：
+        // 断言迁移被 BLOCKED 且一行业务状态都不落库（fail closed，不是静默放行）。
+        MechanismRegistry mechanisms = new MechanismRegistry(dataSource);
+        Field cache = MechanismRegistry.class.getDeclaredField("cache");
+        cache.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<String, Boolean> cacheValues = (Map<String, Boolean>) cache.get(mechanisms);
+        cacheValues.put(MechanismRegistry.SEASON_SETTLEMENT, false);
+
+        JdbcSeasonSettlementService blocked = new JdbcSeasonSettlementService(dataSource, executor, mechanisms);
+        var result = blocked.advance("launch-1", null, SeasonSettlementState.PREVIEWED, "console",
+                "kill switch must fail closed").toCompletableFuture().join();
+        assertEquals(cn.originalrpg.api.model.SeasonSettlementResult.Status.BLOCKED, result.status(),
+                "关闭机制后换季必须 fail closed");
+        assertEquals(SeasonSettlementState.DRAFT,
+                blocked.state("launch-1").toCompletableFuture().join(),
+                "被拒绝的迁移不得改变状态");
+        assertEquals(0L, number("SELECT COUNT(*) FROM rpg_season_settlements"),
+                "被拒绝的迁移不得写结算行");
+        assertEquals(0L, number("SELECT COUNT(*) FROM rpg_season_settlement_transitions"),
+                "被拒绝的迁移不得写迁移日志");
+    }
+
+    private static Set<Class<?>> constructorParameterTypes(Class<?> owner) {
+        Set<Class<?>> types = new LinkedHashSet<>();
+        for (Constructor<?> constructor : owner.getDeclaredConstructors()) {
+            types.addAll(List.of(constructor.getParameterTypes()));
         }
-        assertTrue(consumers.stream().anyMatch(path -> path.getFileName().toString().equals("RpgCorePlugin.java")),
-                "C-010 违规：SeasonSettlementService 在 rpg-core/src/main 里除自身外没有消费者");
+        return types;
     }
 
     @Test
@@ -201,14 +248,5 @@ final class JdbcSeasonSettlementWiringTest {
             result.next();
             return result.getLong(1);
         }
-    }
-
-    private static Path repositoryRoot() {
-        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
-        while (current != null && !Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
-            current = current.getParent();
-        }
-        if (current == null) throw new IllegalStateException("Cannot locate repository root");
-        return current;
     }
 }

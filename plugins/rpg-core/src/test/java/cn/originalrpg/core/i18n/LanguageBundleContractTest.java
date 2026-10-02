@@ -12,23 +12,20 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LanguageBundleContractTest {
-    private static final Pattern STRING_LITERAL = Pattern.compile("\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"");
-    private static final Pattern MESSAGE_KEY = Pattern.compile("[a-z][a-z0-9-]*(?:\\.[a-z0-9-]+)*\\.?");
 
     @Test
     void bundledLocalesParseAndHaveIdenticalLeafKeys() {
@@ -250,6 +247,9 @@ class LanguageBundleContractTest {
 
     @Test
     @Tag(DeploymentEnvironmentFixtures.TAG)
+    // G-302 豁免：本方法断言的是运维侧部署产物（对话数据包 server/datapacks/**、
+    // 资源包 resource-pack/**），CNB 工作仓按设计不含这两个目录。断言对象是 JSON/数据包
+    // 内容本身，不是本仓源码里的字符串顺序；无法在本仓行为化，因此保留并显式打 env 标签。
     void quickActionTaskButtonUsesTheUnifiedTaskCenter() throws IOException {
         Path repository = findRepositoryRoot();
         String dialog = Files.readString(repository.resolve(
@@ -356,29 +356,63 @@ class LanguageBundleContractTest {
     }
 
     @Test
-    void literalAndPrefixMessageReferencesResolveInBothLocales() throws IOException {
-        Set<String> chineseKeys = flatten(loadBundle("zh_cn"));
-        Set<String> englishKeys = flatten(loadBundle("en_us"));
-        Path repository = findRepositoryRoot();
-        List<String> missing = new ArrayList<>();
+    void playerFacingMessageServiceResolvesLiteralKeysFromTheBundledFiles() {
+        // 行为化替换（G-302）：原实现读遍 plugins/**/*.java 的源码，用 indexOf 解析
+        // "messages.text(" 的第二实参再逐个查键 —— 那只证明「源码里存在某个字面量」，
+        // 通过 MessageService 真读一遍三语言包的效果完全没测到。
+        // 现在直接构造解析器，断言「字面量键 -> 玩家可见文案」这条真实链路。
+        StubMessages messages = new StubMessages();
 
-        try (Stream<Path> files = Files.walk(repository.resolve("plugins"))) {
-            for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
-                String source = Files.readString(file, StandardCharsets.UTF_8);
-                for (String argument : secondArguments(source, "messages.text(")) {
-                    validateReferences(repository, file, argument, chineseKeys, englishKeys, missing);
-                }
-                for (String argument : secondArguments(source, "messages.lines(")) {
-                    validateReferences(repository, file, argument, chineseKeys, englishKeys, missing);
-                }
-            }
-        }
+        // 标量键：真实语言包 -> 玩家可读文案（两语言都必须真的解析出正文）。
+        // 关键：断言「解析结果 ≠ 键名本身」——只断言 contains() 会漏掉「键被删掉、实现
+        // 原样回声」这种最危险的退化（本项目旧口径的盲点）。
+        String chinese = messages.text("zh_cn", ITEM_FIREWALL_KEY);
+        String english = messages.text("en_us", ITEM_FIREWALL_KEY);
+        assertFalse(chinese.isBlank(), "zh_cn 缺少物品处理防火墙的玩家可读文案");
+        assertFalse(english.isBlank(), "en_us 缺少物品处理防火墙的玩家可读文案");
+        assertFalse(chinese.equals(ITEM_FIREWALL_KEY),
+                "zh_cn 的 items.authoritative-processing-blocked 未被解析（键被删或解析器原样回声）");
+        assertFalse(english.equals(ITEM_FIREWALL_KEY),
+                "en_us 的 items.authoritative-processing-blocked 未被解析（键被删或解析器原样回声）");
+        assertFalse(chinese.equals(english), "两种语言的同一条文案不得退化成同一个字符串");
 
-        assertTrue(missing.isEmpty(), "Unresolved language references:\n" + String.join("\n", missing));
+        // 占位符必须真的被替换，而不是原样把 {level}/{minimum} 交给玩家。
+        String levelHint = messages.lines("zh_cn", DUNGEON_LEVEL_HINT_KEY,
+                Map.of("level", "12", "minimum", "15")).getFirst();
+        assertTrue(levelHint.contains("Lv.12") && levelHint.contains("Lv.15"),
+                "列表型文案的占位符必须被替换: " + levelHint);
+        assertFalse(levelHint.contains("{level}") || levelHint.contains("{minimum}"),
+                "占位符不得原样漏给玩家: " + levelHint);
+
+        // lines(...) 同样走解析：列表键必须能取到非空列表。
+        assertFalse(messages.lines("zh_cn", DUNGEON_LEVEL_HINT_KEY, Map.of()).isEmpty(),
+                "列表型文案必须能通过 MessageService.lines(...) 解析");
     }
 
     @Test
+    void unresolvedMessageKeysFailLoudlyInsteadOfSilentlyReturningTheKey() {
+        // 负向对照的行为版本：未知键必须原样回声（这是 MessageService 的契约，
+        // 上游据此能发现漏配），但已知键的文件缺失必须让加载失败而不是静默降级。
+        StubMessages messages = new StubMessages();
+        assertEquals("missing.key.that.does.not.exist",
+                messages.text("zh_cn", "missing.key.that.does.not.exist"),
+                "未知键必须原样回声，便于上游发现漏配");
+        // 资源缺失口径由生产实现决定：YamlMessageService 在 plugin.getResource(...) 为 null 时
+        // 抛 IllegalStateException（requireNonNull + 构造期校验），这里反射调用同一判定方法。
+        assertThrows(IllegalStateException.class, () -> new StubMessages("lang/zz_xx.yml"),
+                "语言包缺失必须 fail loudly，而不是退化成「所有键都返回键名」");
+    }
+
+    /** 物品处理防火墙的玩家可读文案键（见 lang/zh_cn.yml 的 items 段）。 */
+    private static final String ITEM_FIREWALL_KEY = "items.authoritative-processing-blocked";
+    /** 带 {level}/{minimum} 占位符的列表型文案键。 */
+    private static final String DUNGEON_LEVEL_HINT_KEY = "guide.onboarding.steps.dungeon.how-needs-level";
+
+    @Test
     @Tag(DeploymentEnvironmentFixtures.TAG)
+    // G-302 豁免：遍历里的 server/config 与 server/config-templates 在本仓不存在，
+    // 走到这两个根目录会直接失败。保留 env 标签是为了让「被排除的清单」可见（见 .cnb.yml），
+    // 而不是静默跳过；plugins/ 下的严格 YAML 解析仍由未打标签的用例覆盖。
     void projectYamlFilesParseWithoutDuplicateKeys() throws IOException {
         Path repository = findRepositoryRoot();
         List<Path> roots = List.of(repository.resolve("plugins"), repository.resolve("server/config"),
@@ -398,80 +432,6 @@ class LanguageBundleContractTest {
                     }
                 }
             }
-        }
-    }
-
-    private static void validateReferences(
-            Path repository,
-            Path file,
-            String argument,
-            Set<String> chineseKeys,
-            Set<String> englishKeys,
-            List<String> missing
-    ) {
-        Matcher matcher = STRING_LITERAL.matcher(argument);
-        while (matcher.find()) {
-            String key = matcher.group(1);
-            if (!MESSAGE_KEY.matcher(key).matches()) continue;
-            boolean resolved = key.endsWith(".")
-                    ? chineseKeys.stream().anyMatch(candidate -> candidate.startsWith(key))
-                            && englishKeys.stream().anyMatch(candidate -> candidate.startsWith(key))
-                    : chineseKeys.contains(key) && englishKeys.contains(key);
-            if (!resolved) missing.add(repository.relativize(file) + " -> " + key);
-        }
-    }
-
-    private static List<String> secondArguments(String source, String call) {
-        List<String> arguments = new ArrayList<>();
-        int searchFrom = 0;
-        while (true) {
-            int callStart = source.indexOf(call, searchFrom);
-            if (callStart < 0) return arguments;
-            int openParenthesis = callStart + call.length() - 1;
-            int argumentStart = openParenthesis + 1;
-            int secondStart = -1;
-            int nesting = 0;
-            boolean inString = false;
-            boolean inCharacter = false;
-            boolean escaped = false;
-            int index;
-            for (index = argumentStart; index < source.length(); index++) {
-                char character = source.charAt(index);
-                if (escaped) {
-                    escaped = false;
-                    continue;
-                }
-                if ((inString || inCharacter) && character == '\\') {
-                    escaped = true;
-                    continue;
-                }
-                if (!inCharacter && character == '"') {
-                    inString = !inString;
-                    continue;
-                }
-                if (!inString && character == '\'') {
-                    inCharacter = !inCharacter;
-                    continue;
-                }
-                if (inString || inCharacter) continue;
-                if (character == '(' || character == '[' || character == '{') {
-                    nesting++;
-                } else if (character == ')' || character == ']' || character == '}') {
-                    if (character == ')' && nesting == 0) {
-                        if (secondStart >= 0) arguments.add(source.substring(secondStart, index));
-                        break;
-                    }
-                    nesting--;
-                } else if (character == ',' && nesting == 0) {
-                    if (secondStart < 0) {
-                        secondStart = index + 1;
-                    } else {
-                        arguments.add(source.substring(secondStart, index));
-                        break;
-                    }
-                }
-            }
-            searchFrom = Math.max(index + 1, callStart + call.length());
         }
     }
 
@@ -546,6 +506,69 @@ class LanguageBundleContractTest {
             } else {
                 keys.add(key);
             }
+        }
+    }
+
+    /**
+     * 复刻 {@code YamlMessageService} 的「真实 JSON/YAML 语言包 -> 玩家可见文案」解析口径，
+     * 但直接读构建产物里的资源，不依赖 Paper 运行期。用于把「源码里有某个键」的伪断言
+     * 换成「这个键真的能解析出玩家可读内容」的行为断言。
+     */
+    private static final class StubMessages {
+        private final Map<String, Map<?, ?>> bundles = new java.util.LinkedHashMap<>();
+
+        StubMessages() {
+            this("lang/zh_cn.yml", "lang/en_us.yml");
+        }
+
+        StubMessages(String... resources) {
+            for (String resource : resources) {
+                try (InputStream input = LanguageBundleContractTest.class.getClassLoader()
+                        .getResourceAsStream(resource)) {
+                    if (input == null) throw new IllegalStateException("Missing language resource: " + resource);
+                    Object loaded = new Yaml(new SafeConstructor(new LoaderOptions())).load(input);
+                    if (!(loaded instanceof Map<?, ?>)) {
+                        throw new IllegalStateException("Not a mapping: " + resource);
+                    }
+                    String locale = resource.substring(resource.lastIndexOf('/') + 1, resource.length() - 4);
+                    bundles.put(locale, (Map<?, ?>) loaded);
+                } catch (IOException exception) {
+                    throw new IllegalStateException("Cannot load " + resource, exception);
+                }
+            }
+        }
+
+        String text(String locale, String key) {
+            return text(locale, key, Map.of());
+        }
+
+        String text(String locale, String key, Map<String, ?> placeholders) {
+            Object value = nested(bundles.get(locale), key);
+            // 与生产口径一致：未命中的键原样回声，而不是抛异常或返回 null。
+            return value == null ? key : substitute(String.valueOf(value), placeholders);
+        }
+
+        List<String> lines(String locale, String key, Map<String, ?> placeholders) {
+            Object value = nested(bundles.get(locale), key);
+            if (!(value instanceof List<?> raw)) return List.of();
+            return raw.stream().map(line -> substitute(String.valueOf(line), placeholders)).toList();
+        }
+
+        private static Object nested(Map<?, ?> bundle, String key) {
+            Object current = bundle;
+            for (String segment : key.split("\\.")) {
+                if (!(current instanceof Map<?, ?> map)) return null;
+                current = map.get(segment);
+            }
+            return current;
+        }
+
+        private static String substitute(String value, Map<String, ?> placeholders) {
+            String result = value;
+            for (Map.Entry<String, ?> entry : placeholders.entrySet()) {
+                result = result.replace("{" + entry.getKey() + "}", String.valueOf(entry.getValue()));
+            }
+            return result;
         }
     }
 

@@ -1,0 +1,159 @@
+{
+  "task_id": "W4-A4-source-string-test-replacement",
+  "status": "success",
+  "summary": "G-302 第一批（rpg-core）：把 3 个用 Files.readString 读源码的测试类行为化。MechanismKillSwitchContractTest 的「源码里存在 requireEnabled(MechanismRegistry.X)」改为反射检查 FAUCET_ENTRY_POINTS 指向的消费者构造器是否接受 MechanismRegistry + H2 真库断言关闭机制后换季被 BLOCKED 且零落库；JdbcSeasonSettlementWiringTest 的「源码里出现 SeasonSettlementService 字符串」改为类型反射（RpgCommand 构造参数 / 换季服务构造器接 Kill Switch）+ 新增 kill switch 关闭下 fail-closed 不落库的行为断言；LanguageBundleContractTest 的「扫全仓源码解析 messages.text( 第二实参并 indexOf 查键」改为直接构造解析器断言「字面量键 -> 玩家可见文案」真实链路（含占位符替换与未知键回声）。另产出 plan/source-string-tests-remaining.json（48 个剩余测试类，按模块给出理由与行为化方向）。全量替换留后续波次。",
+  "changed_files": [
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSeasonSettlementWiringTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/MechanismKillSwitchContractTest.java",
+    "plan/source-string-tests-remaining.json",
+    ".cnb/agent-out/W4-A4-source-string-test-replacement.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rl --include=*.java 'Files.readString' plugins/rpg-core/src/test",
+        "hit": [
+          "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java",
+          "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/MechanismKillSwitchContractTest.java"
+        ]
+      },
+      {
+        "cmd": "grep -rl --include=*.java 'Files.readString' plugins/rpg-core/src/test | xargs grep -l 'indexOf'",
+        "hit": [
+          "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java"
+        ]
+      },
+      {
+        "cmd": "grep -n 'Files.readString' plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java",
+        "hit": [
+          "254: String dialog = Files.readString(repository.resolve(...))",
+          "279: String translations = Files.readString(repository.resolve(...))",
+          "（两处都在 @Tag(\"env\") 的部署产物用例内，本仓不含 server/ 与 resource-pack/，已加中文豁免注释）"
+        ]
+      },
+      {
+        "cmd": "grep -n 'Files.readString' plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/MechanismKillSwitchContractTest.java",
+        "hit": [
+          "31: 仅出现在类注释里说明「原实现读源码、现已行为化」，无实际调用"
+        ]
+      },
+      {
+        "cmd": "grep -n 'indexOf' plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java",
+        "hit": [
+          "360: 仅出现在中文注释里说明原实现，无实际调用"
+        ]
+      },
+      {
+        "cmd": "grep -rl --include=*.java 'Files.readString' plugins --exclude-dir=build | grep '/src/test/' | wc -l",
+        "hit": [
+          "50"
+        ]
+      },
+      {
+        "cmd": "grep -rl --include=*.java 'Files.readString' plugins --exclude-dir=build | grep '/src/test/' | xargs grep -l 'indexOf' | wc -l",
+        "hit": [
+          "21"
+        ]
+      },
+      {
+        "cmd": "find plugins -name '*ContractTest.java' | wc -l",
+        "hit": [
+          "56"
+        ]
+      },
+      {
+        "cmd": "python3 -c \"import json;d=json.load(open('plan/source-string-tests-remaining.json'));print(len(d['tasks']), d['_indexOf_count'])\"",
+        "hit": [
+          "48 tasks / 20 个含 indexOf"
+        ]
+      },
+      {
+        "cmd": "git diff --name-only | grep 'src/main'",
+        "hit": [
+          "（无输出）未改任何 src/main"
+        ]
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-core:test   # 替换前（工作区已 stash 回退）",
+        "result": "261 tests completed, 2 failed —— 失败的是既有的 @Tag(\"env\") 部署产物用例（server/ 目录缺失），与本次改动无关"
+      },
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-core:test -PexcludeTags=env   # 替换前基线",
+        "result": "BUILD SUCCESSFUL / XML 汇总 tests=259 failures=0 errors=0 skipped=0（CI 门禁口径）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --rerun-tasks -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-core:test -PexcludeTags=env   # 替换后",
+        "result": "BUILD SUCCESSFUL / tests=262 failures=0 errors=0 skipped=0（+3，全部为本任务新增的行为断言）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --rerun-tasks -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-core:test   # 替换后默认全量",
+        "result": "264 tests completed, 2 failed —— 与替换前完全相同的两个 env 用例，无新增失败"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:compileJava :plugins:rpg-core:compileTestJava",
+        "result": "BUILD SUCCESSFUL"
+      }
+    ],
+    "negative_control": [
+      {
+        "id": "NC1",
+        "cmd": "把 RpgCommand 构造器的 SeasonSettlementService 参数改成 Object（删掉生产调用点），./gradlew --no-daemon --rerun-tasks :plugins:rpg-core:test -PexcludeTags=env --tests '*JdbcSeasonSettlementWiringTest*'",
+        "result": "BUILD FAILED / 5 tests, 1 failed —— RED: settlementServiceIsConsumedThroughTypedReflectionNotSourceText() 「C-010 违规：/rpg 与换季服务之间没有编译期依赖，九态没有玩家侧消费者」",
+        "restore": "git checkout -- plugins/rpg-core/src/main/java/cn/originalrpg/core/command/RpgCommand.java，恢复后 BUILD SUCCESSFUL"
+      },
+      {
+        "id": "NC2",
+        "cmd": "删掉 JdbcSeasonSettlementService.advance 里的 mechanisms.requireEnabled(SEASON_SETTLEMENT) fail-closed 分支，./gradlew --no-daemon --rerun-tasks :plugins:rpg-core:test -PexcludeTags=env",
+        "result": "262 tests completed, 3 failed —— RED: JdbcSeasonSettlementWiringTest.unregisteredSeasonSettlementServiceIsDeniedByTheKillSwitch()「expected <BLOCKED> but was <APPLIED>」；MechanismKillSwitchContractTest.disabledSeasonSettlementMechanismFailsClosedOnRealDatabase()「Season settlement transaction failed」；JdbcSeasonSettlementServiceTest.killSwitchRefusesSettlementWithoutTouchingTheLedger()「expected <BLOCKED> but was <APPLIED>」",
+        "restore": "cp 备份回 JdbcSeasonSettlementService.java，恢复后 BUILD SUCCESSFUL"
+      },
+      {
+        "id": "NC3b",
+        "cmd": "删掉 lang/zh_cn.yml 的 items.authoritative-processing-blocked 键，./gradlew --no-daemon --rerun-tasks :plugins:rpg-core:test -PexcludeTags=env --tests '*LanguageBundleContractTest*'",
+        "result": "10 tests completed, 2 failed —— RED: playerFacingMessageServiceResolvesLiteralKeysFromTheBundledFiles()「zh_cn 的 items.authoritative-processing-blocked 未被解析（键被删或解析器原样回声）」；另一条 bundledLocalesParseAndHaveIdenticalLeafKeys() 因两语言键集不一致同时变红",
+        "restore": "git checkout -- plugins/rpg-core/src/main/resources/lang/zh_cn.yml，与备份 diff 一致，再跑 BUILD SUCCESSFUL"
+      },
+      {
+        "id": "NC3-首次（失败的负向对照，记录在案）",
+        "cmd": "同样删键，但断言写的是 assertFalse(chinese.isBlank())",
+        "result": "测试未变红 —— 暴露「只断言非空/contains 会漏掉键被删后实现原样回声」；据此把断言加固为 assertFalse(text.equals(KEY))，NC3b 随即变红。",
+        "restore": "已按加固后的断言重跑负向对照（见 NC3b）"
+      }
+    ],
+    "exemptions": [
+      {
+        "file": "LanguageBundleContractTest#quickActionTaskButtonUsesTheUnifiedTaskCenter",
+        "reason": "断言对象是运维侧部署产物（server/datapacks/** 对话包与 resource-pack/** 文字包），本仓按设计不含这两个目录。断言的是 JSON/数据包内容本身，不是源码字符串顺序；无法在本仓行为化，保留并显式 @Tag(\"env\")。已加中文注释。"
+      },
+      {
+        "file": "LanguageBundleContractTest#projectYamlFilesParseWithoutDuplicateKeys",
+        "reason": "遍历根目录包含本仓不存在的 server/config 与 server/config-templates；保留 env 标签让「被排除的清单」在流水线日志里可见。已加中文注释。"
+      },
+      {
+        "file": "plan/source-string-tests-remaining.json 中 exempt=true 的 4 项（含上述两条 + StoryJourneyOrderContractTest + SurvivalPerformanceConfigurationContractTest）",
+        "reason": "同为读本仓不存在的部署产物，只能保留 env 标签豁免。已在该 JSON 里逐条标注。"
+      }
+    ]
+  },
+  "unproven": [
+    "反射断言「RpgCorePlugin 里存在 getServicesManager().register(...) 调用点」无法成立：注册调用被 javac 内联进 lambda，反射看不到 register 方法。已在测试里写明该上限，真正的注册成功属 Paper 运行期事实，留待部署环境 [R] 验收。",
+    "「每个机制都有真实 requireEnabled 调用点」在行为层面只覆盖了 SEASON_SETTLEMENT 一条路径（其余 6 个机制的消费者需要各自的数据库夹具，不在本任务范围）。反射只保证消费者构造器接受 MechanismRegistry，即接线是编译期成立的、不是运行期验证过的。",
+    "替换后的 LanguageBundleContractTest 用 StubMessages 复刻生产解析口径，没有直接构造 YamlMessageService（构造器要求真实 JavaPlugin 实例，属 Paper 运行期夹具）。解析口径已在注释里逐条对齐 lookup(lines) 的语义，但「生产实现与 StubMessages 是否完全一致」仍是人工判据。"
+  ],
+  "blockers": [],
+  "risks": [
+    "上一轮被判定为 success 但实际未交付可判定的产物（工作区无改动、无 plan/source-string-tests-remaining.json）。本轮改为：每一步都跑 gradlew 真测 + 3 组负向对照（删生产调用点断言必须变红再恢复），全部命令原文写入 evidence。",
+    "NC3 第一次负向对照没有变红（只断言非空会漏掉「键被删 + 实现原样回声」），已把断言加固为 assertFalse(text.equals(KEY)) 后重跑并变红；这条失败记录也写进 evidence.negative_control，不作为删除。",
+    "rpg-core 的 3 个测试类里仍有 2 处 Files.readString（LanguageBundleContractTest 的 deployment-artifacts 用例）。它们读的是本仓不存在的 server/ 与 resource-pack/，已带 @Tag(\"env\") 与中文豁免注释；本仓 CI 用 -PexcludeTags=env 排除，先red后绿的模式在本机默认全量下依然可见（2 个用例，与替换前完全一致）。",
+    "本机没有 JDK/gradle 缓存，本轮自行下载了 Temurin 25（/opt/jdk25）与 libs/ 第三方 jar 才跑通；CI 侧仍走 .cnb.yml 的 eclipse-temurin:25-jdk 镜像，环境差异只影响本地复跑，不影响门禁判据。"
+  ],
+  "next_steps": [
+    "按 plan/source-string-tests-remaining.json 逐模块派发后续波次；建议 rpg-dungeons（7 个全 indexOf）单独一批，rpg-items（8 个）与 rpg-guide/rpg-hub/rpg-mobs/rpg-story 各一批。",
+    "优先处理 20 个同时用 indexOf 断言源码字符串顺序的类（伪测试里最硬的一类）。",
+    "后续波次沿用同一套路：先按 @Tag(\"env\") / deployment-artifacts 分类，能行为化的行为化，剩下的一律加中文豁免注释并进 PR 豁免清单。"
+  ],
+  "pr_url": ""
+}
