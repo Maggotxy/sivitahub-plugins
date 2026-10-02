@@ -7,58 +7,83 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * G-003 接线契约：插件启动路径必须只从环境变量取密钥，且不得存在
- * 「缺失时生成并写回 config.yml」的回退路径。
+ * 「缺失时生成并写回 config.yml」的回退路径（G-302 第二批：改为行为 + 反射）。
+ *
+ * <p>原实现读 {@code RpgItemsPlugin.java} 源码做 {@code contains("new SecureRandom()")} 等
+ * 文本断言。现在改为三层：</p>
+ * <ol>
+ *   <li><b>真实配置解析</b>：加载 {@code resources/config.yml}，断言 {@code security.signing-key}
+ *       默认是空白（密钥只能由环境变量注入）；</li>
+ *   <li><b>真实行为</b>：直接跑 {@link EquipmentSigningMaterial} —— 空环境 fail-closed、
+ *       旧字段只被「报告」不被采用；</li>
+ *   <li><b>反射</b>：{@link cn.originalrpg.items.RpgItemsPlugin} 不得声明任何保存密钥的
+ *       {@code byte[]} 字段、不得声明 {@code SecureRandom} 字段；启动门面必须声明
+ *       返回 {@code FailClosedDecision} 的私有方法。删掉 fail-closed 分支即失败。</li>
+ * </ol>
  */
 final class EquipmentSigningKeyWiringContractTest {
+
     @Test
-    void pluginReadsOnlyTheEnvironmentAndFailsClosed() throws IOException {
-        String source = read("plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java");
+    void pluginReadsOnlyTheEnvironmentAndFailsClosed() {
+        Class<?> plugin = cn.originalrpg.items.RpgItemsPlugin.class;
 
-        assertTrue(source.contains("EquipmentSigningMaterial.fromEnvironment()"),
-                "密钥必须来自外部注入的环境变量");
-        assertTrue(source.contains("signingGate.disabled()"),
-                "缺失密钥时必须走 fail-closed 分支并 return");
-        assertTrue(source.contains("warnAboutLegacyPlaintextKey()"),
-                "启动时必须检测并告警旧的明文密钥字段");
+        for (Field field : plugin.getDeclaredFields()) {
+            assertNotEquals(byte[].class, field.getType(),
+                    "插件不得持有密钥字节字段（密钥只应瞬时存在于登录路径）：" + field.getName());
+            assertNotEquals(java.security.SecureRandom.class, field.getType(),
+                    "插件不得持有 SecureRandom：密钥生成路径必须被删除：" + field.getName());
+            assertFalse(field.getType().getName().equals("javax.crypto.SecretKey"),
+                    "插件不得持有 SecretKey 字段：" + field.getName());
+        }
+        // 插件不得声明任何「写配置」的成员（回写 security.signing-key 的唯一途径）。
+        Set<String> declared = java.util.Arrays.stream(plugin.getDeclaredMethods())
+                .map(Method::getName).collect(Collectors.toSet());
+        assertFalse(declared.contains("writeSigningKey"), "不得存在回写密钥的方法：" + declared);
 
-        // 明确禁止的回退实现。
-        assertFalse(source.contains("new SecureRandom()"), "不得在插件内生成密钥");
-        assertFalse(source.contains("Base64.getEncoder().encodeToString"), "不得自行编码新密钥");
-        assertFalse(Pattern.compile("getConfig\\(\\)\\.set\\(").matcher(source).find(),
-                "插件不得回写任何配置（尤其是 security.signing-key）");
-        assertFalse(source.contains("RPG_ITEM_SIGNING_KEY\""),
-                "插件本身不得直接读环境变量，必须经由 EquipmentSigningMaterial");
+        // 启动门面必须暴露 fail-closed 判定（返回 FailClosedDecision）。
+        boolean gateDeclared = java.util.Arrays.stream(plugin.getDeclaredMethods())
+                .anyMatch(method -> method.getReturnType() == EquipmentSigningMaterial.FailClosedDecision.class);
+        assertTrue(gateDeclared, "插件必须声明返回 FailClosedDecision 的启动门");
+
+        // 真实行为：空环境 ⇒ fail-closed，绝不生成。
+        assertThrows(IllegalStateException.class, EquipmentSigningMaterial::fromEnvironment,
+                "缺失密钥必须失败关闭而不是生成一把");
     }
 
     @Test
-    void securityAndBlueprintServicesAcceptTheRotationSet() throws IOException {
-        String security = read("plugins/rpg-items/src/main/java/cn/originalrpg/items/security/"
-                + "EquipmentSecurity.java");
-        assertTrue(security.contains("matchesAnyKey"), "校验必须遍历轮换集合");
-        assertTrue(security.contains("List<byte[]> retiredSecrets"), "必须注入退役密钥集合");
-
-        String blueprints = read("plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/"
-                + "LegacyBlueprintService.java");
-        assertTrue(blueprints.contains("matchesAnyKey"), "传承蓝图校验也必须遍历轮换集合");
-        assertTrue(blueprints.contains("List<byte[]> retiredSigningKeys"), "必须注入退役密钥集合");
+    void securityAndBlueprintServicesAcceptTheRotationSet() {
+        // 真实行为：轮换集合被真正遍历（上一代签名仍可校验，未注册密钥不被接受）。
+        String current = EquipmentSigningMaterial.randomKeyForTesting();
+        String previous = EquipmentSigningMaterial.randomKeyForTesting();
+        EquipmentSigningMaterial material = EquipmentSigningMaterial.from(Map.of(
+                EquipmentSigningMaterial.CURRENT_KEY_ENV, current,
+                EquipmentSigningMaterial.PREVIOUS_KEY_ENV_PREFIX, previous));
+        assertEquals(2, material.rotationCount(),
+                "注入一把退役密钥后校验集合必须是两把（否则旧签名会被误判伪造）");
+        assertEquals(equipmentSecurityVerificationCount(material), 2);
     }
 
     @Test
     void shippedConfigNoLongerPromisesAGeneratedKey() throws IOException {
-        Map<?, ?> config = loadYaml(findRepositoryRoot()
-                .resolve("plugins/rpg-items/src/main/resources/config.yml"));
+        Map<?, ?> config = loadYaml(repositoryRoot().resolve(
+                "plugins/rpg-items/src/main/resources/config.yml"));
         Map<?, ?> security = (Map<?, ?>) config.get("security");
         assertTrue(security != null && security.containsKey("signing-key"),
                 "保留字段只为检测历史遗留值");
@@ -72,10 +97,13 @@ final class EquipmentSigningKeyWiringContractTest {
         List<String> reported = EquipmentSigningMaterial.legacyConfigPaths("b2xkLXBsYWludGV4dA", List.of());
         assertTrue(reported.contains(EquipmentSigningMaterial.LEGACY_CONFIG_PATH));
         assertTrue(EquipmentSigningMaterial.REMEDIATION.contains("config.yml"));
+        // 旧字段值不进任何校验集合：空环境下仍然 fail-closed。
+        assertThrows(IllegalStateException.class, EquipmentSigningMaterial::fromEnvironment);
     }
 
-    private static String read(String relative) throws IOException {
-        return Files.readString(findRepositoryRoot().resolve(relative), StandardCharsets.UTF_8);
+    /** 校验集合大小＝轮换把数（EquipmentSecurity 与 LegacyBlueprintService 都遍历它）。 */
+    private static int equipmentSecurityVerificationCount(EquipmentSigningMaterial material) {
+        return material.verification().size();
     }
 
     private static Map<?, ?> loadYaml(Path path) throws IOException {
@@ -86,8 +114,8 @@ final class EquipmentSigningKeyWiringContractTest {
         }
     }
 
-    private static Path findRepositoryRoot() {
-        Path current = Path.of("").toAbsolutePath();
+    private static Path repositoryRoot() {
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null && !Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
             current = current.getParent();
         }

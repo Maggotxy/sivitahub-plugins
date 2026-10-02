@@ -2,91 +2,69 @@ package cn.originalrpg.economy;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
+/**
+ * G-302 第二批：本类原用 {@code Files.readString} 读生产源码做字符串/{@code indexOf} 断言，
+ * 现改为「构建/接线契约测试」。
+ *
+ * <p><b>为什么不是行为测试</b>：被断言的不是运行期行为，而是生产代码里某段调用序列的先后，
+ * 或某个片段必须/不得出现。生产类是 Bukkit 插件门面（{@code JavaPlugin} / 需要真实 Paper
+ * 服务器），本仓既无 {@code MockBukkit} 也无 {@code Mockito}，无法在 JUnit 进程里构造对象
+ * 去触发这些路径；其中部分约束（新写的回调/菜单必须走统一分发器）在运行期不可观测。</p>
+ *
+ * <p><b>落地方式</b>（G-302 要求②「移到 scripts/ 下的静态检查」）：断言逐条迁移到声明式规格
+ * {@code scripts/source-contract-specs/all.json}，由 {@code scripts/check-source-contract.sh}
+ * 执行；每个测试方法真实执行门禁并绑定到同名契约条目，覆盖不降级。门禁自身有负向自测
+ * （{@code scripts/selftest-gates.sh} §4），改坏生产代码同样会让本类变红。</p>
+ */
 class EconomyReceiptLifecycleContractTest {
-    @Test
-    void onlyTheCurrentAuthenticatedPlayerSessionMayDeleteAndPersistAReceipt() throws IOException {
-        String source = commandSource();
-        int removeMethod = source.indexOf("private boolean removeReceipt");
-        int sessionGuard = source.indexOf("if (!currentPlayerSession(player)) return false", removeMethod);
-        int persist = source.indexOf("persistReceipts(player, current)", sessionGuard);
-        int sessionMethod = source.indexOf("private boolean currentPlayerSession", persist);
-        int online = source.indexOf("player.isOnline()", sessionMethod);
-        int currentHandle = source.indexOf("Bukkit.getPlayer(player.getUniqueId()) == player", online);
 
-        assertTrue(removeMethod >= 0 && sessionGuard > removeMethod && persist > sessionGuard,
-                "a stale login session must retain the idempotent receipt instead of saving player data");
-        assertTrue(sessionMethod > persist && online > sessionMethod && currentHandle > online,
-                "online status alone is insufficient after a quick reconnect; the Player handle must match");
+    private static final String SPEC_KEY = "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/EconomyReceiptLifecycleContractTest.java";
+
+    @Test
+    void onlyTheCurrentAuthenticatedPlayerSessionMayDeleteAndPersistAReceipt() throws Exception {
+        assertContractHolds("onlyTheCurrentAuthenticatedPlayerSessionMayDeleteAndPersistAReceipt");
     }
 
     @Test
-    void evidenceReleaseIsDurableAndRecoverableBeforeACommissionReceiptIsDeleted() throws IOException {
-        String source = commandSource();
-        int missingMaterial = source.indexOf("if (!remove(player, entry.material(), entry.amount()))");
-        int missingStage = source.indexOf("withStage(EconomyReceiptCodec.Stage.RELEASE_PENDING)", missingMaterial);
-        int missingRelease = source.indexOf("releaseCommissionReceipt(player, releasing, false)", missingStage);
-        int refundQueued = source.indexOf("private void queueCommissionRefund");
-        int refundStage = source.indexOf("withStage(EconomyReceiptCodec.Stage.RELEASE_PENDING)", refundQueued);
-        int recovery = source.indexOf("receipt.stage() == EconomyReceiptCodec.Stage.RELEASE_PENDING", refundStage);
-        int releaseMethod = source.indexOf("private void releaseCommissionReceipt", recovery);
-        int releaseSuccessGuard = source.indexOf("if (!ready(player))", releaseMethod);
-        int delete = source.indexOf("removeReceipt(player, receipt.id())", releaseSuccessGuard);
-
-        assertTrue(missingMaterial >= 0 && missingStage > missingMaterial && missingRelease > missingStage,
-                "material-removal failure must record release intent before the asynchronous evidence release");
-        assertTrue(refundQueued >= 0 && refundStage > refundQueued && recovery > refundStage,
-                "a durable mailbox refund must retain a recoverable evidence-release receipt");
-        assertTrue(releaseMethod > recovery && releaseSuccessGuard > releaseMethod && delete > releaseSuccessGuard,
-                "only the current session may delete the receipt after evidence release commits");
+    void evidenceReleaseIsDurableAndRecoverableBeforeACommissionReceiptIsDeleted() throws Exception {
+        assertContractHolds("evidenceReleaseIsDurableAndRecoverableBeforeACommissionReceiptIsDeleted");
     }
 
     @Test
-    void aQueuedRefundCannotFallBackIntoTheRewardSettlementPathAfterReconnect() throws IOException {
-        String source = commandSource();
-        int commissionRefund = source.indexOf("private void queueCommissionRefund");
-        int intent = source.indexOf("withStage(EconomyReceiptCodec.Stage.REFUND_PENDING)", commissionRefund);
-        int enqueue = source.indexOf("market.enqueueDelivery", intent);
-        int recovery = source.indexOf("receipt.stage() == EconomyReceiptCodec.Stage.REFUND_PENDING", enqueue);
-        int commissionResume = source.indexOf("queueCommissionRefund(player, receipt, true", recovery);
-        int merchantResume = source.indexOf("queueMerchantRefund(player, receipt, true", recovery);
-
-        assertTrue(commissionRefund >= 0 && intent > commissionRefund && enqueue > intent,
-                "refund intent must be persisted before the asynchronous mailbox write");
-        assertTrue(recovery > enqueue && commissionResume > recovery && merchantResume > recovery,
-                "refund recovery must resume the refund path for both receipt kinds, never settle rewards again");
+    void aQueuedRefundCannotFallBackIntoTheRewardSettlementPathAfterReconnect() throws Exception {
+        assertContractHolds("aQueuedRefundCannotFallBackIntoTheRewardSettlementPathAfterReconnect");
     }
 
     @Test
-    void operationAndAuthenticationOwnershipSurviveQuickReconnectAndShutdown() throws IOException {
-        String source = commandSource();
-
-        assertTrue(source.contains("private final Map<UUID, OperationLease> pending"));
-        assertTrue(source.contains("private final Map<UUID, PlayerSession> authenticatedPlayers"));
-        assertTrue(source.contains("pending.putIfAbsent(player.getUniqueId(),"));
-        assertTrue(source.contains("if (lease != null && lease.player() == player) pending.remove(playerId, lease)"));
-        assertTrue(source.contains("authenticatedPlayers.remove(player.getUniqueId(), session)"));
-        assertFalse(source.contains("pending.remove(player.getUniqueId())"));
-        assertFalse(source.contains("authenticatedPlayers.remove(player.getUniqueId());"));
-        assertTrue(source.contains("if (!plugin.isEnabled()) return;"));
-        assertTrue(source.contains("catch (IllegalStateException ignored)"));
+    void operationAndAuthenticationOwnershipSurviveQuickReconnectAndShutdown() throws Exception {
+        assertContractHolds("operationAndAuthenticationOwnershipSurviveQuickReconnectAndShutdown");
     }
 
-    private static String commandSource() throws IOException {
-        return Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-economy/src/main/java/cn/originalrpg/economy/EconomyCommand.java"),
-                StandardCharsets.UTF_8);
+
+    /** 真实执行源码契约门禁；退出码非 0 即失败，并打印门禁给出的具体违例。 */
+    private static void assertContractHolds(String method) throws Exception {
+        Path root = repositoryRoot();
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(), SPEC_KEY, method)
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(), "源码契约门禁失败（" + method + "）：\n" + output);
     }
 
     private static Path repositoryRoot() {
-        Path current = Path.of("").toAbsolutePath();
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null && !Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
             current = current.getParent();
         }
