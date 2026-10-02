@@ -5,7 +5,7 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 9,
+  "round": 11,
   "max_round": 12,
   "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
   "gate": {
@@ -232,6 +232,24 @@
       "fact": "W7-A4 把 HUD 实现对齐设计基准（轨 26×91 / 4×(18×18) 图标 / 29×26 徽章 / 1×87 法力条）并加了「唯一来源 + 实现一致性」门禁；W7-A1 的素材门禁已接进质量门",
       "source": "PR#43 / PR#41 已合入",
       "level": "[S]"
+    },
+    {
+      "id": "E-036",
+      "fact": "★ 质量门达到 **八门全绿** + 门禁自测 PASS=67 FAIL=0：CMD_REFERENCE / COMPILE / DDL_CONSUMER / **DDL_REGISTRATION（新，来自 W5-A1/#39 的反向门禁）** / PACKAGE(56 jars,25 插件 jar 全含 plugin.yml) / RESOURCE_PACK / SUMMARY / TEST(1063 tests 0 failed 2 skipped 26 modules)",
+      "source": "api_trigger_gate（EssentialsX vendor 后）",
+      "level": "[S]"
+    },
+    {
+      "id": "E-037",
+      "fact": "★ 门禁抓到一个真实的供应链漂移：EssentialsX 原本从 ci.ender.zone 的 Jenkins artifact URL 下载并带 sha256 校验，同一天两次拿到不同内容（期望 482fe195… → 实际 125ad362…），而生产机 lamb 上那份又是第三个（46042680…）。已按「编译期必须与运行时同版本」vendor 生产机那一份入 libs/vendor/",
+      "source": "sn=质量门（W6/W7 全部合入后）的 compile stage；lamb sha256sum",
+      "level": "[S]"
+    },
+    {
+      "id": "E-038",
+      "fact": "W7-A3 用「在已存在分支上 merge main」的方式消解了 PR#39 的冲突并使其可合入；#39 合入后 #46（同一消解的副本）变为冗余，已关闭。W7-A4 二次 PR#45 也合入",
+      "source": "PR#39/#45 merged=true；#46 state=closed",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -271,9 +289,9 @@
     "G-201/202/203/207/208/209：文档已订正为实测值；是否要把**行为**改成文档承诺值（如星弹预警 1.1-1.8s → 0.4-0.8s）属设计取舍。",
     "G-206：#minecraft:quick_actions 数据包不在本仓（VCS 缺口），需人类决定是否纳入版本控制。"
   ],
-  "next_action": "等 W7-A2 与 PR#39；合入后触发最终质量门。剩余仅两条真正需要人类（动生产机 / 真实客户端）。",
+  "next_action": "等 W7-A2 交付 → 合入 → 再触发一次质量门。剩余仅两条真正需要人类：H-001（生产机写操作）与 U-003（真实客户端握手）。",
   "updated_by": "WorkBuddy AI（本地调度）",
-  "updated_at": "2026-10-02T11:35:00Z",
+  "updated_at": "2026-10-02T12:20:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
@@ -308,12 +326,13 @@
     "W4": "DONE 2026-10-02：4/4 合入（另含 3 个后续 PR#33/#34/#36）",
     "W5": "DONE 2026-10-02：A2（G-302 第二批 25 个伪测试收敛）、A3（差集矩阵 v3）已合入；A1（DDL 登记门禁）分支仍在跑",
     "W6": "DONE 2026-10-02：4/4 合入（4 张 PENDING 表 / SEASON_ATTUNED 内部调用点 / quick_actions 入 VCS / G-106 血契改三转）",
-    "W7": "进行中：A1 素材门禁（已合入）、A4 HUD 对齐（已合入）、A3 冲突消解（已推分支，PR#39 待合）、A2 P2 行为按承诺值落地（仍在跑）"
+    "W7": "A1 素材门禁（已合入）、A3 冲突消解（#39 已合入）、A4 HUD 对齐（#43/#45 已合入）；A2 P2 行为按承诺值落地仍在跑"
   },
   "gates": {
-    "gate_selftest": "GREEN (PASS=62 FAIL=0)",
+    "gate_selftest": "GREEN (PASS=67 FAIL=0)",
     "resource_pack": "GREEN (8 判据 + 14 负向对照)",
     "ddl_consumer": "GREEN (79 张表全部有消费者，EXEMPT 已清空)",
+    "ddl_registration": "GREEN (反向：src/main 引用的表名必须存在于 DDL)",
     "cmd_reference": "GREEN",
     "compile": "GREEN",
     "test": "GREEN (1063 tests / 0 failed / 2 skipped / 26 modules)",
