@@ -80,5 +80,6 @@
     "人工拍板 SchemaManifestContractTest 的修复口径（改测试正则 / 改断言比较对象 / 还是改 Manifest 语义），随后把 tools/db-migration:test 纳入质量门。",
     "在真机（Paper 26.2 + PostgreSQL）跑一次 migrate()，确认 rpg_skill_point_grants 建表与唯一键在既有库上生效（补 [R]）。",
     "把 docs/planning/deferred-tables.md 的表数从 79 更新到 80，并补上 rpg_skill_point_grants 的判定行（本轮未改 docs/，超出允许路径）。"
-  ]
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/39"
 }
