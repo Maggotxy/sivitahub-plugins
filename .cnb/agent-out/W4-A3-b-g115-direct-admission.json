@@ -1,0 +1,126 @@
+{
+  "task_id": "W4-A3-b-g115-direct-admission",
+  "status": "success",
+  "summary": "W4-A3-b 复核：上一轮（PR#29，已作为 6271d4f 合入 main）完成了 G-115 的方案①接线，但留了一个同类偏差的残留 —— JdbcCommunityService#isGovernanceMember() 的 Javadoc 写「判定直接走 CommunityRole#isGovernance()」，实现写的是 CommunityRolePower.can(role, Capability.GOVERNANCE_ACTION)（靠能力表那一侧注释里的「经能力表」找补），而且 rpg-core 侧没有一条测试对谓词敏感（删掉/改掉谓词也不会翻红）。本轮把实现改成真直连 member.role().isGovernance()，Javadoc 与实现一致；并补一条对谓词敏感的库内行为测试（断言成员资格 == 该角色的 isGovernance()，且 == GOVERNANCE_ACTION），用注入错误谓词实测证明它能翻红。G-115 的口径（isGovernance() = 治理通道准入，canApprove() = 投票权）与七角色取值不变。",
+  "changed_files": [
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcCommunityService.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcCommunityGovernanceTest.java",
+    ".cnb/agent-out/W4-A3-b-g115-direct-admission.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "git show origin/main:plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcCommunityService.java | sed -n 690,700p",
+        "hit": "第 687 行注释：`判定直接走 {@link CommunityRole#isGovernance()}`；第 690-698 行实现：`return member != null && CommunityRolePower.can(member.role(), CommunityRolePower.Capability.GOVERNANCE_ACTION);` —— 注释与实现不符（main@d11f7d8 的现状）"
+      },
+      {
+        "cmd": "git show origin/main:plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcCommunityGovernanceTest.java | grep -n 'isGovernance()'",
+        "hit": "（无输出）—— 合入 main 的 rpg-core 测试从不引用 CommunityRole#isGovernance()，谓词写错也不会翻红"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'isGovernance\\b' plugins | grep '/src/main/'",
+        "hit": "本轮后 src/main 的 isGovernance() 消费者：CommunityRole.java:31(定义)、CommunityRolePower.java:50(ASSIGN_ROLE)/:53(GOVERNANCE_ACTION)、CommunityGovernanceService.java:33(isGovernanceMember 接口)、CommunityGovernanceHandler.java:128(/community roles 行键)/:144(准入调用)、CommunityCommand.java:518、JdbcCommunityService.java:690(成员资格实现，本轮由能力表改为直连)"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-api:test :plugins:rpg-core:test :plugins:rpg-community:test -PexcludeTags=env",
+        "result": "BUILD SUCCESSFUL in 21s（14 actionable tasks: 10 executed, 4 up-to-date）。按模块 XML 汇总：rpg-api tests=93 failed=0 errors=0 skipped=0 / rpg-core tests=272 failed=0 errors=0 skipped=0（本轮 +1 例）/ rpg-community tests=26 failed=0 errors=0 skipped=0"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 test -PexcludeTags=env && python3 scripts/dump-test-results.py",
+        "result": "BUILD SUCCESSFUL in 18s；SUM tests=1021 failed=0 errors=0 skipped=2 modules=26；NO_XML modules=0 期望模块数=26；SUMMARY_GATE=GREEN（基线 995，本轮 +26 来自 6271d4f/66540ac/fa9d0ef 等已合入 main 的改动）"
+      },
+      {
+        "cmd": "【负控制-注入】把 isGovernanceMember 的谓词改成 CommunityRolePower.isDomainRole(role) 后：./gradlew --no-daemon :plugins:rpg-core:test -PexcludeTags=env --tests 'cn.originalrpg.core.persistence.JdbcCommunityGovernanceTest'",
+        "result": "BUILD FAILED in 10s；JdbcCommunityGovernanceTest > governanceChannelAdmissionIsReadablePerMemberAndFollowsTheSevenRoleGate() FAILED（治理角色应当能进治理通道 ==> expected: <true> but was: <false>）；governanceChannelAdmissionIsTheRolePredicatesOwnValueNotAnApprovalAlias() FAILED（成员资格必须等于该角色自己的 isGovernance() ==> expected: <true> but was: <false>）；17 tests completed, 2 failed ⇒ 新加的谓词敏感断言真的会红，随后已还原并通过"
+      },
+      {
+        "cmd": "还原后重新跑：./gradlew --no-daemon :plugins:rpg-core:test -PexcludeTags=env",
+        "result": "BUILD SUCCESSFUL in 7s；rpg-core tests=272 failed=0 errors=0（含 JdbcCommunityGovernanceTest tests=17 failed=0 errors=0）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 assemble",
+        "result": "BUILD SUCCESSFUL in 5s；plugins+tools 下 build/libs/*.jar 共 56 个"
+      }
+    ],
+    "product": [
+      {
+        "cmd": "javap -p -c -classpath plugins/rpg-core/build/libs/rpg-core-0.1.0-SNAPSHOT.jar cn.originalrpg.core.persistence.JdbcCommunityService | grep -A20 'lambda$isGovernanceMember$1'",
+        "hit": "字节码：`MemberRow.role:()Lcn/originalrpg/api/model/CommunityRole;` 紧接 `CommunityRole.isGovernance:()Z` —— 直连谓词是构建产物里的实际调用（不是注释声明）；同一 class 二进制含 isGovernance，md5 = dd4ea712eb8d81111a1152da75c0c931"
+      }
+    ],
+    "environment": [
+      {
+        "cmd": "/opt/jdk/bin/java -version",
+        "result": "openjdk version \"25.0.4.1\" 2026-08-18 LTS（上一轮已装 Temurin 25 到 /opt/jdk；本容器复用）"
+      }
+    ]
+  },
+  "seven_role_truth_table": [
+    {
+      "role": "LEADER",
+      "enum": "OWNER",
+      "governance": true,
+      "approve": true,
+      "moderate": true
+    },
+    {
+      "role": "DEPUTY",
+      "enum": "OFFICER",
+      "governance": true,
+      "approve": true,
+      "moderate": true
+    },
+    {
+      "role": "TREASURER",
+      "enum": "TREASURER",
+      "governance": true,
+      "approve": true,
+      "moderate": true
+    },
+    {
+      "role": "BUILDER",
+      "enum": "BUILDER",
+      "governance": false,
+      "approve": false,
+      "moderate": false
+    },
+    {
+      "role": "EVENT_HOST",
+      "enum": "EVENT_HOST",
+      "governance": false,
+      "approve": false,
+      "moderate": false
+    },
+    {
+      "role": "RECRUITER",
+      "enum": "RECRUITER",
+      "governance": false,
+      "approve": false,
+      "moderate": false
+    },
+    {
+      "role": "MEMBER",
+      "enum": "MEMBER",
+      "governance": false,
+      "approve": false,
+      "moderate": false
+    }
+  ],
+  "risks": [
+    "改动面刻意最小：只动 allowed_paths 里的两个 rpg-core 文件（1 处实现 + 1 处 Javadoc + 1 条测试），不新增接口方法、不动 rpg-api / rpg-community，因此不会与同波任何任务的路径重叠。",
+    "行为不变：isGovernanceMember() 的返回值在七角色下与改前完全一致（governance ≡ approve，且与 GOVERNANCE_ACTION 同值）；变的只是「判定从哪里取」——从能力表改为角色谓词直连，属口径收敛，不是权限变更。",
+    "isGovernance() 与 GOVERNANCE_ACTION 仍是同值的两条表述：本 PR 让「服务层直连角色谓词、能力表沿用同一谓词」，两侧都指向 isGovernance()，把偏差压到只剩「有人把其中一侧改成别的谓词」——这种改法已被新测试（rpg-core 谓词敏感断言）与既有测试（rpg-api 三组期望值）双向锁住。",
+    "七角色下仍无「治理角色但不投票」的实例，准入/投票的同值关系只能靠测试与 grep 守住。"
+  ],
+  "unproven": [
+    "未做 [R] 真实 Paper + PostgreSQL 运行；证据为 [S] 源码 + [T] H2(MODE=PostgreSQL) 行为级测试 + [S] 构建产物字节码校验。",
+    "本分支尚未合入 main，也未触发 CNB 质量门（该仓质量门需人工 api_trigger_gate 触发，PR CI 状态在合入前不更新）。本地等价命令（compile 由 test/assemble 覆盖 + 全量 test + assemble）已全部跑通。",
+    "未验证真实玩家命令路径的端到端行为。"
+  ],
+  "blockers": [],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/33",
+  "branch": "agent/W4-A3-b-g115-direct-admission",
+  "commit": "b44d338"
+}
