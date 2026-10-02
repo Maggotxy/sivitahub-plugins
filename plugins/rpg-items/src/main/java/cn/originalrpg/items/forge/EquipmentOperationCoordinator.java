@@ -151,14 +151,44 @@ public final class EquipmentOperationCoordinator implements EquipmentOperationSe
         return payload(item);
     }
 
-    public static String payload(ItemStack item) {
-        ItemStack delivery = item.clone();
-        EquipmentOperationMarker.clear(delivery);
+    /**
+     * 交付副本：把入参物品复制一份，并在副本上打上「本操作正在进行」的标记后再序列化。
+     *
+     * <p>交付出去的那份物品必须保留标记。若在这里 {@code clear} 掉标记，出站的
+     * payload 就是一份干净、可再次操作的权威物品 —— 同一份托管资产被复制成
+     * 两份可用的物品，形成重复交付窗口。标记随副本一起进入邮箱/outbox，
+     * 由交付侧（{@code rpg-market} 反序列化边界）在确认收货时才清除。</p>
+     *
+     * <p>{@code operationId} 为 {@code null} 时不打标记（仅用于确实没有归属操作的
+     * 预览/展示类 payload）；真实结算路径必须传入 operationId。</p>
+     */
+    public static String payload(ItemStack item, UUID operationId) {
+        ItemStack delivery = deliveryCopy(item, operationId);
         return Base64.getEncoder().encodeToString(delivery.serializeAsBytes());
     }
 
+    public static String payload(ItemStack item) {
+        return payload(item, null);
+    }
+
+    /**
+     * 交付标记拷贝的公开入口。交付路径统一使用它生成出站副本，保证
+     * 「交付中物品不可被再次操作」这条幂等保护在副本上依然成立。
+     */
     public static ItemStack markedDeliveryCopy(ItemStack item, UUID operationId) {
         return EquipmentOperationMarker.markedCopy(item, operationId);
+    }
+
+    /**
+     * 生成带交付标记的副本。打标记的决策见 {@link DeliveryCopyRules}：
+     * 已标记的入参沿用其原有标记，避免覆盖成另一个操作；无归属操作时不打标记。
+     */
+    private static ItemStack deliveryCopy(ItemStack item, UUID operationId) {
+        return switch (DeliveryCopyRules.markerSource(
+                EquipmentOperationMarker.isMarked(item), operationId)) {
+            case PRESERVE, NONE -> item.clone();
+            case ASSIGN -> markedDeliveryCopy(item, operationId);
+        };
     }
 
     private void clearIfMatching(Player player, UUID operationId) {

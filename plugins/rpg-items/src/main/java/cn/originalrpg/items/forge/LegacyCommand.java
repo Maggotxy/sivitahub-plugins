@@ -122,8 +122,9 @@ public final class LegacyCommand implements CommandExecutor, Listener {
         UUID operationId = UUID.randomUUID();
         ItemStack original = item.clone();
         ItemStack blueprint = blueprints.create(player, current, messages, operationId);
-        List<String> rejected = List.of(operations.itemPayload(original));
-        List<String> committed = List.of(operations.itemPayload(blueprint));
+        // 交付副本保留本操作的标记，防止托管资产被复制成两份可再次操作的物品。
+        List<String> rejected = List.of(EquipmentOperationCoordinator.payload(original, operationId));
+        List<String> committed = List.of(EquipmentOperationCoordinator.payload(blueprint, operationId));
         String resultHash = EquipmentOperationEnvelope.fingerprint("legacy-result", committed);
         String requestPayload = "item=" + current.itemId() + ";trait=" + current.rareTrait().orElseThrow()
                 + ";result=" + resultHash;
