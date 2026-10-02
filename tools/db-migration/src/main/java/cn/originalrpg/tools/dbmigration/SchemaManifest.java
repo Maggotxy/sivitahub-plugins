@@ -80,6 +80,10 @@ public final class SchemaManifest {
             "rpg_progression_anomalies",
             "rpg_mechanism_switches",
             "rpg_season_settlements",
+            "rpg_season_settlement_gate",
+            "rpg_season_settlement_transitions",
+            "rpg_season_settlement_progress",
+            "rpg_season_merit_wallets",
             "rpg_support_credit_accounts",
             "rpg_support_credit_ledger",
             "rpg_market_buy_orders",
@@ -198,6 +202,7 @@ public final class SchemaManifest {
         indexes.put("rpg_community_project_rewards", List.of(List.of("community_id", "period_key")));
         indexes.put("rpg_equipment_states", List.of(List.of("owner_uuid", "state")));
         indexes.put("rpg_equipment_lifecycle_audit", List.of(List.of("item_id", "created_at")));
+        indexes.put("rpg_season_settlement_transitions", List.of(List.of("settlement_id", "created_at")));
         return Map.copyOf(indexes);
     }
 }

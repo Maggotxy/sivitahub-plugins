@@ -102,7 +102,7 @@ final class JdbcAdminIncidentCompensationServiceTest {
                     """);
             connection.commit();
         }
-        profiles = new JdbcProfileService(dataSource, direct, 100, 2, 3);
+        profiles = new JdbcProfileService(dataSource, direct, 100, 2);
         incidents = new JdbcAdminIncidentCompensationService(
                 dataSource, direct, profiles, BigDecimal.ZERO.setScale(2));
         profiles.get(PLAYER).toCompletableFuture().join();

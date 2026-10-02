@@ -3,6 +3,7 @@ package cn.originalrpg.items.security;
 import cn.originalrpg.api.model.EquipmentSnapshot;
 import cn.originalrpg.api.model.EquipmentTraitCatalog;
 import cn.originalrpg.api.service.EquipmentService;
+import cn.originalrpg.api.rules.AuthoritativeItemPolicy;
 import cn.originalrpg.api.rules.EquipmentBaseRules;
 import cn.originalrpg.api.model.EquipmentOperationMarker;
 import org.bukkit.NamespacedKey;
@@ -100,7 +101,21 @@ public final class EquipmentSecurity implements EquipmentService {
 
     @Override
     public boolean isAuthentic(ItemStack item) {
+        if (!authoritativeNamespace(item)) return false;
         return !EquipmentOperationMarker.isMarked(item) && inspect(item).isPresent();
+    }
+
+    /**
+     * G-112：签名门之前的命名空间门。装备的 PDC 只能携带本服权威命名空间的标记；
+     * 一旦出现第三方命名空间的标记，这个物品就不属于本服的权威状态（C-001），
+     * 因此按未签名处理并 fail-closed，而不是只看 HMAC 是否正确。
+     * 返回 false 也让 {@code isCustomEquipment} 的下游（解绑 / 传承 / 市场托管）一并关闭。
+     */
+    private static boolean authoritativeNamespace(ItemStack item) {
+        ItemMeta meta = item == null ? null : item.getItemMeta();
+        if (meta == null) return false;
+        return meta.getPersistentDataContainer().getKeys().stream()
+                .allMatch(AuthoritativeItemPolicy::isAuthoritativeKey);
     }
 
     /**

@@ -115,6 +115,16 @@ public final class UnbindCommand implements CommandExecutor, Listener {
             player.sendMessage(Component.text(messages.text(player, "items.unbind-settlement-failed"), NamedTextColor.RED));
             return;
         }
+        // C-008 / C-009：UNBIND 是唯一交易通道的入口，产物必须落在状态机认可的
+        // 「可交易」态。若 unlockForTrade 没能写出解绑签名，就不能把装备交回去
+        // 当成可交易装备继续流通。
+        if (!EquipmentExitPathGate.unbindResultIsTradeable(equipment.isTradeUnlocked(resultItem))) {
+            active.remove(player.getUniqueId());
+            plugin.getLogger().severe("Unbinding result is not in a tradeable lifecycle state for "
+                    + player.getUniqueId());
+            player.sendMessage(Component.text(messages.text(player, "items.unbind-settlement-failed"), NamedTextColor.RED));
+            return;
+        }
         List<String> rejected = List.of(operations.itemPayload(original));
         List<String> committed = List.of(operations.itemPayload(resultItem));
         String resultHash = EquipmentOperationEnvelope.fingerprint("unbind-result", committed);

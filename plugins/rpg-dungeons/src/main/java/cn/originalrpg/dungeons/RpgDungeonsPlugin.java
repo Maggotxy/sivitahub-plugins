@@ -23,6 +23,9 @@ public final class RpgDungeonsPlugin extends JavaPlugin {
         ConfigurationSection configuredDungeons = Objects.requireNonNull(
                 getConfig().getConfigurationSection("dungeons"), "dungeons configuration");
         DungeonRewardRules.requireConfiguredIds(configuredDungeons.getKeys(false));
+        // 世界名由 DungeonManager 运行时生成；残留的 dungeons.*.world 键只会误导运维，
+        // 因此这里直接拒绝启动（G-108）。
+        DungeonConfigKeys.requireNoReservedWorldKeys(getConfig().getValues(false));
         ProfileService profiles = Objects.requireNonNull(
                 getServer().getServicesManager().load(ProfileService.class), "ProfileService");
         MessageService messages = Objects.requireNonNull(

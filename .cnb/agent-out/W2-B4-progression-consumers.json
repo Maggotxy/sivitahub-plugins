@@ -1,0 +1,79 @@
+{
+  "task_id": "W2-B4-progression-consumers",
+  "status": "success",
+  "summary": "补 G-111：为 ProgressionRules 的三个零消费者方法接上真实调用点。① totalExperienceForAscension()：接到 /rpg profile（RpgCommand）、狩猎指南 GuidePlan（MobGuideRules/MobGuideCommand）、PlaceholderAPI %sivita_experience_stage_budget%；作为阶段进度分母。② totalExperienceToEffective()：接到同一三处（%sivita_experience_total%），给出从 0转1级 到当前有效等级的累计经验。③ effectiveLevelCap()：收敛 AdaptiveMobSafetyRules.maximumPlayerLevel() 在终态章节手写的 asc*30+levelCap 乘加公式，并暴露 %sivita_effective_level_cap%。口径冲突处理：现有代码没有第二套阶段总预算算法，但 totalExperienceForAscension()（名义预算 STAGE_BUDGETS）与逐级求和 experienceToNextLocalLevel()（实走值）存在 0-2 点归一化取整差；修复前 totalExperienceToEffective() 混用两套口径，导致 effective 91 的累计值(1430000)小于 effective 90(1430002)，破坏单调性。已把 totalExperienceToEffective() 统一为只用实走值（新增私有 walkedStageExperience），新增 stageExperienceSpent()/stageExperienceRemaining() 复用同一口径，并用行为级测试钉住预算与实走值的 <=2 点容差。",
+  "changed_files": [
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/ProgressionRules.java",
+    "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/ProgressionRulesTest.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/command/RpgCommand.java",
+    "plugins/rpg-core/src/main/resources/lang/zh_cn.yml",
+    "plugins/rpg-core/src/main/resources/lang/en_us.yml",
+    "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/AdaptiveMobSafetyRules.java",
+    "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/MobGuideRules.java",
+    "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/MobGuideCommand.java",
+    "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/AdaptiveMobSafetyRulesTest.java",
+    "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobGuideRulesTest.java",
+    "plugins/rpg-integrations/src/main/java/cn/originalrpg/integrations/RpgSnapshot.java",
+    "plugins/rpg-integrations/src/main/java/cn/originalrpg/integrations/SivitaPlaceholderExpansion.java",
+    "plugins/rpg-integrations/src/main/java/cn/originalrpg/integrations/ProgressionPlaceholders.java",
+    "plugins/rpg-integrations/src/test/java/cn/originalrpg/integrations/ProgressionPlaceholdersTest.java",
+    ".cnb/agent-out/W2-B4-progression-consumers.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java -e 'totalExperienceForAscension' plugins | grep -v '/src/test/'",
+        "hit": "plugins/rpg-api/.../ProgressionRules.java:76(定义)+87/117(注释)+142(内部用)\nplugins/rpg-core/.../command/RpgCommand.java:107  ProgressionRules.totalExperienceForAscension(profile.ascension())\nplugins/rpg-integrations/.../ProgressionPlaceholders.java:21  ProgressionRules.totalExperienceForAscension(snapshot.ascension())\nplugins/rpg-mobs/.../MobGuideRules.java:79  ProgressionRules.totalExperienceForAscension(profile.ascension())\n=> 3 个非自身 src/main 调用点"
+      },
+      {
+        "cmd": "grep -rn --include=*.java -e 'totalExperienceToEffective' plugins | grep -v '/src/test/'",
+        "hit": "plugins/rpg-api/.../ProgressionRules.java:92(定义)+127/128(内部用)\nplugins/rpg-core/.../command/RpgCommand.java:117  ProgressionRules.totalExperienceToEffective(profile.effectiveLevel())\nplugins/rpg-integrations/.../ProgressionPlaceholders.java:26  ProgressionRules.totalExperienceToEffective(...)\nplugins/rpg-mobs/.../MobGuideCommand.java:245  plan.totalExperienceToEffective()\nplugins/rpg-mobs/.../MobGuideRules.java:93  ProgressionRules.totalExperienceToEffective(effectiveLevel)\n=> 4 个非自身 src/main 调用点"
+      },
+      {
+        "cmd": "grep -rn --include=*.java -e 'effectiveLevelCap' plugins | grep -v '/src/test/'",
+        "hit": "plugins/rpg-api/.../ProgressionRules.java:56(定义)\nplugins/rpg-integrations/.../ProgressionPlaceholders.java:18  ProgressionRules.effectiveLevelCap()\nplugins/rpg-mobs/.../AdaptiveMobSafetyRules.java:30  ProgressionRules.effectiveLevelCap()（替换手写乘加公式）\n=> 2 个非自身 src/main 调用点"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'finalEffective / 3' plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/*.java",
+        "hit": "JdbcDungeonRewardService.java:266  int skillPointsGained = finalEffective / 3 - startingEffective / 3;\nJdbcProfileService.java:569  int skillPointsGained = finalEffective / 3 - startingEffective / 3;\n=> 与改动前一致；W2-A2 的技能点里程碑结算路径(JdbcProfileService)未被本次改动触碰"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "sh gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 --rerun-tasks :plugins:rpg-api:compileJava :plugins:rpg-api:test :plugins:rpg-core:compileJava :plugins:rpg-mobs:compileJava :plugins:rpg-mobs:test :plugins:rpg-integrations:compileJava :plugins:rpg-integrations:test",
+        "result": "BUILD SUCCESSFUL in 7s / 14 actionable tasks: 14 executed / 0 个 'error:'。测试报告：rpg-api tests=64 failures=0；rpg-mobs tests=31 failures=0；rpg-integrations tests=5 failures=0。"
+      },
+      {
+        "cmd": "sh gradlew --no-daemon :plugins:rpg-core:compileJava :plugins:rpg-core:test",
+        "result": "compileJava 通过；205 tests completed, 2 failed —— 2 项均为 LanguageBundleContractTest（projectYamlFilesParseWithoutDuplicateKeys 遍历仓库外 server/config、server/config-templates 目录，本环境不存在；quickActionTaskButtonUsesTheUnifiedTaskCenter）。已在 clean HEAD(git stash) 上复现同样 2 项失败，属既有环境问题，非本次改动引入。"
+      },
+      {
+        "cmd": "sh gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 compileJava （全仓库 26 个子工程）",
+        "result": "BUILD SUCCESSFUL in 20s —— 无其它模块因 RpgSnapshot/GuidePlan 签名变化而编译失败。"
+      },
+      {
+        "cmd": "行为级测试清单（真实执行并断言结果，非源码字符串断言）",
+        "result": "ProgressionRulesTest: effectiveLevelCapIsTheTerminalEffectiveCap / totalExperienceToEffectiveBoundaries(0经验、刚好到上限、超过上限120抛异常) / totalExperienceToEffectiveIsMonotonicAcrossTheWholeVerticalRange(1..120 单调) / totalExperienceForAscensionMatchesTheWalkedPathWithinRoundingTolerance(预算vs实走 <=2) / totalExperienceForAscensionBoundaries / stageExperienceSpentTracksTheWalkedBudget。MobGuideRulesTest: guidePlanCarriesStageBudgetAndLifetimeExperienceFromProgressionRules / cappedPlanStageSpentEqualsTheWalkedStageBudget。AdaptiveMobSafetyRulesTest: cleanupBoundaryTracksTheMonotonicContentChapter 增加终态==effectiveLevelCap() 断言。ProgressionPlaceholdersTest: effectiveLevelAndCapComeFromProgressionRules / stageBudgetAndSpentTrackProgressionRules / lifetimeExperienceBoundaries(0经验、刚好到上限、超过上限零头) / unknownParameterFallsBackToNull。"
+      }
+    ]
+  },
+  "unproven": [
+    "未在真实 Paper + PostgreSQL 运行时验证 /rpg profile 与 %sivita_*% 的实际渲染文本（[R] Runtime 未取得）；本次只做到 [S] 源码接线 + [T] 单元行为测试 + 全仓库 [T] compileJava。",
+    "语言包新增占位符 {stage_spent}/{stage_budget}/{stage_remaining}/{effective_total} 只在 rpg-core 的 zh_cn.yml / en_us.yml 落地；其它语言包（若社区自行维护）未同步。",
+    "totalExperienceForAscension() 的名义预算 STAGE_BUDGETS 数值本身未改动，与逐级实走值的 0-2 点取整差按 <=2 容差钉住；若未来调整 baseForLocal 权重或预算数组，容差断言可能需同步复核。"
+  ],
+  "blockers": [],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/15",
+  "next_steps": [
+    "等 CI（.cnb.yml compile 门禁）结果；本地已跑 :plugins:{rpg-api,rpg-core,rpg-mobs,rpg-integrations} 的 compileJava 与 test。",
+    "若要 [R] Runtime 证据：在真实 Paper + PostgreSQL 上用 /rpg profile、mobs 狩猎指南对话框与 %sivita_experience_stage_budget% / _stage_spent / _stage_remaining / _experience_total / _effective_level_cap% 目视核对渲染文本。",
+    "把 plan/gap-matrix.md §1 M-021/022/023 与 §2 对应判定从「声明未接线」更新为「已接线」，并登记本 PR 编号。",
+    "若未来调整 ProgressionRules.baseForLocal 权重或 STAGE_BUDGETS，需同步复核 ProgressionRulesTest 里的「预算 vs 实走 <=2 点」容差断言。"
+  ],
+  "risks": [
+    "口径变更：totalExperienceToEffective() 从「已完成阶段用名义预算 + 当前阶段用实走值」改为「全程实走值」。数值影响仅 0-2 点/阶段边界（修复的是 effective 91 累计值倒退 2 点的单调性 bug）；rpg-api/rpg-mobs/rpg-integrations/rpg-core 全量测试无回归。",
+    "语言包新增占位符只同步 zh_cn.yml / en_us.yml，其它语言包若存在需另补。",
+    "未取得 [R] Runtime：/rpg profile 与 %sivita_*% 的实际渲染文本未在真实 Paper 上目视核对。",
+    "rpg-core 的 2 项 LanguageBundleContractTest 失败为既有环境问题（遍历仓库外 server/config、server/config-templates），已在 clean HEAD 复现，与本 PR 无关。"
+  ]
+}

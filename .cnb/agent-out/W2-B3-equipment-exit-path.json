@@ -1,0 +1,67 @@
+{
+  "task_id": "W2-B3-equipment-exit-path",
+  "status": "success",
+  "summary": "补 G-110：为 EquipmentLifecycle.requiresExitPath()/isExitPath()/isTradeable() 接入第一批 src/main 消费者，按 C-008 在装备退出路径上做前置判定。新增 EquipmentExitPathRules（纯规则，唯一复用 EquipmentLifecycle，不造第二套状态机）与 EquipmentExitPathGate（Bukkit 侧接线点）。已接线的真实路径：(1) /salvage 分解（SalvageCommand，指令入口 + confirm 落库前各判一次）；(2) /legacy 献祭/传承（LegacyCommand，同上两处）；(3) /unbind 交易解绑（UnbindCommand，产物必须落在状态机认可的 UNBOUND 可交易态）；(4) RpgItemsPlugin 启动 C-008 自检（requiresExitPath()==false 即拒绝启用）。机制效果：已付费解绑（trade_unlocked）的装备被禁止直接走分解/献祭/传承，必须先重新绑定，堵住「绕过唯一市场通道（C-009）把市场价值直接换成销毁产物」。新增 11 个行为级测试（可交易/不可交易 × 需要退出路径/不需要 四组合 + 门禁与自检），并用变异测试自证断言有效。",
+  "changed_files": [
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathGate.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathRulesTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathGateTest.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/SalvageCommand.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyCommand.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/UnbindCommand.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java -e 'requiresExitPath' -e 'isExitPath' -e 'isTradeable' plugins | grep -v '/test/'",
+        "hit": "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:107:    public static boolean isExitPath(State state) {\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:116:    public static boolean isTradeable(State state) {\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:120:    public static boolean requiresExitPath() {\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java:35:        return outcome != null && EquipmentLifecycle.isExitPath(outcome);\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java:43:        return EquipmentLifecycle.isTradeable(tradeUnlocked\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java:65:        return EquipmentLifecycle.requiresExitPath() && EquipmentLifecycle.isExitPath(\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathGate.java:37:        return EquipmentExitPathRules.isTradeable(tradeUnlocked);"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'EquipmentExitPathGate\\.' plugins/rpg-items/src/main",
+        "hit": "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyCommand.java:76:        if (!EquipmentExitPathGate.allowsExit(equipment.isCustomEquipment(held),\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyCommand.java:116:        if (!EquipmentExitPathGate.allowsExit(equipment.isCustomEquipment(item),\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/SalvageCommand.java:86:        if (!EquipmentExitPathGate.allowsExit(equipment.isCustomEquipment(held),\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/SalvageCommand.java:121:        if (!EquipmentExitPathGate.allowsExit(equipment.isCustomEquipment(held),\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/UnbindCommand.java:121:        if (!EquipmentExitPathGate.unbindResultIsTradeable(equipment.isTradeUnlocked(resultItem))) {"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'EquipmentExitPathRules\\.hasExitPath' plugins/rpg-items/src/main",
+        "hit": "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java:42:        if (!EquipmentExitPathRules.hasExitPath()) {"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-items:compileJava :plugins:rpg-items:test",
+        "result": "BUILD SUCCESSFUL in 6s / 7 actionable tasks: 7 executed (rerun-tasks); exit=0"
+      },
+      {
+        "cmd": "grep -o 'tests=\"[0-9]*\" skipped=\"[0-9]*\" failures=\"[0-9]*\" errors=\"[0-9]*\"' plugins/rpg-items/build/test-results/test/TEST-*EquipmentExitPath*.xml",
+        "result": "EquipmentExitPathGateTest: tests=\"5\" skipped=\"0\" failures=\"0\" errors=\"0\"; EquipmentExitPathRulesTest: tests=\"6\" skipped=\"0\" failures=\"0\" errors=\"0\"; 模块合计 tests=55 skipped=0 failures=0 errors=0"
+      },
+      {
+        "cmd": "变异自证：把 EquipmentExitPathRules.bypassesExitPath 改成 return false 后重跑 :plugins:rpg-items:test",
+        "result": "FAILED: EquipmentExitPathGateTest > tradeableForgedGearIsRefusedOnSalvageAndLegacy() / EquipmentExitPathRulesTest > unboundTradeableGearMayNotTakeAnExitShortcut(); 55 tests completed, 2 failed / BUILD FAILED —— 证明是行为级断言，不是源码字符串断言；随后已还原并重跑 GREEN"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 compileJava",
+        "result": "BUILD SUCCESSFUL in 26s / 26 actionable tasks: 21 executed, 5 up-to-date; exit=0（CI 编译门口径，全仓 26 子工程）"
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh; sh scripts/check-file-deps.sh",
+        "result": "DDL_CONSUMER_GATE=GREEN exit=0; check-file-deps: OK exit=0"
+      }
+    ]
+  },
+  "unproven": [
+    "调谐（SEASON_ATTUNED）与明确销毁（DESTROYED）两条退出路径仍无 src/main 生产入口：grep -rn --include=*.java 'SEASON_ATTUNED' plugins/*/src/main 只命中 EquipmentLifecycle.java 自身；'DESTROYED' 只命中 EquipmentLifecycle.java 与 JdbcEquipmentLedgerAuditService.java（审计只读）。这两条属 Phase 4 未派范围，本次未接线。",
+    "市场托管入口（rpg-market MarketCommand:290/:309 与 rpg-core EquipmentStateLedger.beginEscrow）已在本次之前就自带交易门禁，本次未改；其与 C-008 的一致性未在本次新增测试覆盖（不在 allowed_paths 内）。",
+    "EquipmentExitPathGate 只吃 (custom, tradeUnlocked, kind) 两个布尔事实，没有覆盖真实 ItemStack/PDC 层面的端到端行为；rpg-items 测试源集没有 paper-api 依赖，端到端断言需要真实 Paper 运行时（[R] 等级）。",
+    "本次未做真实 Paper + PostgreSQL 运行验证，属 [S]+[T] 等级；[R][H] 未取得。"
+  ],
+  "blockers": [],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/14",
+  "next_steps": [
+    "等待人工评审与合并（NPC 不代合并）。",
+    "Phase 4 派任务时补接调谐（SEASON_ATTUNED）与明确销毁（DESTROYED）两条退出路径的生产入口——目前只有状态机声明，无 src/main 写入方。",
+    "可选：为 rpg-items 测试源集加 paper-api，把门禁判定升级到真实 ItemStack/PDC 端到端断言（本次受「不要改依赖」约束未做）。",
+    "可选：把 market.refined-bound 换成一条语义更贴切的专用文案（需改 rpg-core lang，不在本任务 allowed_paths 内）。"
+  ]
+}

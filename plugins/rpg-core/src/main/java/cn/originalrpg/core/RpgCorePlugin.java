@@ -21,6 +21,8 @@ import cn.originalrpg.api.service.CommunityService;
 import cn.originalrpg.api.service.ChapterService;
 import cn.originalrpg.api.service.CommissionEvidenceService;
 import cn.originalrpg.api.service.SeasonExpeditionService;
+import cn.originalrpg.api.service.SeasonMeritWalletService;
+import cn.originalrpg.api.service.SeasonSettlementService;
 import cn.originalrpg.api.service.AdminTestService;
 import cn.originalrpg.api.service.AdminIncidentCompensationService;
 import cn.originalrpg.api.service.AscensionService;
@@ -49,6 +51,8 @@ import cn.originalrpg.core.persistence.JdbcCommunityService;
 import cn.originalrpg.core.persistence.JdbcChapterService;
 import cn.originalrpg.core.persistence.JdbcCommissionEvidenceService;
 import cn.originalrpg.core.persistence.JdbcSeasonExpeditionService;
+import cn.originalrpg.core.persistence.JdbcSeasonMeritWalletService;
+import cn.originalrpg.core.persistence.JdbcSeasonSettlementService;
 import cn.originalrpg.core.persistence.JdbcNodeLease;
 import cn.originalrpg.core.persistence.JdbcOutboxRegistry;
 import cn.originalrpg.core.persistence.JdbcSessionLease;
@@ -93,9 +97,10 @@ public final class RpgCorePlugin extends JavaPlugin {
     private JdbcOutboxRegistry outbox;
     private OutboxDispatcher outboxDispatcher;
     private JdbcSessionLease sessionLease;
+    private NodeLeaseSupervisor nodeLeaseSupervisor;
+    private AutoCloseable nodeLeaseRenewal;
     private final AtomicBoolean outboxDispatchInFlight = new AtomicBoolean();
     private final AtomicBoolean chapterRefreshInFlight = new AtomicBoolean();
-    private final AtomicBoolean nodeLeaseRefreshInFlight = new AtomicBoolean();
     private final FailStopCoordinator failStop = new FailStopCoordinator();
     private final AtomicBoolean reservationRecoveryInFlight = new AtomicBoolean();
 
@@ -220,6 +225,11 @@ public final class RpgCorePlugin extends JavaPlugin {
                     Math.clamp(getConfig().getInt("season-expedition.weekly-honor", 100), 0, 1_000),
                     Math.clamp(getConfig().getInt("season-expedition.server-first-bonus", 50), 0, 1_000),
                     mechanisms);
+            String activeSeasonId = getConfig().getString("chapters.season-id", "launch-1");
+            JdbcSeasonMeritWalletService seasonMerits = new JdbcSeasonMeritWalletService(
+                    database.dataSource(), databaseExecutor, activeSeasonId);
+            JdbcSeasonSettlementService seasonSettlements = new JdbcSeasonSettlementService(
+                    database.dataSource(), databaseExecutor, mechanisms);
             JdbcCommunityService communities = new JdbcCommunityService(
                     database.dataSource(), databaseExecutor, mechanisms);
             var recoveredEntries = StartupGate.await(
@@ -266,6 +276,10 @@ public final class RpgCorePlugin extends JavaPlugin {
             getServer().getServicesManager().register(
                     SeasonExpeditionService.class, seasonExpeditions, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
+                    SeasonMeritWalletService.class, seasonMerits, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
+                    SeasonSettlementService.class, seasonSettlements, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
                     CommunityService.class, communities, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
                     ChapterService.class, chapters, this, ServicePriority.Normal);
@@ -273,7 +287,8 @@ public final class RpgCorePlugin extends JavaPlugin {
             getServer().getServicesManager().register(PersistenceMetricsService.class, persistenceMetrics,
                     this, ServicePriority.Normal);
 
-            RpgCommand command = new RpgCommand(this, profiles, activityEconomy, chapters, messages);
+            RpgCommand command = new RpgCommand(
+                    this, profiles, activityEconomy, chapters, messages, seasonMerits, seasonSettlements);
             PluginCommand rpg = Objects.requireNonNull(getCommand("rpg"), "rpg command");
             rpg.setExecutor(command);
             LanguageCommand languageCommand = new LanguageCommand(messages);
@@ -324,25 +339,25 @@ public final class RpgCorePlugin extends JavaPlugin {
         }, seconds * 20L, seconds * 20L);
     }
 
+    /**
+     * 节点租约续期的真实消费者（C-014）：由 {@link NodeLeaseSupervisor} 调度
+     * {@code renewAsync()}，失租时失败关闭。这里只做接线，不启用多服。
+     */
     private void startNodeLeaseHeartbeat(long leaseSeconds) {
         long heartbeatSeconds = Math.max(5L, leaseSeconds / 3L);
-        nodeLeaseExecutor.scheduleWithFixedDelay(() -> {
-            if (!nodeLeaseRefreshInFlight.compareAndSet(false, true)) return;
-            try {
-                boolean renewed = nodeLease.renew();
-                if (!renewed) requestServerShutdown("Paper node lease was fenced by another process");
-            } catch (RuntimeException error) {
-                Duration safeRetryWindow = Duration.ofSeconds(heartbeatSeconds).plusSeconds(5L);
-                if (nodeLease.mayStillBeValidFor(safeRetryWindow)) {
-                    getLogger().warning("Paper node lease heartbeat failed; retrying before expiry: "
-                            + error.getMessage());
-                } else {
-                    requestServerShutdown("Paper node lease expired while its database was unavailable");
-                }
-            } finally {
-                nodeLeaseRefreshInFlight.set(false);
-            }
-        }, heartbeatSeconds, heartbeatSeconds, TimeUnit.SECONDS);
+        nodeLeaseSupervisor = new NodeLeaseSupervisor(
+                nodeLease, Duration.ofSeconds(heartbeatSeconds), getLogger(),
+                (reason, error) -> {
+                    if (error != null) getLogger().log(Level.SEVERE, reason, error);
+                    requestServerShutdown(reason);
+                });
+        // 刚取得的 token 必须立刻被数据库承认，否则说明启动窗口内已被围栏。
+        nodeLeaseSupervisor.verifyAcquiredToken();
+        try {
+            nodeLeaseRenewal = nodeLeaseSupervisor.schedule(nodeLeaseExecutor);
+        } catch (RuntimeException error) {
+            throw new IllegalStateException("Could not schedule the Paper node lease heartbeat", error);
+        }
     }
 
     private void startReservationRecovery(JdbcDungeonEntryService dungeonEntries) {
@@ -434,9 +449,15 @@ public final class RpgCorePlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         getServer().getServicesManager().unregisterAll(this);
+        if (nodeLeaseRenewal != null) {
+            // 先停止周期续期，否则最后一次心跳可能和干净释放竞争。
+            try {
+                nodeLeaseRenewal.close();
+            } catch (Exception exception) {
+                getLogger().warning("Could not stop the Paper node lease heartbeat: " + exception.getMessage());
+            }
+        }
         if (nodeLeaseExecutor != null) {
-            // Stop periodic renewal before releasing the token. Otherwise a
-            // final heartbeat could race the clean release during shutdown.
             nodeLeaseExecutor.close();
         }
         if (nodeLease != null) {

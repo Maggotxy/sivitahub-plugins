@@ -44,7 +44,7 @@ public final class MechanismRegistry {
             DUNGEON_GOLD, "JdbcDungeonRewardService",
             COMMISSION_GOLD, "JdbcActivityEconomyService",
             MARKET_ESCROW, "JdbcMarketService",
-            SEASON_SETTLEMENT, "JdbcSeasonExpeditionService",
+            SEASON_SETTLEMENT, "JdbcSeasonSettlementService",
             STARLIGHT_GRANT, "JdbcCommerceService",
             COMMUNITY_PROJECT, "JdbcCommunityService"
     );

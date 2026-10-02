@@ -20,6 +20,15 @@ hud:
   max-skills: 4
   use-resource-glyphs: true
 
+# 隐藏路线可达性自检（G-106）。
+# 路线自身要求的转数与它前置（技能 / 隐藏副本 / 门票来源 / 技能书）的开放转数
+# 必须在同一条有效等级天梯上兼容，否则路线永久不可达。
+# fail-on-contradiction: false 时只打印具名警告（当前 shipped 配置存在 G-106
+# 已知矛盾，待人类裁决「降技能门」还是「抬路线门」后再置 true）。
+hidden-route-reachability:
+  enabled: true
+  fail-on-contradiction: false
+
 # All repeated skill mechanics share one heartbeat. Damage/healing cadence is
 # retained under pressure; only optional visual density is reduced first.
 sequence-budget:

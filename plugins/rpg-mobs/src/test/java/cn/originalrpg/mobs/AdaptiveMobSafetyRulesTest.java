@@ -25,6 +25,11 @@ class AdaptiveMobSafetyRulesTest {
         assertEquals(126, AdaptiveMobSafetyRules.maximumNaturalLevel(3, 6));
         assertEquals(30, AdaptiveMobSafetyRules.maximumPlayerLevel(0));
         assertEquals(60, AdaptiveMobSafetyRules.maximumPlayerLevel(1));
+        // G-111: 终态章节天花板收敛到 ProgressionRules.effectiveLevelCap()，不再手写乘加公式
+        assertEquals(cn.originalrpg.api.rules.ProgressionRules.effectiveLevelCap(),
+                AdaptiveMobSafetyRules.maximumPlayerLevel(
+                        cn.originalrpg.api.rules.ProgressionRules.MAX_ASCENSION));
+        assertEquals(90, AdaptiveMobSafetyRules.maximumPlayerLevel(2));
         assertThrows(IllegalArgumentException.class,
                 () -> AdaptiveMobSafetyRules.maximumNaturalLevel(4, 6));
     }

@@ -186,6 +186,7 @@ public final class Database implements AutoCloseable {
                 )
                 """,
                 "ALTER TABLE rpg_ledger ADD COLUMN IF NOT EXISTS reversal_of VARCHAR(96)",
+                "ALTER TABLE rpg_progression_wallets ADD COLUMN IF NOT EXISTS season_id VARCHAR(32)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_progression_wallets (
                     player_uuid VARCHAR(36) PRIMARY KEY,
@@ -910,6 +911,8 @@ public final class Database implements AutoCloseable {
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_contribution_scope ON rpg_community_contributions (player_uuid, community_id, period_key)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_reward_community ON rpg_community_project_rewards (community_id, period_key)",
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_rpg_chapter_history_revision ON rpg_chapter_history (season_id, revision)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_season_settlement_transition ON "
+                        + "rpg_season_settlement_transitions (settlement_id, created_at)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_progression_anomalies (
                     player_uuid VARCHAR(36) PRIMARY KEY,
@@ -932,10 +935,51 @@ public final class Database implements AutoCloseable {
                 CREATE TABLE IF NOT EXISTS rpg_season_settlements (
                     id VARCHAR(36) PRIMARY KEY,
                     season_id VARCHAR(32) NOT NULL,
-                    status VARCHAR(16) NOT NULL,
+                    status VARCHAR(24) NOT NULL,
                     preview_hash VARCHAR(64),
+                    fact_digest VARCHAR(64),
                     approved_by VARCHAR(64),
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS rpg_season_settlement_gate (
+                    singleton_id INTEGER PRIMARY KEY,
+                    settlement_id VARCHAR(36),
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS rpg_season_settlement_transitions (
+                    id VARCHAR(36) PRIMARY KEY,
+                    settlement_id VARCHAR(36) NOT NULL,
+                    from_state VARCHAR(24) NOT NULL,
+                    to_state VARCHAR(24) NOT NULL,
+                    actor VARCHAR(64) NOT NULL,
+                    reason VARCHAR(128) NOT NULL,
+                    fact_digest VARCHAR(64),
+                    request_hash VARCHAR(64) NOT NULL,
+                    transaction_version BIGINT NOT NULL,
+                    committed_at TIMESTAMP NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS rpg_season_settlement_progress (
+                    settlement_id VARCHAR(36) NOT NULL,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    merit_debited BIGINT NOT NULL,
+                    committed_at TIMESTAMP NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (settlement_id, player_uuid)
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS rpg_season_merit_wallets (
+                    player_uuid VARCHAR(36) PRIMARY KEY,
+                    season_id VARCHAR(32) NOT NULL,
+                    season_merit BIGINT NOT NULL DEFAULT 0,
                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,

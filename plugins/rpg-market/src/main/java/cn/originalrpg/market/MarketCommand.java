@@ -38,6 +38,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
 import org.bukkit.event.inventory.InventoryPickupItemEvent;
@@ -633,6 +634,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             return;
         }
         MarketDelivery delivery = deliveries.get(index);
+        // 凭据扫描（物品栏 + 游标）是「是否已交付」的唯一事实来源：游标上的凭据同样算已交付，
+        // 只查物品栏会在断线重连后把同一件投递再发一次。
         ItemStack existing = findByMarker(player, deliveryMarker, delivery.id());
         if (existing != null) {
             markAndContinue(player, lease, deliveries, index, delivered, delivery);
@@ -740,8 +743,30 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
                 ? player.getInventory().getItem(event.getHotbarButton()) : null;
         ItemStack offhand = event.getClick() == ClickType.SWAP_OFFHAND
                 ? player.getInventory().getItemInOffHand() : null;
-        if (hasTransientMarker(event.getCurrentItem()) || hasTransientMarker(event.getCursor())
-                || hasTransientMarker(hotbar) || hasTransientMarker(offhand)) {
+        if (DeliveryFreezeRules.decide(new DeliveryFreezeRules.ContainerSlots(
+                hasTransientMarker(event.getCurrentItem()),
+                hasTransientMarker(event.getCursor()),
+                false,
+                hasTransientMarker(hotbar),
+                hasTransientMarker(offhand))).frozen()) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * 创造模式物品栏的交付冻结。{@code InventoryCreativeEvent} 既可能带当前槽位，
+     * 也可能只改游标；这里两条路径都判，避免创造模式把带凭据的交付物品搬进任意容器。
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onCreativeClick(InventoryCreativeEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        if (event.getView().getTopInventory().getHolder() instanceof MarketBrowserMenu) {
+            event.setCancelled(true);
+            return;
+        }
+        if (DeliveryFreezeRules.blocksCreativeContainer(
+                hasTransientMarker(event.getCursor()),
+                hasTransientMarker(event.getCurrentItem()))) {
             event.setCancelled(true);
         }
     }
@@ -752,7 +777,14 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             event.setCancelled(true);
             return;
         }
-        if (hasTransientMarker(event.getOldCursor())) event.setCancelled(true);
+        if (DeliveryFreezeRules.decide(new DeliveryFreezeRules.ContainerSlots(
+                false,
+                hasTransientMarker(event.getCursor()),
+                hasTransientMarker(event.getOldCursor()),
+                false,
+                false)).frozen()) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -1068,13 +1100,24 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         return changed;
     }
 
+    /**
+     * 按标记查找物品。游标槽位也在范围内：交付凭据可能停在鼠标游标上，
+     * 只看物品栏会让断线重连后的重复投递检查漏掉它 —— 同一件投递被再次入包。
+     */
     private ItemStack findByMarker(Player player, NamespacedKey key, UUID value) {
         int slot = findSlotByMarker(player, key, value);
+        if (slot == DeliveryFreezeRules.CURSOR_SLOT) return player.getItemOnCursor();
         return slot < 0 ? null : player.getInventory().getItem(slot);
     }
 
     private int findSlotByMarker(Player player, NamespacedKey key, UUID value) {
         String expected = value.toString();
+        ItemStack cursor = player.getItemOnCursor();
+        if (cursor != null && cursor.getItemMeta() != null
+                && expected.equals(cursor.getItemMeta().getPersistentDataContainer()
+                .get(key, PersistentDataType.STRING))) {
+            return DeliveryFreezeRules.CURSOR_SLOT;
+        }
         for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
             ItemStack item = player.getInventory().getItem(slot);
             if (item == null || item.getItemMeta() == null) continue;
@@ -1090,7 +1133,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
     }
 
     private boolean clearInventoryMarkerAt(Player player, int slot, NamespacedKey key) {
-        ItemStack current = player.getInventory().getItem(slot);
+        boolean cursor = slot == DeliveryFreezeRules.CURSOR_SLOT;
+        ItemStack current = cursor ? player.getItemOnCursor() : player.getInventory().getItem(slot);
         if (current == null || current.getItemMeta() == null) return false;
         ItemStack updated = current.clone();
         ItemMeta meta = updated.getItemMeta();
@@ -1098,31 +1142,44 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         meta.getPersistentDataContainer().remove(key);
         updated.setItemMeta(meta);
         equipmentProgress.refreshDisplay(player, updated);
-        player.getInventory().setItem(slot, updated);
+        if (cursor) player.setItemOnCursor(updated);
+        else player.getInventory().setItem(slot, updated);
         return true;
     }
 
     private void recoverDeliveryReceipts(Player player) {
-        List<String> markers = new ArrayList<>(player.getInventory().getSize());
-        for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
+        int inventorySize = player.getInventory().getSize();
+        String[] inventoryMarkers = new String[inventorySize];
+        for (int slot = 0; slot < inventorySize; slot++) {
             ItemStack item = player.getInventory().getItem(slot);
-            markers.add(item == null || item.getItemMeta() == null ? null
+            inventoryMarkers[slot] = item == null || item.getItemMeta() == null ? null
                     : item.getItemMeta().getPersistentDataContainer()
-                    .get(deliveryMarker, PersistentDataType.STRING));
+                    .get(deliveryMarker, PersistentDataType.STRING);
         }
-        DeliveryReceiptRules.Scan scan = DeliveryReceiptRules.scan(markers);
+        // 游标槽位必须进扫描范围：交付凭据可能停在鼠标游标上，断线时物品栏扫描看不到它，
+        // 重连后凭据不会被清理也不会 markDelivered，物品入包而投递行仍 PENDING。
+        ItemStack cursorItem = player.getItemOnCursor();
+        String cursorMarker = cursorItem == null || cursorItem.getItemMeta() == null ? null
+                : cursorItem.getItemMeta().getPersistentDataContainer()
+                .get(deliveryMarker, PersistentDataType.STRING);
+        DeliveryReceiptRules.Scan scan = DeliveryReceiptRules.scan(
+                DeliveryFreezeRules.collectMarkers(inventorySize, inventoryMarkers, cursorMarker));
         for (int slot : scan.invalidSlots()) {
             if (clearInventoryMarkerAt(player, slot, deliveryMarker)) {
                 plugin.getLogger().warning("Removed malformed transient delivery receipt player="
                         + player.getUniqueId() + " slot=" + slot);
             }
         }
-        if (!scan.duplicateIds().isEmpty()) {
+        // 重复凭据无法定位唯一物品，隔离即可；一旦重发就是重复领取本身。
+        if (MailboxClaimReconciler.quarantinesDuplicates(scan)) {
             plugin.getLogger().severe("Duplicate transient delivery receipts remain quarantined player="
                     + player.getUniqueId() + " deliveries=" + scan.duplicateIds());
         }
         if (!scan.invalidSlots().isEmpty()) player.saveData();
-        for (UUID deliveryId : scan.uniqueReceipts().keySet()) {
+        // 扫描结果里已带凭据的投递走「确认」分支；其余才可能重新入包。
+        // 游标凭据也在其中，因此断线时无法借游标绕过重复检查。
+        for (UUID deliveryId : MailboxClaimReconciler.plan(
+                scan.uniqueReceipts().keySet(), scan).stagedDeliveries().keySet()) {
             market.markDelivered(deliveryId, player.getUniqueId()).whenComplete((marked, error) -> sync(() -> {
                 if (error != null) {
                     plugin.getLogger().warning("Transient delivery receipt recovery failed player="

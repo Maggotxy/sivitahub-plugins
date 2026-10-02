@@ -39,7 +39,7 @@ public final class JdbcProfileService implements ProfileService {
     private final Map<UUID, PlayerProfile> cache = new ConcurrentHashMap<>();
 
     public JdbcProfileService(DataSource dataSource, Executor executor, int startingEnergy, int energyPerStamina) {
-        this(dataSource, executor, startingEnergy, energyPerStamina, 0);
+        this(dataSource, executor, startingEnergy, energyPerStamina, () -> 0);
     }
 
     public JdbcProfileService(
@@ -298,31 +298,6 @@ public final class JdbcProfileService implements ProfileService {
             update.setString(5, periodKey);
             if (update.executeUpdate() != 1) throw new IllegalStateException("Energy quota update was lost");
         }
-    }
-
-    @Override
-    public CompletionStage<PlayerProfile> ascend(UUID playerId) {
-        // Deprecated bypass — retained for test harness and single-node dev; production ascensions
-        // must use AscensionService (transactional, branch/skill/dungeon/merit checks, C-015).
-        return mutate(playerId, profile -> {
-            int nextAscension = profile.ascension() + 1;
-            if (profile.archetype() == Archetype.UNCHOSEN) {
-                throw new IllegalStateException("A starting class must be selected first");
-            }
-            int openAscension = Math.clamp(
-                    maximumOpenAscension.getAsInt(), 0, ProgressionRules.MAX_ASCENSION);
-            if (nextAscension > openAscension) {
-                throw new IllegalStateException("The next ascension is not open for this chapter");
-            }
-            if (profile.level() < ProgressionRules.levelCap(profile.ascension())) {
-                throw new IllegalStateException("The current stage level cap has not been reached");
-            }
-            return new PlayerProfile(
-                    profile.playerId(), profile.archetype(), nextAscension, 1, 0,
-                    profile.energyCap(), profile.energyCap(), profile.unspentAttributePoints(),
-                    profile.skillPoints(), profile.attributes()
-            );
-        });
     }
 
     @Override

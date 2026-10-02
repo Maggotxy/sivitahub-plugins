@@ -238,7 +238,11 @@ final class MobGuideCommand implements CommandExecutor, Listener {
         return Component.text(messages.text(player, "mobs.guide.progress", Map.of(
                 "experience", plan.experience(),
                 "needed", plan.neededExperience(),
-                "remaining", plan.remainingExperience())), NamedTextColor.AQUA);
+                "remaining", plan.remainingExperience(),
+                "stage_spent", plan.stageExperienceSpent(),
+                "stage_budget", plan.stageExperienceBudget(),
+                "stage_remaining", plan.stageExperienceRemaining(),
+                "effective_total", plan.totalExperienceToEffective())), NamedTextColor.AQUA);
     }
 
     private Component route(Player player, MobGuideRules.GuidePlan plan) {
