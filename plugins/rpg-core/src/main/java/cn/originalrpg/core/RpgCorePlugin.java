@@ -9,7 +9,10 @@ import cn.originalrpg.api.service.CurrencyExchangeService;
 import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.ProfileService;
 import cn.originalrpg.api.service.PersistenceMetricsService;
+import cn.originalrpg.api.service.MarketBuyOrderService;
 import cn.originalrpg.api.service.MarketService;
+import cn.originalrpg.api.service.ProgressionAnomalyService;
+import cn.originalrpg.api.service.SupportCreditService;
 import cn.originalrpg.api.service.SkillService;
 import cn.originalrpg.api.service.MerchantService;
 import cn.originalrpg.api.service.PetProgressService;
@@ -41,7 +44,10 @@ import cn.originalrpg.core.persistence.JdbcActivityEconomyService;
 import cn.originalrpg.core.persistence.JdbcCommerceService;
 import cn.originalrpg.core.persistence.JdbcCurrencyExchangeService;
 import cn.originalrpg.core.persistence.JdbcProfileService;
+import cn.originalrpg.core.persistence.JdbcMarketBuyOrderService;
 import cn.originalrpg.core.persistence.JdbcMarketService;
+import cn.originalrpg.core.persistence.JdbcProgressionAnomalyService;
+import cn.originalrpg.core.persistence.JdbcSupportCreditService;
 import cn.originalrpg.core.persistence.JdbcSkillService;
 import cn.originalrpg.core.persistence.JdbcMerchantService;
 import cn.originalrpg.core.persistence.JdbcPetProgressService;
@@ -197,6 +203,15 @@ public final class RpgCorePlugin extends JavaPlugin {
             YamlMessageService messages = new YamlMessageService(this);
             JdbcMarketService market = new JdbcMarketService(
                     database.dataSource(), databaseExecutor, startingBalance, mechanisms);
+            // Phase 4 买单簿：与卖单共用同一套托管账簿（C-009），因此同受市场熔断约束。
+            JdbcMarketBuyOrderService buyOrders = new JdbcMarketBuyOrderService(
+                    database.dataSource(), databaseExecutor, startingBalance, mechanisms);
+            // Phase 1 成长异常清单：写入口 + 人工复核出口（[H] 门禁）。
+            JdbcProgressionAnomalyService progressionAnomalies =
+                    new JdbcProgressionAnomalyService(database.dataSource(), databaseExecutor);
+            // Phase 5 support_credit 独立账本（C-012 物理隔离）。
+            JdbcSupportCreditService supportCredit =
+                    new JdbcSupportCreditService(database.dataSource(), databaseExecutor);
             JdbcEquipmentOperationService equipmentOperations = new JdbcEquipmentOperationService(
                     database.dataSource(), databaseExecutor, startingBalance);
             JdbcEquipmentLedgerAuditService equipmentLedger = new JdbcEquipmentLedgerAuditService(
@@ -256,6 +271,12 @@ public final class RpgCorePlugin extends JavaPlugin {
             getServer().getServicesManager().register(MessageService.class, messages, this, ServicePriority.Normal);
             getServer().getServicesManager().register(MarketService.class, market, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
+                    MarketBuyOrderService.class, buyOrders, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
+                    ProgressionAnomalyService.class, progressionAnomalies, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
+                    SupportCreditService.class, supportCredit, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(
                     EquipmentOperationService.class, equipmentOperations, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
                     EquipmentLedgerAuditService.class, equipmentLedger, this, ServicePriority.Normal);
@@ -298,7 +319,8 @@ public final class RpgCorePlugin extends JavaPlugin {
                     this, ServicePriority.Normal);
 
             RpgCommand command = new RpgCommand(
-                    this, profiles, activityEconomy, chapters, messages, seasonMerits, seasonSettlements);
+                    this, profiles, activityEconomy, chapters, messages, seasonMerits, seasonSettlements,
+                    supportCredit);
             PluginCommand rpg = Objects.requireNonNull(getCommand("rpg"), "rpg command");
             rpg.setExecutor(command);
             LanguageCommand languageCommand = new LanguageCommand(messages);

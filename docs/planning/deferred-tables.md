@@ -4,9 +4,11 @@
 > 本页把「豁免」从模糊状态变成可审计事实：每张表给出 Phase / 设计意图（引文档原文）/ 当前无消费者的真实原因 / 建议处置。
 >
 > 判定基线：`2026-10-02`，分支 `agent/W3-A4-exempt-tables-judgement`。
+> **W6-A1 更新（`agent/W6-A1-pending-tables-wiring`）**：§0 里剩下的 4 张 PENDING 表已全部接线，
+> `scripts/check-ddl-consumers.sh` 的 EXEMPT 现为空；逐条接线事实见 §2 的「W6-A1 接线结果」小节。
 > DDL 真相源：`plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java`（79 张 `CREATE TABLE IF NOT EXISTS rpg_*`）。
 >
-> **本任务只做判定与登记，不执行接线、不删表、不改 DDL。**
+> **W3-A4 本任务只做判定与登记；接线由 W6-A1 完成（本页已同步）。**
 
 ## 0. 现状刷新：8 条豁免里 4 条已失效
 
@@ -19,10 +21,10 @@
 | `rpg_session_leases` | 豁免 | **已接线** | `JdbcSessionLease`（SELECT，读侧） |
 | `rpg_community_approvals` | 豁免 | **已接线** | `JdbcCommunityService`（INSERT/SELECT/DELETE，G-103） |
 | `rpg_season_settlements` | 豁免 | **已接线** | `JdbcSeasonSettlementService`（INSERT/SELECT/UPDATE，G-101） |
-| `rpg_support_credit_accounts` | 豁免 | **仍无消费者** | 无 |
-| `rpg_support_credit_ledger` | 豁免 | **仍无消费者** | 无 |
-| `rpg_market_buy_orders` | 豁免 | **仍无消费者** | 无 |
-| `rpg_progression_anomalies` | 豁免 | **仍无消费者** | 无 |
+| `rpg_support_credit_accounts` | 豁免 | **W6-A1 已接线** | `JdbcSupportCreditService`（INSERT/UPDATE/SELECT，C-012 独立账本余额） |
+| `rpg_support_credit_ledger` | 豁免 | **W6-A1 已接线** | `JdbcSupportCreditService`（INSERT/SELECT，幂等流水） |
+| `rpg_market_buy_orders` | 豁免 | **W6-A1 已接线** | `JdbcMarketBuyOrderService`（INSERT/SELECT/UPDATE，Phase 4 买单簿） |
+| `rpg_progression_anomalies` | 豁免 | **W6-A1 已接线** | `JdbcProgressionAnomalyService` + `JdbcProfileService`（INSERT/UPDATE/SELECT/DELETE） |
 
 > 表数从首跑 75 → 现在 79，是 W2 各 PR 新增了 4 张表（`rpg_mechanism_switches`、`rpg_season_settlement_gate`、
 > `rpg_season_settlement_transitions`、`rpg_season_settlement_progress` 等），与本页判定无关。
@@ -114,12 +116,53 @@
 
 | 表 | Phase | 真实原因 | 建议处置 | 目标波次 |
 |---|---|---|---|---|
-| `rpg_support_credit_accounts` | 5 | 落库先行 | 保留待接线 | W4 |
-| `rpg_support_credit_ledger` | 5 | 落库先行 | 保留待接线 | W4（与上表同 PR） |
-| `rpg_market_buy_orders` | 4 | 落库先行 | 保留待接线 | W4 |
-| `rpg_progression_anomalies` | 1 | 落库先行 | 保留待接线（受 `[H]` 门禁） | W5 / 需人类拍板 |
+| `rpg_support_credit_accounts` | 5 | 落库先行 | **已接线（W6-A1）** | 完成 |
+| `rpg_support_credit_ledger` | 5 | 落库先行 | **已接线（W6-A1，与上表同 PR）** | 完成 |
+| `rpg_market_buy_orders` | 4 | 落库先行 | **已接线（W6-A1）** | 完成 |
+| `rpg_progression_anomalies` | 1 | 落库先行 | **已接线（W6-A1）**，[H] 复核出口已实现 | 完成（真人复核留待 [H]） |
 
 **无一张判定为「删表」；无一张判定为「能力已废弃」。**
+
+### 3.1 W6-A1 接线结果（本轮实测）
+
+4 张表全部从 PENDING 移除，门禁 EXEMPT 清空（`DDL 表数: 79` / `豁免清单: 0 条`）。逐条证据：
+
+```bash
+$ grep -rn --include='*.java' 'rpg_support_credit_accounts' plugins | grep '/src/main/'
+plugins/rpg-core/src/main/java/.../JdbcSupportCreditService.java:146  "SELECT balance FROM rpg_support_credit_accounts WHERE player_uuid = ?"
+plugins/rpg-core/src/main/java/.../JdbcSupportCreditService.java:156  INSERT INTO rpg_support_credit_accounts (player_uuid, balance) VALUES (?, 0)
+plugins/rpg-core/src/main/java/.../JdbcSupportCreditService.java:166  SELECT balance FROM rpg_support_credit_accounts WHERE player_uuid = ? FOR UPDATE
+plugins/rpg-core/src/main/java/.../JdbcSupportCreditService.java:179  UPDATE rpg_support_credit_accounts
+
+$ grep -rn --include='*.java' 'rpg_market_buy_orders' plugins | grep '/src/main/'
+plugins/rpg-core/src/main/java/.../JdbcMarketBuyOrderService.java   （INSERT/SELECT FOR UPDATE/UPDATE ×多个调用点）
+
+$ grep -rn --include='*.java' 'rpg_progression_anomalies' plugins | grep '/src/main/'
+plugins/rpg-core/src/main/java/.../JdbcProgressionAnomalyService.java  （INSERT/UPDATE/SELECT/DELETE）
+plugins/rpg-core/src/main/java/.../JdbcProfileService.java             （读路径条件写：只在读到异常档案时落行）
+```
+
+| 表 | 真实调用点（src/main） | 行为级测试 | 接入方式 |
+|---|---|---|---|
+| `rpg_support_credit_accounts` | `JdbcSupportCreditService`（余额读/建/锁/更新） | `JdbcSupportCreditServiceTest`（7 例） | `SupportCreditService` 注册进 `RpgCorePlugin`；`/rpg` 单独一行展示余额 |
+| `rpg_support_credit_ledger` | `JdbcSupportCreditService`（幂等插入 + 重放查询） | 同上 | 幂等键唯一约束即去重依据 |
+| `rpg_market_buy_orders` | `JdbcMarketBuyOrderService`（挂/撮合/撤/过期/查询） | `JdbcMarketBuyOrderServiceTest`（9 例） | `MarketBuyOrderService` 注册进 `RpgCorePlugin`；`/market buyorder` 三子命令 |
+| `rpg_progression_anomalies` | `JdbcProgressionAnomalyService` + `JdbcProfileService` 读路径 | `JdbcProgressionAnomalyServiceTest`（8 例） | `ProgressionAnomalyService` 注册进 `RpgCorePlugin`；判定口径唯一实现在 `ProgressionRules.classifyAnomaly` |
+
+**C-012 物理隔离的机械证明**：`JdbcSupportCreditService` 里没有任何一句 SQL 引用
+`rpg_accounts` / `rpg_merit_ledger` / `rpg_credit_ledger`；`SupportCreditTarget` 的禁止清单
+（装备/材料/强化辅助物/经验/体力/掉率/赛季层调谐/战力）在开事务**之前**就被拒，
+被拒请求连一行流水都不落（`JdbcSupportCreditServiceTest.forbiddenTargetIsRejectedBeforeAnyLedgerWrite`）。
+
+**C-009 单一托管的机械证明**：`JdbcMarketBuyOrderService` 不新建余额/流水/投递表 ——
+买单托管写的是 `rpg_accounts`，成交流水写的是 `rpg_ledger`，交付写的是 `rpg_market_deliveries`，
+与卖单 `JdbcMarketService` 完全同一套表（`JdbcMarketBuyOrderServiceTest.fillingSettlesTaxedPayoutAndDeliversThroughTheSameMailbox`）。
+
+**[H] 门禁的落地方式**：`rpg_progression_anomalies` 的唯一删除路径是
+`acknowledge(playerId, reviewer)`，`reviewer` 为空即拒绝（没有署名的复核不算复核）。
+自动流程只写不删，且**不据此发补偿**（C-013）。
+
+
 四张表全部是**能力仍然有效、只是消费者晚于 schema 落地**的「落库先行」。
 
 > 这正是门禁应当区分两个状态的原因：`PENDING`（待接线，计划内）与 `ABANDONED`（已废弃，计划外）

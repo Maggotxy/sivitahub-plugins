@@ -233,5 +233,22 @@ public final class ProgressionRules {
         }
         return experienceToNextLocalLevel(ascension, level);
     }
-}
 
+    /**
+     * Phase 1 成长语义判定（唯一实现）：一份档案能否被当前 {@link ProgressionRules} 唯一解释。
+     *
+     * <p>返回 null 表示「健康」；返回非空字符串表示「人工复核原因」。</p>
+     *
+     * <p>刻意**不做** {@code level % 30} 猜测：老口径存档的 {@code level=31} 既可能是
+     * 「1 转本地 1 级」也可能是脏数据，任何整除映射都会把两种含义混成一个值，
+     * 所以这里只负责判定「解释不了」，把裁决权留给 {@code rpg_progression_anomalies} 的人工清单。</p>
+     */
+    public static String classifyAnomaly(int ascension, int level, long experience) {
+        if (experience < 0) return "negative-experience:" + experience;
+        if (ascension < 0 || ascension > MAX_ASCENSION) return "ascension-out-of-range:" + ascension;
+        if (level < 1 || level > LOCAL_LEVEL_CAP) return "local-level-out-of-range:" + level;
+        long ceiling = walkedStageExperience(ascension) + 1;
+        if (experience > ceiling) return "experience-jump:" + experience + ">" + ceiling;
+        return null;
+    }
+}

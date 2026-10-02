@@ -13,6 +13,7 @@ import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.ProfileService;
 import cn.originalrpg.api.service.SeasonMeritWalletService;
 import cn.originalrpg.api.service.SeasonSettlementService;
+import cn.originalrpg.api.service.SupportCreditService;
 import cn.originalrpg.api.service.ChapterService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -39,11 +40,12 @@ public final class RpgCommand implements CommandExecutor, Listener {
     private final MessageService messages;
     private final SeasonMeritWalletService seasonMerits;
     private final SeasonSettlementService seasonSettlements;
+    private final SupportCreditService supportCredit;
 
     public RpgCommand(
             Plugin plugin, ProfileService profiles, ActivityEconomyService economy,
             ChapterService chapters, MessageService messages, SeasonMeritWalletService seasonMerits,
-            SeasonSettlementService seasonSettlements
+            SeasonSettlementService seasonSettlements, SupportCreditService supportCredit
     ) {
         this.plugin = plugin;
         this.profiles = profiles;
@@ -52,6 +54,7 @@ public final class RpgCommand implements CommandExecutor, Listener {
         this.messages = messages;
         this.seasonMerits = seasonMerits;
         this.seasonSettlements = seasonSettlements;
+        this.supportCredit = supportCredit;
     }
 
     @Override
@@ -65,6 +68,7 @@ public final class RpgCommand implements CommandExecutor, Listener {
                 .thenCombine(economy.progress(player.getUniqueId()), ProfileEconomy::new)
                 .thenCombine(seasonMerits.seasonMerit(player.getUniqueId()), ProfileEconomySeason::new)
                 .thenCombine(seasonState(chapter.seasonId()), ProfileEconomySeasonState::new)
+                .thenCombine(supportCredit.balance(player.getUniqueId()), ProfileEconomySeasonStateCredit::new)
                 .whenComplete((result, error) -> Bukkit.getScheduler().runTask(plugin, () -> {
                     if (!player.isOnline()) {
                         return;
@@ -74,9 +78,10 @@ public final class RpgCommand implements CommandExecutor, Listener {
                         plugin.getLogger().warning("Profile command failed: " + error.getMessage());
                         return;
                     }
-                    showProfile(player, result.profile().profile().profile(),
-                            result.profile().profile().economy(), chapter,
-                            result.profile().seasonMerit(), result.settlementState());
+                    showProfile(player, result.profile().profile().profile().profile(),
+                            result.profile().profile().profile().economy(), chapter,
+                            result.profile().profile().seasonMerit(), result.profile().settlementState(),
+                            result.supportCredit());
                 }));
         return true;
     }
@@ -117,7 +122,7 @@ public final class RpgCommand implements CommandExecutor, Listener {
 
     private void showProfile(
             Player player, PlayerProfile profile, EconomyProgress economy, ChapterState chapter,
-            long seasonMerit, SeasonSettlementState settlementState
+            long seasonMerit, SeasonSettlementState settlementState, long supportCreditBalance
     ) {
         player.sendMessage(Component.text(messages.text(player, "profile.title"), NamedTextColor.GOLD));
         player.sendMessage(Component.text(messages.text(player, "profile.class", Map.of(
@@ -152,6 +157,9 @@ public final class RpgCommand implements CommandExecutor, Listener {
         player.sendMessage(Component.text(messages.text(player, "profile.gold-merit", Map.of(
                 "gold", economy.gold().toPlainString(), "merit", economy.merit(),
                 "season", chapter.seasonId(), "season-merit", seasonMerit)), NamedTextColor.YELLOW));
+        // C-012：support_credit 是独立账本，因此单独一行展示，绝不并入 gold/merit 那一行。
+        player.sendMessage(Component.text(messages.text(player, "profile.support-credit", Map.of(
+                "support_credit", supportCreditBalance)), NamedTextColor.LIGHT_PURPLE));
         player.sendMessage(Component.text(messages.text(player, "profile.points", Map.of(
                 "attributes", profile.unspentAttributePoints(), "skills", profile.skillPoints())), NamedTextColor.GREEN));
         player.sendMessage(Component.text(messages.text(player, "profile.attributes", Map.of(
@@ -172,5 +180,8 @@ public final class RpgCommand implements CommandExecutor, Listener {
     }
 
     private record ProfileEconomySeasonState(ProfileEconomySeason profile, SeasonSettlementState settlementState) {
+    }
+
+    private record ProfileEconomySeasonStateCredit(ProfileEconomySeasonState profile, long supportCredit) {
     }
 }
