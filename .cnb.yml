@@ -26,11 +26,12 @@
           # 这里先补齐，缺什么装什么，装不上就明确失败而不是让下游报一个看不懂的错。
           set -e
           have() { command -v "$1" >/dev/null 2>&1; }
-          if have curl && have sha256sum; then echo "DOWNLOADER=curl(ready)"; exit 0; fi
-          echo "缺少 curl/sha256sum，用 apt 安装"
+          if have curl && have sha256sum && have python3; then echo "DOWNLOADER=curl(ready)"; exit 0; fi
+          echo "缺少 curl/sha256sum/python3，用 apt 安装"
           apt-get update -qq >/dev/null 2>&1 || true
-          apt-get install -y -qq curl ca-certificates coreutils >/dev/null 2>&1 || true
-          have curl || { apt-get install -y -qq python3 >/dev/null 2>&1 || true; }
+          # python3 也要装：scripts/check-file-deps.sh 依赖它（实测只装 curl 会在那里挂在
+          # 「check-file-deps.sh: 19: python3: not found」）
+          apt-get install -y -qq curl ca-certificates coreutils python3 >/dev/null 2>&1 || true
           echo "curl=$(have curl && echo yes || echo no) python3=$(have python3 && echo yes || echo no) sha256sum=$(have sha256sum && echo yes || echo no)"
           have curl || have python3 || { echo "DOWNLOADER=NONE"; exit 1; }
           echo "DOWNLOADER=ready"
