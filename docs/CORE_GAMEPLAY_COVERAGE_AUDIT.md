@@ -47,6 +47,6 @@
 :plugins:rpg-core:test --tests JdbcServicesTest.skillVariantPersistenceAcceptsEveryRuntimePairAndRejectsCrossSkillPairs
 ```
 
-数据库 schema 与迁移清单当前均为 62 张 `rpg_*` 表，包含装备操作恢复、技能变异、隐藏路线、体力恢复、事故补偿审计、宠物成长与跨库复苏意图、晋升和社群回执；
+数据库 schema 与迁移清单当前均为 75 张 `rpg_*` 表，包含装备操作恢复、技能变异、隐藏路线、体力恢复、事故补偿审计、宠物成长与跨库复苏意图、晋升和社群回执；
 清单合同会在两者不一致时失败关闭。既有自动化结果只证明当次源码模块合同，不替代真实 PostgreSQL 延迟、断连、模糊提交与 Paper 硬崩故障注入，
 也不替代 30/50/70/100 人阶梯压测、多人真人完整验收和至少两周经济产销数据；当前没有证据证明单 Paper 已支持 100 人。
