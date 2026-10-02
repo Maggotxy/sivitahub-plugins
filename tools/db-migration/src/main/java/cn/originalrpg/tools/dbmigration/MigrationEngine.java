@@ -17,7 +17,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 final class MigrationEngine {
-    private static final long POSTGRES_ADVISORY_LOCK = 0x5349564954414D47L;
+    /** 等待 RpgCore 迁移锁时的 SQL 报错标识，用于区分超时与其他失败。 */
+    private static final String LOCK_TIMEOUT_STATE = "55P03";
 
     enum Outcome {
         DRY_RUN_EMPTY_TARGET,
@@ -33,8 +34,20 @@ final class MigrationEngine {
             int batchSize,
             boolean dryRun,
             boolean verifyOnly,
-            boolean replaceExisting
+            boolean replaceExisting,
+            long lockTimeoutMs
     ) {
+        Request(
+                String sourceSchema,
+                String targetSchema,
+                int batchSize,
+                boolean dryRun,
+                boolean verifyOnly,
+                boolean replaceExisting
+        ) {
+            this(sourceSchema, targetSchema, batchSize, dryRun, verifyOnly, replaceExisting,
+                    MigrationAdvisoryLock.DEFAULT_TIMEOUT_MS);
+        }
     }
 
     record Result(Outcome outcome, long rows, int tables) {
@@ -85,7 +98,7 @@ final class MigrationEngine {
         try {
             configureSource(source);
             configureTarget(target, request.dryRun() || request.verifyOnly());
-            acquireTargetLock(target);
+            acquireTargetLock(target, request.lockTimeoutMs());
 
             SchemaInspector.Schema sourceSchema = inspector.inspect(source, request.sourceSchema(), tableOrder);
             SchemaInspector.Schema targetSchema = inspector.inspect(target, request.targetSchema(), tableOrder);
@@ -200,15 +213,36 @@ final class MigrationEngine {
         target.setReadOnly(readOnly);
     }
 
-    private static void acquireTargetLock(Connection target) throws SQLException, MigrationException {
+    /**
+     * 取得与在线 Paper 节点完全相同的迁移 advisory lock，最多等待
+     * {@code lockTimeoutMs} 毫秒。等待上限由 PostgreSQL 自身的
+     * {@code lock_timeout} 执行，因此既不会在超时后继续盲目执行 DDL，
+     * 也不会把 {@code SERIALIZABLE} 事务拖到无限期。
+     */
+    private static void acquireTargetLock(Connection target, long lockTimeoutMs)
+            throws SQLException, MigrationException {
         if (!isPostgres(target)) return;
-        try (PreparedStatement statement = target.prepareStatement("SELECT pg_try_advisory_xact_lock(?)")) {
-            statement.setLong(1, POSTGRES_ADVISORY_LOCK);
-            try (ResultSet result = statement.executeQuery()) {
-                if (!result.next() || !result.getBoolean(1)) {
-                    throw new MigrationException("Another RPG data migration holds the PostgreSQL advisory lock");
-                }
+        long timeout = Math.clamp(
+                lockTimeoutMs, MigrationAdvisoryLock.MIN_TIMEOUT_MS, MigrationAdvisoryLock.MAX_TIMEOUT_MS);
+        try (Statement statement = target.createStatement()) {
+            statement.execute("SET LOCAL lock_timeout = '" + timeout + "ms'");
+        }
+        // 双参数形式，与 RpgCore Database.migrationCoordinationStatements 一致。
+        String sql = "SELECT pg_advisory_xact_lock(" + MigrationAdvisoryLock.NAMESPACE
+                + ", " + MigrationAdvisoryLock.RESOURCE + ")";
+        try (Statement statement = target.createStatement()) {
+            statement.execute(sql);
+        } catch (SQLException exception) {
+            if (LOCK_TIMEOUT_STATE.equals(exception.getSQLState())) {
+                throw new MigrationException(
+                        "Timed out after " + timeout + "ms waiting for the PostgreSQL migration advisory lock (key "
+                                + MigrationAdvisoryLock.composedKey()
+                                + "); another Paper node or migration tool holds it. Stop every node, wait for the"
+                                + " lock holder to finish, then retry.",
+                        exception
+                );
             }
+            throw exception;
         }
     }
 

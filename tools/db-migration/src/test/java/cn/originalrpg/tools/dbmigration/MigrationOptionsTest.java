@@ -73,6 +73,41 @@ class MigrationOptionsTest {
         assertTrue(MigrationOptions.parse(args.toArray(String[]::new), Map.of()).replaceExisting());
     }
 
+    @Test
+    void lockTimeoutDefaultsToThirtySecondsAndIsBounded() throws Exception {
+        Path password = secret("target.secret", "safe-test-only\n", "rw-------");
+        List<String> args = new ArrayList<>(java.util.Arrays.asList(arguments(password)));
+        assertEquals(30_000L, MigrationOptions.parse(args.toArray(String[]::new), Map.of()).lockTimeoutMs());
+
+        List<String> custom = new ArrayList<>(args);
+        custom.add("--lock-timeout-ms");
+        custom.add("45000");
+        assertEquals(45_000L, MigrationOptions.parse(custom.toArray(String[]::new), Map.of()).lockTimeoutMs());
+
+        for (String invalid : List.of("999", "300001", "abc", "1.5")) {
+            List<String> bad = new ArrayList<>(args);
+            bad.add("--lock-timeout-ms");
+            bad.add(invalid);
+            MigrationException error = assertThrows(
+                    MigrationException.class,
+                    () -> MigrationOptions.parse(bad.toArray(String[]::new), Map.of()),
+                    "lock timeout must be rejected: " + invalid
+            );
+            assertTrue(error.getMessage().contains("--lock-timeout-ms"), error.getMessage());
+        }
+    }
+
+    @Test
+    void lockTimeoutCanComeFromTheEnvironment() throws Exception {
+        Path password = secret("target.secret", "safe-test-only\n", "rw-------");
+        MigrationOptions options = MigrationOptions.parse(
+                arguments(password),
+                Map.of("SIVITA_MIGRATION_LOCK_TIMEOUT_MS", "60000")
+        );
+        assertEquals(60_000L, options.lockTimeoutMs());
+        options.clearPasswords();
+    }
+
     private String[] arguments(Path password) {
         return new String[]{
                 "--source-url", "jdbc:h2:file:" + temporary.resolve("source"),
