@@ -87,8 +87,9 @@ public final class RpgCorePlugin extends JavaPlugin {
     private ThreadPoolExecutor databaseExecutor;
     private ScheduledExecutorService nodeLeaseExecutor;
     private JdbcNodeLease nodeLease;
+    private NodeLeaseSupervisor nodeLeaseSupervisor;
+    private AutoCloseable nodeLeaseRenewal;
     private final AtomicBoolean chapterRefreshInFlight = new AtomicBoolean();
-    private final AtomicBoolean nodeLeaseRefreshInFlight = new AtomicBoolean();
     private final FailStopCoordinator failStop = new FailStopCoordinator();
     private final AtomicBoolean reservationRecoveryInFlight = new AtomicBoolean();
 
@@ -295,25 +296,25 @@ public final class RpgCorePlugin extends JavaPlugin {
         }, seconds * 20L, seconds * 20L);
     }
 
+    /**
+     * 节点租约续期的真实消费者（C-014）：由 {@link NodeLeaseSupervisor} 调度
+     * {@code renewAsync()}，失租时失败关闭。这里只做接线，不启用多服。
+     */
     private void startNodeLeaseHeartbeat(long leaseSeconds) {
         long heartbeatSeconds = Math.max(5L, leaseSeconds / 3L);
-        nodeLeaseExecutor.scheduleWithFixedDelay(() -> {
-            if (!nodeLeaseRefreshInFlight.compareAndSet(false, true)) return;
-            try {
-                boolean renewed = nodeLease.renew();
-                if (!renewed) requestServerShutdown("Paper node lease was fenced by another process");
-            } catch (RuntimeException error) {
-                Duration safeRetryWindow = Duration.ofSeconds(heartbeatSeconds).plusSeconds(5L);
-                if (nodeLease.mayStillBeValidFor(safeRetryWindow)) {
-                    getLogger().warning("Paper node lease heartbeat failed; retrying before expiry: "
-                            + error.getMessage());
-                } else {
-                    requestServerShutdown("Paper node lease expired while its database was unavailable");
-                }
-            } finally {
-                nodeLeaseRefreshInFlight.set(false);
-            }
-        }, heartbeatSeconds, heartbeatSeconds, TimeUnit.SECONDS);
+        nodeLeaseSupervisor = new NodeLeaseSupervisor(
+                nodeLease, Duration.ofSeconds(heartbeatSeconds), getLogger(),
+                (reason, error) -> {
+                    if (error != null) getLogger().log(Level.SEVERE, reason, error);
+                    requestServerShutdown(reason);
+                });
+        // 刚取得的 token 必须立刻被数据库承认，否则说明启动窗口内已被围栏。
+        nodeLeaseSupervisor.verifyAcquiredToken();
+        try {
+            nodeLeaseRenewal = nodeLeaseSupervisor.schedule(nodeLeaseExecutor);
+        } catch (RuntimeException error) {
+            throw new IllegalStateException("Could not schedule the Paper node lease heartbeat", error);
+        }
     }
 
     private void startReservationRecovery(JdbcDungeonEntryService dungeonEntries) {
@@ -375,9 +376,15 @@ public final class RpgCorePlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         getServer().getServicesManager().unregisterAll(this);
+        if (nodeLeaseRenewal != null) {
+            // 先停止周期续期，否则最后一次心跳可能和干净释放竞争。
+            try {
+                nodeLeaseRenewal.close();
+            } catch (Exception exception) {
+                getLogger().warning("Could not stop the Paper node lease heartbeat: " + exception.getMessage());
+            }
+        }
         if (nodeLeaseExecutor != null) {
-            // Stop periodic renewal before releasing the token. Otherwise a
-            // final heartbeat could race the clean release during shutdown.
             nodeLeaseExecutor.close();
         }
         if (nodeLease != null) {
