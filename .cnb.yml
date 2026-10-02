@@ -1,46 +1,49 @@
 # 希维塔大陆 SivitaHub —— CNB 流水线
 #
-# 三条硬规则（写错会被静默忽略，见 cnb-workflow skill §5）：
+# 三条硬规则（写错会被静默忽略，见 cnb-workflow skill §6）：
 #   1. `docker:` 必须写在 job 级（与 `stages:` 同级），写 stage 级会被忽略
 #   2. 需要 NPC 写仓库时必须不写 `sandbox`（或 sandbox: false）+ `workMode: true`
 #   3. 构建脚本跑在 `sh`(dash) 下，不能用 `${PIPESTATUS[@]}`、进程替换、`<<-`
 #
 # 本仓定位：**CNB 为唯一真相源与执行体**。编译门是唯一机械判据，门不绿不算完成。
 
-$:
-  # ---------------------------------------------------------------- 编译门
-  # 判据 = 每个子工程 compileJava 成功（BUILD_EXIT=0）且构建耗时 SECONDS>0
-  # （SECONDS>0 是为了防止「缓存命中后 0 秒通过」被当成真编译）
-  push:
-    - name: 全量编译门
-      docker:
-        image: eclipse-temurin:25-jdk
-      stages:
-        - name: compile
-          script: |
-            set -e
-            echo "java: $(java -version 2>&1 | head -1)"
-            chmod +x gradlew
-            export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
-            export GRADLE_USER_HOME=/root/.gradle
-            start=$(date +%s)
-            set +e
-            ./gradlew --no-daemon --continue \
-              -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 \
-              compileJava > /tmp/gradle.log 2>&1
-            rc=$?
-            set -e
-            end=$(date +%s)
-            tail -n 150 /tmp/gradle.log
-            echo "-----"
-            grep -c "^> Task" /tmp/gradle.log || true
-            echo "BUILD_EXIT=$rc SECONDS=$((end-start))"
-            if [ "$rc" -ne 0 ]; then echo "COMPILE_GATE=RED"; exit 1; fi
-            echo "COMPILE_GATE=GREEN"
+# 编译门脚本：判据 = 每个子工程 compileJava 成功（BUILD_EXIT=0）且构建耗时 SECONDS>0
+# （SECONDS>0 是为了防止「缓存命中后 0 秒通过」被当成真编译）
+.compile_gate: &compile_gate
+  - name: 全量编译门
+    docker:
+      image: eclipse-temurin:25-jdk
+    stages:
+      - name: compile
+        script: |
+          set -e
+          echo "java: $(java -version 2>&1 | head -1)"
+          chmod +x gradlew
+          export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
+          export GRADLE_USER_HOME=/root/.gradle
+          start=$(date +%s)
+          set +e
+          ./gradlew --no-daemon --continue \
+            -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 \
+            compileJava > /tmp/gradle.log 2>&1
+          rc=$?
+          set -e
+          end=$(date +%s)
+          tail -n 150 /tmp/gradle.log
+          echo "-----"
+          echo "TASKS_DONE=$(grep -c '^> Task' /tmp/gradle.log || true)"
+          echo "BUILD_EXIT=$rc SECONDS=$((end-start))"
+          if [ "$rc" -ne 0 ]; then echo "COMPILE_GATE=RED"; exit 1; fi
+          if [ $((end-start)) -le 0 ]; then echo "COMPILE_GATE=SUSPECT(0s)"; exit 1; fi
+          echo "COMPILE_GATE=GREEN"
 
-  # ---------------------------------------------------------------- NPC 编排
-  # 由本地 orchestrator.py 派发（config 现场下发时此段不生效）。
-  # 云上自持模式下由 api_trigger_npc 触发。
+$:
+  push: *compile_gate
+
+  # 每波合完显式触发一次（编排器不会自动跑）
+  api_trigger_gate: *compile_gate
+
+  # NPC 编排：由本地 orchestrator.py 派发（config 现场下发时此段不生效）
   api_trigger_npc:
     - name: NPC 任务
       docker:
