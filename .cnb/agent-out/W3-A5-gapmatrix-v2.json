@@ -1,0 +1,214 @@
+{
+  "task_id": "W3-A5-gapmatrix-v2",
+  "status": "success",
+  "summary": "基于 main@7163984 重跑全量差集矩阵并产出 4 份产物。① plan/gap-matrix-v2.md：36 条机制矩阵 + 79 张 DDL 表对账 + 每条判定的 grep 命令原文，逐条机械复核 W1/W2 已合入的 21 个 gap（全部确认已有非自身调用点）。② plan/tasks-w4.json：4 个真实剩余缺口（G-101 半条换季驱动入口 / G-107 下半技能点本地里程碑 / 新登记 G-115 isGovernance 孤儿 / G-302 源码字符串测试行为化），同波内源码路径零重叠。③ plan/verdict-v2.json：done=false / impossible=false / remaining=4。④ plan/world-state.json：round=5、evidence 31 条（新增 E-021..E-031）、merged_gaps 21 个。本轮新登记 G-115；修正 v1 一处判定偏差（isAuthoritativeNamespace 应为已接线）；G-109 从 8 张收敛到 4 张；口径修正 G-302 从「7 个」改为 50 个测试类。",
+  "changed_files": [
+    "plan/gap-matrix-v2.md",
+    "plan/tasks-w4.json",
+    "plan/verdict-v2.json",
+    "plan/world-state.json",
+    ".cnb/agent-out/W3-A5-gapmatrix-v2.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "find plugins -path '*/src/main/*' -name '*.java' | wc -l",
+        "hit": "513"
+      },
+      {
+        "cmd": "find plugins -path '*/src/test/*' -name '*.java' | wc -l",
+        "hit": "253"
+      },
+      {
+        "cmd": "ls plugins | wc -l",
+        "hit": "25"
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "hit": "DDL 表数: 79 / 豁免清单: 8 条 / DDL_CONSUMER_GATE=GREEN（75→79，W2-D1 新增 4 张换季表）"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'requireEnabled' plugins | grep '/src/main/'",
+        "hit": "12 行：JdbcActivityEconomyService.java:71,72,73,351 / JdbcCommerceService.java:193,540 / JdbcMarketService.java:53 / JdbcSeasonExpeditionService.java:75 / JdbcDungeonRewardService.java:89 / JdbcSeasonSettlementService.java:104 / JdbcCommunityService.java:613 / MechanismRegistry.java:115（定义）→ 判定 已接线 G-002"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'defenseMultiplier' plugins | grep '/src/main/'",
+        "hit": "ExecuteListener.java:155（EntityDamageByEntityEvent 路径）、:244（定义）→ 判定 已接线 G-001"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'RPG_ITEM_SIGNING_KEY' plugins | grep '/src/main/'",
+        "hit": "EquipmentSigningMaterial.java:25,26 → 判定 已接线 G-003"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'MIGRATION_LOCK_NAMESPACE\\|MIGRATION_LOCK_RESOURCE' plugins tools | grep '/src/main/'",
+        "hit": "Database.java:20,21,1132,1133 / MigrationAdvisoryLock.java:18,20 → 判定 已接线 G-004"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'SeasonSettlementService\\|seasonSettlements\\.' plugins | grep '/src/main/'",
+        "hit": "仅 state() 接线：RpgCommand.java:114；preview()/advance() 零生产消费者 → 判定 部分接线 / G-101 剩余半条（declared_not_wired=TRUE）"
+      },
+      {
+        "cmd": "grep -rn --include=*.java '\\badvance(' plugins/rpg-core/src/main",
+        "hit": "JdbcChapterService.java:118（章节推进，非换季）/ JdbcSeasonSettlementService.java:84,87,91（自身重载）→ 无外部换季推进调用点"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'preview(' plugins/*/src/main",
+        "hit": "SeasonSettlementService.java:29（接口声明）/ JdbcSeasonSettlementService.java:75（实现）/ VisualPreferenceCommand.java:49,55（rpg-guide 同名无关方法）→ 无 SeasonSettlementService.preview 调用点"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'rpg_session_leases' plugins | grep '/src/main/'",
+        "hit": "JdbcSessionLease.java:71（SELECT）/ Database.java:1035,1043,1044,1045 → 判定 已接线（读侧）G-102"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'rpg_outbox' plugins | grep '/src/main/'",
+        "hit": "JdbcOutboxRegistry.java:36（INSERT）/ OutboxDispatcher.java:112,143,165 → 判定 已接线 G-102"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'canApprove' plugins | grep '/src/main/'",
+        "hit": "10 行 src/main：CommunityRole.java:26 + CommunityRolePower.java:37,39,41,54,71 + CommunityGovernanceHandler.java:116 + JdbcCommunityService.java:799,966,976 → 判定 已接线 G-103"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'rpg_community_approvals' plugins | grep '/src/main/'",
+        "hit": "JdbcCommunityService.java:1015(INSERT),1037(SELECT),1062(SELECT),1079(SELECT),1103(DELETE) → 判定 已接线 G-103"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'isGovernance' plugins",
+        "hit": "src/main 仅 CommunityRole.java:31（自身定义）；src/test 仅 CommunityRolePowerTest.java:10,30 → 判定 声明未接线，新登记 G-115"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'InventoryCreativeEvent' plugins | grep '/src/main/'",
+        "hit": "MarketCommand.java:41,757,761（处理器）/ DeliveryFreezeRules.java:44 → 判定 已接线 G-104"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'settleAttackerBonus\\|onBattleTranceHit' plugins | grep '/src/main/'",
+        "hit": "SkillsCommand.java:948,952,1000,1003,1042 → 判定 已接线 G-105"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'minimumAscension\\|vanished-horizon' plugins | grep '/src/main/'",
+        "hit": "HiddenPathRules.java:18,28 / HiddenPathReachability.java:74,131 / JdbcHiddenPathService.java:114,122 / RpgSkillsPlugin.java:181,182,184（校验 minimum-ascension == branch stage）→ 判定 存疑（跨模块不变式冲突）G-106"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'ascend(' plugins | grep '/src/main/'",
+        "hit": "仅 AscensionService.java:13 + RpgClassesPlugin.java:429 + JdbcAscensionService.java:60；ProfileService.ascend / JdbcProfileService.ascend 已不存在 → 判定 已接线（旁路已删除）G-107 上半"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'finalEffective / 3' plugins | grep '/src/main/'",
+        "hit": "JdbcProfileService.java:544 / JdbcDungeonRewardService.java:289 → 判定 声明未接线 / G-107 下半（declared_not_wired=TRUE）"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'requiresExitPath\\|isExitPath\\|isTradeable' plugins | grep '/src/main/'",
+        "hit": "EquipmentLifecycle.java:107,116,120 + EquipmentExitPathRules.java:36,44,58,66 + EquipmentExitPathGate.java:37 → 判定 已接线 G-110"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'SEASON_ATTUNED' plugins/*/src/main",
+        "hit": "只命中 EquipmentLifecycle.java:22,41,44,49,109（自身）→ 判定 声明未接线（W3-A3 已派）"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'DESTROYED' plugins/*/src/main",
+        "hit": "EquipmentLifecycle.java:23,28,47,48,50,109（自身）+ JdbcEquipmentLedgerAuditService.java:71（审计只读 WHERE）→ 判定 声明未接线（W3-A3 已派）"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'totalExperienceForAscension\\|totalExperienceToEffective\\|effectiveLevelCap' plugins | grep '/src/main/'",
+        "hit": "RpgCommand.java:132,143 / ProgressionPlaceholders.java:18,21,26 / MobGuideRules.java:79,93 / MobGuideCommand.java:245 / AdaptiveMobSafetyRules.java:30 / HiddenPathReachability.java:116,118 → 判定 已接线 G-111"
+      },
+      {
+        "cmd": "grep -n 'AuthoritativeItemPolicy' plugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentSecurity.java",
+        "hit": "115: .allMatch(AuthoritativeItemPolicy::isAuthoritativeKey)（isAuthoritativeKey 内部调 isAuthoritativeNamespace）→ 判定 已接线（间接）G-112，修正 v1 判定"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'renewAsync\\|mayStillBeValid' plugins | grep '/src/main/'",
+        "hit": "NodeLeaseSupervisor.java:87,99,119,136,138,140,145,146,150,151,155,156 / JdbcNodeLease.java:139,165,170 → 判定 已接线 G-113"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'markedDeliveryCopy' plugins | grep '/src/main/'",
+        "hit": "EquipmentOperationCoordinator.java:178（定义）、:190（payload 内调用）→ 判定 已接线 G-114"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'dungeon_ancient_ruins' plugins/rpg-dungeons/src/main",
+        "hit": "（无命中）→ 判定 已修复（死键已删）G-108"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'rpg_market_buy_orders' plugins",
+        "hit": "仅 Database.java:1005（DDL）→ 判定 声明未接线（豁免清单内）G-109 遗留"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'rpg_progression_anomalies' plugins",
+        "hit": "仅 Database.java:917（DDL）→ 判定 声明未接线（豁免清单内）G-109 遗留"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'rpg_support_credit' plugins",
+        "hit": "仅 Database.java:987,994（DDL）→ 判定 声明未接线（豁免清单内）G-109 遗留"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'rpg_season_settlements' plugins | grep '/src/main/'",
+        "hit": "JdbcSeasonSettlementService.java:218,242,473,501,528,542,561（真实 SQL）+ SeasonSettlementState.java:5（注释）→ 判定 已接线，G-109 从 8 张收敛到 4 张"
+      },
+      {
+        "cmd": "grep -rl --include=*.java 'Files.readString' plugins | grep '/src/test/' | wc -l",
+        "hit": "50"
+      },
+      {
+        "cmd": "grep -rl --include=*.java 'Files.readString' plugins | grep '/src/test/' | xargs grep -l 'indexOf' | wc -l",
+        "hit": "20"
+      },
+      {
+        "cmd": "find plugins -name '*ContractTest.java' | wc -l",
+        "hit": "56"
+      },
+      {
+        "cmd": "find . -path ./.git -prune -o -name '*quick_actions*' -print",
+        "hit": "（无输出）；另 find . -name 'verify-installation.sh' 无输出；docs/PLUGIN_INTEGRATION.md:46 自述不在本仓库内 → 判定 声明未接线 G-206（VCS 缺口）"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'minimum-roundtrip-loss' plugins | grep '/src/main/'",
+        "hit": "EconomyCommand.java:596（clamp 0.05..0.50）→ 判定 存疑 G-208"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'telegraph-ticks' plugins | grep '/src/main/'",
+        "hit": "DungeonManager.java:1174（clamp 20..80 tick）→ 判定 存疑 G-209"
+      },
+      {
+        "cmd": "grep -n 'schemaVersionKey(), PersistentDataType.INTEGER' plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeListener.java",
+        "hit": "648: data.set(security.schemaVersionKey(), PersistentDataType.INTEGER, 5); → 判定 存疑（文档失真）G-201"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "result": "DDL_CONSUMER_GATE=GREEN（79 张表 / 豁免 8 条）—— 这是本任务实际执行的门禁，非本任务新增"
+      },
+      {
+        "cmd": "sh /tmp/ddl_probe.sh（独立零消费者探针，不套豁免清单）",
+        "result": "ZERO-CONSUMER ×4：rpg_market_buy_orders / rpg_progression_anomalies / rpg_support_credit_accounts / rpg_support_credit_ledger"
+      },
+      {
+        "cmd": "python3 重叠校验（itertools.combinations 逐对比较 allowed_paths glob）",
+        "result": "tasks-w4.json 4 个任务的源码路径零重叠；唯一交叠为 .cnb/agent-out/**（每个任务写自己的证据文件，协议要求）"
+      },
+      {
+        "cmd": "python3 json.load 解析 plan/tasks-w4.json / plan/verdict-v2.json / plan/world-state.json",
+        "result": "三个文件均为合法 JSON；tasks-w4 4 条；verdict done=false impossible=false remaining=4；world-state round=5 evidence=31 merged_gaps=21"
+      }
+    ],
+    "note": "本任务为只读审计：未改 plugins/**/src/main、未改宪法、未新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本。未跑 gradle 编译（本容器无 JDK/Gradle，编译门由 CNB push 流水线负责；本任务产物为纯 Markdown/JSON，不影响编译）。"
+  },
+  "unproven": [
+    "本容器无 JDK/Gradle，未在本任务里复跑 compileJava/test。plan/ 下的产物是 Markdown + JSON，不参与编译；全量编译门由 CNB push 流水线负责。",
+    "config.yml 的 1943+ 个 YAML 叶子键无法用字面量 grep 机械判定未接线（本项目大量使用 getConfigurationSection + getKeys 动态遍历，动态拼接的键会全部误判为未读）。本轮不对配置键做未接线判定，只机械核实了 dungeons.*.world（已删）与 black-market.minimum-roundtrip-loss 两条。",
+    "G-302 只统计了「用 Files.readString 的测试类数」与「其中用 indexOf 的类数」，未逐个判定 50 个类里哪些的断言意图确实无法行为化。该判定交由 W4-A4 在 rpg-core 一批里逐个给出。",
+    "G-201/G-202/G-203/G-207/G-208/G-209 的「行为与文档不符」只作了行号级复核，未做数值级端到端复算（例如星弹预警窗口的 tick→秒换算随 tickrate 变化）。"
+  ],
+  "blockers": [],
+  "risks": [
+    "W4-A1 与 W4-A3 都会改 plugins/rpg-api 下的文件，但 allowed_paths 已收紧到不同具体文件（A1 只碰 SeasonSettlementService.java；A3 只碰 CommunityRole.java / CommunityRolePower.java / CommunityRolePowerTest.java），机械校验无重叠。若实现中发现需要互改对方文件，应在 blockers 里报回而不是越界。",
+    "W4-A2 会在 rpg-core 下改 JdbcProfileService.java 与 JdbcDungeonRewardService.java；W4-A4 会在 rpg-core/src/test 下改测试。两者路径未交叠，但 A2 的生产数值改动可能让 A4 的既有测试变红 —— 派发时 A4 应在 A2 之后或用 --continue 单独报告。",
+    "G-106（W3-A1）的最终修法可能需要动 plugins/rpg-classes 的 unseen 分支 stage，该路径不在 W3-A1 的 allowed_paths 内。若 W3-A1 报 blocked，需人类或调度器放开 rpg-classes 路径。"
+  ],
+  "next_steps": [
+    "W3 五任务（含本任务）合入后触发一次含 test + assemble 的门。",
+    "派发 plan/tasks-w4.json 的 4 个任务。",
+    "W3-A4 对 8 张豁免表逐条判定完成后，把「建议接线」的表转成任务并入下一波；G-109 剩余 4 张表当前全部在豁免清单内，判定结果决定它们进 tasks-w5 还是转 ABANDONED。",
+    "全部合入后再跑一轮差集矩阵（gap-matrix-v3）判断 done=true。"
+  ],
+  "pr_url": ""
+}
