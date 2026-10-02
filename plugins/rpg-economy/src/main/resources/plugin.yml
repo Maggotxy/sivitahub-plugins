@@ -1,0 +1,17 @@
+name: RpgEconomy
+version: '${version}'
+main: cn.originalrpg.economy.RpgEconomyPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Connects vanilla activity, RPG encounters and durable economy sinks.
+depend: [RpgApi, RpgCore]
+softdepend: [RpgItems, RpgMobs, RpgDungeons, RpgWorld, RpgCommerce, RpgMarket]
+commands:
+  economy:
+    aliases: [eco]
+    description: View economy limits, commissions and the earned shop.
+    usage: /economy [status|vanilla|commissions|shop|merchant|exchange [route units]]
+    permission: rpg.economy
+permissions:
+  rpg.economy:
+    default: true

@@ -1,0 +1,17 @@
+name: RpgWorld
+version: '${version}'
+main: cn.originalrpg.world.RpgWorldPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Overworld events and consecutive hunt chains.
+depend: [RpgApi, RpgCore, RpgMobs]
+softdepend: [RpgPerformance]
+commands:
+  worldstatus:
+    aliases: [eventstatus, huntstatus]
+    description: Show blood-moon timing and the current overworld hunt chain.
+    usage: /worldstatus
+    permission: rpg.world.status
+permissions:
+  rpg.world.status:
+    default: true

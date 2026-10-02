@@ -1,0 +1,28 @@
+name: RpgEnhancement
+version: '${version}'
+main: cn.originalrpg.enhancement.RpgEnhancementPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Risk-based equipment refinement.
+depend: [RpgApi, RpgCore, RpgItems]
+softdepend: [RpgPerformance]
+commands:
+  refine:
+    description: Open the refinement station and choose one revealed equipment slot.
+    usage: /refine [safe] [lucky]
+    permission: rpg.refine
+  limitbreak:
+    description: Attempt to raise the equipment limit level.
+    usage: /limitbreak [safe] [lucky]
+    permission: rpg.limitbreak
+  mutate:
+    description: Preview, reforge, or restore a learned skill mutation.
+    usage: /mutate <skill-id> [preview|confirm|restore]
+    permission: rpg.mutate
+permissions:
+  rpg.refine:
+    default: true
+  rpg.limitbreak:
+    default: true
+  rpg.mutate:
+    default: true

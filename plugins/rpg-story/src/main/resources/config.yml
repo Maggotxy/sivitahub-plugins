@@ -1,0 +1,37 @@
+config-version: 1
+
+actor:
+  world: sivita_hub
+  citizens-id: 9101
+  citizens-uuid: "39fe408f-8341-4f60-a122-10e95b824c01"
+  name: "主城导览 · 栖枝"
+  offset-from-hub-center: [-10.5, 1.05, 16.5]
+
+escort:
+  maximum-concurrent: 12
+  # A new echo starts at the first hub waypoint; an active echo uses its current
+  # location. Requests outside this radius reclaim stale/remote echoes and use
+  # the existing safe /hub flow without spawning another one.
+  start-distance: 24.0
+  poll-interval-ticks: 10
+  soft-follow-distance: 14.0
+  hard-follow-distance: 30.0
+  hard-distance-timeout-seconds: 12
+  total-timeout-seconds: 480
+  waypoint-margin: 2.6
+  path-range: 56.0
+  speed-modifier: 1.05
+  route:
+    - [-8.5, 1.05, 16.5]
+    - [0.5, 1.05, 12.5]
+    - [23.5, 1.05, -22.5]
+    - [23.5, 1.05, 22.5]
+    - [0.5, 1.05, 39.5]
+
+rewards:
+  prologue-escort:
+    gold: "300.00"
+
+visuals:
+  normal-particle-interval-ticks: 40
+  pressure-particle-interval-ticks: 0

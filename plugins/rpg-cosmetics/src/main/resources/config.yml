@@ -1,0 +1,53 @@
+config-version: 2
+render:
+  enabled: true
+  # One shared scheduler and one packet budget cover moments, flight trails and idle auras.
+  interval-ticks: 5
+  receiver-radius: 24.0
+  max-receivers-per-emitter: 6
+  suppress-after-combat-seconds: 8
+  max-packets-per-pass:
+    normal: 240
+    pressure: 64
+    critical: 0
+  moments:
+    max-queued: 32
+    max-per-pass: 4
+    max-packets-per-pass:
+      normal: 48
+      pressure: 16
+      critical: 0
+    cooldown-ms:
+      ascension: 1500
+      elytra-boost: 750
+      activity-reward: 1500
+    points-per-receiver:
+      normal: 10
+      pressure: 4
+      critical: 0
+  trail:
+    minimum-speed-squared: 0.06
+    max-packets-per-pass:
+      normal: 120
+      pressure: 32
+      critical: 0
+    max-emitters-per-pass:
+      normal: 12
+      pressure: 4
+      critical: 0
+    points-per-receiver:
+      normal: 4
+      pressure: 2
+      critical: 0
+  aura:
+    cadence-passes: 2
+    max-emitters-per-pass:
+      normal: 20
+      pressure: 6
+      critical: 0
+    points-per-receiver:
+      normal: 5
+      pressure: 2
+      critical: 0
+  disabled-world-prefixes:
+    - dungeon_instance_

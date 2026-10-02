@@ -1,0 +1,30 @@
+name: RpgCommerce
+version: '${version}'
+main: cn.originalrpg.commerce.RpgCommercePlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Audited memberships, payment ledger and cumulative rewards.
+depend: [RpgApi, RpgCore, RpgMarket]
+commands:
+  store:
+    description: View Starlight, buy bound products and claim cumulative rewards.
+    usage: /store [status|supplies|buy <product-id>|buy-supply <supply-id>|claim]
+    permission: rpg.store
+  rpgcommerce:
+    description: Record bounded membership support or atomically grant and revoke audited Starlight.
+    usage: /rpgcommerce <payment <player> <amount> <reference> [membership-days]|starlight <player> <grant|revoke> <amount> <reference>>
+    permission: rpg.commerce.admin
+permissions:
+  rpg.store:
+    default: true
+  rpg.commerce.admin:
+    default: op
+  rpg.commerce.starlight.grant:
+    description: Issue Starlight within the global database-backed operations budget.
+    default: op
+  rpg.commerce.starlight.revoke:
+    description: Revoke Starlight through a unique audited reference.
+    default: op
+  rpg.commerce.payment:
+    description: Record an externally verified support payment and bounded membership time.
+    default: op

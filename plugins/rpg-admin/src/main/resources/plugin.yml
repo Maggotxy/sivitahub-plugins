@@ -1,0 +1,15 @@
+name: RpgAdmin
+version: '${version}'
+main: cn.originalrpg.admin.RpgAdminPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Audited operations commands for the RPG suite.
+depend: [RpgApi, RpgCore]
+commands:
+  rpgadmin:
+    description: RPG administration tools.
+    usage: /rpgadmin <economy|chapter ...|incident ...|petrevival <queue|audit|retry|compensate> ...|equipment <watchlist|inspect|audit|quarantine|restore> ...|xp ...|energy ...|test ...>
+    permission: rpg.admin
+permissions:
+  rpg.admin:
+    default: op

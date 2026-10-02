@@ -1,0 +1,61 @@
+menu-text:
+  zh_cn:
+    hidden-path:
+      name: "隐藏路线线索"
+      summary: "查看你已发现的隐藏路线、当前资格与全服剩余名额"
+      rules: "隐藏路线与基础职业共存；每人只能持有一条，不能交易或重置"
+      open: "点击查看线索；这里不会直接传送或跳过发现条件"
+  en_us:
+    hidden-path:
+      name: "Hidden Path Clues"
+      summary: "Review discovered paths, your eligibility, and remaining server-wide capacity"
+      rules: "A hidden path coexists with your base class; each player may hold one, with no trading or reset"
+      open: "Click for clues; this does not teleport you or bypass discovery requirements"
+
+hidden-path:
+  bloodpact:
+    energy:
+      timezone: "Asia/Shanghai"
+      base-restore: 8
+      decay-every-uses: 2
+      decay-amount: 2
+      minimum-restore: 2
+      daily-limit: 40
+
+branches:
+  healer:
+    cleric: {stage: 1}
+    oracle: {stage: 1}
+    life-weaver: {stage: 2, enabled: true, requires-any: [cleric]}
+    star-seer: {stage: 2, enabled: true, requires-any: [oracle]}
+    resonant-soul: {stage: 3, enabled: true, requires-any: [life-weaver, star-seer]}
+  warrior:
+    guardian: {stage: 1}
+    berserker: {stage: 1}
+    warlord: {stage: 2, enabled: true, requires-any: [guardian]}
+    reaver: {stage: 2, enabled: true, requires-any: [berserker]}
+    unyielding: {stage: 3, enabled: true, requires-any: [warlord, reaver]}
+  assassin:
+    nightblade: {stage: 1}
+    venomist: {stage: 1}
+    void-walker: {stage: 2, enabled: true, requires-any: [nightblade]}
+    plague-scholar: {stage: 2, enabled: true, requires-any: [venomist]}
+    unseen: {stage: 3, enabled: true, requires-any: [void-walker, plague-scholar]}
+  mage:
+    pyromancer: {stage: 1}
+    arcanist: {stage: 1}
+    ash-shaper: {stage: 2, enabled: true, requires-any: [pyromancer]}
+    chronomancer: {stage: 2, enabled: true, requires-any: [arcanist]}
+    first-principle: {stage: 3, enabled: true, requires-any: [ash-shaper, chronomancer]}
+  ranger:
+    marksman: {stage: 1}
+    beastwarden: {stage: 1}
+    windrunner: {stage: 2, enabled: true, requires-any: [marksman]}
+    wild-warden: {stage: 2, enabled: true, requires-any: [beastwarden]}
+    far-horizon: {stage: 3, enabled: true, requires-any: [windrunner, wild-warden]}
+  freeform:
+    weapon-master: {stage: 1}
+    spellblade: {stage: 1}
+    pathfinder: {stage: 2, enabled: true, requires-any: [weapon-master]}
+    rune-scholar: {stage: 2, enabled: true, requires-any: [spellblade]}
+    polymath: {stage: 3, enabled: true, requires-any: [pathfinder, rune-scholar]}

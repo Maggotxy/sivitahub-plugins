@@ -1,0 +1,16 @@
+name: RpgDungeons
+version: '${version}'
+main: cn.originalrpg.dungeons.RpgDungeonsPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Energy-gated shared dungeon instances, parties, waves and bosses.
+depend: [RpgApi, RpgCore]
+softdepend: [RpgPerformance]
+commands:
+  dungeon:
+    description: Enter or leave a dungeon and manage a shared-instance party.
+    usage: /dungeon <enter <id>|leave|season <status|enter|top [1-4]>|party <create|invite|accept|leave|kick|disband|info>>
+    permission: rpg.dungeon
+permissions:
+  rpg.dungeon:
+    default: true

@@ -1,0 +1,24 @@
+name: RpgCommunity
+version: '${version}'
+main: cn.originalrpg.community.RpgCommunityPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Persistent communities, mentor bonds and non-inflationary weekly projects.
+depend: [RpgApi, RpgCore, RpgGuide]
+softdepend: [RpgCosmetics]
+commands:
+  community:
+    aliases: [guild, 社群]
+    description: Open the community center or manage a community.
+    usage: /community [help|status|browse|create|invite|accept|leave|kick|transfer|code|bond|contribute|claim|leaderboard]
+    permission: rpg.community
+  account:
+    aliases: [webaccount, bindweb, 官网]
+    description: Link the authenticated Minecraft identity to the Sivita website.
+    usage: /account [link|help]
+    permission: rpg.account
+permissions:
+  rpg.community:
+    default: true
+  rpg.account:
+    default: true

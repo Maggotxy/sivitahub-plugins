@@ -1,0 +1,19 @@
+economy-snapshot:
+  # Read-only bridge for the local control room. PostgreSQL remains the truth source.
+  # One latest sample per report date is also retained under economy-history/;
+  # week-over-week output requires all seven preceding calendar dates.
+  enabled: true
+  interval-seconds: 300
+chapter-snapshot:
+  # Website reads this atomically signed-out state; it never receives database credentials.
+  enabled: true
+  interval-seconds: 30
+snapshot-io:
+  # Stop admission immediately, then let the dedicated snapshot worker drain
+  # briefly before queued work is cancelled during plugin disable.
+  shutdown-timeout-millis: 1500
+test-mode:
+  # OP-only, audited and fully reversible. The first activation snapshots the
+  # real profile and skills; /rpgadmin test restore puts them back atomically.
+  attribute-value: 64
+  skill-points: 10000

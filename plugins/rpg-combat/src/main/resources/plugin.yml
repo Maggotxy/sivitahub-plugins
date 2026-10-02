@@ -1,0 +1,8 @@
+name: RpgCombat
+version: '${version}'
+main: cn.originalrpg.combat.RpgCombatPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Central combat limits and execute normalization.
+depend: [RpgApi, RpgCore, RpgItems]
+softdepend: [RpgPerformance]

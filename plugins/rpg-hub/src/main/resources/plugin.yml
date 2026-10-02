@@ -1,0 +1,60 @@
+name: RpgHub
+version: '${version}'
+main: cn.originalrpg.hub.RpgHubPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Reproducible isolated hub, native mannequin NPCs and public map landmarks.
+depend: [RpgApi, RpgCore, RpgGuide, RpgCombat]
+# HubWayfinder snapshots PerformanceService once during enable. Loading the
+# performance provider first preserves dynamic path-particle degradation.
+softdepend: [WorldGuard, squaremap, RpgAiNpc, RpgPerformance, AuthMe]
+commands:
+  hub:
+    aliases: [spawn, city]
+    description: Return to the protected SivitaHub hub.
+    usage: /hub
+    permission: rpg.hub
+  wild:
+    description: Leave the hub for a safe random overworld frontier.
+    usage: /wild
+    permission: rpg.hub.wild
+  home:
+    description: Return to the player's valid vanilla Overworld bed spawn.
+    usage: /home
+    permission: rpg.hub.home
+  sethome:
+    description: Bind the nearest vanilla Overworld bed as the only home.
+    usage: /sethome
+    permission: rpg.hub.home.set
+  back:
+    description: Return to the last safe travel or non-dungeon death location.
+    usage: /back
+    permission: rpg.hub.back
+  hubfind:
+    aliases: [findnpc]
+    description: Start short-lived personal navigation to a hub service NPC.
+    usage: /hubfind [role [visit]|cancel]
+    permission: rpg.hub.find
+  hubadmin:
+    description: Inspect or repair the generated hub and NPCs.
+    usage: /hubadmin <status|npcs|rebuild confirm>
+    permission: rpg.hub.admin
+permissions:
+  rpg.hub:
+    default: true
+  rpg.hub.wild:
+    default: true
+  rpg.hub.home:
+    default: true
+  rpg.hub.home.set:
+    default: true
+  rpg.hub.back:
+    default: true
+  rpg.hub.find:
+    default: true
+  rpg.hub.home.bypass:
+    default: op
+  rpg.hub.build:
+    default: op
+  rpg.hub.admin:
+    default: op

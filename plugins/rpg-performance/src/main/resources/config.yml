@@ -1,0 +1,24 @@
+sampling:
+  interval-ticks: 100
+  pressure-mspt: 38.0
+  critical-mspt: 48.0
+  pressure-tps: 19.0
+  critical-tps: 17.5
+  # Protect the RPG ledger even when the Paper tick itself is still healthy.
+  # The shared executor has 256 bounded queue slots; sustained pressure pauses
+  # optional work before gameplay writes start failing closed.
+  pressure-jdbc-queue-size: 64
+  critical-jdbc-queue-size: 192
+  pressure-jdbc-waiters: 1
+  critical-jdbc-waiters: 2
+  samples-to-degrade: 3
+  samples-to-recover: 12
+overload-protection:
+  enabled: true
+  reject-joins-while-critical: true
+  join-message: "服务器正在保护现有会话，请稍后重试。 / Server load protection is active; try again shortly."
+  critical-view-distance: 5
+  critical-simulation-distance: 3
+status-file:
+  enabled: true
+  interval-seconds: 15

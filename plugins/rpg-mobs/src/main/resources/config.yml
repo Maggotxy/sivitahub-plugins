@@ -1,0 +1,131 @@
+adaptive:
+  # Natural mobs whose first nearby profile is not cached retry only when a
+  # player actually fights that entity. No periodic world scan is used.
+  assignment-retry-millis: 1500
+  # Spigot's production mob-spawn-range is four chunks and the Paper hard
+  # monster despawn range is 96 blocks. This query covers both, so a natural
+  # monster that later walks into combat cannot escape the progression loop.
+  player-radius: 96.0
+  # Players with this permission can use the reversible administrator test
+  # profile without changing natural encounters around ordinary players.
+  scaling-source-exclusion-permission: rpg.mobs.scaling-excluded
+  # Shared upper bound used by generation and persisted-mob cleanup.
+  maximum-positive-offset: 6
+  # Early monsters may roll only -3..+3. In shared areas a high-level player
+  # can never seed a monster more than six levels above the lowest nearby player.
+  newcomer-level-threshold: 10
+  newcomer-positive-offset: 3
+  mixed-group-safety-radius: 48.0
+  mixed-group-maximum-above-lowest: 6
+  # Levels 1-4 are the first-forge safety window: adaptive health/damage still
+  # exists, but elite affixes and active behavior kits begin only at level 5.
+  special-ability-minimum-player-level: 5
+  minimum-health-multiplier: 1.0
+  maximum-health-multiplier: 8.0
+  minimum-damage-multiplier: 1.0
+  maximum-damage-multiplier: 4.0
+  maximum-armor-bonus: 12.0
+# Level 1-30 is a month-scale arc (904,800 total XP). This makes the first
+# level visible quickly while keeping the full arc at tens of active hours.
+experience:
+  minimum-per-kill: 10
+  normal-level-multiplier: 10
+  elite-level-multiplier: 40
+experience-write-buffer:
+  # One player can kill many mobs in a tick; their XP is persisted as one
+  # profile mutation while different players are spread across scheduler ticks.
+  flush-ticks: 10
+  max-player-flushes-per-tick: 8
+  # Bound distinct players waiting on profile writes. Existing players may
+  # continue coalescing without turning a database outage into unbounded RAM.
+  maximum-pending-players: 1024
+  # Repeated database failures back off per player rather than retrying every
+  # flush tick. Normal shutdown retries only known failures; uncertain in-flight
+  # writes are never blindly duplicated because ProfileService has no XP key.
+  retry-base-ticks: 20
+  retry-maximum-ticks: 200
+  shutdown-attempts: 3
+  # Ordinary kill XP is merged into one action-bar update every three seconds;
+  # actual profile writes remain faster, while level-ups are shown immediately.
+  feedback-ticks: 60
+  shutdown-timeout-ms: 5000
+# A profile-cache miss must not erase a valid kill. Candidate items are built
+# and serialized on the death tick, then gated by the asynchronously loaded
+# profile and inserted into the durable market mailbox with stable IDs.
+delayed-rewards:
+  maximum-pending: 512
+  maximum-per-player: 32
+  maximum-profile-loads: 16
+  maximum-mailbox-writes: 32
+  maximum-settlements-per-tick: 16
+  # Transient database failure must not turn a valid kill into permanent loss.
+  # Capacity is the backpressure boundary; stable delivery IDs make retries safe.
+  retry-ticks: 20
+  retry-maximum-ticks: 200
+  shutdown-timeout-ms: 5000
+elite:
+  base-chance: 0.06
+  damage-multiplier: 1.25
+  # Active affixes are event-driven rather than polled every tick.
+  trigger-cooldown-millis: 8000
+  material-drop-chance: 0.35
+  # Every eligible elite advances an account counter; random success resets it.
+  material-drop-pity: 4
+  # Account-bound source: on average one book per ~1,667 adaptive kills before modifiers.
+  common-skill-book-chance: 0.01
+  common-skill-book-pity: 100
+normal:
+  material-drop-chance: 0.025
+  material-drop-pity: 40
+# One in ten eligible natural mobs keeps its vanilla silhouette but receives
+# one telegraphed behavior. A single bounded heartbeat visits only marked mobs;
+# every active sequence has a hard lifetime and never loads chunks.
+normal-behaviors:
+  base-chance: 0.10
+  activation-radius: 18.0
+  scan-ticks: 10
+  maximum-tracked: 96
+  maximum-active:
+    normal: 24
+    pressure: 10
+    critical: 3
+  visuals:
+    receiver-radius: 32.0
+    maximum-receivers: 8
+  skirmisher:
+    cooldown-seconds: 9.0
+  charger:
+    cooldown-seconds: 11.0
+  spitter:
+    cooldown-seconds: 12.0
+    pool-radius: 2.25
+  warden:
+    shield-hits: 3
+    damage-taken-multiplier: 0.30
+  conductor:
+    cooldown-seconds: 13.0
+  boomerang:
+    cooldown-seconds: 10.0
+  burrower:
+    cooldown-seconds: 12.0
+  trapper:
+    cooldown-seconds: 14.0
+    radius: 2.4
+  orbiter:
+    cooldown-seconds: 15.0
+visual-effects:
+  enabled: true
+  receiver-radius: 40.0
+  elite-spawn-particles: 10
+  rare-drop-particles: 14
+  sound-volume: 0.50
+models:
+  # Full-body models are reserved for reviewed rare variants. Ordinary mobs keep
+  # their native single-entity renderer so a busy overworld remains inexpensive.
+  enabled: true
+  max-active:
+    normal: 64
+    pressure: 20
+  # Reconciliation is deliberately low-frequency; CRITICAL closes all shells,
+  # PRESSURE keeps a bounded subset, and combat remains on the real entity.
+  reconcile-ticks: 100

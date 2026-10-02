@@ -1,0 +1,48 @@
+name: RpgEssentials
+version: '${version}'
+main: cn.originalrpg.essentials.RpgEssentialsPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Keeps mature EssentialsX utilities inside RPG travel and command boundaries.
+depend: [RpgApi, RpgCore, RpgCombat, Essentials]
+permissions:
+  rpg.essentials.player:
+    default: true
+    children:
+      essentials.afk: true
+      essentials.helpop: true
+      essentials.ignore: true
+      essentials.list: true
+      essentials.mail: true
+      essentials.mail.send: true
+      essentials.me: true
+      essentials.motd: true
+      essentials.msg: true
+      essentials.msgtoggle: true
+      essentials.ping: true
+      essentials.playtime: true
+      essentials.rules: true
+      essentials.seen: true
+      essentials.tpa: true
+      essentials.tpacancel: true
+      essentials.tpaccept: true
+      essentials.tpdeny: true
+      essentials.tptoggle: true
+  rpg.essentials.staff:
+    default: op
+    children:
+      essentials.helpop.receive: true
+      essentials.invsee: true
+      essentials.invsee.equip: true
+      essentials.jail: true
+      essentials.mute: true
+      essentials.mute.notify: true
+      essentials.seen.extra: true
+      essentials.socialspy: true
+      essentials.tempban: true
+      essentials.togglejail: true
+      essentials.unjail: true
+      essentials.vanish: true
+      essentials.whois: true
+  rpg.essentials.travel-bypass:
+    default: op

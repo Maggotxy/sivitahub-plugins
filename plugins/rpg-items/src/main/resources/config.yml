@@ -1,0 +1,55 @@
+forge:
+  # Optional fourth slot: a signed, player-bound sulfur resonance imprint biases one stat without guaranteeing it.
+  core-cost: 8
+  catalyst-cost: 1
+  maximum-catalyst-cost: 8
+  catalyst-materials: [LAPIS_LAZULI, GLOWSTONE_DUST]
+  gold-cost: "250.00"
+  base-success-rate: 0.65
+  maximum-success-rate: 0.95
+# Signed RPG equipment is permanent progression. It can still be destroyed by
+# an explicit salvage or legacy confirmation, never by vanilla durability.
+durability:
+  custom-equipment-unbreakable: true
+# Operator-audited one-shot compensation UUIDs. A replacement is issued only
+# when that online account has no authentic equipment in inventory/Ender Chest.
+recovery:
+  pending-starter-replacements: []
+revelation-xp: [50, 150, 350, 700, 1200, 2000, 3200, 5000]
+# A rune is rolled into the signed item now, but remains hidden and inactive
+# until every slot is revealed and the item is bound to its current owner.
+# Every ID below is checked against a concrete runtime consumer at startup.
+rare-traits:
+  random-roll-chance: 0.015
+  weights:
+    skill-heal: 10
+    skill-war-cry: 10
+    shadow-step: 10
+    skill-fireball: 10
+    skill-power-shot: 10
+    skill-improvisation: 10
+    life-steal: 10
+    fire-mastery: 10
+    healing-boost: 10
+    execute-resonance: 10
+unbinding:
+  base-cost: "5000.00"
+  per-slot-cost: "350.00"
+  per-limit-level-cost: "1000.00"
+  rarity-multipliers:
+    common: "1.00"
+    rare: "1.25"
+    epic: "1.75"
+    legendary: "2.50"
+legacy:
+  # Gold debit, source-item escrow and account-bound blueprint delivery settle in one durable operation.
+  extraction-price: "6000.00"
+  minimum-limit-break: 2
+  # The blueprint is consumed on the forge attempt and never copies stats, rarity or slot count.
+  inheritance-chance: 0.18
+security:
+  # Empty on first start; the plugin generates and persists a 256-bit key.
+  signing-key: ""
+visual-effects:
+  enabled: true
+  sound-volume: 0.70

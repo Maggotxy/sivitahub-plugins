@@ -1,0 +1,16 @@
+{
+  "name": "sivita-private-load-test",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Controlled Mineflayer load generator for the Sivita private staging server",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "node load-test.js"
+  },
+  "dependencies": {
+    "mineflayer": "4.37.1"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
+  }
+}

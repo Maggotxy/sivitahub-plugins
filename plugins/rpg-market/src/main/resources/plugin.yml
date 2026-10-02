@@ -1,0 +1,18 @@
+name: RpgMarket
+version: '${version}'
+main: cn.originalrpg.market.RpgMarketPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Visual escrow market with binding enforcement and durable delivery.
+depend: [RpgApi, RpgCore, RpgItems]
+softdepend: [GriefPrevention]
+commands:
+  market:
+    description: Escrow market for equipment and high-value items.
+    usage: /market [list [page]|sell [price]|mine|buy <listing-id>|cancel <listing-id>|claim|stall <create|remove>]
+    permission: rpg.market
+permissions:
+  rpg.market:
+    default: true
+  rpg.market.admin:
+    default: op

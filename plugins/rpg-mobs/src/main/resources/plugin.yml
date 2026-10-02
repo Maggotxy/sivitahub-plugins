@@ -1,0 +1,23 @@
+name: RpgMobs
+version: '${version}'
+main: cn.originalrpg.mobs.RpgMobsPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Adaptive overworld levels, readable natural-mob behaviors and elite affixes.
+depend: [RpgApi, RpgCore]
+softdepend: [RpgPerformance, RpgDungeons, BetterModel]
+commands:
+  mobguide:
+    aliases: [levelguide, grindguide]
+    description: Show level-aware overworld and dungeon progression recommendations.
+    usage: /mobguide [dungeons|abilities]
+    permission: rpg.mobs.guide
+permissions:
+  rpg.mobs.guide:
+    default: true
+  rpg.mobs.test:
+    description: Apply a natural-mob behavior to the hostile in the operator crosshair.
+    default: op
+  rpg.mobs.scaling-excluded:
+    description: Exclude administrator test profiles from natural-mob level selection.
+    default: op

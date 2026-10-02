@@ -1,0 +1,285 @@
+config-version: 5
+engine-command-roots:
+  - mypet
+  - mypetadmin
+  - petadmin
+  - pet
+  - pets
+  - petcall
+  - petc
+  - pc
+  - petsendaway
+  - petsa
+  - psa
+  - petbehavior
+  - petbehaviour
+  - petb
+  - pb
+  - petinventory
+  - peti
+  - pi
+  - petinv
+  - petstore
+  - pstore
+  - pst
+  - petswitch
+  - pswitch
+  - psw
+  - petchooseskilltree
+  - pcst
+  - petcst
+  - petcapturehelper
+  - petname
+  - petrespawn
+  - pr
+  - petr
+  - petrelease
+  - pettrade
+  - petshop
+  - petpickup
+  - petride
+  - petbeacon
+  - petskill
+  - petinfo
+  - pinfo
+  - petlist
+  - petsettings
+  - petoptions
+  - petoption
+  - peto
+  - po
+  - pettoolbox
+  - petstop
+dungeon-world-prefixes: [dungeon_instance_, dungeon_]
+blocked-worlds: [sivita_hub]
+capture-worlds: [world]
+audit-interval-ticks: 40
+combat:
+  max-damage-base: 6.0
+  max-damage-per-level: 0.15
+  absolute-max-damage: 10.0
+  hostile-targets-only: true
+  nonlethal-direct-damage: true
+progression:
+  max-exp-per-event: 25.0
+revive:
+  base-cost: '120.00'
+  per-level-cost: '18.00'
+  recovery-interval-ticks: 200
+menu:
+  size: 45
+messages:
+  zh_cn:
+    menu-title: '同行灵契'
+    help:
+      - '【同行灵契】在主世界捕获：野生目标先压到 15% 生命以下。'
+      - '手持拴绳攻击约有 25% 成功率；原版可驯服生物需要先完成驯服。'
+      - '捕获后在 /companion 中选择御守、猎锋、灵愈或远巡路线。'
+      - '宠物跟随战斗获得经验，当前最高 30 级；同一时间只出战一只。'
+      - '投喂、共同战斗和等级里程碑会增加亲密度；10级/250亲密、20级/750亲密可完成两次形态突破。'
+      - '图鉴永久记录捕获过的物种；突破解锁共鸣、升华外观，可在外观收藏中随时切换。'
+      - '性格：勇毅缩短冷却、沉静加快能量、好奇降低消耗、忠诚加快亲密；特质会强化对应能力。'
+      - '捕获后会获得灵契号角。手持号角右键释放路线专属技能，不占用键位，也不需要专用客户端。'
+      - '喂食宠物偏好的原版食物恢复饱食；右键宠物可查看原生交互。'
+      - '主城、副本、PvP 和战斗中召回受限；宠物不会拾取或生产物资。'
+      - '宠物只攻击敌对生物并最多压到 1 点生命；由玩家完成最后一击才会掉落。'
+      - '左键菜单按钮执行，行为按钮左键友善、右键主动。'
+      - '改名：/companion name <新名字>（最多 16 个字符）。'
+    engine-redirect: '宠物功能统一在 /companion 中管理。'
+    not-ready: '宠物资料仍在读取，请稍后再试。'
+    no-pet: '当前世界没有出战宠物。先去主世界捕获，或打开宠物仓库。'
+    combat-blocked: '战斗状态中不能召回宠物，还需等待 {seconds} 秒。'
+    dungeon-blocked: '副本内不允许召入宠物，避免替代队伍职业。'
+    world-blocked: '这个区域不允许召入或捕获宠物。'
+    capture-blocked: '只有主世界野外允许捕获宠物。'
+    call-success: '{name} 已回到你身边。'
+    call-failed: '召回失败（{reason}），请站到开阔、安全的位置再试。'
+    sent-away: '{name} 已收回，可随时从灵契中召回。'
+    status-none: '当前没有出战宠物。使用 /companion 打开灵契。'
+    status-active: '{name} · {type} · {level}级 · {tree} · 生命 {health}/{max_health} · 饱食 {hunger}% · 亲密 {bond} · {personality}/{trait} · {ability}'
+    rename-usage: '用法：/companion name <新名字>；支持中英文、数字、空格与间隔点。'
+    rename-invalid: '名字需要 1—16 个有效字符，不能带格式代码或特殊控制字符。'
+    renamed: '宠物已改名为 {name}。'
+    behavior-path-required: '先选择御守、猎锋、灵愈或远巡路线，宠物才能接受战斗行为指令。'
+    behavior-friendly: '已切换为护主：只有你受到攻击时才会协防。'
+    behavior-aggressive: '已切换为主动：只会压制附近敌对生物，最后一击仍由你完成。'
+    capture-created: '灵契建立成功！性格：{personality}，特质：{trait}。打开 /companion 选择培养路线。'
+    level-up: '{name} 升到了 {level} 级。打开灵契可查看新能力。'
+    pickup-blocked: '宠物不会代替玩家拾取物品。'
+    revive-not-dead: '当前宠物不需要复苏。'
+    revive-pending: '上一笔宠物复苏仍在处理，请稍候。'
+    revive-cost: '复苏费用：{cost} 金币。点击图腾确认支付。'
+    revive-insufficient: '金币不足，复苏需要 {cost} 金币；也可以等待倒计时自然结束。'
+    revive-saved: '复苏请求已保存，正在恢复宠物；断线后会自动继续。'
+    revive-resuming: '正在继续上次未完成的宠物复苏。'
+    revive-support: '这笔宠物复苏需要管理员核对，请保留操作编号：{operation}'
+    revive-pet: '宠物'
+    revived: '{name} 已复苏，消耗 {cost} 金币。'
+    bond-gained: '共同经历使亲密度增加 {amount}，当前 {bond}。'
+    evolution-locked: '形态突破需要宠物 {level} 级、{bond} 亲密；当前 {current_level} 级、{current_bond} 亲密。'
+    evolution-complete: '这只宠物已经完成两次形态突破。'
+    evolution-failed: '突破没有完成，资料可能已变化，请重新打开灵契。'
+    evolution-success: '形态突破完成：阶段 {stage}，解锁外观「{skin}」。'
+    codex-title: '同行图鉴 · {page}/{pages}'
+    codex-entry-name: '{species}'
+    codex-entry-lore: ['捕获次数：{captures}', '最高突破：{stage}/2', '图鉴只记录，不提供挂机收益']
+    skins-title: '外观收藏'
+    skin-unlocked-lore: ['已解锁 · 点击切换', '{selected}', '外观不增加战斗数值']
+    skin-locked-lore: ['尚未解锁', '完成对应形态突破后获得']
+    skin-locked: '这个外观尚未解锁。'
+    skin-failed: '外观切换失败，请稍后重试。'
+    skin-selected: '已切换为「{skin}」。'
+    selected: '当前使用'
+    signal-name: '灵契号角'
+    signal-lore: ['手持右键：释放宠物路线技能', '8级解锁 · 消耗灵契能量 · 自带冷却', '不占用按键，不会触发丢弃物品']
+    signal-given: '灵契号角已放入背包。手持右键即可释放宠物技能。'
+    signal-already: '你已经带着灵契号角。'
+    ability-no-pet: '先召出宠物才能使用灵契技能。'
+    ability-locked: '宠物选择培养路线并达到 8 级后解锁主动技能。'
+    ability-wait: '技能尚未就绪：剩余 {seconds} 秒，能量 {energy}/100。'
+    ability-no-target: '准星需要对准范围内的敌对生物。'
+    ability-used: '{ability} · 剩余能量 {energy}/100'
+    personality: {brave: '勇毅', calm: '沉静', curious: '好奇', loyal: '忠诚'}
+    trait: {ironhide: '铁躯', quickstep: '迅足', resonant: '共鸣', keen_eye: '锐目'}
+    skin: {natural: '原生', resonant: '共鸣', ascendant: '升华'}
+    ability: {none: '未选择路线', guardian: '守阵回响', hunter: '裂阵扑袭', healer: '复苏涟漪', ranger: '霜痕定射'}
+    no-permission: '你没有执行此测试操作的权限。'
+    menu:
+      guide:
+        name: '玩法说明'
+        lore: ['捕获、培养、战斗与安全规则', '点击把完整说明发到聊天栏']
+      status:
+        name: '当前灵契'
+        lore-active: ['{name} · {level}级 · {tree}', '生命 {health}/{max_health} · 饱食 {hunger}%', '亲密 {bond} · 突破 {stage}/2', '{personality} · {trait} · {skin}']
+        lore-none: ['当前没有出战宠物', '去主世界捕获，或从仓库切换']
+      codex: {name: '同行图鉴', lore: ['查看捕获过的物种、次数与最高突破', '收藏目标，不产生自动物资或金币']}
+      capture:
+        name: '捕获助手'
+        lore: ['主世界 · 野生目标低于 15% 生命', '可驯服生物先驯服 · 再用拴绳', '攻击约 25% 成功 · 点击开关提示']
+      rename:
+        name: '改名'
+        lore: ['/companion name <新名字>', '最多 16 字，禁止格式代码']
+      call:
+        name: '召回'
+        lore: ['把当前宠物召回身边', '战斗、主城与副本不可用']
+      dismiss:
+        name: '收回'
+        lore: ['暂时收起当前宠物', '不会删除等级、技能或背包']
+      behavior:
+        name: '战斗行为'
+        lore: ['左键：护主协防', '右键：主动压制敌怪', '保留 1 点生命 · 玩家完成最后一击']
+      skill:
+        name: '培养路线'
+        lore: ['御守 · 猎锋 · 灵愈 · 远巡', '路线只选一次，最高 30 级', '这里选择/查看路线；技能用号角释放']
+      inventory:
+        name: '宠物旅囊'
+        lore: ['远巡路线 18 级解锁一行', '死亡不掉落，禁止自动拾取']
+      storage:
+        name: '宠物仓库'
+        lore: ['右键：查看或切换，最多存放 4 只', '左键：收存当前出战宠物']
+      revive:
+        name: '宠物复苏'
+        lore: ['死亡会自然倒计时复苏', '点击可用统一金币提前复苏', '当前费用：{cost} 金币']
+      evolve: {name: '形态突破', lore: ['当前阶段 {stage}/2 · 亲密 {bond}', '阶段一：10级 / 250亲密', '阶段二：20级 / 750亲密', '点击满足条件后完成突破']}
+      signal: {name: '灵契号角', lore: ['当前技能：{ability}', '手持号角右键释放 · 能量 {energy}/100', '点击补领；不会占用或修改客户端按键']}
+      skins: {name: '外观收藏', lore: ['当前：{skin}', '突破解锁外观，点击打开收藏', '只有视觉变化，不出售战斗数值']}
+      previous: {name: '上一页', lore: ['返回上一页']}
+      next: {name: '下一页', lore: ['前往下一页']}
+      back: {name: '返回', lore: ['返回同行灵契']}
+  en_us:
+    menu-title: 'Companion Bond'
+    help:
+      - '【Companions】In the overworld, lower a wild capturable creature below 15% health.'
+      - 'Hit with a lead for about 25% capture chance; vanilla tameables must be tamed first.'
+      - 'Choose Guardian, Hunter, Healer or Ranger in /companion after capture.'
+      - 'Pets gain combat XP up to level 30. Only one pet may be active.'
+      - 'Feeding, fighting together, and level milestones build Bond. Evolve at level 10 / 250 Bond and level 20 / 750 Bond.'
+      - 'The permanent Codex tracks captured species; evolutions unlock Resonant and Ascendant appearances.'
+      - 'Brave shortens cooldowns, Calm restores energy, Curious lowers cost, and Loyal builds Bond faster; traits tune abilities.'
+      - 'Capture grants a Bond Horn. Hold it and right-click for a route ability; no custom client or keybind is required.'
+      - 'Feed its preferred vanilla food to restore hunger; right-click it for native interaction.'
+      - 'Pets cannot gather resources, fight players, enter dungeons, or be called in combat.'
+      - 'Pets only suppress hostile mobs to 1 HP; the player must land the final hit for drops.'
+      - 'Left-click menu actions; left/right-click Behavior for friendly/aggressive.'
+      - 'Rename with /companion name <new name> (16 characters maximum).'
+    engine-redirect: 'Pet features are managed through /companion.'
+    not-ready: 'Pet data is still loading. Try again shortly.'
+    no-pet: 'No active pet in this world. Capture one or open pet storage.'
+    combat-blocked: 'You cannot call a pet in combat. Wait {seconds}s.'
+    dungeon-blocked: 'Pets are disabled in dungeons so they cannot replace party roles.'
+    world-blocked: 'Pets cannot be called or captured in this area.'
+    capture-blocked: 'Pets may only be captured in the overworld wilderness.'
+    call-success: '{name} returned to your side.'
+    call-failed: 'Recall failed ({reason}). Move to an open safe location and retry.'
+    sent-away: '{name} was dismissed without losing progress.'
+    status-none: 'No active pet. Open /companion.'
+    status-active: '{name} · {type} · level {level} · {tree} · HP {health}/{max_health} · hunger {hunger}% · Bond {bond} · {personality}/{trait} · {ability}'
+    rename-usage: 'Usage: /companion name <new name>; letters, numbers, spaces and middle dots are allowed.'
+    rename-invalid: 'Use 1–16 valid characters without formatting or control codes.'
+    renamed: 'Your pet is now named {name}.'
+    behavior-path-required: 'Choose Guardian, Hunter, Healer, or Ranger before issuing behavior orders.'
+    behavior-friendly: 'Guard behavior enabled: the pet assists only when you are attacked.'
+    behavior-aggressive: 'Aggressive behavior suppresses nearby hostiles; you still land the final hit.'
+    capture-created: 'Bond established! Personality: {personality}; trait: {trait}. Open /companion and choose a path.'
+    level-up: '{name} reached level {level}. Open the bond to review new abilities.'
+    pickup-blocked: 'Pets do not collect items for players.'
+    revive-not-dead: 'Your current pet does not need reviving.'
+    revive-pending: 'A pet revive is already being processed.'
+    revive-cost: 'Revive cost: {cost} Gold. Click the totem to confirm.'
+    revive-insufficient: 'You need {cost} Gold, or you can wait for natural recovery.'
+    revive-saved: 'Revival saved. Recovery will continue after reconnecting.'
+    revive-resuming: 'Continuing your unfinished pet revival.'
+    revive-support: 'This revival needs administrator review. Keep operation ID: {operation}'
+    revive-pet: 'Companion'
+    revived: '{name} revived for {cost} Gold.'
+    bond-gained: 'Bond increased by {amount}; current Bond is {bond}.'
+    evolution-locked: 'Evolution requires pet level {level} and {bond} Bond; current: {current_level} / {current_bond}.'
+    evolution-complete: 'This companion has completed both evolutions.'
+    evolution-failed: 'Evolution did not complete; reopen the bond and retry.'
+    evolution-success: 'Evolution stage {stage} complete; unlocked {skin}.'
+    codex-title: 'Companion Codex · {page}/{pages}'
+    codex-entry-name: '{species}'
+    codex-entry-lore: ['Captures: {captures}', 'Highest evolution: {stage}/2', 'Collection only; no passive income']
+    skins-title: 'Appearance Collection'
+    skin-unlocked-lore: ['Unlocked · click to equip', '{selected}', 'Appearance gives no combat stats']
+    skin-locked-lore: ['Locked', 'Complete the matching evolution']
+    skin-locked: 'That appearance is still locked.'
+    skin-failed: 'Appearance selection failed; retry shortly.'
+    skin-selected: 'Selected {skin}.'
+    selected: 'Currently selected'
+    signal-name: 'Bond Horn'
+    signal-lore: ['Hold and right-click: route ability', 'Unlocks at level 8 · energy and cooldown', 'No keybind and never drops an item']
+    signal-given: 'The Bond Horn was added to your inventory. Hold it and right-click to use your pet ability.'
+    signal-already: 'You already carry a Bond Horn.'
+    ability-no-pet: 'Call your pet before using its ability.'
+    ability-locked: 'Choose a path and reach pet level 8 to unlock its active ability.'
+    ability-wait: 'Not ready: {seconds}s, energy {energy}/100.'
+    ability-no-target: 'Aim at a hostile creature in range.'
+    ability-used: '{ability} · energy {energy}/100'
+    personality: {brave: 'Brave', calm: 'Calm', curious: 'Curious', loyal: 'Loyal'}
+    trait: {ironhide: 'Ironhide', quickstep: 'Quickstep', resonant: 'Resonant', keen_eye: 'Keen Eye'}
+    skin: {natural: 'Natural', resonant: 'Resonant', ascendant: 'Ascendant'}
+    ability: {none: 'No path', guardian: 'Aegis Echo', hunter: 'Rending Pounce', healer: 'Renewal Ripple', ranger: 'Frost Pin'}
+    no-permission: 'You cannot use this testing action.'
+    menu:
+      guide: {name: 'How it works', lore: ['Capture, progression, combat and safety rules', 'Click to send full instructions to chat']}
+      status:
+        name: 'Current bond'
+        lore-active: ['{name} · level {level} · {tree}', 'HP {health}/{max_health} · hunger {hunger}%', 'Bond {bond} · evolution {stage}/2', '{personality} · {trait} · {skin}']
+        lore-none: ['No active pet', 'Capture one or switch from storage']
+      codex: {name: 'Companion Codex', lore: ['Captured species, counts, and evolution records', 'Collection goals never create passive income']}
+      capture: {name: 'Capture helper', lore: ['Overworld · wild target below 15% HP', 'Tame vanilla tameables first', 'Hit with a lead · about 25% chance']}
+      rename: {name: 'Rename', lore: ['/companion name <new name>', '16 characters; no formatting']}
+      call: {name: 'Call', lore: ['Recall the active pet', 'Unavailable in combat, hub or dungeons']}
+      dismiss: {name: 'Dismiss', lore: ['Temporarily send the pet away', 'Keeps levels, skills and inventory']}
+      behavior: {name: 'Behavior', lore: ['Left: guard when attacked', 'Right: suppress nearby hostiles', 'Leaves 1 HP · player lands the final hit']}
+      skill: {name: 'Progression path', lore: ['Guardian · Hunter · Healer · Ranger', 'Choose once; level cap 30', 'Choose/view here; use abilities with the Horn']}
+      inventory: {name: 'Pet backpack', lore: ['Ranger unlocks one row at level 18', 'No death drops or automatic pickup']}
+      storage: {name: 'Pet storage', lore: ['Right: view/switch; store up to four', 'Left: store the current active pet']}
+      revive: {name: 'Revive pet', lore: ['Dead pets recover naturally', 'Or spend unified Gold to recover now', 'Current cost: {cost} Gold']}
+      evolve: {name: 'Evolution', lore: ['Stage {stage}/2 · Bond {bond}', 'Stage 1: level 10 / 250 Bond', 'Stage 2: level 20 / 750 Bond', 'Click when requirements are met']}
+      signal: {name: 'Bond Horn', lore: ['Current ability: {ability}', 'Hold and right-click · energy {energy}/100', 'Click to replace; no client keybind']}
+      skins: {name: 'Appearance Collection', lore: ['Current: {skin}', 'Evolve to unlock; click to browse', 'Visual only; no sold combat stats']}
+      previous: {name: 'Previous', lore: ['Go to the previous page']}
+      next: {name: 'Next', lore: ['Go to the next page']}
+      back: {name: 'Back', lore: ['Return to Companion Bond']}

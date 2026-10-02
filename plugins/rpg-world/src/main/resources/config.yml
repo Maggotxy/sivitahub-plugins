@@ -1,0 +1,55 @@
+worlds:
+  # Blood moons, hunt chains, and special drops belong only to vanilla
+  # survival. The isolated authored hub deliberately never advances them.
+  survival: world
+# RPG character assets are persistent progression, not a death wager. These
+# rules also apply to dungeon worlds loaded after server startup.
+asset-protection:
+  death:
+    # Permanent server rule. RpgWorld also enforces this in code for every
+    # current/future world and repairs stale runtime copies on startup.
+    keep-inventory: true
+    keep-experience: true
+survival-rules:
+  # Keep the authored hub and scripted dungeon worlds out of this section.
+  natural-mob-spawning: true
+  # Matches the reviewed 80%-of-Vanilla Bukkit monster cap. Keep this aligned
+  # with server/config/bukkit.yml; the hub and dungeons use separate spawn rules.
+  monster-spawn-limit: 56
+  sleeping-percentage: 35
+boundaries:
+  # Borders are expanded only after the next ring has been generated offline.
+  # This turns terrain generation into maintenance work instead of a player tick spike.
+  enabled: true
+  overworld: {world: world, center-x: 7, center-z: 0, diameter: 3600, warning-distance: 48}
+  nether: {world: world_nether, center-x: 0, center-z: 0, diameter: 1800, warning-distance: 32}
+  end: {world: world_the_end, center-x: 0, center-z: 0, diameter: 2400, warning-distance: 48}
+blood-moon:
+  every-nights: 7
+  bonus-drop-chance: 0.08
+  # Lv.1-4 players can learn the event and earn its drops without facing rare
+  # stat shells or active monster skills before their first build exists.
+  special-ability-minimum-player-level: 5
+  # Rare silhouettes stay noticeable without replacing the entire vanilla ecology.
+  rare-mob-chance: 0.16
+  rare-mob-extra-drop-chance: 0.22
+  skills:
+    # One event-driven family skill at most per monster in this interval.
+    cooldown-seconds: 8
+  # Eligible blood-moon kills carry this account pity across event weeks.
+  material-drop-pity: 12
+hunt-chain:
+  reset-distance: 128.0
+  teleport-reset-distance: 128.0
+  reset-seconds: 300
+  chance-per-stack: 0.002
+  maximum-bonus-chance: 0.08
+  # This guarantee belongs to one exact uninterrupted target variant.
+  material-drop-pity: 30
+  feedback-milestones: [10, 25, 50, 100]
+visual-effects:
+  enabled: true
+  receiver-radius: 40.0
+  event-particles: 20
+  ambient-particles: 3
+  sound-volume: 0.65

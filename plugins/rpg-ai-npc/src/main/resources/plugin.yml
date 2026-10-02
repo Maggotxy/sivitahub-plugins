@@ -1,0 +1,19 @@
+name: RpgAiNpc
+version: '${version}'
+main: cn.originalrpg.ainpc.RpgAiNpcPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Read-only AI NPC guidance with bounded concurrency and local fallback.
+depend: [RpgApi, RpgCore]
+softdepend: [RpgGuide, RpgSkills, RpgItems, RpgCombat]
+commands:
+  ainpc:
+    aliases: [listener, asknpc]
+    description: Inspect your live RPG state and talk to the state-aware companion.
+    usage: /ainpc [analyze|ask <question>|leave|status|reload]
+    permission: rpg.ainpc.use
+permissions:
+  rpg.ainpc.use:
+    default: true
+  rpg.ainpc.reload:
+    default: op

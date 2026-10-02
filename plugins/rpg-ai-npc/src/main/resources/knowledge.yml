@@ -1,0 +1,106 @@
+zh_cn:
+  generic:
+    - "先打开 /menu 查看角色档案与“任务与委托中心”。"
+    - "如果你告诉我想提升装备、技能、财富还是副本进度，我可以给出更具体的路线。"
+  topics:
+    quests:
+      keywords: ["任务", "剧情", "旅程", "巡路", "委托", "下一步", "做什么", "目标", "quest", "story"]
+      answer:
+        - "打开 /menu → 任务与委托中心：系统旅程用可选轻主线串联真实玩法；新手目标、资源委托、副本与世界事件仍由各自系统推进。"
+        - "选择基础职业后可与主城导览·栖枝交谈，或用 /story start 开始约三分钟的步行导览；掉队会等待，离线或远离过久可安全重开。"
+        - "委托官只汇总入口，完成与奖励仍由对应系统校验，不会重复发奖。"
+    forge:
+      keywords: ["装备", "武器", "锻造", "属性槽", "揭槽", "精炼", "forge"]
+      answer:
+        - "选定职业后，礼包会提供职业胚材和 8 个首铸核心；用 /forge 可 0 金币、100% 成功完成首铸。"
+        - "后续普通锻造需要原版装备胚、至少 8 个核心材料和 250 金币基础费。原版附魔、铁砧重命名、饰纹和钻石升下界合金可继续使用，自制装备不消耗耐久。"
+        - "装备靠实际使用获得经验并逐步揭示属性槽；精炼每次 400 金币，突破为 1200×目标阶段。"
+    classes:
+      keywords: ["职业", "五维", "技能", "转职", "晋升", "class", "skill"]
+      answer:
+        - "初始职业有奶妈、战士、刺客、法师、游侠和散人。技能同时检查职业、五维与技能点。"
+        - "先用 /class 查看档案与分配属性，再用 /skills 查看学习条件；稀有装备技能可形成跨职业构筑。"
+        - "已学技能在菜单中左键装配、右键升级；数字 1–4 只在该菜单内用于指定槽。手持自制武器时单按 F 施放、双按 F 切换；Q 永远保留原版丢弃。0/1/2/3 转依次开放 Lv.2/3/4/5。"
+    dungeons:
+      keywords: ["副本", "隐藏关", "boss", "门票", "体力", "队伍", "dungeon"]
+      answer:
+        - "副本支持 1–4 人；每名成员分别满足等级、体力和门票条件。队长可用 /dungeon party 创建并邀请队伍。"
+        - "普通首领概率掉落隐藏门票并有保底，隐藏关提供更高品质材料和特殊技能书。"
+    economy:
+      keywords: ["金币", "功勋", "星辉", "钱", "经济", "充值", "货币", "economy"]
+      answer:
+        - "金币可交易；功勋和星辉绑定账户。三者只能按带损耗和周期额度的配方转换，避免循环套利。"
+        - "数值商品都有肝取路径且最终上限一致；资源委托产出金币，市场只转移金币，税费、强化和解绑负责回收。"
+    market:
+      keywords: ["交易", "市场", "上架", "解绑", "手续费", "market"]
+      answer:
+        - "玩家交易使用 /market 托管：普通物品手续费 5%，自制装备 10%。未强化白板装备可流通；绑定或养成装备需先 /unbind 并支付动态金币回收费。"
+        - "成交物品与补偿进入持久化邮箱，用 /market claim 领取。"
+    enhancement:
+      keywords: ["强化", "精炼", "突破", "变异", "保护石", "幸运符", "refine", "limitbreak", "mutate"]
+      answer:
+        - "精炼每次 400 金币；装备突破费用为 1200×目标阶段。技能变异每次 3500 金币，不满意可支付 900 金币恢复原式。"
+        - "保护石可用 4500 金币+30 功勋或 60 星辉购买；幸运符可用 2200 金币+12 功勋或 30 星辉购买。两条来源效果相同。"
+    world:
+      keywords: ["野怪", "血月", "连猎", "原版", "怪物", "掉落", "world"]
+      answer:
+        - "原版主世界的自然敌对怪会按附近玩家有效等级动态强化；等级差达到 20 时只保留原版掉落。"
+        - "血月提高特殊遭遇；连续击杀完全相同的敌对生物可叠连猎，换怪、跨世界或远距离传送会重置。"
+    npcs:
+      keywords: ["npc", "同行者", "小栖", "ai", "人工智能", "智能"]
+      answer:
+        - "主城 NPC 只是可信入口：引导打开菜单，交易连接真实市场，委托官汇总任务。"
+        - "同行者会读取你的实时角色摘要并给出下一步；它不会执行命令、改金币、发物品或判定任务，外部服务不可用时自动使用本地知识。"
+en_us:
+  generic:
+    - "Open /menu and check your profile plus the Quest and Commission Center first."
+    - "Tell me whether you want equipment, skills, wealth, or dungeon progress for a more specific route."
+  topics:
+    quests:
+      keywords: ["quest", "story", "journey", "route", "commission", "next", "objective", "task"]
+      answer:
+        - "Open /menu → Quest and Commission Center. The optional system journey connects real gameplay; onboarding, commissions, dungeons, and world events still progress through their owning systems."
+        - "After choosing a base class, speak to Hub Guide Qizhi or use /story start for the optional three-minute walking tour. It waits when you lag behind and safely restarts after interruption."
+        - "The officer only unifies entry points; the owning systems still validate completion and rewards."
+    forge:
+      keywords: ["gear", "equipment", "weapon", "forge", "slot", "refine"]
+      answer:
+        - "After choosing a class, use its kit base and eight First-Forge Cores in /forge for a free, guaranteed first item."
+        - "Later forging needs a vanilla base, at least eight core materials, and a 250 Gold base fee. Vanilla enchants, anvil renaming, trims, and diamond-to-netherite upgrades remain; forged gear is indestructible."
+        - "Use the item to reveal slots. Refinement costs 400 Gold, and limit breaks cost 1,200 × target stage."
+    classes:
+      keywords: ["class", "attribute", "skill", "ascension"]
+      answer:
+        - "The starting classes are Healer, Warrior, Assassin, Mage, Ranger, and Freeform. Skills check class, core attributes, and skill points together."
+        - "Use /class for your profile and attributes, then /skills for requirements; rare equipment skills can enable cross-class builds."
+        - "In the skill menu, left-click to equip and right-click to upgrade; 1–4 is only an in-menu slot shortcut. Hold a crafted weapon, tap F to cast and double-tap F to cycle; Q keeps vanilla drop behavior. Ascensions 0/1/2/3 open levels 2/3/4/5."
+    dungeons:
+      keywords: ["dungeon", "hidden", "boss", "ticket", "energy", "party"]
+      answer:
+        - "Dungeons support 1–4 players, and every member separately meets level, energy, and ticket requirements. Use /dungeon party to form a group."
+        - "Normal bosses can drop pity-backed hidden tickets; hidden rooms offer better materials and special skill books."
+    economy:
+      keywords: ["gold", "merit", "starlight", "economy", "currency", "money"]
+      answer:
+        - "Gold is tradable; Merit and Starlight are account-bound. Conversions have loss and periodic limits to prevent circular arbitrage."
+        - "Every numerical item has an earnable route and the same final ceiling. Commissions create capped Gold; market tax, upgrades, and unbinding remove it."
+    market:
+      keywords: ["trade", "market", "sell", "unbind", "fee"]
+      answer:
+        - "Player trades use /market escrow: normal items cost 5%, forged equipment 10%. Blank gear can circulate; bound or progressed equipment needs /unbind and a dynamic Gold sink first."
+        - "Trades and compensation enter the durable mailbox; claim them with /market claim."
+    enhancement:
+      keywords: ["enhance", "refine", "limit break", "mutation", "protection stone", "lucky charm"]
+      answer:
+        - "Refinement costs 400 Gold; limit breaks cost 1,200 × target stage. Skill mutation costs 3,500 Gold, and restoring the base form costs 900."
+        - "A protection stone costs 4,500 Gold + 30 Merit or 60 Starlight; a lucky charm costs 2,200 Gold + 12 Merit or 30 Starlight. Both routes create the same item."
+    world:
+      keywords: ["mob", "blood moon", "hunt", "overworld", "drop"]
+      answer:
+        - "Natural hostile mobs scale from nearby effective player levels; a gap of 20 or more leaves only vanilla drops."
+        - "Blood moons add special encounters. Exact-species hunt chains reset on another kill, a world change, or long-distance teleport."
+    npcs:
+      keywords: ["npc", "companion", "xiaoqi", "ai", "artificial intelligence"]
+      answer:
+        - "Hub NPCs are trusted entry points: guides open menus, traders route to the real market, and the officer unifies objectives."
+        - "The Companion reads your live character summary and suggests a next step. It cannot execute commands, alter currency, grant items, or decide completion; local knowledge takes over on outages."

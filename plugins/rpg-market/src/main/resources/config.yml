@@ -1,0 +1,22 @@
+config-version: 1
+fees:
+  normal: "0.05"
+  custom-equipment: "0.10"
+listing:
+  minimum-price: "1.00"
+  maximum-price: "10000000.00"
+  # Enforced inside the database transaction, so multiple Paper shards cannot bypass it.
+  maximum-open-per-player: 12
+  # Stale listings do not live forever. Expiration returns the item through the
+  # same durable mailbox and releases the signed-equipment uniqueness guard.
+  expiry-hours: 168
+  expiry-scan-ticks: 6000
+  expiry-batch-size: 100
+
+# A physical stall is only a world-space view of the existing escrow market.
+# The chest/barrel never stores sale stock, balances, or a second listing state.
+stalls:
+  enabled: true
+  worlds: [world]
+  target-distance: 5
+  maximum-visible-listings: 45

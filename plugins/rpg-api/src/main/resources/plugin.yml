@@ -1,0 +1,7 @@
+name: RpgApi
+version: '${version}'
+main: cn.originalrpg.api.RpgApiPlugin
+api-version: '${paperApi}'
+load: STARTUP
+authors: [OriginalRpg]
+description: Shared contracts for the SivitaHub RPG plugin suite.

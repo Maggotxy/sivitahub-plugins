@@ -1,0 +1,86 @@
+{
+  "project": "sivitahub",
+  "display_name": "希维塔大陆 SivitaHub",
+  "repo": "xzqkjmnbvc2026/sivitahub",
+  "source_of_truth": "本仓 main 分支",
+  "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
+  "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
+  "round": 0,
+  "max_round": 12,
+  "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
+  "gate": {
+    "definition_of_done": "src/main 里有真实调用点 + 行为级测试 + 全量编译门绿 + .cnb/agent-out/<id>.json 带 evidence.grep/evidence.test",
+    "excluded": ["推算", "应该", "等价于", "只有单元测试无消费者", "文档已更新", "已建 DDL 表", "已定义枚举"],
+    "compile_gate": "每个子工程 BUILD_EXIT=0 且 SECONDS>0"
+  },
+  "evidence": [
+    {
+      "id": "E-001",
+      "fact": "本地镜像与远程 lamb 逐项对齐：Java 698 文件 / 87,886 LOC / docs 43 篇",
+      "source": "find plugins tools -name '*.java' | wc -l 本地=698；会话 e66e6e77 的同步校验门",
+      "level": "[S]"
+    },
+    {
+      "id": "E-002",
+      "fact": "五维「防御」+ 装备 defense 词条在 PVE/PVP 全部失效：defenseMultiplier() 只被 EntityDamageEvent 监听器调用，互砍走 EntityDamageByEntityEvent（Bukkit 独立 HandlerList）",
+      "source": "rpg-combat/src/main/java/.../ExecuteListener.java:212-222 被 :126 调用；:130 为主结算；DefensePolicyTest.java:25-26 断言 ENTITY_ATTACK/PROJECTILE 可防御",
+      "level": "[S]"
+    },
+    {
+      "id": "E-003",
+      "fact": "MechanismRegistry 的 isEnabled()/setEnabled() 全仓零调用点（Kill Switch 无执行器，宪法 C-005 四件套缺一腿）",
+      "source": "rpg-core/src/main/java/.../persistence/MechanismRegistry.java:82/:89；仅 RpgCorePlugin.java:101 启动播种",
+      "level": "[S]"
+    },
+    {
+      "id": "E-004",
+      "fact": "装备 HMAC 签名密钥在无 RPG_ITEM_SIGNING_KEY 时明文写入 config.yml，无轮换",
+      "source": "rpg-items/src/main/java/.../RpgItemsPlugin.java:106-124",
+      "level": "[S]"
+    },
+    {
+      "id": "E-005",
+      "fact": "迁移 advisory lock 两把 key 不同（0x5349564954414D47 vs (0x53495649,0x52504731)），离线迁移工具可与在线节点并发 DDL",
+      "source": "tools/db-migration/.../MigrationEngine.java:205 vs rpg-core/.../Database.java:1064；ARCHITECTURE.md:67 称同一把锁",
+      "level": "[S]"
+    },
+    {
+      "id": "E-006",
+      "fact": "本项目系统性失败模式 = 「声明了但没接线」：枚举 / 表 / 注册点 / 状态机存在但无消费者；75 张表约 10 张只有 DDL",
+      "source": "会话 e66e6e77 的 7 路并行核查 + 人工复核；判据 = 类名/表名全仓 grep 只有定义与自身引用",
+      "level": "[S]"
+    },
+    {
+      "id": "E-007",
+      "fact": "云上能编译本工程：CNB 流水线 eclipse-temurin:25-jdk + gradle wrapper 9.1.0 可跑 compileJava",
+      "source": "本仓 .cnb.yml 编译门（首次触发后回填实测 sn 与 BUILD_EXIT）",
+      "level": "[S]",
+      "status": "pending_first_run"
+    }
+  ],
+  "unverified": [
+    {
+      "id": "U-001",
+      "claim": "paper-api:26.2.build.100-stable 能在 CNB 出网环境下从 repo.papermc.io 拉到",
+      "how_to_check": "触发一次编译门，看 gradle.log 是否出现 Could not resolve io.papermc.paper:paper-api"
+    },
+    {
+      "id": "U-002",
+      "claim": "7 个 *ContractTest 的源码字符串断言会在重构后失效",
+      "how_to_check": "对 7 个 ContractTest 各做一次等价重构，看是否变红；或直接替换为行为级测试后对比"
+    },
+    {
+      "id": "U-003",
+      "claim": "原版客户端能否真握手进服（mods.toml 已把 OPAC/TACZ 降为可选，但从未验证）",
+      "how_to_check": "REQUIRES_HUMAN：在 lamb 起服务后用纯原版客户端连一次"
+    }
+  ],
+  "author_claimed_pending_verification": [],
+  "decisions_locked": ["L-001", "L-002", "L-003", "L-004", "L-005", "L-006", "L-007", "L-008"],
+  "open_questions_for_human": [
+    "跨 Phase 抢跑是否批准：G-001（防御失效）与 G-002（Kill Switch）属 Phase 0 范畴，但 G-101/G-107 属 Phase 1 —— 是否允许 Phase 0 与 Phase 1 并行？"
+  ],
+  "next_action": "派 Planner NPC 产出完整差集矩阵（G-303）与第一波 tasks.json；同时触发一次编译门验证 E-007",
+  "updated_by": "WorkBuddy AI（本地调度）",
+  "updated_at": "2026-10-02T03:20:00Z"
+}

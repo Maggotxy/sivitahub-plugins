@@ -1,0 +1,35 @@
+name: RpgItems
+version: '${version}'
+main: cn.originalrpg.items.RpgItemsPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Player-forged equipment with hidden attribute slots.
+depend: [RpgApi, RpgCore]
+softdepend: [RpgPerformance, RpgSulfur]
+commands:
+  forge:
+    description: Open the equipment forge.
+    usage: /forge
+    permission: rpg.forge
+  salvage:
+    description: Destroy the held forged equipment into bound forging essence.
+    usage: /salvage [confirm]
+    permission: rpg.salvage
+  unbind:
+    description: Pay an auditable Gold sink to unlock held equipment for escrow trade.
+    usage: /unbind [confirm]
+    permission: rpg.unbind
+  legacy:
+    aliases: [blueprint]
+    description: Sacrifice a finished trait item into a signed legacy blueprint.
+    usage: /legacy [confirm]
+    permission: rpg.legacy
+permissions:
+  rpg.forge:
+    default: true
+  rpg.salvage:
+    default: true
+  rpg.unbind:
+    default: true
+  rpg.legacy:
+    default: true

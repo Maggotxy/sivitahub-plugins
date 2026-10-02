@@ -1,0 +1,531 @@
+visual-effects:
+  enabled: true
+  receiver-radius: 40.0
+  particles:
+    normal: 20
+    pressure: 8
+    critical: 2
+  sound-volume: 0.65
+hud:
+  enabled: true
+  # BetterHud owns the right-side vertical four-slot rail and its class/mana
+  # widgets. The center ActionBar remains available for brief feedback. The
+  # legacy text HUD is used only when the production pack is unavailable.
+  persistent: false
+  refresh-seconds: 5
+  visible-millis: 5000
+  overview-visible-millis: 8000
+  update-ticks: 20
+  segments: 8
+  max-skills: 4
+  use-resource-glyphs: true
+
+# All repeated skill mechanics share one heartbeat. Damage/healing cadence is
+# retained under pressure; only optional visual density is reduced first.
+sequence-budget:
+  heartbeat-ticks: 2
+  # Gameplay sequences never compete with cosmetic trails. This independent
+  # hard cap bounds memory while preserving every due damage/heal/control tick
+  # during normal and pressure operation.
+  maximum-gameplay-active: 256
+  profile-at:
+    pressure: 32
+    critical: 56
+  maximum-active:
+    normal: 64
+    pressure: 36
+    critical: 18
+  work-per-heartbeat:
+    normal: 32
+    pressure: 16
+    critical: 6
+
+# Skill levels consume the same persistent point budget used to unlock nodes.
+# Each ascension opens exactly one additional bounded level; no paid source can
+# bypass the current ascension cap. Every concrete skill uses this shared
+# cooldown pipeline, so there are no lore-only levels.
+skill-leveling:
+  maximum-level-by-ascension: [2, 3, 4, 5]
+  # Entries are the costs for Lv.1->2, Lv.2->3, Lv.3->4, and Lv.4->5.
+  upgrade-point-costs: [2, 4, 6, 8]
+  cooldown-reduction-per-level: 0.04
+  minimum-cooldown-multiplier: 0.84
+
+skill-effects:
+  # Auto-control never targets players in non-PVP worlds or verified party
+  # members. In PVP worlds its duration is halved by SkillCrowdControlRules.
+  pvp-controls-enabled: true
+  healing:
+    per-intelligence: 0.01
+    maximum-attribute-multiplier: 2.0
+  blood-rage:
+    # Direct, non-mitigated health cost. A cast must always leave at least 1 health.
+    health-cost: 4.0
+
+skills:
+  heal:
+    menu-slot: 13
+    class: HEALER
+    skill-points: 1
+    mana-cost: 12
+    cooldown-seconds: 8
+    requirements: {INTELLIGENCE: 3, STAMINA: 2}
+  war-cry:
+    menu-slot: 13
+    class: WARRIOR
+    skill-points: 1
+    mana-cost: 18
+    cooldown-seconds: 20
+    requirements: {STRENGTH: 3, STAMINA: 2}
+  shadow-step:
+    menu-slot: 13
+    class: ASSASSIN
+    skill-points: 1
+    mana-cost: 16
+    cooldown-seconds: 16
+    requirements: {AGILITY: 4, STAMINA: 1}
+  fireball:
+    menu-slot: 13
+    class: MAGE
+    skill-points: 1
+    mana-cost: 14
+    cooldown-seconds: 10
+    requirements: {INTELLIGENCE: 4, STAMINA: 1}
+  power-shot:
+    menu-slot: 13
+    class: RANGER
+    skill-points: 1
+    mana-cost: 12
+    cooldown-seconds: 8
+    requirements: {AGILITY: 3, STRENGTH: 2}
+  improvisation:
+    menu-slot: 13
+    class: FREEFORM
+    skill-points: 1
+    mana-cost: 10
+    cooldown-seconds: 12
+    requirements: {DEFENSE: 1, STRENGTH: 1, AGILITY: 1, INTELLIGENCE: 1, STAMINA: 1}
+  renewal:
+    menu-slot: 22
+    class: HEALER
+    skill-points: 2
+    minimum-level: 8
+    prerequisites: [heal]
+    mana-cost: 20
+    cooldown-seconds: 18
+    requirements: {INTELLIGENCE: 7, STAMINA: 5}
+  sanctuary:
+    menu-slot: 28
+    class: HEALER
+    branch: cleric
+    minimum-ascension: 1
+    prerequisites: [renewal]
+    skill-points: 2
+    mana-cost: 32
+    cooldown-seconds: 32
+    requirements: {INTELLIGENCE: 12, STAMINA: 9}
+  fate-seal:
+    menu-slot: 34
+    class: HEALER
+    branch: oracle
+    minimum-ascension: 1
+    prerequisites: [renewal]
+    skill-points: 2
+    mana-cost: 28
+    cooldown-seconds: 28
+    requirements: {INTELLIGENCE: 11, AGILITY: 6}
+  shield-wall:
+    menu-slot: 22
+    class: WARRIOR
+    skill-points: 2
+    minimum-level: 8
+    prerequisites: [war-cry]
+    mana-cost: 20
+    cooldown-seconds: 20
+    requirements: {DEFENSE: 7, STAMINA: 6}
+  fortress:
+    menu-slot: 28
+    class: WARRIOR
+    branch: guardian
+    minimum-ascension: 1
+    prerequisites: [shield-wall]
+    skill-points: 2
+    mana-cost: 32
+    cooldown-seconds: 34
+    requirements: {DEFENSE: 13, STAMINA: 10}
+  blood-rage:
+    menu-slot: 34
+    class: WARRIOR
+    branch: berserker
+    minimum-ascension: 1
+    prerequisites: [war-cry]
+    skill-points: 2
+    mana-cost: 26
+    cooldown-seconds: 28
+    requirements: {STRENGTH: 13, STAMINA: 7}
+  venom-blade:
+    menu-slot: 22
+    class: ASSASSIN
+    skill-points: 2
+    minimum-level: 8
+    prerequisites: [shadow-step]
+    mana-cost: 18
+    cooldown-seconds: 14
+    requirements: {AGILITY: 8, INTELLIGENCE: 4}
+  smoke-bomb:
+    menu-slot: 28
+    class: ASSASSIN
+    branch: nightblade
+    minimum-ascension: 1
+    prerequisites: [shadow-step]
+    skill-points: 2
+    mana-cost: 28
+    cooldown-seconds: 26
+    requirements: {AGILITY: 13, STAMINA: 7}
+  toxic-burst:
+    menu-slot: 34
+    class: ASSASSIN
+    branch: venomist
+    minimum-ascension: 1
+    prerequisites: [venom-blade]
+    skill-points: 2
+    mana-cost: 30
+    cooldown-seconds: 28
+    requirements: {AGILITY: 11, INTELLIGENCE: 9}
+  frost-nova:
+    menu-slot: 22
+    class: MAGE
+    skill-points: 2
+    minimum-level: 8
+    prerequisites: [fireball]
+    mana-cost: 22
+    cooldown-seconds: 18
+    requirements: {INTELLIGENCE: 8, STAMINA: 4}
+  meteor:
+    menu-slot: 28
+    class: MAGE
+    branch: pyromancer
+    minimum-ascension: 1
+    prerequisites: [fireball]
+    skill-points: 2
+    mana-cost: 36
+    cooldown-seconds: 32
+    requirements: {INTELLIGENCE: 14, STAMINA: 7}
+  mana-surge:
+    menu-slot: 34
+    class: MAGE
+    branch: arcanist
+    minimum-ascension: 1
+    prerequisites: [frost-nova]
+    skill-points: 2
+    mana-cost: 10
+    cooldown-seconds: 30
+    requirements: {INTELLIGENCE: 13, STAMINA: 9}
+  volley:
+    menu-slot: 22
+    class: RANGER
+    skill-points: 2
+    minimum-level: 8
+    prerequisites: [power-shot]
+    mana-cost: 20
+    cooldown-seconds: 16
+    requirements: {AGILITY: 8, STRENGTH: 5}
+  piercing-shot:
+    menu-slot: 28
+    class: RANGER
+    branch: marksman
+    minimum-ascension: 1
+    prerequisites: [power-shot]
+    skill-points: 2
+    mana-cost: 26
+    cooldown-seconds: 20
+    requirements: {AGILITY: 13, STRENGTH: 9}
+  beast-call:
+    menu-slot: 34
+    class: RANGER
+    branch: beastwarden
+    minimum-ascension: 1
+    prerequisites: [volley]
+    skill-points: 2
+    mana-cost: 28
+    cooldown-seconds: 30
+    requirements: {AGILITY: 10, STAMINA: 10}
+  second-wind:
+    menu-slot: 22
+    class: FREEFORM
+    skill-points: 2
+    minimum-level: 8
+    prerequisites: [improvisation]
+    mana-cost: 16
+    cooldown-seconds: 18
+    requirements: {DEFENSE: 4, AGILITY: 4, STAMINA: 5}
+  battle-trance:
+    menu-slot: 28
+    class: FREEFORM
+    branch: weapon-master
+    minimum-ascension: 1
+    prerequisites: [second-wind]
+    skill-points: 2
+    mana-cost: 28
+    cooldown-seconds: 30
+    requirements: {STRENGTH: 10, AGILITY: 10, STAMINA: 8}
+  arcane-edge:
+    menu-slot: 34
+    class: FREEFORM
+    branch: spellblade
+    minimum-ascension: 1
+    prerequisites: [improvisation]
+    skill-points: 2
+    mana-cost: 30
+    cooldown-seconds: 22
+    requirements: {STRENGTH: 9, INTELLIGENCE: 11, AGILITY: 7}
+
+  life-thread:
+    menu-slot: 29
+    class: HEALER
+    branch: life-weaver
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [sanctuary]
+    skill-points: 4
+    mana-cost: 38
+    cooldown-seconds: 34
+    requirements: {INTELLIGENCE: 20, STAMINA: 15}
+  omen-reversal:
+    menu-slot: 33
+    class: HEALER
+    branch: star-seer
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [fate-seal]
+    skill-points: 4
+    mana-cost: 34
+    cooldown-seconds: 30
+    requirements: {INTELLIGENCE: 19, AGILITY: 12, STAMINA: 8}
+  soul-resonance:
+    menu-slot: 31
+    class: HEALER
+    branch: resonant-soul
+    minimum-ascension: 3
+    minimum-level: 20
+    prerequisites: [renewal]
+    skill-points: 6
+    mana-cost: 58
+    cooldown-seconds: 52
+    requirements: {INTELLIGENCE: 30, STAMINA: 24, DEFENSE: 12}
+
+  rallying-standard:
+    menu-slot: 29
+    class: WARRIOR
+    branch: warlord
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [fortress]
+    skill-points: 4
+    mana-cost: 38
+    cooldown-seconds: 36
+    requirements: {DEFENSE: 20, STAMINA: 15, STRENGTH: 8}
+  ruin-charge:
+    menu-slot: 33
+    class: WARRIOR
+    branch: reaver
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [blood-rage]
+    skill-points: 4
+    mana-cost: 34
+    cooldown-seconds: 28
+    requirements: {STRENGTH: 22, STAMINA: 12, AGILITY: 8}
+  unbroken-line:
+    menu-slot: 31
+    class: WARRIOR
+    branch: unyielding
+    minimum-ascension: 3
+    minimum-level: 20
+    prerequisites: [shield-wall]
+    skill-points: 6
+    mana-cost: 56
+    cooldown-seconds: 50
+    requirements: {DEFENSE: 30, STAMINA: 25, STRENGTH: 12}
+
+  void-cut:
+    menu-slot: 29
+    class: ASSASSIN
+    branch: void-walker
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [smoke-bomb]
+    skill-points: 4
+    mana-cost: 36
+    cooldown-seconds: 24
+    requirements: {AGILITY: 22, STAMINA: 12, STRENGTH: 8}
+  plague-bloom:
+    menu-slot: 33
+    class: ASSASSIN
+    branch: plague-scholar
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [toxic-burst]
+    skill-points: 4
+    mana-cost: 40
+    cooldown-seconds: 32
+    requirements: {AGILITY: 19, INTELLIGENCE: 16, STAMINA: 8}
+  vanished-horizon:
+    menu-slot: 31
+    class: ASSASSIN
+    branch: unseen
+    minimum-ascension: 3
+    minimum-level: 20
+    prerequisites: [venom-blade]
+    skill-points: 6
+    mana-cost: 58
+    cooldown-seconds: 46
+    requirements: {AGILITY: 32, STAMINA: 18, INTELLIGENCE: 14}
+
+  ash-domain:
+    menu-slot: 29
+    class: MAGE
+    branch: ash-shaper
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [meteor]
+    skill-points: 4
+    mana-cost: 44
+    cooldown-seconds: 34
+    requirements: {INTELLIGENCE: 24, STAMINA: 12, DEFENSE: 6}
+  time-lock:
+    menu-slot: 33
+    class: MAGE
+    branch: chronomancer
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [mana-surge]
+    skill-points: 4
+    mana-cost: 42
+    cooldown-seconds: 36
+    requirements: {INTELLIGENCE: 23, STAMINA: 15, AGILITY: 7}
+  axiomatic-break:
+    menu-slot: 31
+    class: MAGE
+    branch: first-principle
+    minimum-ascension: 3
+    minimum-level: 20
+    prerequisites: [frost-nova]
+    skill-points: 6
+    mana-cost: 64
+    cooldown-seconds: 50
+    requirements: {INTELLIGENCE: 34, STAMINA: 22, AGILITY: 10}
+
+  gale-step:
+    menu-slot: 29
+    class: RANGER
+    branch: windrunner
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [piercing-shot]
+    skill-points: 4
+    mana-cost: 34
+    cooldown-seconds: 24
+    requirements: {AGILITY: 23, STRENGTH: 14, STAMINA: 7}
+  pack-hunt:
+    menu-slot: 33
+    class: RANGER
+    branch: wild-warden
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [beast-call]
+    skill-points: 4
+    mana-cost: 40
+    cooldown-seconds: 34
+    requirements: {AGILITY: 18, STAMINA: 18, STRENGTH: 8}
+  horizon-arrow:
+    menu-slot: 31
+    class: RANGER
+    branch: far-horizon
+    minimum-ascension: 3
+    minimum-level: 20
+    prerequisites: [volley]
+    skill-points: 6
+    mana-cost: 58
+    cooldown-seconds: 44
+    requirements: {AGILITY: 33, STRENGTH: 22, STAMINA: 10}
+
+  adaptive-arsenal:
+    menu-slot: 29
+    class: FREEFORM
+    branch: pathfinder
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [battle-trance]
+    skill-points: 4
+    mana-cost: 36
+    cooldown-seconds: 30
+    requirements: {STRENGTH: 15, AGILITY: 15, STAMINA: 10, DEFENSE: 5}
+  rune-reversal:
+    menu-slot: 33
+    class: FREEFORM
+    branch: rune-scholar
+    minimum-ascension: 2
+    minimum-level: 10
+    prerequisites: [arcane-edge]
+    skill-points: 4
+    mana-cost: 40
+    cooldown-seconds: 28
+    requirements: {INTELLIGENCE: 18, STRENGTH: 13, AGILITY: 9, STAMINA: 6}
+  open-form:
+    menu-slot: 31
+    class: FREEFORM
+    branch: polymath
+    minimum-ascension: 3
+    minimum-level: 20
+    prerequisites: [second-wind]
+    skill-points: 6
+    mana-cost: 60
+    cooldown-seconds: 48
+    requirements: {DEFENSE: 12, STRENGTH: 14, AGILITY: 14, INTELLIGENCE: 14, STAMINA: 14}
+
+skill-books:
+  common-insight:
+    category: COMMON
+    effect: skill-points
+    points: {minimum: 1, maximum: 1}
+    limit: {group: common-skill-points, maximum-uses: 5}
+  ancient-echo:
+    category: SPECIAL
+    effect: skill-points
+    points: {minimum: 1, maximum: 3}
+    requirements: {minimum-effective-level: 15}
+  cinnabar-revelation:
+    category: SPECIAL
+    effect: skill-points
+    points: {minimum: 2, maximum: 4}
+    requirements: {minimum-effective-level: 20}
+  silent-thunder:
+    category: HIDDEN
+    effect: skill-points
+    points: {minimum: 3, maximum: 5}
+    requirements: {minimum-effective-level: 28}
+
+equipment-effects:
+  borrowed-skill:
+    mana-multiplier: 1.50
+    cooldown-multiplier: 1.50
+    power-multiplier: 0.65
+    duration-multiplier: 0.65
+    # Weakness + Glowing makes cross-class borrowing a visible tactical choice.
+    strain-ticks: 60
+    duration-ticks: 60
+  mastered-skill:
+    cooldown-multiplier: 0.85
+    power-multiplier: 1.15
+    duration-multiplier: 1.15
+  mastered-shadow-step:
+    duration-ticks: 140
+  healing-boost:
+    multiplier: 1.35
+# Universal vanilla-client control: single F casts the selected skill and
+# double F cycles. Q is deliberately never intercepted because it drops items.
+controls:
+  # Four ticks keeps a single cast responsive without making a deliberate
+  # double-F cycle unrealistically strict for players on ordinary latency.
+  double-press-window-millis: 200

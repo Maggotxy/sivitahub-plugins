@@ -1,0 +1,14 @@
+placeholder-cache:
+  # Placeholder callbacks never query JDBC. Refreshes are spread across ticks,
+  # instead of every online player querying wealth in one five-second burst.
+  refresh-interval-ticks: 300
+  players-per-tick: 2
+  stale-after-seconds: 30
+
+skin-permissions:
+  # Players may set/update/clear their own named skin. URL uploads, changing
+  # another player, GUI recommendations, and all admin actions remain denied.
+  enabled: true
+
+# LuckPerms receives sivita-class and sivita-ascension contexts from the same
+# in-memory snapshot. Permission checks never wait for JDBC.

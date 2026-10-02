@@ -1,0 +1,8 @@
+name: RpgIntegrations
+version: '${version}'
+main: cn.originalrpg.integrations.RpgIntegrationsPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Non-blocking PlaceholderAPI and permissions integration for SivitaHub.
+depend: [RpgApi, RpgCore]
+softdepend: [PlaceholderAPI, LuckPerms, MyPet, BetterHud, RpgPerformance, RpgSkills]

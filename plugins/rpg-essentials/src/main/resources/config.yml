@@ -1,0 +1,47 @@
+config-version: 1
+dungeon-world-prefixes:
+  - dungeon_instance_
+  - dungeon_
+blocked-engine-aliases:
+  - eback
+  - ereturn
+  - return
+  - ehome
+  - esethome
+  - edelhome
+  - espawn
+  - ewarp
+  - ewarps
+  - etpr
+  - ebalance
+  - ebaltop
+  - emoney
+  - money
+  - epay
+  - eeco
+  - eeconomy
+  - esell
+  - eworth
+  - ekit
+  - ekits
+  # BetonQuest 3.1 also exposes /backpack on Paper 26.2, but its book UI calls
+  # an API method that no longer exists. The RPG warehouse is the single,
+  # death-safe storage authority, so intercept both plain and namespaced entry
+  # points before another plugin can open the incompatible UI.
+  - backpack
+  - ebackpack
+  - erepair
+  - eenchant
+  - enick
+  - eworld
+messages:
+  zh_cn:
+    blocked-command: "该入口已由服务器规则接管，请使用 {command}。"
+    tpa-combat-self: "战斗状态下不能发送或接受传送请求，还需等待 {seconds} 秒。"
+    tpa-combat-target: "对方正在战斗，暂时不能进行玩家传送。"
+    tpa-dungeon: "副本内外不能通过玩家传送跨越边界。"
+  en_us:
+    blocked-command: "That entry is owned by the server rules. Use {command} instead."
+    tpa-combat-self: "You cannot send or accept teleport requests in combat. Wait {seconds}s."
+    tpa-combat-target: "The other player is in combat and cannot teleport yet."
+    tpa-dungeon: "Player teleport requests cannot cross a dungeon boundary."

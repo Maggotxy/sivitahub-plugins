@@ -1,0 +1,49 @@
+refinement:
+  price: "400.00"
+  success-rate: 0.65
+  lucky-charm-bonus: 0.12
+  minimum-roll: -5
+  maximum-roll: 18
+limit-break:
+  base-price: "1200.00"
+  maximum-level: 10
+  base-success-rate: 0.80
+  rate-loss-per-level: 0.06
+  lucky-charm-bonus: 0.12
+# Confirmation buttons expire, so copied or stale chat actions cannot charge a
+# player after the inspected skill state may have changed.
+mutation-preview-seconds: 60
+mutations:
+  heal:
+    price: "3500.00"
+    restore-price: "900.00"
+    success-rate: 0.25
+    variants: [INVERTED]
+  war-cry:
+    price: "3500.00"
+    restore-price: "900.00"
+    success-rate: 0.25
+    variants: [IRON_VOW]
+  shadow-step:
+    price: "3500.00"
+    restore-price: "900.00"
+    success-rate: 0.25
+    variants: [PREDATOR_MARK]
+  fireball:
+    price: "3500.00"
+    restore-price: "900.00"
+    success-rate: 0.25
+    variants: [ARC_BURST]
+  power-shot:
+    price: "3500.00"
+    restore-price: "900.00"
+    success-rate: 0.25
+    variants: [SPLIT_SHOT]
+  improvisation:
+    price: "3500.00"
+    restore-price: "900.00"
+    success-rate: 0.25
+    variants: [DANGEROUS_GAMBIT]
+visual-effects:
+  enabled: true
+  sound-volume: 0.70

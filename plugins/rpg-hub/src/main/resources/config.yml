@@ -1,0 +1,107 @@
+hub:
+  # The authored hub has different build, combat, spawn, and event rules from
+  # vanilla survival. RpgHub owns this one fixed world directly, so a general
+  # multi-world management plugin would only duplicate lifecycle and teleport state.
+  world: sivita_hub
+  create-isolated-world: true
+  build-version: 3
+  auto-build: true
+  radius: 52
+  protection-radius: 60
+  blocks-per-tick: 8000
+  # Spawn events are denied immediately. This bounded sweep also removes
+  # entities restored from old chunks before RpgHub finished enabling.
+  creature-sweep-ticks: 200
+  return-cooldown-seconds: 15
+  legacy-migration:
+    # The old generated town remains WorldGuard-protected as a harmless ruin,
+    # while authenticated test accounts inside it move to the isolated hub once.
+    version: 1
+    world: world
+    center-x: 7
+    center-z: 0
+    radius: 80
+  wilderness:
+    world: world
+    # Matches the one-time Chunky generation center in the vanilla Overworld.
+    center-x: 7
+    center-z: 0
+    minimum-radius: 650
+    maximum-radius: 1600
+    attempts: 24
+    # Player travel loads an already generated 3x3 neighborhood; it never
+    # generates terrain. Chunky owns controlled world preparation instead.
+    preload-radius-chunks: 1
+    load-timeout-seconds: 12
+    max-concurrent-searches: 2
+
+# The only home is the player's vanilla Overworld bed spawn. No second
+# coordinate database means breaking or obstructing the bed invalidates /home
+# exactly as it invalidates respawning there.
+home:
+  warmup-seconds: 5
+  cooldown-seconds: 600
+  bed-search-radius: 4
+  cancel-movement-blocks: 0.35
+
+# Paper's TextDisplay view range is a multiplier, not a block distance. RpgHub
+# converts this bounded block value to the 26.2 display multiplier (18 / 64 =
+# 0.28125). Do not use a block count as a raw API multiplier: that renders every
+# label from roughly 1,280 blocks away while the mannequin itself is culled.
+npc-display:
+  view-distance-blocks: 18
+  height-blocks: 2.72
+  scale: 0.72
+  line-width-pixels: 200
+  reconcile-ticks: 100
+
+# Player-requested navigation only. One shared task updates active players at
+# most once per second and stops when nobody is navigating. Critical load and
+# Minimal/Off visual preferences remove particles while retaining text/Bar.
+wayfinding:
+  duration-seconds: 60
+  update-ticks: 20
+  # This is additionally capped below the player's real entity-interaction
+  # range, so "arrived" always means the mannequin can actually be clicked.
+  arrival-distance: 2.5
+  particles-per-pulse: 3
+  # Rotating recipient cohorts cap packet work if a very large crowd requests
+  # navigation simultaneously; compass, route blocks, and BossBar still work.
+  particle-player-budget-per-pulse: 256
+
+npcs:
+  # `name` is the only world-space TextDisplay line. `subtitle` is retained
+  # for squaremap landmark tooltips; interaction details live in Dialogs.
+  guide:
+    name: "引路人 · 阿穹"
+    subtitle: "从这里开始"
+  quests:
+    name: "委托官 · 拾简"
+    subtitle: "当前任务与奖励"
+  ai:
+    name: "同行者 · 小栖"
+    subtitle: "读状态 · 给下一步"
+  class:
+    name: "职业导师 · 砺心"
+    subtitle: "选职业 · 加五维"
+  skills:
+    name: "藏书师 · 墨芽"
+    subtitle: "学技能 · 看冷却"
+  forge:
+    name: "锻造师 · 铸岚"
+    subtitle: "制作专属装备"
+  enhancement:
+    name: "精炼师 · 青砧"
+    subtitle: "精炼 · 突破 · 变异"
+  dungeon:
+    name: "远征官 · 燧川"
+    subtitle: "副本与隐藏关"
+  market:
+    name: "市集管事 · 谷雨"
+    subtitle: "玩家交易"
+  economy:
+    name: "功勋官 · 衡石"
+    subtitle: "货币与资源委托"
+  wilderness:
+    name: "拓荒向导 · 林渡"
+    subtitle: "前往安全荒野"

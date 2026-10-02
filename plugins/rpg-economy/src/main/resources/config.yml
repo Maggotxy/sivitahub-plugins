@@ -1,0 +1,211 @@
+caps:
+  HUNTING: {gold: "2500.00", merit: 18}
+  DUNGEON: {gold: "5000.00", merit: 55}
+  GATHERING: {gold: "1800.00", merit: 12}
+  EXPLORATION: {gold: "100000.00", merit: 500}
+  # Raids are renewable and can be automated, so they must not share the
+  # intentionally large one-time advancement pool. Three full victories reach
+  # this independent database-backed daily ceiling.
+  RAID: {gold: "1800.00", merit: 24}
+  GUIDE: {gold: "1000.00", merit: 20}
+# Ordinary kills retain a unique idempotency key, but up to 64 of them share
+# one account lock and database transaction. Work is spread across ticks so a
+# mob farm cannot submit hundreds of JDBC jobs at once.
+hunting-write-buffer:
+  flush-ticks: 20
+  max-batch-size: 64
+  max-player-flushes-per-tick: 6
+  max-pending-per-player: 512
+  shutdown-timeout-ms: 5000
+rewards:
+  hunting:
+    base-gold: "6.00"
+    gold-per-level: "0.55"
+    elite-multiplier: 4.0
+    blood-moon-multiplier: 1.5
+    elite-merit: 1
+    blood-moon-merit: 1
+  advancement:
+    gold: "120.00"
+    merit: 1
+  vanilla:
+    fishing: {gold: "14.00", merit: 0}
+    raid: {gold: "600.00", merit: 8}
+  dungeons:
+    ancient-ruins: {gold: "650.00", merit: 8}
+    ancient-ruins-hidden: {gold: "2200.00", merit: 28}
+    sulfur-depths: {gold: "900.00", merit: 12}
+    sulfur-depths-hidden: {gold: "2500.00", merit: 32}
+    storm-vault: {gold: "1400.00", merit: 18}
+    storm-vault-hidden: {gold: "3200.00", merit: 40}
+
+# Renewable vanilla items are resource sinks, never sufficient proof for minting
+# Gold by themselves. Each submission also consumes account-bound evidence from
+# a natural XP ore, a non-recipe advancement, a real fishing catch, or a raid.
+# Evidence is not an item/currency, resets daily, and cannot be traded.
+commissions-policy:
+  timezone: "Asia/Shanghai"
+  visible-per-day: 3
+  total-daily-limit: 3
+  # Stops disposable fresh accounts from turning shared farm stock into Gold.
+  minimum-play-minutes: 60
+  default-offer-daily-limit: 1
+  default-evidence-cost: 1
+  maximum-gold-per-evidence: "250.00"
+  # A future config edit cannot turn a renewable-material commission into an
+  # unbounded source of the account-bound progression currency either.
+  maximum-merit-per-evidence: 2
+  active-evidence:
+    daily-cap: 4
+    sources:
+      natural-mining: {grant: 1, daily-cap: 3}
+      advancement: {grant: 1, daily-cap: 2}
+      fishing: {grant: 1, daily-cap: 1}
+      raid: {grant: 2, daily-cap: 2}
+commissions:
+  mason:
+    name: "Mason Commission"
+    material: COBBLESTONE
+    amount: 64
+    gold: "55.00"
+    merit: 0
+  lumber:
+    name: "Lumber Commission"
+    material: OAK_LOG
+    amount: 32
+    gold: "70.00"
+    merit: 0
+  iron:
+    name: "Blacksmith Commission"
+    material: IRON_INGOT
+    amount: 24
+    gold: "180.00"
+    merit: 1
+  farmer:
+    name: "Farm Produce Commission"
+    material: WHEAT
+    amount: 64
+    gold: "90.00"
+    merit: 0
+  redstone:
+    name: "Engineering Commission"
+    material: REDSTONE
+    amount: 48
+    gold: "150.00"
+    merit: 1
+  fisher:
+    name: "Fisher Commission"
+    material: COD
+    amount: 24
+    gold: "125.00"
+    merit: 1
+  alchemist:
+    name: "Alchemist Commission"
+    material: FERMENTED_SPIDER_EYE
+    amount: 8
+    gold: "210.00"
+    merit: 1
+
+# Vanilla activity feeds the same forge/equipment loop instead of minting an
+# uncapped second economy. Essence is account-bound and capped in player PDC;
+# commodities still leave the world through commissions or the taxed market.
+vanilla-integration:
+  essence:
+    daily-cap: 12
+    raid-amount: 2
+    chance:
+      mining: 0.055
+      farming: 0.012
+      fishing: 0.080
+  equipment-xp:
+    log: 2
+    crop: 2
+    ore: 3
+    fishing: 3
+    advancement: 25
+    raid: 120
+earned-shop:
+  # One account-wide recovery route for a lost first forge. It consumes Gold,
+  # uses a durable database lifetime quota, and yields bound cores that cannot
+  # enter player trade or an automated currency loop.
+  first-forge-rescue:
+    name: "First-Forge Recovery Cores"
+    material: ECHO_SHARD
+    amount: 8
+    marker: forge_essence
+    gold: "300.00"
+    merit: 0
+    lifetime-limit: 1
+    period-key: "starter-v1"
+  protection-stone:
+    name: "Enhancement Protection Stone"
+    material: AMETHYST_SHARD
+    amount: 1
+    marker: protection_stone
+    gold: "4500.00"
+    merit: 30
+  lucky-charm:
+    name: "Advanced Lucky Charm"
+    material: ECHO_SHARD
+    amount: 1
+    marker: lucky_charm
+    gold: "2200.00"
+    merit: 12
+
+black-market:
+  refresh-days: 14
+  timezone: "Asia/Shanghai"
+  # Only a deterministic subset is visible each period. Every Paper shard derives the same rotation.
+  visible-offers: 3
+  # Even the cheapest purchase in one period must lose at least this fraction against
+  # the highest possible buyback in another period. This closes stockpiling arbitrage.
+  minimum-roundtrip-loss: 0.10
+  offers:
+    mutation-shards:
+      material: AMETHYST_SHARD
+      amount: 8
+      marker: adaptive
+      marker-value: mutation-shard
+      model: mutation_shard
+      base-price: "900.00"
+      sell-multiplier-minimum: "0.80"
+      sell-multiplier-maximum: "1.80"
+      buyback-ratio: 0.55
+      purchase-limit: 4
+      buyback-limit: 2
+    ruins-cores:
+      material: AMETHYST_SHARD
+      amount: 8
+      marker: boss
+      marker-value: ancient-ruins
+      model: dungeon_core
+      base-price: "1800.00"
+      sell-multiplier-minimum: "0.90"
+      sell-multiplier-maximum: "2.00"
+      buyback-ratio: 0.52
+      purchase-limit: 2
+      buyback-limit: 1
+    protection-stone:
+      material: AMETHYST_SHARD
+      amount: 1
+      marker: reward
+      marker-value: protection_stone
+      model: protection_stone
+      base-price: "5200.00"
+      sell-multiplier-minimum: "0.85"
+      sell-multiplier-maximum: "1.65"
+      buyback-ratio: 0.50
+      purchase-limit: 2
+      buyback-limit: 1
+    lucky-charm:
+      material: ECHO_SHARD
+      amount: 1
+      marker: reward
+      marker-value: lucky_charm
+      model: lucky_charm
+      base-price: "2700.00"
+      sell-multiplier-minimum: "0.85"
+      sell-multiplier-maximum: "1.65"
+      buyback-ratio: 0.50
+      purchase-limit: 3
+      buyback-limit: 1

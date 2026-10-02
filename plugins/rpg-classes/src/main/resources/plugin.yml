@@ -1,0 +1,16 @@
+name: RpgClasses
+version: '${version}'
+main: cn.originalrpg.classes.RpgClassesPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Class selection and staged progression.
+depend: [RpgApi, RpgCore, AuthMe]
+softdepend: [RpgCosmetics]
+commands:
+  class:
+    description: View or choose a class.
+    usage: /class [choose <class>|attribute <defense|strength|agility|intelligence|stamina>|starter|ascend|branch <id>|hidden [activate <bloodpact|talisman>|talisman]]
+    permission: rpg.class
+permissions:
+  rpg.class:
+    default: true

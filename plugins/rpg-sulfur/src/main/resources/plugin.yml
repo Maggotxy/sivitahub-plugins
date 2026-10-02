@@ -1,0 +1,17 @@
+name: RpgSulfur
+version: '${version}'
+main: cn.originalrpg.sulfur.RpgSulfurPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Connects Minecraft 26.2 sulfur cubes and cave materials to signed forging imprints.
+depend: [RpgApi, RpgCore]
+softdepend: [RpgPerformance]
+commands:
+  imprint:
+    aliases: [resonance]
+    description: View sulfur resonance progress and extraction instructions.
+    usage: /imprint
+    permission: rpg.imprint
+permissions:
+  rpg.imprint:
+    default: true

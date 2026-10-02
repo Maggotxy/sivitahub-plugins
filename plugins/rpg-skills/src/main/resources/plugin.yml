@@ -1,0 +1,22 @@
+name: RpgSkills
+version: '${version}'
+main: cn.originalrpg.skills.RpgSkillsPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Attribute-gated class skills and skill trees.
+depend: [RpgApi, RpgCore, RpgClasses, RpgItems, RpgCombat, AuthMe]
+# Party-aware healing, buffs, and PvP target filtering snapshot PartyService
+# once during enable. Load RpgDungeons first when the full suite is present so
+# that snapshot cannot silently remain null for the lifetime of this plugin.
+softdepend: [RpgDungeons, RpgPerformance]
+commands:
+  skills:
+    description: Open the skill tree, learn skills, configure slots, or inspect cooldowns.
+    usage: /skills [learn <id>|upgrade <id>|castslot <1-4>|slot <1-4>|hud]
+    permission: rpg.skills
+permissions:
+  rpg.skills:
+    default: true
+  rpg.skills.test-bypass:
+    description: Allows operators to cast skills without forged equipment during reversible test mode.
+    default: op

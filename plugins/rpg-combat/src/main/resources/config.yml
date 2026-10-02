@@ -1,0 +1,44 @@
+combat-tag:
+  # Shared by /hub, bed-home travel, dungeon exits, and future navigation.
+  duration-seconds: 12
+execute:
+  base-threshold: 0.10
+  # The class's real primary offense (STR/AGI/INT), not Warrior strength for everyone.
+  power-per-primary-attribute: 12.0
+damage:
+  melee-per-strength: 0.007
+  ranged-per-agility: 0.007
+  mage-per-intelligence: 0.004
+  # Authored skills use exactly one class primary offense, preventing Mage
+  # projectiles from receiving both Agility and Intelligence scaling.
+  skill-per-primary-attribute: 0.007
+  class-weapon-bonus: 0.15
+  freeform-weapon-bonus: 0.06
+  per-limit-break: 0.02
+  critical-chance-per-point: 0.004
+  maximum-critical-chance: 0.25
+  critical-multiplier: 1.50
+  maximum-attacker-multiplier: 4.0
+  # Skill damage is normalized separately from ordinary attacks. Execute is
+  # additionally halved for both categories by CombatRules.
+  skill-pvp-multiplier: 0.50
+  skill-boss-multiplier: 0.75
+defense:
+  reduction-coefficient: 0.009
+  maximum-reduction: 0.60
+  maximum-vulnerability: 1.50
+  per-armor-limit-break: 2
+traits:
+  life-steal-ratio: 0.04
+  fire-ticks: 60
+feedback:
+  target-hud:
+    enabled: true
+    # Still falls back to text unless this player's pack reports SUCCESSFULLY_LOADED.
+    use-resource-glyphs: true
+    segments: 10
+  visual-effects:
+    enabled: true
+    critical-particles: 8
+    execute-particles: 18
+    sound-volume: 0.65

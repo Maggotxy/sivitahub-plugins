@@ -1,0 +1,49 @@
+name: RpgGuide
+version: '${version}'
+main: cn.originalrpg.guide.RpgGuidePlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Unified RPG menu, contextual help and persistent onboarding.
+depend: [RpgApi, RpgCore, RpgEconomy, RpgCommerce, AuthMe]
+softdepend: [RpgClasses, RpgSkills, RpgItems, RpgMobs, RpgDungeons, RpgEnhancement, RpgMarket, RpgWorld, RpgSulfur, RpgPerformance, RpgCosmetics, RpgCombat, RpgIntegrations]
+commands:
+  menu:
+    aliases: [rpgmenu]
+    description: Open the unified RPG menu.
+    usage: /menu
+    permission: rpg.menu
+  tasks:
+    description: Open the unified journey, commissions, dungeons, and events center.
+    usage: /tasks
+    permission: rpg.menu
+  rpghelp:
+    aliases: [guide]
+    description: Continue the current objective or query a contextual RPG help topic.
+    usage: /rpghelp [current|home|npcs|all|topic]
+    permission: rpg.help
+  visuals:
+    aliases: [effects, visual]
+    description: Select full, reduced, minimal, or text-only gameplay feedback.
+    usage: /visuals [full|reduced|minimal|off]
+    permission: rpg.visuals
+  guidehud:
+    aliases: [onboardinghud]
+    description: Show, hide, or inspect the right-side gameplay HUD.
+    usage: /guidehud [on|off]
+    permission: rpg.guidehud
+  warehouse:
+    aliases: [storage]
+    description: Open the player's personal warehouse while in the hub.
+    usage: /warehouse
+    permission: rpg.warehouse
+permissions:
+  rpg.menu:
+    default: true
+  rpg.help:
+    default: true
+  rpg.visuals:
+    default: true
+  rpg.guidehud:
+    default: true
+  rpg.warehouse:
+    default: true

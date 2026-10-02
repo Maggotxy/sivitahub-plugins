@@ -1,0 +1,24 @@
+name: RpgCosmetics
+version: '${version}'
+main: cn.originalrpg.cosmetics.RpgCosmeticsPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Packet-budgeted resonance auras, customizable elytra trails and shared cosmetic moments.
+depend: [RpgApi, RpgCore]
+softdepend: [RpgPerformance]
+commands:
+  aura:
+    aliases: [cosmetics, resonance]
+    description: Open or configure cosmetic resonance auras.
+    usage: /aura [select <ember|verdant|arcane|tide|prismatic>|off|unlock|status]
+    permission: rpg.cosmetics.aura
+  trail:
+    aliases: [elytratrail, flighttrail]
+    description: Configure a flight-trail shape and resonance palette.
+    usage: /trail [select <wake|wings|comet>|palette <ember|verdant|arcane|tide|prismatic>|off|unlock|status]
+    permission: rpg.cosmetics.trail
+permissions:
+  rpg.cosmetics.aura:
+    default: true
+  rpg.cosmetics.trail:
+    default: true

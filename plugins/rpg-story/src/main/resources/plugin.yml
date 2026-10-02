@@ -1,0 +1,23 @@
+name: RpgStory
+version: '${version}'
+main: cn.originalrpg.story.RpgStoryPlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Load-bounded story actors, escort sessions and authoritative quest rewards.
+depend: [RpgApi, RpgCore, RpgHub, Citizens, BetonQuest]
+softdepend: [RpgPerformance]
+commands:
+  story:
+    aliases: [questline, journey]
+    description: View or continue the Sivita story journey.
+    usage: /story [status|next|start|claim|cancel|help]
+    permission: rpg.story
+  storyadmin:
+    description: Inspect or repair the reserved story actor.
+    usage: /storyadmin <status|repair>
+    permission: rpg.story.admin
+permissions:
+  rpg.story:
+    default: true
+  rpg.story.admin:
+    default: op

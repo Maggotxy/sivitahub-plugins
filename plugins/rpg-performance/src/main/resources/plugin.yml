@@ -1,0 +1,15 @@
+name: RpgPerformance
+version: '${version}'
+main: cn.originalrpg.performance.RpgPerformancePlugin
+api-version: '${paperApi}'
+authors: [OriginalRpg]
+description: Runtime performance telemetry and reversible overload protection.
+depend: [RpgApi, RpgCore]
+commands:
+  rpgperf:
+    description: Show the current server load snapshot.
+    usage: /rpgperf
+    permission: rpg.performance.status
+permissions:
+  rpg.performance.status:
+    default: op

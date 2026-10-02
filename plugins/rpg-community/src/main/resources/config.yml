@@ -1,0 +1,40 @@
+config-version: 1
+
+community:
+  # Communities are social and organizational. They never grant direct combat statistics.
+  capacity: 40
+  creation-cost: "10000.00"
+  minimum-creator-effective-level: 15
+  invite-expiry-hours: 24
+  maximum-pending-invites-per-member: 10
+  confirmation-seconds: 15
+
+weekly-project:
+  timezone: "Asia/Shanghai"
+  goal: "250000.00"
+  minimum-contribution: "100.00"
+  maximum-per-command: "10000.00"
+  player-cap: "50000.00"
+  reward:
+    # Account-bound social progress only: no currency, items, attributes or combat power.
+    minimum-contribution: "1000.00"
+    honor: 100
+
+mentor-bond:
+  # Binding is only possible early; verification happens much later and never mints tradable currency.
+  bind-maximum-effective-level: 10
+  bind-maximum-play-minutes: 360
+  mentor-minimum-effective-level: 15
+  verify-minimum-effective-level: 15
+  verify-minimum-play-minutes: 180
+  verification:
+    poll-interval-ticks: 200
+    players-per-pass: 2
+
+account-link:
+  # Production origin; the LAN runtime config overrides this without changing deployable defaults.
+  public-url: "https://mc.sivitahub.com/account"
+  token-expiry-seconds: 300
+  cooldown-seconds: 30
+  # Relative to the Paper runtime directory and shared read-only with the website service.
+  secret-file: "secrets/account-link.key"

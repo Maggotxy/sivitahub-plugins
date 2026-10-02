@@ -1,0 +1,111 @@
+config-version: 2
+store-title: "Sivita Supply"
+products:
+  protection-stone:
+    points: 60
+    weekly-limit: 1
+    material: AMETHYST_SHARD
+    amount: 1
+    name: "Enhancement Protection Stone"
+    marker: protection_stone
+  lucky-charm:
+    points: 30
+    weekly-limit: 2
+    material: ECHO_SHARD
+    amount: 1
+    name: "Advanced Lucky Charm"
+    marker: lucky_charm
+  membership-3-days:
+    points: 90
+    weekly-limit: 1
+    membership-days: 3
+    material: CLOCK
+    amount: 1
+    name: "Three-Day Membership"
+    marker: membership_time
+  prismatic-aura-voucher:
+    points: 1600
+    weekly-limit: 1
+    material: NETHER_STAR
+    amount: 1
+    name: "Prismatic Resonance Voucher"
+    marker: founder_cosmetic
+  elytra-wings-voucher:
+    points: 480
+    weekly-limit: 1
+    material: PHANTOM_MEMBRANE
+    amount: 1
+    name: "Resonance Wings Voucher"
+    marker: elytra_wings
+  elytra-comet-voucher:
+    points: 960
+    weekly-limit: 1
+    material: FIREWORK_STAR
+    amount: 1
+    name: "Starfall Comet Voucher"
+    marker: elytra_comet
+
+# This is a price ceiling, not a cheap source of vanilla commodities. Public
+# prices deliberately sit above the expected player-market range; membership
+# only removes 5%, so gathering and player trade remain the best-value path.
+# Purchases burn Gold and use database-backed daily quotas across all shards.
+# Delivered stacks are completely ordinary and are never account-bound.
+# The five IDs/materials, maximum stack, maximum daily throughput, price floor,
+# and 5% maximum member discount are also enforced by SupplyCatalogPolicy.
+# A new commodity must be reviewed in code; adding only YAML fails closed.
+supply-shop:
+  products:
+    torches:
+      material: TORCH
+      amount: 64
+      name: "Torch Crate"
+      public-price: "480.00"
+      member-price: "456.00"
+      daily-limit: 2
+    cooked-beef:
+      material: COOKED_BEEF
+      amount: 16
+      name: "Cooked Beef Rations"
+      public-price: "560.00"
+      member-price: "532.00"
+      daily-limit: 2
+    arrows:
+      material: ARROW
+      amount: 64
+      name: "Arrow Bundle"
+      public-price: "700.00"
+      member-price: "665.00"
+      daily-limit: 2
+    ender-pearls:
+      material: ENDER_PEARL
+      amount: 8
+      name: "Ender Pearl Pouch"
+      public-price: "720.00"
+      member-price: "684.00"
+      daily-limit: 1
+    firework-rockets:
+      material: FIREWORK_ROCKET
+      amount: 16
+      name: "Flight Rocket Bundle"
+      public-price: "880.00"
+      member-price: "836.00"
+      daily-limit: 2
+rewards:
+  first-support:
+    required-lifetime: "30.00"
+    material: AMETHYST_SHARD
+    amount: 1
+    name: "Enhancement Protection Stone"
+    marker: protection_stone
+  veteran-support:
+    required-lifetime: "100.00"
+    material: ECHO_SHARD
+    amount: 2
+    name: "Advanced Lucky Charm"
+    marker: lucky_charm
+  founder-style:
+    required-lifetime: "300.00"
+    material: NETHER_STAR
+    amount: 1
+    name: "Founder Cosmetic Voucher"
+    marker: founder_cosmetic

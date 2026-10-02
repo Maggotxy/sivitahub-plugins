@@ -1,0 +1,14 @@
+extraction:
+  daily-limit: 6
+  cube-cooldown-seconds: 300
+  zone-id: Asia/Shanghai
+recipe:
+  enabled: true
+  sulfur-cost: 2
+  cinnabar-cost: 1
+visual-effects:
+  enabled: true
+  sound-volume: 0.70
+security:
+  # Empty on first start; the plugin generates and persists a separate 256-bit imprint key.
+  signing-key: ""

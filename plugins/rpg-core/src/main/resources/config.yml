@@ -1,0 +1,108 @@
+database:
+  # Local development default. Production should use the PostgreSQL URL shown in server/.env.example.
+  # Paper unloads plugin libraries before the JVM exits. Disable H2's global
+  # shutdown hook and let Hikari's explicit close own the database lifecycle.
+  jdbc-url: "jdbc:h2:file:./plugins/RpgCore/data/rpg;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_ON_EXIT=FALSE"
+  # Empty selects org.h2.Driver or org.postgresql.Driver from the JDBC URL. Paper plugin libraries
+  # use isolated class loaders, so Hikari must receive the driver explicitly.
+  driver-class-name: ""
+  username: "sa"
+  password: ""
+  maximum-pool-size: 6
+  # Keep JDBC work bounded. Never run database calls on the Paper main thread.
+  executor-threads: 6
+  # Saturation fails fast and is reported to the player; JDBC never falls back to the tick thread.
+  queue-capacity: 256
+  # Startup must initialize the chapter ledger and recover orphaned dungeon
+  # reservations before any service is published. Each gate fails the whole
+  # Paper process instead of blocking its primary thread forever.
+  startup-operation-timeout-ms: 30000
+  connection-timeout-ms: 5000
+  validation-timeout-ms: 2000
+  idle-timeout-ms: 600000
+  max-lifetime-ms: 1800000
+  leak-detection-threshold-ms: 15000
+  # Every PostgreSQL-backed Paper node takes the same transaction-scoped
+  # advisory lock before additive DDL. A stuck deploy fails closed and can be
+  # retried by the service manager instead of blocking startup indefinitely.
+  migration-lock-timeout-ms: 30000
+network:
+  # Every Paper process in a future Velocity network needs a stable, unique
+  # id supplied as RPG_NODE_ID (for example hub-01 or realm-a-02). The local
+  # single-server default is intentionally explicit.
+  node-id: "standalone"
+  # PostgreSQL is the fencing authority. A token that misses this lease can
+  # never revive; the stale RpgCore disables itself instead of settling data.
+  node-lease-seconds: 60
+  # The lease pool is isolated and fails its connection attempt quickly enough
+  # to stop Paper before the current PostgreSQL fencing token expires.
+  node-lease-connection-timeout-ms: 2000
+  # Safely refund dungeon energy owned by dead process tokens. Live tokens on
+  # other Paper nodes are never touched.
+  orphan-recovery-seconds: 30
+language:
+  # Java code uses English keys. Player-facing text is loaded from lang/*.yml.
+  default: zh_cn
+  allow-player-selection: true
+commerce:
+  admin-starlight:
+    # Manual compensation/event issuance is one global budget shared by all
+    # OPs and Paper nodes. External payment must eventually use a separately
+    # verified settlement endpoint; operators cannot raise these per command.
+    timezone: "Asia/Shanghai"
+    maximum-per-grant: 500
+    daily-limit: 2000
+    weekly-limit: 8000
+wealth-exchange:
+  # All routes are intentionally lossy. Limits apply independently per player and route.
+  timezone: "Asia/Shanghai"
+  # A positive valuation vector proves that every route and every possible
+  # multi-route cycle is non-increasing. Value-increasing routes are disabled.
+  integrity-reference-values: {gold: "1.00", merit: "600.00", starlight: "1400.00"}
+  routes:
+    gold-to-merit:
+      cost: {gold: "600.00", merit: 0, starlight: 0}
+      reward: {gold: "0.00", merit: 1, starlight: 0}
+      limits: {daily: 20, weekly: 80}
+    merit-to-gold:
+      cost: {gold: "0.00", merit: 1, starlight: 0}
+      reward: {gold: "300.00", merit: 0, starlight: 0}
+      limits: {daily: 20, weekly: 80}
+    gold-merit-to-starlight:
+      cost: {gold: "200.00", merit: 2, starlight: 0}
+      reward: {gold: "0.00", merit: 0, starlight: 1}
+      # This is the main repeatable gameplay source of Starlight.
+      limits: {daily: 5, weekly: 30}
+    starlight-to-gold:
+      cost: {gold: "0.00", merit: 0, starlight: 1}
+      reward: {gold: "250.00", merit: 0, starlight: 0}
+      limits: {daily: 5, weekly: 20}
+    starlight-to-merit:
+      cost: {gold: "0.00", merit: 0, starlight: 4}
+      reward: {gold: "0.00", merit: 1, starlight: 0}
+      limits: {daily: 4, weekly: 16}
+progression:
+  starting-energy: 100
+  energy-per-stamina: 2
+  starting-balance: "0.00"
+  energy-regen:
+    interval-seconds: 300
+    amount: 2
+    # Avoid submitting one transaction per online player in the same tick.
+    players-per-tick: 2
+season-expedition:
+  # Isolated season honor has no exchange route and cannot become gold,
+  # merit, Starlight, items or combat power. It is a collection/ranking score.
+  weekly-honor: 100
+  server-first-bonus: 50
+chapters:
+  # Chapter changes are manual and monotonic. Dates never open power by themselves;
+  # operators advance only after economy, balance and stability gates pass.
+  season-id: "launch-1"
+  initial: "awakening"
+  refresh-seconds: 30
+  definitions:
+    awakening: {sequence: 0, maximum-open-ascension: 0}
+    resonance: {sequence: 1, maximum-open-ascension: 1}
+    convergence: {sequence: 2, maximum-open-ascension: 2}
+    transcendence: {sequence: 3, maximum-open-ascension: 3}

@@ -1,0 +1,83 @@
+version: "1.0"
+seed: 42
+days_default: 180
+scenarios:
+  - id: S01
+    name: "20人封闭测试 180天"
+    population: { total: 20, mix: { newcomer: 6, weekend: 4, core: 6, hardcore: 2, merchant: 1, forger: 1 } }
+    days: 180
+
+  - id: S02
+    name: "100人开荒至成熟 365天"
+    population: { total: 100, mix: { newcomer: 20, weekend: 25, core: 30, hardcore: 10, merchant: 7, forger: 5, organizer: 3 } }
+    days: 365
+
+  - id: S03
+    name: "500人长期社区 365天"
+    population: { total: 500, mix: { newcomer: 100, weekend: 120, core: 150, hardcore: 40, merchant: 40, forger: 30, organizer: 20 } }
+    days: 365
+
+  - id: S04
+    name: "30%玩家集中刷最高收益活动"
+    population: { total: 100, shock: { focus_highest_yield: 0.30 } }
+    days: 90
+
+  - id: S05
+    name: "某一Faucet异常放大10倍"
+    population: { total: 100, shock: { faucet_multiplier: { key: "hunt.gold", factor: 10 } } }
+    days: 30
+
+  - id: S06
+    name: "20%休眠富豪同时回归"
+    population: { total: 100, shock: { dormant_return: 0.20, carry_gold: 200000, carry_starlight: 800 } }
+    days: 30
+
+  - id: S07
+    name: "单一卖家控制50%成交"
+    population: { total: 100, shock: { monopolize_sales: 0.50 } }
+    days: 60
+
+  - id: S08
+    name: "连续四周没有新内容"
+    population: { total: 100, shock: { no_new_content_weeks: 4 } }
+    days: 60
+
+  - id: S09
+    name: "市场流动性只有预期的20%"
+    population: { total: 100, shock: { liquidity: 0.20 } }
+    days: 60
+
+  - id: S10
+    name: "高价值装备发生1%复制"
+    population: { total: 100, shock: { duplication_rate: 0.01 } }
+    days: 30
+
+  - id: S11
+    name: "管理员集中发放游戏星辉"
+    population: { total: 100, shock: { admin_starlight_grant: { total: 5000, per_grant: 500 } } }
+    days: 14
+
+  - id: S12
+    name: "玩家活动集中于周末"
+    population: { total: 100, shock: { weekend_concentration: 0.70 } }
+    days: 60
+
+  - id: S13
+    name: "大量小号尝试共享库存做委托"
+    population: { total: 100, mix: { alt: 30, core: 40, newcomer: 30 }, shock: { alt_shared_inventory: true } }
+    days: 60
+
+  - id: S14
+    name: "换季中途失败并重放"
+    population: { total: 100, shock: { season_settlement: { fail_at: "SETTLING", replay: true } } }
+    days: 30
+
+  - id: S15
+    name: "现实支持积分错误连接游戏星辉，要求仿真启动直接失败"
+    population: { total: 100, shock: { support_credit_to_starlight: true } }
+    days: 1
+    expect: "FAIL_FAST"
+    reason: "C-012 violation: support_credit must not convert to starlight/gold/merit"
+
+notes:
+  - "价格、掉率、额度等必须从真实运行配置读取（见 README），场景文件只描述人口、行为和冲击。"

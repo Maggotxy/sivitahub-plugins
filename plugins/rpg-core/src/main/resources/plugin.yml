@@ -1,0 +1,27 @@
+name: RpgCore
+version: '${version}'
+main: cn.originalrpg.core.RpgCorePlugin
+api-version: '${paperApi}'
+load: STARTUP
+authors: [OriginalRpg]
+description: Transactional player profiles, progression, energy and currency.
+depend: [RpgApi]
+libraries:
+  - com.zaxxer:HikariCP:7.0.2
+  - com.h2database:h2:2.3.232
+  - org.postgresql:postgresql:42.7.7
+commands:
+  rpg:
+    description: View RPG profile information.
+    usage: /rpg
+    permission: rpg.profile
+  language:
+    aliases: [lang]
+    description: View or change the player interface language.
+    usage: /language [zh_cn|en_us]
+    permission: rpg.language
+permissions:
+  rpg.profile:
+    default: true
+  rpg.language:
+    default: true

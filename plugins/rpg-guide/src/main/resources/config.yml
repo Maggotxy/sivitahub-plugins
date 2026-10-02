@@ -1,0 +1,113 @@
+onboarding:
+  open-menu-on-first-join: true
+  # Bump only when the first-hour route changes materially; each player sees
+  # that version once, including existing internal-test accounts.
+  welcome-version: 8
+  handbook-slot: 8
+  # Must match RpgHub hub.wilderness.world. EXPLORE is awarded only for a
+  # non-recipe vanilla advancement after /wild has actually landed here.
+  exploration-world: world
+  starter-kit:
+    enabled: true
+    # Bump only when the actual package or anti-abuse contract changes.
+    version: 1
+    # Independent from the class package version so existing players never
+    # receive a duplicate first-forge package when claim onboarding changes.
+    claim-tool-version: 1
+  # New-account rewards remain bound so disposable alts cannot funnel starter currency.
+  step-gold: "0.00"
+  step-merit: 2
+  daily-gold-cap: "1000.00"
+  daily-merit-cap: 20
+menu:
+  # Models are applied per player only after Paper reports that the production
+  # pack loaded successfully; all other states retain vanilla-safe icons.
+  use-custom-item-models: true
+links:
+  # Menu links are rendered by RpgGuide itself instead of depending on a
+  # third-party command permission. Only validated HTTP(S) values are shown.
+  map-public-url: "https://mc.sivitahub.com/map/"
+  map-lan-url: "http://<LAN_HOST>:8080/map/"
+warehouse:
+  # Remote command access is a hub convenience, not an escape from survival
+  # death risk. Native Ender Chests remain usable wherever vanilla permits.
+  command-worlds: [sivita_hub]
+dungeons:
+  ancient-ruins:
+    icon: ZOMBIE_HEAD
+    minimum-level: 5
+    energy: 20
+    party: 1-4
+  ancient-ruins-hidden:
+    icon: WITHER_SKELETON_SKULL
+    minimum-level: 15
+    energy: 30
+    party: 1-4
+  sulfur-depths:
+    icon: SULFUR
+    minimum-level: 12
+    energy: 24
+    party: 1-4
+  sulfur-depths-hidden:
+    icon: CINNABAR
+    minimum-level: 20
+    energy: 32
+    party: 1-4
+  storm-vault:
+    icon: BREEZE_ROD
+    minimum-level: 22
+    energy: 28
+    party: 1-4
+  storm-vault-hidden:
+    icon: HEAVY_CORE
+    minimum-level: 28
+    energy: 36
+    party: 1-4
+help:
+  start:
+    icon: COMPASS
+  tasks:
+    # Vanilla-safe fallback for the original quest-blueprint model.
+    icon: WRITABLE_BOOK
+  profile:
+    icon: PLAYER_HEAD
+  classes:
+    icon: IRON_SWORD
+  equipment:
+    icon: ANVIL
+  sulfur:
+    icon: SULFUR
+  mobs:
+    icon: ZOMBIE_HEAD
+  dungeons:
+    icon: TRIAL_KEY
+  enhancement:
+    icon: SMITHING_TABLE
+  skills:
+    icon: ENCHANTED_BOOK
+  market:
+    icon: EMERALD
+  economy:
+    icon: GOLD_INGOT
+  world:
+    icon: REDSTONE_TORCH
+  store:
+    icon: AMETHYST_SHARD
+  npcs:
+    icon: VILLAGER_SPAWN_EGG
+  companions:
+    icon: LEAD
+  community:
+    icon: LODESTONE
+  claims:
+    icon: GOLDEN_SHOVEL
+tab-hud:
+  enabled: true
+  # Five seconds is intentionally the minimum: TAB is identity and cooldown
+  # reference, not a combat HUD or server-monitoring surface.
+  update-ticks: 100
+  # Kept to one line and hard-capped at two for narrow 1280x720 clients;
+  # active cooldowns take priority over already-ready skills.
+  max-skills: 2
+  # Glyphs also fall back automatically until that player's pack is loaded.
+  use-resource-glyphs: true
