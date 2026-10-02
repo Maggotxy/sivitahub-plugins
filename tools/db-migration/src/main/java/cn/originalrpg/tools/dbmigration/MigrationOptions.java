@@ -30,6 +30,7 @@ record MigrationOptions(
         boolean verifyOnly,
         boolean replaceExisting,
         String confirmedTargetCatalog,
+        long lockTimeoutMs,
         boolean help
 ) {
     static final String REPLACE_CONFIRMATION = "RPG_TABLES";
@@ -65,7 +66,8 @@ record MigrationOptions(
             if (!Set.of(
                     "source-url", "source-user", "source-password-file", "source-schema",
                     "target-url", "target-user", "target-password-file", "target-schema",
-                    "paper-runtime", "batch-size", "confirm-replace", "confirm-target"
+                    "paper-runtime", "batch-size", "lock-timeout-ms",
+                    "confirm-replace", "confirm-target"
             ).contains(key)) {
                 throw new MigrationException("Unknown option: " + argument);
             }
@@ -77,7 +79,8 @@ record MigrationOptions(
         boolean help = flags.contains("help");
         if (help) {
             return new MigrationOptions("", "", new char[0], "", "", "", new char[0],
-                    "", Path.of("."), 500, false, false, false, "", true);
+                    "", Path.of("."), 500, false, false, false, "",
+                    MigrationAdvisoryLock.DEFAULT_TIMEOUT_MS, true);
         }
 
         String sourceUrl = required(values, environment, "source-url", "SIVITA_MIGRATION_SOURCE_URL");
@@ -111,6 +114,10 @@ record MigrationOptions(
         );
 
         int batchSize = parseBatchSize(values.getOrDefault("batch-size", "500"));
+        long lockTimeoutMs = parseLockTimeoutMs(optional(
+                values, environment, "lock-timeout-ms", "SIVITA_MIGRATION_LOCK_TIMEOUT_MS",
+                Long.toString(MigrationAdvisoryLock.DEFAULT_TIMEOUT_MS)
+        ));
         boolean dryRun = flags.contains("dry-run");
         boolean verifyOnly = flags.contains("verify-only");
         boolean replaceExisting = flags.contains("replace-existing");
@@ -134,7 +141,8 @@ record MigrationOptions(
         return new MigrationOptions(
                 sourceUrl, sourceUser, sourcePassword, sourceSchema,
                 targetUrl, targetUser, targetPassword, targetSchema,
-                runtime, batchSize, dryRun, verifyOnly, replaceExisting, confirmedTargetCatalog, false
+                runtime, batchSize, dryRun, verifyOnly, replaceExisting, confirmedTargetCatalog,
+                lockTimeoutMs, false
         );
     }
 
@@ -219,6 +227,20 @@ record MigrationOptions(
         if (!value.matches("[A-Za-z_][A-Za-z0-9_]{0,62}")) {
             throw new MigrationException("Invalid " + label + " identifier");
         }
+    }
+
+    private static long parseLockTimeoutMs(String value) throws MigrationException {
+        long parsed;
+        try {
+            parsed = Long.parseLong(value.trim());
+        } catch (NumberFormatException exception) {
+            throw new MigrationException("--lock-timeout-ms must be a whole number of milliseconds");
+        }
+        if (parsed < MigrationAdvisoryLock.MIN_TIMEOUT_MS || parsed > MigrationAdvisoryLock.MAX_TIMEOUT_MS) {
+            throw new MigrationException("--lock-timeout-ms must be between "
+                    + MigrationAdvisoryLock.MIN_TIMEOUT_MS + " and " + MigrationAdvisoryLock.MAX_TIMEOUT_MS);
+        }
+        return parsed;
     }
 
     private static int parseBatchSize(String value) throws MigrationException {

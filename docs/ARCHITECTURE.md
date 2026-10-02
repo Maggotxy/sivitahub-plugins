@@ -64,7 +64,7 @@ Redis 永远不保存唯一真相。角色、货币、装备、市场和订单�
 6. 活动奖励按类型记录每日金币/功勋额度；奖励、余额和来源流水在同一事务提交。
 7. 功勋或星辉补给所的扣款与邮箱投递在同一事务提交，绑定物品记录玩家 UUID 和来源。
 8. 金币、功勋和星辉兑换必须在同一事务中锁定三张账户表；兑换流水、日额度和周额度随余额一起提交，任何一步失败都会整体回滚。
-9. JDBC 使用与 Hikari 连接池等宽的固定后台线程和有界队列；队列饱和返回可处理的失败 Future，禁止 `CallerRunsPolicy` 或任何主线程降级执行。多个 PostgreSQL-backed Paper 节点启动时先在迁移事务内取得同一把 advisory lock，30 秒未取得就失败关闭并等待编排重试，禁止并发执行 `CREATE/ALTER/INDEX`。
+9. JDBC 使用与 Hikari 连接池等宽的固定后台线程和有界队列；队列饱和返回可处理的失败 Future，禁止 `CallerRunsPolicy` 或任何主线程降级执行。多个 PostgreSQL-backed Paper 节点启动时先在迁移事务内取得同一把 advisory lock，30 秒未取得就失败关闭并等待编排重试，禁止并发执行 `CREATE/ALTER/INDEX`。这把锁的唯一定义是双参数形式 `pg_advisory_xact_lock(0x53495649, 0x52504731)`，PostgreSQL 合成的 64 位锁 key 为 `6001422851361490737`（`(0x53495649 << 32) | 0x52504731`）；单 bigint 形式的 `pg_advisory_xact_lock(0x5349564954414D47)` 合成的是另一把锁，不构成互斥，禁止使用。离线迁移工具 `tools/db-migration` 复用同一对常量（`MigrationAdvisoryLock`）并在同一事务内等待同一把锁，等待上限默认 30 秒、可用 `--lock-timeout-ms`/`SIVITA_MIGRATION_LOCK_TIMEOUT_MS` 配置，超时返回明确错误而非继续执行 DDL；`MigrationAdvisoryLockTest` 双向断言工具与节点的锁 key 一致。
 10. PlaceholderAPI 回调只能读取内存快照，禁止即时数据库查询；LuckPerms 存储操作只能走其异步 API。
 11. 同一角色的档案变更使用 `SELECT ... FOR UPDATE` 串行化；缓存只在事务提交后的 future 阶段更新，退出后延迟淘汰。
 12. 高频狩猎奖励在数据库边界按玩家批处理；每个怪物的幂等键与审计行仍保留，不能为了吞吐把多次击杀压成不可审计的一笔铸币。

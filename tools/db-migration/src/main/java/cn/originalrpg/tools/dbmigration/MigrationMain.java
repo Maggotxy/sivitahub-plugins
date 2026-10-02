@@ -39,7 +39,8 @@ public final class MigrationMain {
                 MigrationEngine engine = new MigrationEngine(System.out::println);
                 MigrationEngine.Result result = engine.run(source, target, new MigrationEngine.Request(
                         options.sourceSchema(), options.targetSchema(), options.batchSize(),
-                        options.dryRun(), options.verifyOnly(), options.replaceExisting()
+                        options.dryRun(), options.verifyOnly(), options.replaceExisting(),
+                        options.lockTimeoutMs()
                 ));
                 System.out.println(
                         "[DONE] outcome=" + result.outcome() + " tables=" + result.tables() + " rows=" + result.rows()
@@ -119,6 +120,7 @@ public final class MigrationMain {
                   --confirm-replace RPG_TABLES   Mandatory with --replace-existing
                   --confirm-target DATABASE      Exact connected database; mandatory for replacement
                   --batch-size N                 1..10000, default 500
+                  --lock-timeout-ms N            Advisory-lock wait limit, 1000..300000, default 30000
                   --source-schema NAME           Default PUBLIC
                   --target-schema NAME           Default public
 
