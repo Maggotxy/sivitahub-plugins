@@ -13,7 +13,7 @@
     "plugins/rpg-combat/build.gradle.kts",
     ".cnb/agent-out/W1-A1-defense-wiring.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/5",
   "evidence": {
     "toolchain": {
       "java": "openjdk 25.0.4.1 2026-08-18 LTS (Temurin)",
@@ -72,7 +72,8 @@
     "防御减伤只作用于「玩家是受击目标」的伤害，怪打怪不参与，与原实现一致。"
   ],
   "next_steps": [
-    "等 CNB push 编译门 GREEN 后合入 main",
-    "PR 描述里的「改前/改后行为差异 + 为什么不会双减」需要人工复核一次"
+    "等 CNB push 编译门 GREEN 后由人工合入 main（PR #5）",
+    "人工复核 PR 描述里「改前/改后行为差异 + 为什么不会双减」的表述",
+    "本机是 rpg-combat 单模块验证；全量编译门以 CNB 流水线为准"
   ]
 }
