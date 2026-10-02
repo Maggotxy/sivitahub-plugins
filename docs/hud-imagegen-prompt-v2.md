@@ -16,8 +16,8 @@ Implementation note: this image is a layout reference only. Production uses a 26
 
 本节的数字不是散文，而是**唯一来源** `docs/reference/hud-layout.json` 的文字版本。改尺寸必须同时改
 三者：这份 note + `hud-layout.json` + 实际 PNG；只改一处会被门禁拦下
-（`resource-pack/tools/verify_hud_layout.py`、`resource-pack/tools/hud-layout.mjs`，
-两条都接在 `resource-pack/build.sh` 与 `scripts/selftest-gates.sh` §5b 上）。
+（`resource-pack/tools/verify_hud_layout.py`，接在 `resource-pack/build.sh` 与
+`scripts/selftest-gates.sh` §5b 上；只用 Python 标准库，不依赖 CI 镜像里没有的 node）。
 
 ### 设计基准值 vs 实现实际值
 

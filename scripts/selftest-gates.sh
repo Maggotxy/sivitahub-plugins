@@ -276,24 +276,16 @@ mkdir -p "$HUD_FIXTURE/docs/reference" "$HUD_FIXTURE/resource-pack/tools"
 cp -R "$ROOT/resource-pack/assets" "$HUD_FIXTURE/resource-pack/assets"
 cp "$ROOT/docs/reference/hud-layout.json" "$HUD_FIXTURE/docs/reference/"
 cp "$ROOT/resource-pack/tools/verify_hud_layout.py" "$HUD_FIXTURE/resource-pack/tools/"
-cp "$ROOT/resource-pack/tools/hud-layout.mjs" "$HUD_FIXTURE/resource-pack/tools/"
-cp -R "$ROOT/resource-pack/assets/originalrpg" "$HUD_FIXTURE/resource-pack/assets/"
 cp "$ROOT/resource-pack/build.sh" "$HUD_FIXTURE/resource-pack/"
 
 run_hud_py() {
+  # 额外参数用于把「build.sh 被改坏」的夹具指给门禁（--build-script <path>）
   set +e
-  python3 "$HUD_FIXTURE/resource-pack/tools/verify_hud_layout.py" >/dev/null 2>&1
-  echo $?
-}
-run_hud_node() {
-  set +e
-  node "$HUD_FIXTURE/resource-pack/tools/hud-layout.mjs" \
-    "$HUD_FIXTURE/resource-pack/build.sh" >/dev/null 2>&1
+  python3 "$HUD_FIXTURE/resource-pack/tools/verify_hud_layout.py" "$@" >/dev/null 2>&1
   echo $?
 }
 
-check "真实素材 + 唯一来源 → 0" 0 "$(run_hud_py)"
-check "真实素材 + build.sh 常量 → 0" 0 "$(run_hud_node)"
+check "真实素材 + 唯一来源 + build.sh 常量 → 0" 0 "$(run_hud_py)"
 
 python3 - "$HUD_FIXTURE/docs/reference/hud-layout.json" <<'PYJSON'
 import json, sys
@@ -324,7 +316,11 @@ path = pathlib.Path(sys.argv[1])
 text = path.read_text(encoding='utf-8')
 path.write_text(text.replace('HUD_PANEL_WIDTH=26', 'HUD_PANEL_WIDTH=27', 1), encoding='utf-8')
 PYJSON
-check "build.sh HUD_PANEL_WIDTH=27（唯一来源 26）→ 1" 1 "$(run_hud_node)"
+# 把夹具里的 build.sh 常量改坏，再让门禁指向它（唯一来源保持 26）
+sed 's/^HUD_PANEL_WIDTH=26$/HUD_PANEL_WIDTH=27/' "$HUD_FIXTURE/resource-pack/build.sh" \
+  > "$HUD_FIXTURE/resource-pack/build-broken.sh"
+check "build.sh HUD_PANEL_WIDTH=27（唯一来源 26）→ 1" 1 \
+  "$(run_hud_py --build-script "$HUD_FIXTURE/resource-pack/build-broken.sh")"
 cd "$ROOT"
 
 echo "== 6. G-206 接线自证：两条门禁必须被本脚本真实覆盖 =="
@@ -335,7 +331,7 @@ echo "== 6. G-206 接线自证：两条门禁必须被本脚本真实覆盖 =="
 #   b) 质量门 .cnb.yml 必须包含 `sh scripts/selftest-gates.sh`
 #      —— 这就是 §4b/§5 进入 CI 的接线点，且本次改动无需修改 .cnb.yml
 for wired in "scripts/check-repo-artifacts.sh" "scripts/install-datapacks.sh" \
-        "resource-pack/tools/verify_hud_layout.py" "resource-pack/tools/hud-layout.mjs"; do
+        "resource-pack/tools/verify_hud_layout.py" "resource-pack/build.sh"; do
   set +e
   hits=$(grep -c -F "$wired" "$ROOT/scripts/selftest-gates.sh")
   set -e

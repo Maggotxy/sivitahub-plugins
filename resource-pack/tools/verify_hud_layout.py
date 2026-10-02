@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""HUD 尺寸门禁：设计基准 / 唯一来源 / 实际素材 三方一致。
+"""HUD 尺寸门禁：设计基准 / 唯一来源 / 实际素材 / 打包常量 四方一致。
 
 判据全部来自 docs/reference/hud-layout.json（唯一来源），逐条核验：
   1) 每张 HUD PNG 的解码尺寸 == 唯一来源里的 width/height；
   2) 每张贴图/图标都在 BetterHud 生成的 font JSON 里有字形定义（否则客户端会显示缺字方框）；
   3) 数值与设计基准 baseline 的差异被显式记录（相等，或在 notes 里写明可行值理由）；
-  4) 槽位影格能装进轨道、徽章右留白不越过硬下限。
+  4) 槽位影格能装进轨道、徽章右留白不越过硬下限；
+  5) build.sh 里的 HUD_* 打包常量 == 唯一来源（防止 shell 与文档双漂移）。
+
+为什么不用 node：CI 质量门跑在 eclipse-temurin:25-jdk 镜像里，那里没有 node。
+build.sh 里的 node 只服务于可复现的 mob 模型生成，与 HUD 尺寸契约无关，
+所以尺寸门禁不引入新的运行时依赖 —— 全程只用 Python 标准库 + shell 可读的常量。
 
 注意：BetterHud font JSON 里的 bitmap height 是它在不同 GUI 缩放档位下选定的
 「定位行高」（同一张 18px 图在不同档位下是 8/11/18），不是素材像素尺寸；
@@ -18,6 +23,7 @@
 from __future__ import annotations
 
 import json
+import re
 import struct
 import sys
 from pathlib import Path
@@ -28,6 +34,8 @@ FONT_DIR = ROOT / "resource-pack/assets/betterhud/font"
 # 两类字形各有归属：贴图/法力条在 image 字体，语义图标在「按 GUI 缩放分页」的 text 字体。
 IMAGE_FONT = FONT_DIR / "hud_sivita_hud_image.json"
 TEXT_FONT_GLOB = "hud_sivita_hud_text_*.json"
+# 打包常量所在的 shell 脚本；可用 --build-script 覆盖（负向对照会传夹具路径）。
+BUILD_SCRIPT = Path("resource-pack/build.sh")
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
@@ -91,6 +99,12 @@ def compare_baseline(label: str, actual: list[int], baseline: list[int], failure
 
 
 def main() -> int:
+    global BUILD_SCRIPT
+    # 负向对照需要把「build.sh 被改坏」做成夹具，所以要能指向别的路径。
+    if len(sys.argv) > 2 and sys.argv[1] == "--build-script":
+        BUILD_SCRIPT = Path(sys.argv[2])
+        if not BUILD_SCRIPT.is_absolute():
+            BUILD_SCRIPT = ROOT / BUILD_SCRIPT
     layout = load_layout()
     # image 字体管贴图与法力条；text 字体（按 GUI 缩放分页）管语义图标。
     image_heights = glyph_heights(IMAGE_FONT)
@@ -202,6 +216,74 @@ def main() -> int:
         compare_baseline("badge", [badge["width"], badge["height"]],
                          list(badge["baseline"]), failures)
 
+    def check_build_constants() -> None:
+        """build.sh 的打包常量必须与唯一来源逐条相等。
+
+        这些常量是 shell 侧消费者（HUD_PANEL_WIDTH / HUD_ICON_SIZE / ...），
+        它们一旦与文档漂移，就会出现「门禁按 26 断言、打包按别的数字打包」。
+        """
+        nonlocal checked
+        path = BUILD_SCRIPT if BUILD_SCRIPT.is_absolute() else ROOT / BUILD_SCRIPT
+        if not path.is_file():
+            failures.append(f"build-constants: 找不到 {BUILD_SCRIPT}")
+            return
+        text = path.read_text(encoding="utf-8")
+        expectations = {
+            "HUD_PANEL_WIDTH": layout["rail"]["width"],
+            "HUD_PANEL_HEIGHT": layout["rail"]["height"],
+            "HUD_ICON_SIZE": layout["icon"]["width"],
+            "HUD_ICON_COUNT": layout["icon"]["count"],
+            "HUD_BADGE_WIDTH": layout["badge"]["width"],
+            "HUD_BADGE_HEIGHT": layout["badge"]["height"],
+            "HUD_MANA_WIDTH": layout["mana"]["width"],
+            "HUD_MANA_HEIGHT": layout["mana"]["height"],
+            "HUD_SLOT_COUNT": layout["slot"]["count"],
+        }
+        for name, expected in expectations.items():
+            checked += 1
+            match = re.search(rf"^{name}=(\d+)\s*$", text, re.MULTILINE)
+            if match is None:
+                failures.append(f"build-constants: build.sh 缺少 {name}")
+                continue
+            expect(int(match.group(1)) == expected,
+                   f"build-constants: build.sh {name}={match.group(1)} != 唯一来源 {expected}", failures)
+
+    def check_original_atlas() -> None:
+        """原始字体图集（originalrpg:hud / :journey）的常量必须自洽。
+
+        这一批数字在 build.sh 里是用 jq 断言 hud.json 的；这里补上「图集 PNG 的
+        实际像素宽 == 字形数 x 字高」，否则改字形数却忘了重导图集会静默错位。
+        """
+        nonlocal checked
+        hud_json = ROOT / "resource-pack/assets/originalrpg/font/hud.json"
+        if not hud_json.is_file():
+            failures.append("original-atlas: 找不到 assets/originalrpg/font/hud.json")
+            return
+        document = json.loads(hud_json.read_text(encoding="utf-8"))
+        providers = document.get("providers", [])
+        checked += 1
+        expect(len(providers) == 2,
+               f"original-atlas: hud.json providers={len(providers)} != 2", failures)
+        for provider, expected_file in zip(providers, (
+                "originalrpg:font/hud_symbols.png", "originalrpg:font/class_skill_symbols.png")):
+            name = expected_file.rsplit("/", 1)[-1]
+            checked += 1
+            expect(provider.get("file") == expected_file,
+                   f"original-atlas: {name} 的 file={provider.get('file')} != {expected_file}", failures)
+            atlas = ROOT / "resource-pack/assets/originalrpg/textures/font" / name
+            if not atlas.is_file():
+                failures.append(f"original-atlas: 缺少 {atlas.relative_to(ROOT)}")
+                continue
+            width, height = png_size(atlas)
+            glyph_count = len(provider.get("chars", [[]])[0])
+            checked += 1
+            expect(provider.get("height") == height,
+                   f"original-atlas: {name} 的 bitmap height={provider.get('height')} != 图集高 {height}",
+                   failures)
+            checked += 1
+            expect(width == height * glyph_count,
+                   f"original-atlas: {name} 宽 {width} != {glyph_count} x {height}", failures)
+
     check_single("rail")
     check_single("badge")
     check_single("selected")
@@ -209,6 +291,8 @@ def main() -> int:
     check_mana()
     check_slot_grid()
     check_badge_fit()
+    check_build_constants()
+    check_original_atlas()
 
     print(f"HUD_LAYOUT_CHECKS={checked}")
     if failures:

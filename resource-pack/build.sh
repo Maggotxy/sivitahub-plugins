@@ -15,7 +15,7 @@ HUD_GLYPH_SIZE=9
 CLASS_SKILL_GLYPH_COUNT=48
 JOURNEY_GLYPH_COUNT=8
 # 右侧战斗轨尺寸契约。唯一的真相源是 docs/reference/hud-layout.json，
-# 下面这些常量由 resource-pack/tools/hud-layout.mjs 在打包时逐条比对；
+# 下面这些常量由 resource-pack/tools/verify_hud_layout.py 在打包时逐条比对；
 # 改尺寸必须同时改唯一来源，单边改动会让打包直接失败。
 HUD_LAYOUT_JSON="$PROJECT_DIR/docs/reference/hud-layout.json"
 HUD_PANEL_WIDTH=26
@@ -352,11 +352,11 @@ jq -e '.model
 }
 
 # HUD 尺寸契约门禁（唯一来源 docs/reference/hud-layout.json）：
-#   ① Python 侧核 PNG 头 + BetterHud 字体定义的覆盖；
-#   ② Node 侧核上面的 shell 常量与原始图集常量。
-# 这两条必须在「素材已生成」之后、打包之前跑，否则断言的是上一轮的产物。
+#   ① PNG 头尺寸 == 唯一来源；② 每张贴图在 BetterHud 字体里有字形；
+#   ③ 上面的 shell 常量 == 唯一来源；④ 原始图集常量自洽。
+# 必须在「素材已生成」之后、打包之前跑，否则断言的是上一轮的产物。
+# 只用 Python 标准库：CI 门禁镜像（eclipse-temurin:25-jdk）没有 node。
 python3 "$SCRIPT_DIR/tools/verify_hud_layout.py"
-node "$SCRIPT_DIR/tools/hud-layout.mjs" "$SCRIPT_DIR/build.sh"
 
 jq -e '.pack.pack_format == 88
         and .pack.supported_formats == [88, 88]

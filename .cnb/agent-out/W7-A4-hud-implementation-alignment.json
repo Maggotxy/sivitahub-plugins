@@ -1,14 +1,13 @@
 {
   "task_id": "W7-A4-hud-implementation-alignment",
   "status": "success",
-  "summary": "HUD 实现与设计基准对齐。① 量出两边实际值：轨 26x91、徽章 29x26、法力 1x87x20 帧三项一致；图标实际是 16x18（基准 18x18），选中框实际是 21x21（未在 note 里定尺寸）。② 把 49 张语义图标（42 技能 + 7 职业）由 16x18 补成 18x18 画布（左右各 1px 透明留白，可见内容逐像素不变），选中框 21x21 -> 18x18 对齐单格槽位；两者都在 resource-pack/tools/generate_betterhud_panels.py 的生成器里同步修正，并实测生成器输出与入库素材逐像素一致。过程中发现 pack 里 7 张图标（war-cry/void-cut/gale-step/shadow-step/venom-blade/arcane-edge/ruin-charge）本来就是生成器输出的 1px 裁剪版，已一并按 reviewed 源重建；并在 build.sh 里补上此前缺失的「语义图标 vs reviewed 源」指纹门禁（原本只有 glyph_control_* 有）。③ 门禁：新增唯一来源 docs/reference/hud-layout.json + 两条机械判据（verify_hud_layout.py 读 PNG IHDR 与 BetterHud 字体覆盖；hud-layout.mjs 读 build.sh 常量与原始图集常量），都接在 resource-pack/build.sh 打包前，并接进 scripts/selftest-gates.sh §5b（.cnb.yml 的门禁自测 stage 会跑，改动不越界到 CI 配置）。④ 三处基准做不到的项已取可行值并写进 implementation note：槽位影格 22px 使末槽底边为 85 而非 88（88 会压掉面板右下收边角）；徽章右留白取 1px 而非 2px（26 偶 29 奇，1px 梯度下不可满足）；BetterHud 定位字体的 height 是行高(8/11/18)不是素材像素高，故像素尺寸一律以 PNG 头为准。⑤ HudGlyphs.available() / SkillHudProjection / MenuLoreLayout 未改动，资源包未加载时逐玩家回退原版符号的行为保持。",
+  "summary": "HUD 实现与设计基准对齐。① 量出两边实际值：轨 26x91、徽章 29x26、法力 1x87x20 帧三项一致；图标实际是 16x18（基准 18x18），选中框实际是 21x21（未在 note 里定尺寸）。② 把 49 张语义图标（42 技能 + 7 职业）由 16x18 补成 18x18 画布（左右各 1px 透明留白，可见内容逐像素不变），选中框 21x21 -> 18x18 对齐单格槽位；两者都在 resource-pack/tools/generate_betterhud_panels.py 的生成器里同步修正，并实测生成器输出与入库素材逐像素一致。过程中发现 pack 里 7 张图标（war-cry/void-cut/gale-step/shadow-step/venom-blade/arcane-edge/ruin-charge）本来就是生成器输出的 1px 裁剪版，已一并按 reviewed 源重建；并在 build.sh 里补上此前缺失的「语义图标 vs reviewed 源」指纹门禁（原本只有 glyph_control_* 有）。③ 门禁：新增唯一来源 docs/reference/hud-layout.json + 一条机械判据 resource-pack/tools/verify_hud_layout.py（断言 PNG IHDR 尺寸、BetterHud 字体字形覆盖、图标张数、槽位影格不越界、徽章右留白、build.sh 打包常量、原始图集常量自洽），接在 resource-pack/build.sh 打包前，并接进 scripts/selftest-gates.sh §5b（.cnb.yml 的门禁自测 stage 会跑，改动不越界到 CI 配置）。门禁全程只用 Python 标准库：首轮 CI（cnb-1p7-1k3u50at4）实测 eclipse-temurin:25-jdk 镜像里没有 node，原来的 hud-layout.mjs 因此 exit=127 让门禁自测 PASS=28 FAIL=2 变红；已把该脚本的断言并入 Python 并删除 node 依赖，不新增运行时前提。④ 三处基准做不到的项已取可行值并写进 implementation note：槽位影格 22px 使末槽底边为 85 而非 88（88 会压掉面板右下收边角）；徽章右留白取 1px 而非 2px（26 偶 29 奇，1px 梯度下不可满足）；BetterHud 定位字体的 height 是行高(8/11/18)不是素材像素高，故像素尺寸一律以 PNG 头为准。⑤ HudGlyphs.available() / SkillHudProjection / MenuLoreLayout 未改动，资源包未加载时逐玩家回退原版符号的行为保持。",
   "changed_files": [
     "docs/reference/hud-layout.json",
     "docs/reference/README.md",
     "docs/hud-imagegen-prompt-v2.md",
     "docs/VISUAL_FEEDBACK.md",
     "resource-pack/tools/verify_hud_layout.py",
-    "resource-pack/tools/hud-layout.mjs",
     "resource-pack/tools/generate_betterhud_panels.py",
     "resource-pack/build.sh",
     "resource-pack/assets/betterhud/textures/image_sivita_skill_selected.png",
@@ -51,35 +50,35 @@
         "expected": 0,
         "exit": 0,
         "result": "PASS",
-        "output_tail": "HUD_LAYOUT_CHECKS=125\nHUD_LAYOUT_GATE=GREEN"
+        "output_tail": "HUD_LAYOUT_CHECKS=141\nHUD_LAYOUT_GATE=GREEN"
       },
       {
-        "cmd": "node resource-pack/tools/hud-layout.mjs resource-pack/build.sh",
-        "expected": 0,
-        "exit": 0,
+        "cmd": "python3 resource-pack/tools/verify_hud_layout.py --build-script <HUD_PANEL_WIDTH 被改成 27 的夹具>",
+        "expected": 1,
+        "exit": 1,
         "result": "PASS",
-        "output_tail": "HUD_LAYOUT_NODE_CHECKS=27\nHUD_LAYOUT_NODE_GATE=GREEN"
+        "output_tail": "HUD_LAYOUT_GATE=RED build-constants: build.sh HUD_PANEL_WIDTH=27 != 唯一来源 26"
       },
       {
         "cmd": "sh scripts/selftest-gates.sh",
         "expected": 0,
         "exit": 0,
         "result": "PASS",
-        "output_tail": "== 5b. HUD 尺寸门禁（W7-A4）必须能真的变红（负向对照） ==\n  [OK  ] 真实素材 + 唯一来源 → 0\n  [OK  ] 真实素材 + build.sh 常量 → 0\n  [OK  ] 唯一来源轨道宽 27（素材仍 26）→ 1\n  [OK  ] 图标真实宽度 17（唯一来源 18）→ 1\n  [OK  ] build.sh HUD_PANEL_WIDTH=27（唯一来源 26）→ 1\n===== 门禁自测汇总：PASS=30 FAIL=0 =====\nGATE_SELFTEST=GREEN"
+        "output_tail": "== 5b. HUD 尺寸门禁（W7-A4）必须能真的变红（负向对照） ==\n  [OK  ] 真实素材 + 唯一来源 + build.sh 常量 → 0\n  [OK  ] 唯一来源轨道宽 27（素材仍 26）→ 1\n  [OK  ] 图标真实宽度 17（唯一来源 18）→ 1\n  [OK  ] build.sh HUD_PANEL_WIDTH=27（唯一来源 26）→ 1\n===== 门禁自测汇总：PASS=29 FAIL=0 =====\nGATE_SELFTEST=GREEN"
       },
       {
-        "cmd": "负向对照（手工，逐条确认门禁会红）",
-        "expected": 1,
+        "cmd": "cnb build get-build-logs --sourceRef agent/W7-A4-hud-implementation-alignment（首轮 CI）",
+        "expected": 0,
         "exit": 1,
-        "result": "PASS",
-        "output_tail": "唯一来源 rail.width=27 -> RED（实际 26x91）；删掉 glyph_skill_heal.png -> RED（匹配 48 张 != 49）；唯一来源 icon.count=48 -> RED（匹配 49 != 48）；伪造 tree panel IHDR 宽 27 -> RED"
+        "result": "FAIL_THEN_FIXED",
+        "output_tail": "cnb-1p7-1k3u50at4 status=error：[FAIL] 真实素材 + build.sh 常量 → 0 期望 exit=0 实际 exit=127（node 不存在）；GATE_SELFTEST=RED PASS=28 FAIL=2。已改为纯 Python 门禁后本地复验 PASS=29 FAIL=0。"
       },
       {
-        "cmd": "bash -n resource-pack/build.sh && bash -n scripts/selftest-gates.sh && sh -n scripts/selftest-gates.sh && python3 -m py_compile resource-pack/tools/verify_hud_layout.py && node --check resource-pack/tools/hud-layout.mjs",
+        "cmd": "bash -n resource-pack/build.sh && sh -n scripts/selftest-gates.sh && python3 -m py_compile resource-pack/tools/verify_hud_layout.py",
         "expected": 0,
         "exit": 0,
         "result": "PASS",
-        "output_tail": "BUILD_SH_SYNTAX_OK / SELFTEST_SYNTAX_OK / SELFTEST_DASH_OK / PY_COMPILE_OK / MJS_SYNTAX_OK"
+        "output_tail": "BUILD_SH_SYNTAX_OK / SELFTEST_DASH_OK / PY_COMPILE_OK"
       },
       {
         "cmd": "sh scripts/check-repo-artifacts.sh; sh scripts/check-ddl-consumers.sh; sh scripts/install-datapacks.sh --check; sh scripts/check-source-contract.sh --all; sh scripts/check-config-fallbacks.sh",
@@ -100,7 +99,7 @@
         "expected": 0,
         "exit": 0,
         "result": "PASS",
-        "output_tail": "icon mismatch: []；selected identical: True (18,18) —— 49 张图标与选中框都能由 resource-pack/tools/generate_betterhud_panels.py 从仓库内 reviewed 图集确定性重算"
+        "output_tail": "icon mismatch: []；selected identical: True (18,18) —— 49 张图标与选中框都能由 generate_betterhud_panels.py 从仓库内 reviewed 图集确定性重算"
       }
     ]
   },
@@ -112,6 +111,7 @@
   ],
   "blockers": [],
   "risks": [
+    "资源包尺寸门禁不用 node（只用 Python 标准库）：CI 门禁镜像 eclipse-temurin:25-jdk 里没有 node，首轮 CI 因此红过（PASS=28 FAIL=2，exit=127）。build.sh 里仍保留 node 用于可复现的 mob 模型生成，那是 stageRelease 的既有前提，与本门禁无关。",
     "资源包打包期新增了「49 张语义图标 vs reviewed 源」的逐张指纹比对。若运维侧 server/config-templates/BetterHud/assets 里的 sivita_icon_* 仍是旧版（16x18 / 21x21 选中框），build.sh 会拒绝打包——这是有意的，但需要维护窗口先跑一次 generate_betterhud_panels.py 让源与 pack 同版。",
     "slot.pitch 固定 22 且 slot.count 取自唯一来源；若未来把槽位数改到 4 以上，check_slot_grid 会因末槽越界直接让门禁红（这是期望行为，不是缺陷）。",
     "HudRailSpec 在运行时读 docs/reference/hud-layout.json；发布包若不携带 docs/ 目录，它会回落到 reviewed 常量 4（行为安全，但\"唯一来源\"在运行时失效）。当前部署流程不删除仓库 docs/，暂不构成问题。"

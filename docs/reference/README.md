@@ -20,14 +20,17 @@ implementation note 落地 —— 26×91 逻辑像素右侧轨、4 个原生 18�
 
 | 消费者 | 断言什么 | 什么时候跑 |
 |---|---|---|
-| `resource-pack/tools/verify_hud_layout.py` | 每张 PNG 的 IHDR 尺寸 == 唯一来源；每张图在 BetterHud 字体里都有字形；槽位影格不越界；徽章右留白 ≥ 硬下限 | `resource-pack/build.sh`（打包前）+ `scripts/selftest-gates.sh` §5b |
-| `resource-pack/tools/hud-layout.mjs` | `build.sh` 里的 `HUD_PANEL_*` / `HUD_ICON_*` / `HUD_BADGE_*` / `HUD_MANA_*` / `HUD_SLOT_COUNT` 常量 == 唯一来源；原始图集常量与 `hud.json` 自洽 | 同上 |
+| `resource-pack/tools/verify_hud_layout.py` | 每张 PNG 的 IHDR 尺寸 == 唯一来源；每张图在 BetterHud 字体里都有字形；图标张数 == 契约张数；槽位影格不越界；徽章右留白 ≥ 硬下限；`build.sh` 的 `HUD_PANEL_*` / `HUD_ICON_*` / `HUD_BADGE_*` / `HUD_MANA_*` / `HUD_SLOT_COUNT` 常量 == 唯一来源；原始图集常量与 `hud.json` 自洽 | `resource-pack/build.sh`（打包前）+ `scripts/selftest-gates.sh` §5b |
 | `resource-pack/build.sh` | 轨道 PNG 的 IHDR 宽高十六进制从唯一来源现算，不写死 | 打包时 |
 | `HudRailSpec`（`plugins/rpg-integrations`） | 插件侧槽位数取唯一来源的 `slot.count`，占位符正则 `skill_(1-N)_...` 随之变化 | 运行时 + `HudRailSpecTest` |
 
 **为什么用文件而不是常量类**：唯一来源必须被 shell（`build.sh`）、Python（门禁）、
-Node（打包常量）、Java（插件）四边同时读取。放进能直接文本解析的 JSON 是这四个环境里
-唯一不需要各自解析器/依赖的方案；`hud-layout.json` 因此在 `allowed_paths` 里被列为契约文件。
+Java（插件）三边同时读取。放进能直接文本解析的 JSON 是这几个环境里唯一不需要
+各自解析器/依赖的方案；`hud-layout.json` 因此在 `allowed_paths` 里被列为契约文件。
+
+**为什么门禁只用 Python**：CI 质量门跑在 `eclipse-temurin:25-jdk` 镜像里，那里没有 node；
+`build.sh` 里的 node 只服务于可复现的 mob 模型生成，与 HUD 尺寸契约无关。
+尺寸门禁因此全程只用 Python 标准库，不引入新的运行时依赖。
 
 **注意**：`hud-layout.json` 里的 `baseline` 是设计基准值，`width`/`height` 是当前可行实现值。
 两者不一致时以 `width`/`height` 为准，理由必须写在该段的 `notes` 里。

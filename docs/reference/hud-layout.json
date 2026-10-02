@@ -2,12 +2,13 @@
   "$comment": [
     "战斗 HUD 的唯一尺寸真相源（single source of truth）。",
     "docs/hud-imagegen-prompt-v2.md 的 implementation note 是设计基准的文字版本；",
-    "本文件是它的机器可读版本，被两处门禁同时读取：",
-    "  1) resource-pack/tools/verify_hud_layout.py —— 断言 PNG 与 BetterHud font JSON；",
-    "  2) resource-pack/tools/hud-layout.mjs —— 断言 build.sh 里的打包期常量。",
+    "本文件是它的机器可读版本，被 resource-pack/tools/verify_hud_layout.py 读取，",
+    "该门禁同时断言：PNG IHDR 尺寸、BetterHud 字体字形覆盖、build.sh 打包常量、",
+    "原始图集常量自洽、槽位影格与徽章右留白。",
+    "门禁只用 Python 标准库：CI 门禁镜像（eclipse-temurin:25-jdk）没有 node。",
     "改尺寸必须同时改：本文件 + 实际 PNG + BetterHud font height，门禁会拒绝单边改动。",
-    "baseline 是设计基准值；effective 是当前客户端 / 原版 HUD 约束下可行的实现值。",
-    "两者不等时以 effective 为准，理由写在 notes 里，并同步到 implementation note。"
+    "baseline 是设计基准值；width/height 是当前客户端 / 原版 HUD 约束下可行的实现值。",
+    "两者不等时以 width/height 为准，理由写在 notes 里，并同步到 implementation note。"
   ],
   "generatedBy": "W7-A4-hud-implementation-alignment",
   "rail": {
