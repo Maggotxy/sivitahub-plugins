@@ -8,6 +8,11 @@ chapter-snapshot:
   # Website reads this atomically signed-out state; it never receives database credentials.
   enabled: true
   interval-seconds: 30
+season-settlement:
+  # C-010 换季九态状态机（G-101）的管理面入口。L-009：能力接线但不启用 ——
+  # 命令与驱动器都在位，开关默认关。开启后 /rpgadmin season advance 才可能推进状态。
+  # 关闭时连只读 preview 都不响应，避免把「能看」误当成「已启用」。
+  enabled: false
 snapshot-io:
   # Stop admission immediately, then let the dedicated snapshot worker drain
   # briefly before queued work is cancelled during plugin disable.

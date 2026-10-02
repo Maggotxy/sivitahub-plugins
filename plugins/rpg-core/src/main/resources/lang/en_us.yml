@@ -3083,6 +3083,8 @@ admin:
   season-blocked: "This step was blocked: facts or the kill switch refused it; the state may now be FAILED."
   season-invalid: "Invalid settlement request; the reason must contain 3-128 characters."
   season-failed: "The season settlement transaction failed; the state machine stayed unchanged."
+  season-disabled: "The admin season entry point is disabled (season-settlement.enabled=false). The nine-state machine and its fund transaction are untouched; this command neither reads nor writes."
+  season-advance-usage: "Usage: /rpgadmin season advance <target-state> CONFIRM [next-season] <reason>. Only one step at a time is allowed, and SETTLING requires a different next season."
   report-failed: "The economy report could not be loaded."
   report-title: "Economy Report {date}"
   report-supply: "Accounts {accounts} / Gold {gold} / 30d active Gold {active} / Merit {merit} / Starlight {starlight}"
