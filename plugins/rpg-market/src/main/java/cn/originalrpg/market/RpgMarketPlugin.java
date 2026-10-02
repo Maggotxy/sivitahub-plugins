@@ -2,6 +2,7 @@ package cn.originalrpg.market;
 
 import cn.originalrpg.api.service.EquipmentService;
 import cn.originalrpg.api.service.EquipmentProgressService;
+import cn.originalrpg.api.service.MarketBuyOrderService;
 import cn.originalrpg.api.service.MarketService;
 import cn.originalrpg.api.service.MessageService;
 import org.bukkit.command.PluginCommand;
@@ -28,9 +29,12 @@ public final class RpgMarketPlugin extends JavaPlugin {
                 "EquipmentProgressService");
         MarketService market = Objects.requireNonNull(
                 getServer().getServicesManager().load(MarketService.class), "MarketService");
+        MarketBuyOrderService buyOrders = Objects.requireNonNull(
+                getServer().getServicesManager().load(MarketBuyOrderService.class), "MarketBuyOrderService");
         MessageService messages = Objects.requireNonNull(
                 getServer().getServicesManager().load(MessageService.class), "MessageService");
-        MarketCommand command = new MarketCommand(this, market, equipment, equipmentProgress, messages);
+        MarketCommand command = new MarketCommand(
+                this, market, buyOrders, equipment, equipmentProgress, messages);
         marketCommand = command;
         PluginCommand pluginCommand = Objects.requireNonNull(getCommand("market"), "market command");
         pluginCommand.setExecutor(command);
