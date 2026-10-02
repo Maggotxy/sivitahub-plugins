@@ -109,6 +109,11 @@ final class CommunityGovernanceListenerTest {
         }
 
         @Override
+        public CompletionStage<Boolean> isGovernanceMember(UUID playerId) {
+            return CompletableFuture.completedFuture(true);
+        }
+
+        @Override
         public CompletionStage<Optional<CommunityGovernanceAction>> pending(UUID playerId) {
             return CompletableFuture.completedFuture(Optional.empty());
         }

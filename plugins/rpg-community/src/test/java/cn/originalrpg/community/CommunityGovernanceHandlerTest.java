@@ -169,7 +169,8 @@ final class CommunityGovernanceHandlerTest {
             assertTrue(single.messages().contains(new CommunityGovernanceHandler.Rendering.Message(
                     "community.governance.role-line", Map.of(
                     "roleKey", CommunityRolePower.displayKey(role),
-                    "detailKey", role.canApprove() ? "community.governance.role-approver"
+                    // 展示分组走治理通道口径（isGovernance），不再用审批能力。
+                    "detailKey", role.isGovernance() ? "community.governance.role-approver"
                             : CommunityRolePower.isDomainRole(role) ? "community.governance.role-domain"
                             : "community.governance.role-member",
                     "moderateKey", role.canModerate()
@@ -197,6 +198,72 @@ final class CommunityGovernanceHandlerTest {
 
         CommunityGovernanceHandler.Rendering unknown = fixture.handler.roleLookup("not-a-role");
         assertTrue(unknown.keys().contains("community.governance.role-unknown"));
+    }
+
+    // ---------------------------------------------------------------
+    // ③-b G-115：治理通道准入（isGovernance）与投票权（canApprove）是两条口径
+    // ---------------------------------------------------------------
+
+    /** 七角色的准入线闭合：领域角色提交得了本领域动作，但进不了角色任命通道。 */
+    @Test
+    void governanceChannelAdmissionIsAskedSeparatelyFromApprovalCapability() {
+        Fixture fixture = new Fixture();
+        UUID owner = UUID.randomUUID();
+        UUID builder = UUID.randomUUID();
+        UUID member = UUID.randomUUID();
+        fixture.roles.put(owner, CommunityRole.OWNER);
+        fixture.roles.put(builder, CommunityRole.BUILDER);
+        fixture.roles.put(member, CommunityRole.MEMBER);
+
+        // 治理角色：准入通过 → 真的把请求发到服务层。
+        CommunityGovernanceHandler.Rendering granted = fixture.handler
+                .assign(owner, UUID.randomUUID(), "role-grant-owner").join();
+        assertTrue(granted.keys().contains("community.governance.success"), granted.keys().toString());
+        assertEquals(1, fixture.roleAssignments.requestCalls.get());
+        assertEquals(1, fixture.capability.governanceCalls.get());
+        assertEquals(0, fixture.capability.calls.get(), "准入不得靠 APPROVE 能力查询冒充");
+
+        // 领域角色与普通成员：准入不通过 → 一个请求都不发。
+        for (UUID actor : List.of(builder, member)) {
+            CommunityGovernanceHandler.Rendering denied = fixture.handler
+                    .assign(actor, UUID.randomUUID(), "role-grant-denied").join();
+            assertTrue(denied.keys().contains("community.governance.not-allowed"),
+                    denied.keys().toString());
+        }
+        assertEquals(1, fixture.roleAssignments.requestCalls.get(), "准入不过时不得触达服务层");
+        // 领域角色仍然能在自己领域发起动作：准入线比投批线宽一档。
+        assertTrue(CommunityRolePower.can(CommunityRole.BUILDER,
+                CommunityRolePower.Capability.SUBMIT_APPROVAL));
+        assertFalse(CommunityRolePower.can(CommunityRole.BUILDER,
+                CommunityRolePower.Capability.GOVERNANCE_ACTION));
+    }
+
+    /** 准入判定必须真的走到服务层：探针被调用次数是行为证据，不是源码断言。 */
+    @Test
+    void assignAlwaysRoutesGovernanceAdmissionThroughTheService() {
+        Fixture fixture = new Fixture();
+        UUID owner = UUID.randomUUID();
+        fixture.roles.put(owner, CommunityRole.OWNER);
+
+        fixture.handler.assign(owner, UUID.randomUUID(), "role-grant-1").join();
+        fixture.handler.assign(owner, UUID.randomUUID(), "role-grant-2").join();
+
+        assertEquals(2, fixture.capability.governanceCalls.get());
+        assertEquals(2, fixture.roleAssignments.requestCalls.get());
+    }
+
+    /** OWNER 的展示行仍然由治理通道口径给出「可批准」，且行内不再依赖审批能力判定。 */
+    @Test
+    void roleLineGroupsByGovernanceChannelForEveryRole() {
+        Fixture fixture = new Fixture();
+        for (CommunityRole role : CommunityRole.values()) {
+            CommunityGovernanceHandler.Rendering single = fixture.handler.roleLookup(role.name());
+            String detailKey = String.valueOf(single.messages().get(0).placeholders().get("detailKey"));
+            String expected = role.isGovernance() ? "community.governance.role-approver"
+                    : CommunityRolePower.isDomainRole(role) ? "community.governance.role-domain"
+                    : "community.governance.role-member";
+            assertEquals(expected, detailKey, role + " 的行键分组错误");
+        }
     }
 
     // ---------------------------------------------------------------
@@ -267,23 +334,33 @@ final class CommunityGovernanceHandlerTest {
             this.handler = new CommunityGovernanceHandler(
                     withService ? service : null,
                     withService ? roleAssignments : null,
-                    capability::can, enabled);
+                    capability, enabled);
         }
     }
 
     /** 能力查询直接复用被测试模块依赖的能力表，不复制角色判断。 */
-    private static final class RecordingCapability {
+    private static final class RecordingCapability implements CommunityGovernanceHandler.CapabilityProbe {
         private final Map<UUID, CommunityRole> roles;
         private final AtomicInteger calls = new AtomicInteger();
+        private final AtomicInteger governanceCalls = new AtomicInteger();
 
         private RecordingCapability(Map<UUID, CommunityRole> roles) {
             this.roles = roles;
         }
 
-        CompletableFuture<Boolean> can(UUID playerId, CommunityRolePower.Capability capability) {
+        @Override
+        public CompletableFuture<Boolean> can(UUID playerId, CommunityRolePower.Capability capability) {
             calls.incrementAndGet();
             return CompletableFuture.completedFuture(
                     CommunityRolePower.can(roles.get(playerId), capability));
+        }
+
+        @Override
+        public CompletableFuture<Boolean> isGovernanceMember(UUID playerId) {
+            governanceCalls.incrementAndGet();
+            return CompletableFuture.completedFuture(
+                    CommunityRolePower.can(roles.get(playerId),
+                            CommunityRolePower.Capability.GOVERNANCE_ACTION));
         }
     }
 
@@ -307,6 +384,12 @@ final class CommunityGovernanceHandlerTest {
         @Override
         public CompletionStage<Boolean> can(UUID playerId, CommunityRolePower.Capability capability) {
             return CompletableFuture.completedFuture(CommunityRolePower.can(roles.get(playerId), capability));
+        }
+
+        @Override
+        public CompletionStage<Boolean> isGovernanceMember(UUID playerId) {
+            return CompletableFuture.completedFuture(CommunityRolePower.can(roles.get(playerId),
+                    CommunityRolePower.Capability.GOVERNANCE_ACTION));
         }
 
         @Override

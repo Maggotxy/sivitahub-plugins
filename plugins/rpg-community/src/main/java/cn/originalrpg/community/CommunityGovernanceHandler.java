@@ -59,6 +59,18 @@ final class CommunityGovernanceHandler {
     @FunctionalInterface
     interface CapabilityProbe {
         CompletableFuture<Boolean> can(UUID playerId, CommunityRolePower.Capability capability);
+
+        /**
+         * 是否是治理成员（治理通道准入）。
+         *
+         * <p>准入与能力是两条判定：准入回答「能不能申请走双批」，
+         * {@link CommunityRolePower.Capability#APPROVE} 回答「能不能投票」。
+         * 默认实现只做兜底，真实实现由命令层接到服务层的
+         * {@code CommunityGovernanceService#isGovernanceMember}。</p>
+         */
+        default CompletableFuture<Boolean> isGovernanceMember(UUID playerId) {
+            return can(playerId, CommunityRolePower.Capability.GOVERNANCE_ACTION);
+        }
     }
 
     private final CommunityGovernanceService governance;
@@ -113,7 +125,7 @@ final class CommunityGovernanceHandler {
 
     private void appendRole(Rendering out, CommunityRole role) {
         // 能力展示直接选文案键，避免在 messages.text 的占位符里做动态拼接。
-        String lineKey = role.canApprove() ? "community.governance.role-approver"
+        String lineKey = role.isGovernance() ? "community.governance.role-approver"
                 : CommunityRolePower.isDomainRole(role) ? "community.governance.role-domain"
                 : "community.governance.role-member";
         out.add("community.governance.role-line", Map.of(
@@ -123,15 +135,16 @@ final class CommunityGovernanceHandler {
                         ? "community.governance.moderator" : "community.governance.non-moderator"));
     }
 
-    /** {@code /community assign <player>}：发起角色变更审批（需要 ASSIGN_ROLE 能力）。 */
+    /** {@code /community assign <player>}：发起角色变更审批（先过治理通道准入）。 */
     CompletableFuture<Rendering> assign(UUID actor, UUID target, String idempotencyKey) {
         Rendering out = new Rendering();
         if (!gatesOpen(out)) return CompletableFuture.completedFuture(out);
         CapabilityProbe probe = capability;
-        return probe.can(actor, CommunityRolePower.Capability.SUBMIT_APPROVAL)
+        // 准入走治理通道判定（isGovernance），不代入审批能力：领域角色/普通成员都拿不到角色任命通道。
+        return probe.isGovernanceMember(actor)
                 .thenCompose(allowed -> {
                     if (!allowed) {
-                        // 非治理角色不能发起角色变更；不把必然失败的操作发到服务层。
+                        // 非治理成员不能发起角色变更；不把必然失败的操作发到服务层。
                         return CompletableFuture.completedFuture(CommunityApprovalOutcome.of(
                                 CommunityApprovalOutcome.Status.NOT_ALLOWED,
                                 CommunityGovernanceAction.ROLE_GRANT));

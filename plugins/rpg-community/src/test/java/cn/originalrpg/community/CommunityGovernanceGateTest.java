@@ -78,6 +78,11 @@ final class CommunityGovernanceGateTest {
         }
 
         @Override
+        public CompletionStage<Boolean> isGovernanceMember(UUID playerId) {
+            return CompletableFuture.completedFuture(false);
+        }
+
+        @Override
         public CompletionStage<Optional<CommunityGovernanceAction>> pending(UUID playerId) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
