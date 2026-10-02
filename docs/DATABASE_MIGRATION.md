@@ -2,7 +2,7 @@
 
 更新时间：2026-08-12。
 
-本页适用于把单节点 `plugins/RpgCore/data/rpg.mv.db` 搬到 PostgreSQL。工具迁移 RpgCore 当前清单中的全部 62 张 `rpg_*` 玩法表，包括装备操作恢复、技能变异、隐藏路线、体力恢复额度、管理员隔离测试档案、事故补偿审计、宠物成长/图鉴/外观/亲密账本与跨库复苏意图及社群周荣誉回执；AuthMe、LuckPerms、原版世界、玩家 `.dat`、PDC、Citizens 和 BetonQuest 数据不在本工具范围内。清单契约测试会在 RpgCore 新增表、唯一键或运行时性能索引而工具尚未同步时失败关闭，避免静默漏迁或把数据迁入缺少关键索引的目标库。
+本页适用于把单节点 `plugins/RpgCore/data/rpg.mv.db` 搬到 PostgreSQL。工具迁移 RpgCore 当前清单中的全部 75 张 `rpg_*` 玩法表，包括装备操作恢复、技能变异、隐藏路线、体力恢复额度、管理员隔离测试档案、事故补偿审计、宠物成长/图鉴/外观/亲密账本与跨库复苏意图及社群周荣誉回执；AuthMe、LuckPerms、原版世界、玩家 `.dat`、PDC、Citizens 和 BetonQuest 数据不在本工具范围内。清单契约测试会在 RpgCore 新增表、唯一键或运行时性能索引而工具尚未同步时失败关闭，避免静默漏迁或把数据迁入缺少关键索引的目标库。
 
 入口：`server/bin/migrate-rpg-h2-to-postgresql.sh`  
 实现与测试：`tools/db-migration/`
@@ -14,7 +14,7 @@
 - 源 H2 自动追加 `IFEXISTS=TRUE` 和 `ACCESS_MODE_DATA=r`，不会因路径写错创建空库，也不会写源库。
 - JDBC URL 不允许嵌入密码、token 或 `user:password@host`。密码只从 0600、非符号链接的单行文件或 `SIVITA_MIGRATION_*_PASSWORD` 环境变量读取，日志不输出 URL、账号或密码。
 - 目标 schema 必须由完全相同的 RpgCore 构建初始化。工具不复制、猜测或维护第二份 schema。
-- 源和目标必须完整包含清单中的 62 张表；表、列、类型族、宽度/精度、可空性、主键、关键唯一索引或运行时性能索引不兼容会立即失败。
+- 源和目标必须完整包含清单中的 75 张表；表、列、类型族、宽度/精度、可空性、主键、关键唯一索引或运行时性能索引不兼容会立即失败。
 - 默认只允许空目标。非空目标只有两种合法结果：数据已经逐表完全一致时幂等成功；否则必须显式使用 `--replace-existing --confirm-replace RPG_TABLES --confirm-target <实际数据库名>`；连接后的 PostgreSQL catalog 必须与确认名完全一致。
 - 实际复制在 PostgreSQL 单一 `SERIALIZABLE` 事务中完成，并持有迁移 advisory lock。覆盖按反向依赖顺序删除，复制按正向依赖顺序批量写入；任一复制或提交前校验失败会整体回滚。
 - 每张表比较行数、主键摘要、全行 SHA-256 摘要和关键金额/数值列合计，并检查主键与关键唯一键无重复。提交后再从已提交视图完整校验一次。

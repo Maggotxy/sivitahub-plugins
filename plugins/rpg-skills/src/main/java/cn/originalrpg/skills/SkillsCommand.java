@@ -96,6 +96,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
     private final Map<UUID, String> hudSignatures = new ConcurrentHashMap<>();
     private final Map<UUID, Long> hudSentAt = new ConcurrentHashMap<>();
     private final Map<UUID, BattleTranceState> battleTrances = new ConcurrentHashMap<>();
+    private final AttackerBonusTag attackerBonusTag = new AttackerBonusTag();
     private final Map<UUID, DefenseState> defenseStates = new ConcurrentHashMap<>();
     private final Map<UUID, LineLinkState> lineLinks = new ConcurrentHashMap<>();
     private final Map<UUID, StandardState> standardStates = new ConcurrentHashMap<>();
@@ -935,41 +936,115 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
         return result != null && result.getHitEntity() instanceof Player hit ? hit : null;
     }
 
+    /**
+     * 攻方增益（rallying-standard 光环 + battle-trance 连击层数）的状态推进。
+     *
+     * <p>G-105 修复要点：本监听器**不再**写 {@code event.setDamage}。原先它挂在 HIGH，
+     * 在总线之前就把 {@code base * 1.12 * (1 + stacks * 0.06)} 塞回同一事件，随后
+     * rpg-combat {@code ExecuteListener.onDamage}（HIGHEST）又对这笔伤害乘
+     * {@code attackMultiplier} 与 {@code targetMultiplier}，同一个增益被结算两次。
+     *
+     * <p>现在这里只做两件事：推进连击层数、播放命中表现。增益本身由
+     * {@link #settleAttackerBonus(EntityDamageByEntityEvent)} 在 HIGHEST 单点写入，
+     * 顺序确定为「先减伤（G-001）→ 再乘攻击倍率 → 最后乘攻方增益」。
+     */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBattleTranceHit(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)
                 || !(event.getEntity() instanceof LivingEntity target)) return;
         StandardState standard = standardStates.get(player.getUniqueId());
         long now = System.currentTimeMillis();
+        boolean standardActive = false;
         if (standard != null) {
             if (standard.expiresAt() <= now || !player.getWorld().equals(standard.origin().getWorld())
                     || player.getLocation().distanceSquared(standard.origin()) > standard.radius() * standard.radius()) {
                 standardStates.remove(player.getUniqueId(), standard);
             } else {
-                event.setDamage(event.getDamage() * 1.12);
+                standardActive = true;
                 visuals.impact(player, target.getLocation().add(0.0, target.getHeight() * 0.55, 0.0),
                         org.bukkit.Particle.WAX_ON, 2);
             }
         }
         BattleTranceState state = battleTrances.get(player.getUniqueId());
-        if (state == null) return;
-        if (state.expiresAt() <= now) {
+        int stacks = 0;
+        if (state != null) {
+            if (state.expiresAt() <= now) {
+                battleTrances.remove(player.getUniqueId(), state);
+            } else {
+                stacks = AttackerBonusRules.nextStacks(now, state.lastHitAt(), state.stacks());
+                battleTrances.put(player.getUniqueId(), new BattleTranceState(state.expiresAt(), now, stacks));
+                visuals.impact(player, target.getLocation().add(0.0, target.getHeight() * 0.55, 0.0),
+                        org.bukkit.Particle.CRIT, 2 + stacks);
+                if (stacks == AttackerBonusRules.TRANCE_MAX_STACKS) {
+                    org.bukkit.util.Vector launch = target.getLocation().toVector()
+                            .subtract(player.getLocation().toVector());
+                    if (launch.lengthSquared() < 0.01) launch = new org.bukkit.util.Vector(0.0, 0.0, 1.0);
+                    double force = isManagedBoss(target) ? 0.24 : target instanceof Player ? 0.40 : 0.70;
+                    target.setVelocity(launch.normalize().multiply(force)
+                            .setY(isManagedBoss(target) ? 0.10 : target instanceof Player ? 0.20 : 0.35));
+                }
+            }
+        }
+    }
+
+    /**
+     * 攻方增益的唯一写入口（G-105）：在总线结算完减伤与攻击倍率之后，把
+     * {@link AttackerBonusRules#bonus} 乘一次。幂等守卫保证同一事件只生效一次。
+     *
+     * <p>挂在 HIGHEST 而不是 HIGH，是为了让增益作用于**已被减伤与倍率处理过**的伤害。
+     * 乘法可交换，所以即便 {@code ExecuteListener.onDamage} 与本方法同为 HIGHEST、
+     * 排布顺序不确定，乘积仍一致；G-105 的病根不是顺序，而是同一个 bonus 被结算了两次。
+     * 这里只结算一次，并由 {@link AttackerBonusTag} 拦下同一 tick 的重复派发。
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void settleAttackerBonus(EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player player)) return;
+        if (standardStates.get(player.getUniqueId()) == null && battleTrances.get(player.getUniqueId()) == null) return;
+        settleAttackerBonus(event, standardBonusActive(player), currentTranceStacks(player));
+    }
+
+    private boolean standardBonusActive(Player player) {
+        StandardState standard = standardStates.get(player.getUniqueId());
+        if (standard == null) return false;
+        long now = System.currentTimeMillis();
+        if (standard.expiresAt() <= now || !player.getWorld().equals(standard.origin().getWorld())
+                || player.getLocation().distanceSquared(standard.origin()) > standard.radius() * standard.radius()) {
+            standardStates.remove(player.getUniqueId(), standard);
+            return false;
+        }
+        return true;
+    }
+
+    private int currentTranceStacks(Player player) {
+        BattleTranceState state = battleTrances.get(player.getUniqueId());
+        if (state == null) return 0;
+        if (state.expiresAt() <= System.currentTimeMillis()) {
             battleTrances.remove(player.getUniqueId(), state);
-            return;
+            return 0;
         }
-        int stacks = now - state.lastHitAt() > 2_500L ? 1 : Math.min(5, state.stacks() + 1);
-        battleTrances.put(player.getUniqueId(), new BattleTranceState(state.expiresAt(), now, stacks));
-        event.setDamage(event.getDamage() * (1.0 + stacks * 0.06));
-        visuals.impact(player, target.getLocation().add(0.0, target.getHeight() * 0.55, 0.0),
-                org.bukkit.Particle.CRIT, 2 + stacks);
-        if (stacks == 5) {
-            org.bukkit.util.Vector launch = target.getLocation().toVector()
-                    .subtract(player.getLocation().toVector());
-            if (launch.lengthSquared() < 0.01) launch = new org.bukkit.util.Vector(0.0, 0.0, 1.0);
-            double force = isManagedBoss(target) ? 0.24 : target instanceof Player ? 0.40 : 0.70;
-            target.setVelocity(launch.normalize().multiply(force)
-                    .setY(isManagedBoss(target) ? 0.10 : target instanceof Player ? 0.20 : 0.35));
+        return state.stacks();
+    }
+
+    /**
+     * 测试缝：按 gameplay 的同一形状装载攻方增益状态（光环归属者 + 连击层数）。
+     * 只改状态，不改伤害；行为仍由 {@link #settleAttackerBonus(EntityDamageByEntityEvent)} 决定。
+     */
+    void armAttackerBonusForTest(UUID playerId, UUID standardOwner, long standardExpiresAt,
+                                 org.bukkit.Location standardOrigin, long tranceExpiresAt, int stacks) {
+        if (standardOwner != null) {
+            standardStates.put(playerId, new StandardState(standardOwner, standardExpiresAt, standardOrigin, 8.0));
         }
+        if (tranceExpiresAt > 0L) {
+            battleTrances.put(playerId, new BattleTranceState(tranceExpiresAt, 0L, stacks));
+        }
+    }
+
+    private void settleAttackerBonus(EntityDamageByEntityEvent event, boolean standardActive, int tranceStacks) {
+        double bonus = AttackerBonusRules.bonus(standardActive, tranceStacks);
+        if (bonus <= 1.0) return;
+        if (attackerBonusTag.alreadyApplied(event, plugin.getServer().getCurrentTick())) return;
+        attackerBonusTag.mark(event, plugin.getServer().getCurrentTick());
+        event.setDamage(AttackerBonusRules.apply(event.getDamage(), bonus));
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)

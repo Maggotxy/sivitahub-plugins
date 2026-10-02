@@ -46,6 +46,8 @@ RESOURCE_PACK_OUTPUT_DIR="$candidate_dir" SKIP_PROPERTY_UPDATE=1 resource-pack/b
 `server/bin/verify-installation.sh`。不得把缺失图片手工塞进 ZIP；字体码位、位置和着色器
 必须来自同一次 BetterHud 编译。
 
+> **待办（G-206）**：上述 `server/bin/*.sh`（含 `verify-installation.sh`）与 `sivita-navigation` 数据包当前都不在版本控制内（`server/` 被 `.gitignore` 排除），本页与 `PLUGIN_INTEGRATION.md` 对它们的引用无法在本仓复核。建议后续任务把这些脚本与数据包纳入版本控制或改为本仓生成脚本，属于代码改动，不在文档订正范围内。
+
 如果第一阶段使用隔离的 BetterHud 候选实例，可显式指定该实例目录：
 
 ```bash

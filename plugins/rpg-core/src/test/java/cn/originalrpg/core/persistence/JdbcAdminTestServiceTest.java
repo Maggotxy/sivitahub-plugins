@@ -62,7 +62,7 @@ final class JdbcAdminTestServiceTest {
                     """);
             connection.commit();
         }
-        profiles = new JdbcProfileService(dataSource, direct, 100, 2, 3);
+        profiles = new JdbcProfileService(dataSource, direct, 100, 2);
         skills = new JdbcSkillService(dataSource, direct);
         tests = new JdbcAdminTestService(dataSource, direct, profiles, skills, 100, 2);
     }

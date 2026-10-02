@@ -1,0 +1,79 @@
+{
+  "task_id": "W2-A1-ascend-bypass-removal",
+  "status": "success",
+  "summary": "删除 ProfileService.ascend(UUID) / JdbcProfileService.ascend(UUID) 简化旁路（本体而非仅标 Deprecated），并清掉只服务于它的 maximumOpenAscension 字段与两个构造重载；全部调用点改走 AscensionService。新增两条行为级测试：反射断言转生入口已从档案接口消失；真跑一次 AscensionService.ascend 并断言收据 + 功勋流水落库。",
+  "changed_files": [
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/service/ProfileService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcProfileService.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcAdminIncidentCompensationServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcAdminTestServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcDungeonRewardServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java"
+  ],
+  "call_sites_before": [
+    {
+      "site": "JdbcServicesTest.classBranchesRequireMatchingClassAndOpenedAscensionStage (原 JdbcServicesTest.java:1078)",
+      "old_call": "profiles.ascend(playerId)  // 参数：playerId（UUID，测试生成的玩家）",
+      "new_call": "ascendThroughService(profiles, ascensions, playerId, 1)  → JdbcAscensionService.ascend(playerId, AscensionEvidence(1,true,40,{uuid}))"
+    },
+    {
+      "site": "JdbcServicesTest.fullyAscended 助手（原 JdbcServicesTest.java:1152，被 3 个分支测试调用）",
+      "old_call": "profiles.ascend(playerId)  // 参数：playerId（UUID）",
+      "new_call": "删除该助手；3 个分支测试改为按真实玩家流程逐级调用 JdbcAscensionService.ascend(playerId, evidence)，分支前置用 JdbcClassBranchService.choose 产生"
+    },
+    {
+      "site": "JdbcServicesTest.chapterGateIsMonotonicAuditedAndImmediatelyControlsAscension (原 :1968)",
+      "old_call": "profiles.ascend(player).toCompletableFuture().join()  // 参数：player（UUID）；原意是断言章节门未开时抛 CompletionException",
+      "new_call": "ascensions.eligibility(player, evidence) 断言 status=CHAPTER_LOCKED；章节推进后 ascensions.ascend(player, evidence) 断言 SUCCESS 且 ascension=1"
+    },
+    {
+      "site": "JdbcServicesTest.chapterGateIsMonotonicAuditedAndImmediatelyControlsAscension (原 :1977)",
+      "old_call": "profiles.ascend(player).toCompletableFuture().join().ascension()  // 参数：player（UUID）",
+      "new_call": "ascensions.ascend(player, evidence).toCompletableFuture().join().profile().ascension()"
+    },
+    {
+      "site": "插件装配 RpgCorePlugin.java:145",
+      "old_call": "new JdbcProfileService(dataSource, databaseExecutor, startingEnergy, energyPerStamina, chapters::maximumOpenAscension)  // 第 5 参 IntSupplier，仅供已删的 ascend 旁路使用",
+      "new_call": "new JdbcProfileService(dataSource, databaseExecutor, startingEnergy, energyPerStamina)"
+    }
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'ascend' plugins/rpg-api/src/main plugins/rpg-core/src/main",
+        "hit": "plugins/rpg-api/.../service/AscensionService.java:9 (注释)\nplugins/rpg-api/.../service/AscensionService.java:13 (接口方法 ascend(UUID, AscensionEvidence))\nplugins/rpg-core/.../persistence/Database.java:636 (DDL 列 ascended_at)\nplugins/rpg-core/.../persistence/JdbcAscensionService.java:60 (实现 ascend(UUID, AscensionEvidence))\n→ 无 ProfileService.ascend(UUID) / JdbcProfileService.ascend(UUID) 残留"
+      },
+      {
+        "cmd": "grep -rn 'CompletionStage<PlayerProfile> ascend' plugins/rpg-api/src/main plugins/rpg-core/src/main; echo EXIT=$?",
+        "hit": "无输出，EXIT=1（零命中）→ 单参简化旁路的声明与实现均已删除"
+      },
+      {
+        "cmd": "grep -rn --include=*.java '\\.ascend(' plugins/*/src/main",
+        "hit": "plugins/rpg-classes/.../RpgClassesPlugin.java:429: ascensions.ascend(playerId, evidence) —— 生产唯一调用点，已是权威路径（本就未用旁路）"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-api:compileJava :plugins:rpg-api:test",
+        "result": "BUILD SUCCESSFUL；rpg-api 58 tests, failures=0, errors=0"
+      },
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-core:compileJava :plugins:rpg-core:test",
+        "result": "207 tests completed, 2 failed —— 2 个失败均在 cn.originalrpg.core.i18n.LanguageBundleContractTest，原因 java.nio.file.NoSuchFileException: /workspace/server/config 与 /workspace/server/datapacks/...；server/ 在本仓库未被 git 跟踪（git ls-files server 计数 0），删除本次改动后（git stash）在基线上同样失败，属环境性预先存在失败，与 ascension 改动无关。JdbcServicesTest 100 tests, failures=0, errors=0"
+      },
+      {
+        "cmd": "grep -o 'tests=\"[0-9]*\" skipped=\"[0-9]*\" failures=\"[0-9]*\" errors=\"[0-9]*\"' plugins/rpg-core/build/test-results/test/TEST-cn.originalrpg.core.persistence.JdbcServicesTest.xml",
+        "result": "tests=\"100\" skipped=\"0\" failures=\"0\" errors=\"0\""
+      }
+    ]
+  },
+  "unproven": [
+    "未在真实 Paper + PostgreSQL 下跑过（[R] Runtime 证据缺口，本任务仅覆盖 [S] 源码 + [T] 测试）",
+    "rpg-classes 的生产调用点 RpgClassesPlugin.java:429 未改（本就调用 AscensionService），未跑其模块测试（不在允许改动路径内，且无源码改动）"
+  ],
+  "blockers": [
+    "rpg-core 的 LanguageBundleContractTest 两个用例依赖本仓库未跟踪的 server/ 目录，本环境恒失败；非本任务引入"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/17"
+}

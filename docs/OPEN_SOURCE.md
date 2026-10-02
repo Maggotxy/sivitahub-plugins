@@ -6,7 +6,7 @@
 |---|---|---|---|
 | Paper | GPL 系列/上游多许可 | 官方当前稳定构建 | 服务端核心，不魔改核心 |
 | LuckPerms | MIT | Modrinth 有 26.2 构建 | 直接使用，负责权限 |
-| PlaceholderAPI | GPL-3.0 | 2.12.3 标注 26.2 | 直接使用；`RpgIntegrations` 已注册 11 个只读快照占位符 |
+| PlaceholderAPI | GPL-3.0 | 2.12.3 标注 26.2 | 直接使用；`RpgIntegrations` 已注册 38 个只读快照占位符入参分支 |
 | WorldEdit | GPL-3.0 | 7.4.4 标注 26.2 | 直接使用，副本地图制作工具 |
 | WorldGuard | LGPL-3.0 | 7.0.18 标注 26.2 | 直接使用；`RpgHub` 通过公开 API 持久化主城多边形保护区 |
 | Chunky | GPL-3.0 | 1.5.3 标注 26.2 | 直接使用，预生成原版世界 |

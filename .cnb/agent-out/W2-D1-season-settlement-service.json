@@ -1,0 +1,154 @@
+{
+  "task_id": "W2-D1-season-settlement-service",
+  "status": "success",
+  "summary": "落地 C-010 换季事务：新增 SeasonSettlementService（九态状态机，canTransitionTo 为唯一合法性判据）+ JdbcSeasonSettlementService 实现，走「先写待结算日志 → 原子提交 → 清扫」三步崩溃一致性模式；新增 4 张换季事务表与 rpg_progression_wallets.season_id 列；新增赛季层功勋钱包把「永久层/赛季层物理隔离」变成可查询事实。资金动作只碰赛季层功勋，旧赛季结清进既有 rpg_merit_ledger 后原子归零，金币/星辉/物品/战力不参与换季。13 条行为级测试全绿（9 + 4）。",
+  "changed_files": [
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/service/SeasonSettlementService.java",
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/service/SeasonMeritWalletService.java",
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/model/SeasonSettlementResult.java",
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/model/SeasonSettlementPreview.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcSeasonSettlementService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcSeasonMeritWalletService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/MechanismRegistry.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/command/RpgCommand.java",
+    "plugins/rpg-core/src/main/resources/lang/zh_cn.yml",
+    "plugins/rpg-core/src/main/resources/lang/en_us.yml",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSeasonSettlementServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSeasonSettlementWiringTest.java",
+    "tools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/20",
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'SeasonSettlementService' plugins/rpg-core/src/main | grep -v 'persistence/JdbcSeasonSettlementService.java'",
+        "hit": [
+          "plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java:25:import cn.originalrpg.api.service.SeasonSettlementService;",
+          "plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java:206:            JdbcSeasonSettlementService seasonSettlements = new JdbcSeasonSettlementService(",
+          "plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java:256:                    SeasonSettlementService.class, seasonSettlements, this, ServicePriority.Normal);",
+          "plugins/rpg-core/src/main/java/cn/originalrpg/core/command/RpgCommand.java:37:    private final SeasonSettlementService seasonSettlements;",
+          "plugins/rpg-core/src/main/java/cn/originalrpg/core/command/RpgCommand.java:120:        return seasonSettlements.state(seasonId)",
+          "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/MechanismRegistry.java:47:            SEASON_SETTLEMENT, \"JdbcSeasonSettlementService\","
+        ]
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'SeasonSettlementState' plugins | grep 'src/main' | grep -v 'api/rules/SeasonSettlementState.java' | grep -v 'persistence/JdbcSeasonSettlementService.java'",
+        "hit": [
+          "plugins/rpg-core/src/main/java/cn/originalrpg/core/command/RpgCommand.java:19:import cn.originalrpg.api.rules.SeasonSettlementState;",
+          "plugins/rpg-core/src/main/java/cn/originalrpg/core/command/RpgCommand.java:118:    private CompletionStage<SeasonSettlementState> seasonState(String seasonId) {",
+          "plugins/rpg-core/src/main/java/cn/originalrpg/core/command/RpgCommand.java:139:                \"state\", settlementState.name())), NamedTextColor.GRAY));",
+          "plugins/rpg-api/src/main/java/cn/originalrpg/api/model/SeasonSettlementResult.java:13:        SeasonSettlementState state,",
+          "plugins/rpg-api/src/main/java/cn/originalrpg/api/service/SeasonSettlementService.java:26:    CompletionStage<SeasonSettlementState> state(String seasonId);"
+        ]
+      },
+      {
+        "cmd": "for t in rpg_season_settlement_gate rpg_season_settlement_transitions rpg_season_settlement_progress rpg_season_merit_wallets; do grep -rln --include=*.java \"$t\" plugins | grep 'src/main'; done",
+        "hit": [
+          "rpg_season_settlement_gate -> Database.java + JdbcSeasonSettlementService.java",
+          "rpg_season_settlement_transitions -> Database.java + JdbcSeasonSettlementService.java",
+          "rpg_season_settlement_progress -> Database.java + JdbcSeasonSettlementService.java",
+          "rpg_season_merit_wallets -> Database.java + JdbcSeasonMeritWalletService.java + JdbcSeasonSettlementService.java"
+        ]
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'season_id' plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java | grep -i 'add column'",
+        "hit": [
+          "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java:189:                \"ALTER TABLE rpg_progression_wallets ADD COLUMN IF NOT EXISTS season_id VARCHAR(32)\","
+        ]
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "hit": [
+          "DDL 表数: 79",
+          "DDL_CONSUMER_GATE=GREEN",
+          "rpg_season_settlements 已不在 [豁免] 清单里 —— 它现在靠真实消费者通过（scripts/check-ddl-consumers.sh 未修改；消费者是 JdbcSeasonSettlementService 的 SELECT/INSERT/UPDATE）"
+        ]
+      },
+      {
+        "cmd": "grep -n 'season_settlement\\|season_merit' tools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java",
+        "hit": [
+          "82:            \"rpg_season_settlements\",",
+          "83:            \"rpg_season_settlement_gate\",",
+          "84:            \"rpg_season_settlement_transitions\",",
+          "85:            \"rpg_season_settlement_progress\",",
+          "86:            \"rpg_season_merit_wallets\",",
+          "205:        indexes.put(\"rpg_season_settlement_transitions\", List.of(List.of(\"settlement_id\", \"created_at\")));"
+        ]
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:test --tests '*JdbcSeasonSettlementServiceTest*'",
+        "result": "BUILD SUCCESSFUL —— 9 tests, 0 failures, 0 errors"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:test --tests '*JdbcSeasonSettlementWiringTest*'",
+        "result": "BUILD SUCCESSFUL —— 4 tests, 0 failures, 0 errors"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:test",
+        "result": "218 tests completed, 2 failed —— 失败的 2 条是 LanguageBundleContractTest（读 server/datapacks 与 server/config），本沙箱无 server/ 目录"
+      },
+      {
+        "cmd": "git stash -u && ./gradlew --no-daemon --continue test && git stash pop  # 同一沙箱的干净基线对照",
+        "result": "基线同样 2+2+2+1+2 条 ContractTest 失败，且 rpg-core 为 205 tests / 2 failed；本改动把 rpg-core 从 205 提到 218 且未新增任何失败"
+      },
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-api:compileJava :plugins:rpg-core:compileJava :plugins:rpg-admin:compileJava :tools:db-migration:compileJava",
+        "result": "BUILD SUCCESSFUL"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 compileJava",
+        "result": "BUILD SUCCESSFUL —— 全 26 子工程编译门绿"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-admin:test :tools:db-migration:test :plugins:rpg-api:test",
+        "result": "BUILD SUCCESSFUL"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :tools:db-migration:test --tests '*SchemaManifestContractTest*'",
+        "result": "BUILD SUCCESSFUL —— 新表与新索引已与 Database.java 对账"
+      }
+    ]
+  },
+  "c010_coverage": {
+    "covered": [
+      "九态状态机：DRAFT->PREVIEWED->APPROVED->FREEZING->SETTLING->VERIFYING->COMPLETED/FAILED/ROLLED_BACK，合法性判据直接用既有 SeasonSettlementState.canTransitionTo",
+      "「先写待结算日志 -> 原子提交 -> 清扫」：rpg_season_settlement_transitions 为待结算日志与重放真相源；资金动作与状态迁移共享一个 JDBC 事务；SETTLING 后立刻 sweep 打 committed_at",
+      "禁止只改 season-id 假装换季：SETTLING 必须给出不同的目标赛季，否则 INVALID 拒绝（settlingToTheSameSeasonIsRefusedSoMeritIsNeverWipedWithoutARotation）",
+      "永久层与赛季层物理隔离：rpg_progression_wallets.merit 保持永久层，赛季层单独 rpg_season_merit_wallets；两者只能「搬家」，净值恒为 0",
+      "幂等键：rpg_merit_ledger 复用 season-settlement:<新赛季>:<玩家> 唯一键；同 id 同指纹重放返回 DUPLICATE，绝不重复发放",
+      "审计流水：每次迁移落 rpg_season_settlement_transitions（操作者/原因/前后态/事实指纹/请求指纹/事务版本）",
+      "预览-审批事实指纹：预览后资金变化会让审批 CONFLICT、结算 BLOCKED+FAILED，而不是照旧执行",
+      "C-005 熔断：换季结算受 mechanism season.settlement.enabled 门禁，关闭时状态不解锁、账本零改动"
+    ],
+    "left_for_later": [
+      "「Raid 凭证 / 高阶核心 / 旧装备」三类载体的跨赛季结算事务（docs/SEASON_ENDGAME.md:71 明列的剩余项）——文档只声明其缺失，未给出结算语义，数值与规则需人类先拍板",
+      "FAILED -> ROLLED_BACK 的补偿执行：状态机边已实现且被 canTransitionTo 允许，但「回滚要退回什么」需要人类裁决（当前只落一条带 rollback-to:<赛季> 的审计日志，不动资金）",
+      "真实 PostgreSQL 并发故障恢复、50/70/100 人阶梯压力与完整 18 周周期数据验收（[R][H] 证据）",
+      "结算批量的分批推进（当前单事务 10000 玩家上限，超出即拒绝要求先清积压）"
+    ]
+  },
+  "unproven": [
+    "未在真实 Paper + PostgreSQL 上跑过换季（[R] 缺失）；本轮的崩溃一致性证据是 H2 + 真实 JDBC 事务回滚注入，不是进程级 kill -9",
+    "H2 的 PostgreSQL 兼容模式与真库在 FOR UPDATE / ON CONFLICT DO NOTHING 语义上可能仍有细微差异，未做真库对账",
+    "FAILED -> ROLLED_BACK 的合法边未端到端验证（无人拍板回滚的资金语义，故未在测试中断言其资金结果）",
+    "未在 rpg-admin 管理面接 /rpgadmin season 命令：allowed_paths 只含 rpg-core/rpg-api，越界改动已回退。当前唯一人工入口是 RpgCore 门面，管理面接线留给后续任务"
+  ],
+  "blockers": [],
+  "risks": [
+    "rpg_season_settlements.status 由 VARCHAR(16) 放宽到 VARCHAR(24)、新增 fact_digest 列：已有生产行（若有）需要 ALTER。DB 里已有非九态旧值会落到 SeasonSettlementState.valueOf 抛错。开关默认关闭且生产尚未换季，风险低，但真机升级前需要人类确认是否清理历史行",
+    "rpg_progression_wallets 新增 season_id 列后仍是 NULL（可空），语义是「从未参与赛季层」。写入方只有 JdbcSeasonMeritWalletService；旧代码路径不写它，故不会误伤既有功勋",
+    "换季把「所有赛季层余额」一次结清，不是只结清被收口的那个赛季。这是有意的（避免中间赛季变成无主余额），但需要人类确认这条口径",
+    "rpg-admin 的 /rpgadmin season 子命令未接线（越界，已回退）。换季目前只能通过 RpgCoreServices 门面或服务 API 推进，尚无带权限校验的运营入口"
+  ],
+  "next_steps": [
+    "派任务在 rpg-admin（本次 allowed_paths 之外）接 /rpgadmin season preview|<目标态> CONFIRM <原因>，复用 SeasonSettlementService.advance",
+    "人类裁决 FAILED -> ROLLED_BACK 的补偿语义（退回赛季层余额？还是只留审计？）",
+    "派任务实现 Raid 凭证 / 高阶核心 / 旧装备的跨赛季结算（需要先有规格）",
+    "真机 PostgreSQL 上跑一次非生产的 dry-run 换季，补 [R] 证据",
+    "/rpgadmin season preview 目前只读展示，尚未接进 rpg-admin 的 economy.json 快照"
+  ]
+}
