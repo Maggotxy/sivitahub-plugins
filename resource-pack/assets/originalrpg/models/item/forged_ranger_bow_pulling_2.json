@@ -1,0 +1,6 @@
+{
+  "parent": "originalrpg:item/forged_ranger_bow",
+  "textures": {
+    "layer0": "originalrpg:item/forged_ranger_bow_pulling_2"
+  }
+}

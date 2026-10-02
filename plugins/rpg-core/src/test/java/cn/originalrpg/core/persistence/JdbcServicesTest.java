@@ -95,12 +95,14 @@ class JdbcServicesTest {
                     """);
             statement.execute("""
                     CREATE TABLE rpg_skill_point_grants (
-                        source VARCHAR(96) NOT NULL, idempotency_key VARCHAR(96) NOT NULL,
-                        player_uuid VARCHAR(36) NOT NULL, points INTEGER NOT NULL,
-                        ascension INTEGER NOT NULL, from_local_level INTEGER NOT NULL,
+                        milestone_key VARCHAR(160) PRIMARY KEY,
+                        receipt VARCHAR(96) NOT NULL,
+                        player_uuid VARCHAR(36) NOT NULL,
+                        points INTEGER NOT NULL,
+                        ascension INTEGER NOT NULL,
+                        milestone_index INTEGER NOT NULL,
                         to_local_level INTEGER NOT NULL,
-                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE (source, idempotency_key)
+                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )
                     """);
             statement.execute("""
@@ -198,7 +200,7 @@ class JdbcServicesTest {
             statement.execute("""
                     CREATE TABLE rpg_market_deliveries (
                         id VARCHAR(36) PRIMARY KEY, player_uuid VARCHAR(36) NOT NULL,
-                        item_payload TEXT NOT NULL, source VARCHAR(96) NOT NULL,
+                        item_payload TEXT NOT NULL, source VARCHAR(128) NOT NULL,
                         state VARCHAR(16) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         delivered_at TIMESTAMP NULL
                     )
@@ -556,6 +558,44 @@ class JdbcServicesTest {
         assertEquals(1L, full);
         assertTrue(paths.path(first).toCompletableFuture().join().isPresent()
                 || paths.path(second).toCompletableFuture().join().isPresent());
+    }
+
+    /**
+     * 行为级（G-106 ⑸）：三转 + 已学前置技能 vanished-horizon + 隐藏副本回执 + 已兑换技能书 ⇒ 血契 eligible。
+     * 路由器的门来自 {@code HiddenPathRules.minimumAscension(BLOODPACT)}，种子一并按三转写。
+     */
+    @Test
+    void bloodpactIsEligibleAtThreeAscensionsWithEveryPreconditionMet() throws Exception {
+        JdbcHiddenPathService paths = new JdbcHiddenPathService(dataSource, executor);
+        UUID player = UUID.randomUUID();
+        seedBloodpactFacts(player, true);
+
+        var eligibility = paths.eligibility(player, HiddenPath.BLOODPACT).toCompletableFuture().join();
+        assertTrue(eligibility.eligible(),
+                "三转 + 已学前置 + 回执 + 技能书必须可激活：" + eligibility.missingRequirements());
+        assertEquals(List.of(), eligibility.missingRequirements());
+        assertTrue(paths.activate(player, HiddenPath.BLOODPACT).toCompletableFuture().join()
+                .status() == HiddenPathActivationResult.Status.ACTIVATED);
+    }
+
+    /**
+     * 行为级（G-106 ⑸）：二转时血契不可达，且给出的原因必须精确指向转数门，
+     * 不能把「还没到的转数」混成技能/副本/技能书之类的错因。
+     */
+    @Test
+    void bloodpactReportsOnlyTheAscensionGateAtTwoAscensions() throws Exception {
+        JdbcHiddenPathService paths = new JdbcHiddenPathService(dataSource, executor);
+        UUID player = UUID.randomUUID();
+        seedBloodpactFacts(player, true);
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("UPDATE rpg_profiles SET ascension = 2 WHERE player_uuid = '" + player + "'");
+            connection.commit();
+        }
+
+        var eligibility = paths.eligibility(player, HiddenPath.BLOODPACT).toCompletableFuture().join();
+        assertFalse(eligibility.eligible());
+        assertEquals(List.of("ascension"), eligibility.missingRequirements(),
+                "二转玩家唯一缺的应该是转数门，其余前置均已满足");
     }
 
     @Test
@@ -1103,7 +1143,7 @@ class JdbcServicesTest {
         assertEquals(11, atCap.skillPoints());
         // 本地 3/6/.../30 共十个里程碑，各写一行流水
         assertEquals(10, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"));
-        assertEquals(10, milestoneRows("local-milestone:0:%"));
+        assertEquals(10, milestoneRows("local-milestone:" + playerId + ":0:%"));
     }
 
     @Test
@@ -1135,12 +1175,14 @@ class JdbcServicesTest {
         // 走完 1 转：累计 20 点，并且流水里两段各有自己的档位 id
         profiles.grantExperience(playerId, Long.MAX_VALUE).toCompletableFuture().join();
         assertEquals(21, profiles.get(playerId).toCompletableFuture().join().skillPoints());
-        assertEquals(10, milestoneRows("local-milestone:0:%"), "0 转十个里程碑");
-        assertEquals(10, milestoneRows("local-milestone:1:%"), "1 转十个里程碑（跨段后重新累计）");
+        assertEquals(10, milestoneRows("local-milestone:" + playerId + ":0:%"), "0 转十个里程碑");
+        assertEquals(0, milestoneRows("local-milestone:" + playerId + ":0:0"),
+                "序号 0 对应本地 1-2，不发点");
+        assertEquals(10, milestoneRows("local-milestone:" + playerId + ":1:%"), "1 转十个里程碑（跨段后重新累计）");
     }
 
     @Test
-    void skillPointMilestonesAreIdempotentForOneReceiptAndIndependentAcrossReceipts() throws Exception {
+    void skillPointMilestoneIsGrantedOncePerProfileStageAndMilestone() throws Exception {
         JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
         UUID playerId = UUID.randomUUID();
         UUID firstRun = UUID.randomUUID();
@@ -1149,52 +1191,108 @@ class JdbcServicesTest {
         long grant = experienceToLocal(0, 1, 5);
         cn.originalrpg.api.model.PlayerProfile first = inTransaction(connection ->
                 profiles.grantExperienceInTransaction(connection, playerId, grant, firstRun, firstRun.toString()));
-        assertEquals(2, first.skillPoints());
+        assertEquals(2, first.skillPoints(), "新档案 1 点 + 0 转第 3 档 1 点");
 
-        // 同一 receipt 重放：技能点不再增加，且不写第二行流水
-        cn.originalrpg.api.model.PlayerProfile replayed = inTransaction(connection ->
-                profiles.grantExperienceInTransaction(connection, playerId, grant, firstRun, firstRun.toString()));
-        // 经验/等级的幂等由调用方的业务 receipt 负责（副本用 rpg_dungeon_reward_receipts，
-        // 同一 run 直接返回 REPLAYED，不会二次进入本方法）。
-        // 本层保证的是：即使被重复调用，技能点里程碑也绝不重复发。
-        assertEquals(1, replayed.skillPoints() - first.skillPoints(), "重放只允许再产生 0 点技能点");
-        assertEquals(1, milestoneRows("local-milestone:0:1|source:" + firstRun + "%"),
-                "同一 receipt 只允许一行里程碑流水");
+        // 档位序号 = 本地等级 / 3，本地 3 -> 序号 1（序号 0 对应本地 1-2，永远不发点）
+        assertEquals(1, milestoneRows("local-milestone:" + playerId + ":0:1"),
+                "同一档位只允许一行里程碑流水");
 
-        // 同一 inc/milestone 被另一个 receipt 复用：不同 source ⇒ 允许（那是另一条结算事实）
+        // 换一条 receipt 跨「同一档位」：档位键不变 ⇒ 只发一次。
+        // 把档案退回本地 1 并抹掉点数，再送同一份经验：档位 3 已经发过，不得重复发点。
+        resetProfileTo(playerId, 0, 1);
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("UPDATE rpg_profiles SET skill_points = 1 WHERE player_uuid = '" + playerId + "'");
+            connection.commit();
+        }
+        profiles.evict(playerId);
         UUID secondRun = UUID.randomUUID();
         cn.originalrpg.api.model.PlayerProfile other = inTransaction(connection ->
-                profiles.grantExperienceInTransaction(connection, playerId, 0 + grant, secondRun, secondRun.toString()));
-        assertEquals(3, other.skillPoints());
-        assertEquals(2, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"));
+                profiles.grantExperienceInTransaction(
+                        connection, playerId, grant, secondRun, secondRun.toString()));
+        assertEquals(5, other.level(), "等级照常推进，只有技能点被档位键挡住");
+        assertEquals(1, other.skillPoints(), "档位 3 已发过，换 receipt 不得重复发点");
+        assertEquals(1, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"), "档位键相同，不新增流水行");
+        assertEquals(1, milestoneRows("local-milestone:" + playerId + ":0:1"), "档位 3 仍然只有一行");
+
+        // 把档案退回首次进入时的状态，再用同一 receipt 重放同一区间：
+        // 档位键相同 ⇒ 不加点、不写新行。这才是「重放」的确切语义。
+        resetProfileTo(playerId, 0, 1);
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("UPDATE rpg_profiles SET skill_points = 1 WHERE player_uuid = '" + playerId + "'");
+            connection.commit();
+        }
+        profiles.evict(playerId);
+        cn.originalrpg.api.model.PlayerProfile replayed = inTransaction(connection ->
+                profiles.grantExperienceInTransaction(
+                        connection, playerId, grant, secondRun, secondRun.toString()));
+        assertEquals(5, replayed.level(), "等级照常推进");
+        assertEquals(1, replayed.skillPoints(), "重放只允许再产生 0 点技能点");
+        assertEquals(1, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"), "重放不写新行");
     }
 
     @Test
-    void skillPointMilestoneReplayKeepsTheFirstReceiptRowUnchanged() throws Exception {
+    void skillPointMilestoneRowsAreKeyedByMilestoneNotBySettlementRange() throws Exception {
         JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
         UUID playerId = UUID.randomUUID();
         profiles.get(playerId).toCompletableFuture().join();
 
-        // 同一个业务的两次结算用同一个 receipt：第一次到本地 5（过 3 档），
-        // 第二次到本地 6（再过一个档位）。唯一键把首次写入的 3 档行钉住，
-        // 已在库里的档位不重复发点，但新跨过的 6 档必须照发。
+        // 第一次结算走到本地 5（过第 3 档），第二次走到本地 6（再过了第 6 档）。
+        // 每一档只写一行，且行里记的是「档位序号 + 档位等级」，不是结算区间。
         UUID runId = UUID.randomUUID();
         cn.originalrpg.api.model.PlayerProfile first = inTransaction(connection ->
                 profiles.grantExperienceInTransaction(
                         connection, playerId, experienceToLocal(0, 1, 5), runId, runId.toString()));
         assertEquals(2, first.skillPoints());
 
-        // 先让档案回退，模拟「同一 receipt 被重放且档案状态与首次进入时一致」
-        resetProfileTo(playerId, 0, 1);
-        profiles.evict(playerId);
-        cn.originalrpg.api.model.PlayerProfile replayed = inTransaction(connection ->
+        UUID nextRun = UUID.randomUUID();
+        cn.originalrpg.api.model.PlayerProfile second = inTransaction(connection ->
                 profiles.grantExperienceInTransaction(
-                        connection, playerId, experienceToLocal(0, 1, 5), runId, runId.toString()));
-        assertEquals(1, replayed.skillPoints() - 1, "重放同一 receipt 不得重复发点（档案基线 1 点）");
-        assertEquals(1, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"),
-                "本地 3 只有首次一行，重放不写第二行");
-        assertEquals(3, scalar("SELECT to_local_level FROM rpg_skill_point_grants"),
-                "唯一键把首次写入的档位行钉住，重放不得改写");
+                        connection, playerId, experienceToLocal(0, 5, 6), nextRun, nextRun.toString()));
+        assertEquals(6, second.level());
+        assertEquals(3, second.skillPoints(), "第 3 档 + 第 6 档各 1 点，加上新档案基线 1 点");
+
+        assertEquals(2, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"), "两个档位两行");
+        assertEquals(2, milestoneRows("local-milestone:" + playerId + ":0:%"));
+        // 档位序号 = 本地等级 / 3；序号与档位等级成对钉死，重放不得改写首次写入的行
+        assertEquals(1, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"
+                + " WHERE milestone_index = 1 AND to_local_level = 3"));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"
+                + " WHERE milestone_index = 2 AND to_local_level = 6"));
+        // receipt 只作审计备注：两次结算的 receipt 不同，档位键仍然只由 (玩家,转,档位) 决定
+        assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"
+                + " WHERE milestone_key LIKE '%|source:%'"), "档位键不得混入业务 receipt");
+    }
+
+    @Test
+    void sameMilestoneCrossedByTwoDifferentSettlementsIsNotDoubleGranted() throws Exception {
+        // 回归：本地 1->6 与本地 4->6 都跨过第 6 档。若把结算区间里的起始等级写进
+        // 一致性校验，第二条结算会被误判成「键复用且内容不同」而整单抛异常；
+        // 若把 receipt 写进唯一键，则会重复发点。两者都必须被这条路钉死。
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
+        UUID playerId = UUID.randomUUID();
+        profiles.get(playerId).toCompletableFuture().join();
+
+        UUID runOne = UUID.randomUUID();
+        cn.originalrpg.api.model.PlayerProfile first = inTransaction(connection ->
+                profiles.grantExperienceInTransaction(
+                        connection, playerId, experienceToLocal(0, 1, 6), runOne, runOne.toString()));
+        assertEquals(3, first.skillPoints(), "新档案 1 点 + 第 3/6 两档");
+
+        // 把档案退回本地 4（同一档位 6 被第二条不同的结算区间再次跨过）
+        resetProfileTo(playerId, 0, 4);
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("UPDATE rpg_profiles SET skill_points = 2 WHERE player_uuid = '" + playerId + "'");
+            connection.commit();
+        }
+        profiles.evict(playerId);
+
+        UUID runTwo = UUID.randomUUID();
+        cn.originalrpg.api.model.PlayerProfile second = inTransaction(connection ->
+                profiles.grantExperienceInTransaction(
+                        connection, playerId, experienceToLocal(0, 4, 6), runTwo, runTwo.toString()));
+        assertEquals(6, second.level());
+        assertEquals(2, second.skillPoints(), "第 6 档已发过，第二条区间不得再加点（也不得抛异常）");
+        assertEquals(2, scalar("SELECT COUNT(*) FROM rpg_skill_point_grants"), "不新增流水行");
     }
 
     /** 把档案重置到指定的 (转, 本地等级)，用于模拟重放时档案状态与首次进入时一致。 */
@@ -3523,13 +3621,17 @@ class JdbcServicesTest {
         }
     }
 
+    /**
+     * 血契全部前置的持久化种子。G-106 裁决后血契要求三转（HiddenPathRules.minimumAscension=3），
+     * 因此这里写 ascension=3 —— 与前置技能 vanished-horizon 所属的三转汇合分支 unseen 一致。
+     */
     private void seedBloodpactFacts(UUID player, boolean redeemedBook) throws Exception {
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
             statement.execute("""
                     INSERT INTO rpg_profiles (
                         player_uuid, archetype, ascension, level, experience, energy, unspent_attribute_points,
                         skill_points, defense, strength, agility, intelligence, stamina
-                    ) VALUES ('%s', 'ASSASSIN', 2, 20, 0, 100, 0, 0, 0, 0, 32, 0, 18)
+                    ) VALUES ('%s', 'ASSASSIN', 3, 20, 0, 100, 0, 0, 0, 0, 32, 0, 18)
                     """.formatted(player));
             statement.execute("INSERT INTO rpg_skills (player_uuid, skill_id, level, point_cost) VALUES ('"
                     + player + "', 'vanished-horizon', 1, 0)");
@@ -3573,9 +3675,9 @@ class JdbcServicesTest {
         return experienceToLocal(ascension, 1, targetLocal);
     }
 
-    /** LIKE 前缀匹配（source 的实际写法是 "local-milestone:<转>:<里程碑>|source:<业务键>"）。 */
-    private long milestoneRows(String sourceLike) throws Exception {
-        return scalar("SELECT COUNT(*) FROM rpg_skill_point_grants WHERE source LIKE '" + sourceLike + "'");
+    /** 按档位键前缀统计（milestone_key 的实际写法是 "local-milestone:<玩家>:<转>:<档位序号>"）。 */
+    private long milestoneRows(String keyLike) throws Exception {
+        return scalar("SELECT COUNT(*) FROM rpg_skill_point_grants WHERE milestone_key LIKE '" + keyLike + "'");
     }
 
     /** 测试用事务桥：允许 lambda 抛受检 SQLException，行为与生产 inTransaction 一致。 */

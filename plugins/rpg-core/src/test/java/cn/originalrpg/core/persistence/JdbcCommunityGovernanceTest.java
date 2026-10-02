@@ -69,12 +69,14 @@ class JdbcCommunityGovernanceTest {
                     """);
             statement.execute("""
                     CREATE TABLE rpg_skill_point_grants (
-                        source VARCHAR(96) NOT NULL, idempotency_key VARCHAR(96) NOT NULL,
-                        player_uuid VARCHAR(36) NOT NULL, points INTEGER NOT NULL,
-                        ascension INTEGER NOT NULL, from_local_level INTEGER NOT NULL,
+                        milestone_key VARCHAR(160) PRIMARY KEY,
+                        receipt VARCHAR(96) NOT NULL,
+                        player_uuid VARCHAR(36) NOT NULL,
+                        points INTEGER NOT NULL,
+                        ascension INTEGER NOT NULL,
+                        milestone_index INTEGER NOT NULL,
                         to_local_level INTEGER NOT NULL,
-                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE (source, idempotency_key)
+                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )
                     """);
             statement.execute("""
@@ -429,6 +431,34 @@ class JdbcCommunityGovernanceTest {
         // 与投批权对照：七角色下两条口径同真同假，但判定是分别取值的。
         assertEquals(isGovernanceMember(builder), canApprove(builder));
         assertFalse(isGovernanceMember(builder));
+    }
+
+    @Test
+    void governanceChannelAdmissionIsTheRolePredicatesOwnValueNotAnApprovalAlias() throws Exception {
+        UUID owner = player(15);
+        createCommunity(owner, "Wayfarers", "WAY");
+        UUID treasurer = join(owner, "WAY", CommunityRole.TREASURER);
+        UUID builder = join(owner, "WAY", CommunityRole.BUILDER);
+
+        // 两条独立断言，不是「彼此相等」：
+        //   ① 成员资格 == 该成员角色自己的 isGovernance()（准入是角色谓词的取值）；
+        //   ② 成员资格 == 能力表的 GOVERNANCE_ACTION（服务层与能力表口径同源）。
+        // 谁把服务层改成恒真/恒假，或者改成代入 isDomainRole()，这两组期望值都会有一条崩掉。
+        for (UUID actor : List.of(owner, treasurer, builder)) {
+            assertEquals(roleOf(actor).isGovernance(), isGovernanceMember(actor),
+                    "成员资格必须等于该角色自己的 isGovernance()");
+            assertEquals(
+                    CommunityRolePower.can(roleOf(actor), CommunityRolePower.Capability.GOVERNANCE_ACTION),
+                    isGovernanceMember(actor),
+                    "成员资格必须与治理通道能力一致");
+        }
+        // 七角色里只放行三个治理角色（用库内真实角色枚举逐个对照，不写死成员列表）。
+        for (CommunityRole role : CommunityRole.values()) {
+            boolean expected = role == CommunityRole.OWNER
+                    || role == CommunityRole.OFFICER
+                    || role == CommunityRole.TREASURER;
+            assertEquals(expected, role.isGovernance(), role + " 的准入取值");
+        }
     }
 
     @Test

@@ -1,0 +1,6 @@
+{
+  "pack": {
+    "description": "SivitaHub 快捷操作入口（#minecraft:quick_actions 注册，默认按 G 打开）",
+    "pack_format": 15
+  }
+}

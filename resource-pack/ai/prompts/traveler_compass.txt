@@ -1,0 +1,12 @@
+Use case: stylized-concept
+Asset type: Minecraft-compatible 32x32 RPG game item icon source
+Primary request: Create one original Sivita traveler compass: a compact octagonal moonsteel compass with a cyan resonance needle, a small gold north marker, a dark charcoal face, and restrained violet route runes. It must read immediately as a navigation compass, not a clock, shield, portal, or generic gemstone.
+Scene/backdrop: perfectly flat solid #00ff00 chroma-key background for local removal
+Subject: one traveler compass only, centered and fully visible
+Style/medium: strict original blocky pixel-art game sprite enlarged with nearest-neighbor pixel blocks; hard clusters; no antialiasing; Minecraft-compatible visual language without copying official textures
+Composition/framing: square front three-quarter icon silhouette with four pixels of visual padding after conversion; no cropped edges
+Lighting/mood: flat readable sprite lighting with one upper-left moonsteel highlight and one lower-right shadow
+Color palette: charcoal, moonsteel gray, cyan, restrained gold and a very small violet accent; maximum 24 colors; never use green in the subject
+Materials/textures: worn moonsteel rim, dark glass face, luminous but solid cyan needle; crisp opaque silhouette
+Constraints: background must be perfectly uniform #00ff00 with no shadow, gradient, floor, reflection or texture; no text; no letters; no numbers; no logo; no watermark; no extra objects; no glow outside the silhouette
+Avoid: photorealism, smooth vector curves, 3D render, blur, soft shadow, scenery, frame, clock hands, shield shape, official Minecraft compass texture

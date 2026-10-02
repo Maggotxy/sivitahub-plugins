@@ -464,5 +464,28 @@
       "reason": "读源码断言世界事件生命周期调用点。行为化方向：世界边界规则已有纯规则类，改为直接断言规则输入输出。",
       "exempt": false
     }
-  ]
+  ],
+  "_batch2_note": "W5-A2 第二批已完成：25 个测试类的断言迁移到 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh（构建/接线契约，非行为）；rpg-admin ×2 / rpg-ai-npc ×1 / rpg-items security ×2 / rpg-market TrustedMenu ×1 已真正行为化；rpg-enhancement fallback 走 scripts/check-config-fallbacks.sh。剩余项见 _remaining_after_batch2。",
+  "_remaining_after_batch2": {
+    "_comment": "第二批未处理的类：它们的断言混有『跨多文件作用域』『|| 备选』『构建文件』等语义，自动迁移会失真，留待下一波逐条人工迁移到 source-contract 规格或行为化。",
+    "classes": [
+      "plugins/rpg-api/.../OptionalServiceLifecycleContractTest（4 条断言跨 19 个文件，需按文件归属逐条迁移）",
+      "plugins/rpg-dungeons/.../DungeonEntryCommitAmbiguityContractTest（含段内 substring 断言，需改写规格语义）",
+      "plugins/rpg-dungeons/.../DungeonRewardWorldHoldContractTest（顺序链跨多个方法体，需按方法切分）",
+      "plugins/rpg-dungeons/.../DungeonTimeoutLifecycleContractTest（同上）",
+      "plugins/rpg-enhancement/.../EquipmentOperationIntegrationContractTest（顺序链含多文件 + 段内断言）",
+      "plugins/rpg-hub/.../WorldTravelConfigurationContractTest（已 @Tag(env)，读 server/ 部署产物，本仓不含）",
+      "plugins/rpg-items/.../ForgeInputBoundaryContractTest（含重复锚点计数语义）",
+      "plugins/rpg-items/.../ForgeOperationIntegrationContractTest（含段内 substring + getItemInMainHand 排除）",
+      "plugins/rpg-items/.../EquipmentExitPathReachabilityTest（部分是真实行为断言，部分是全仓结构扫描）",
+      "plugins/rpg-market/.../MailboxDeliveryIntegrationContractTest（顺序链跨方法体）",
+      "plugins/rpg-mobs/.../MobRewardAsyncLifecycleContractTest（含多行 forbidden 字面量）",
+      "plugins/rpg-pets/.../PetRevivalLifecycleContractTest（含 build.gradle.kts 构建契约断言）",
+      "plugins/rpg-skills/.../SkillAsyncLifecycleContractTest（含 || 备选断言）",
+      "plugins/rpg-world/.../SurvivalPerformanceConfigurationContractTest（已 @Tag(env)，读 server/ 部署产物）",
+      "plugins/rpg-guide/.../GuidePlayerActionContractTest（部分是真实 plugin.yml 解析，已保留在规格中）",
+      "plugins/rpg-performance/.../PerformanceStatusStoreTest（本就是真实 IO 行为测试，只是用 Files.readString 读自己写的文件，非伪测试）",
+      "plugins/rpg-items/.../EquipmentSigningMaterialTest（W1-A3 已是行为测试）"
+    ]
+  }
 }

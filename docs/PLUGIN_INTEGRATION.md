@@ -43,7 +43,7 @@ QuickShop-Hikari、Shopkeepers 和通用面对面交易插件也不加入。它�
 
 ## 菜单视觉语言
 
-入口采用四层互补而不是四套菜单状态：26.2 原生 `#minecraft:quick_actions` 让玩家按默认 `G` 打开低频快捷操作；旅者罗盘右键适合刚加入和不熟悉按键的玩家；`/menu` 是任何客户端都能使用的兜底；NPC 只打开当前场景最相关的页面。快捷操作**计划**由数据包 `sivita-navigation` 提供，按钮文本使用资源包翻译键随客户端语言切换。**待办（G-206）**：该数据包目录与部署脚本 `server/bin/verify-installation.sh` 当前都不在本仓库内（`server/` 目录被 `.gitignore` 排除），因此 `#minecraft:quick_actions` 入口在版本控制下不可审计，`docs/RESOURCE_PACK_QA.md` 对 `verify-installation.sh` 的硬依赖也无法在本仓验证。建议后续任务把数据包与安装校验脚本纳入版本控制（或用脚本生成 + 校验替代），属于代码改动，不在本次文档订正范围内。复杂选择仍由自研 Inventory GUI 完成，所有点击最终回到同一命令与事务校验。钟表不被强制占用，因为它会长期挤占生存快捷栏；也不安装通用菜单框架。
+入口采用四层互补而不是四套菜单状态：26.2 原生 `#minecraft:quick_actions` 让玩家按默认 `G` 打开低频快捷操作；旅者罗盘右键适合刚加入和不熟悉按键的玩家；`/menu` 是任何客户端都能使用的兜底；NPC 只打开当前场景最相关的页面。快捷操作**计划**由数据包 `sivita-navigation` 提供，按钮文本使用资源包翻译键随客户端语言切换。数据包源码**已纳入版本控制**（G-206 收口）：`datapacks/sivita-navigation/` 只声明 `#minecraft:quick_actions` 的 tag 与 8 个转交命令的函数，部署与校验入口是 `scripts/install-datapacks.sh`，步骤见 [数据包部署](DATAPACK_DEPLOYMENT.md)。复杂选择仍由自研 Inventory GUI 完成，所有点击最终回到同一命令与事务校验。钟表不被强制占用，因为它会长期挤占生存快捷栏；也不安装通用菜单框架。
 
 所有菜单遵循同一语义，不用随机材料凑图标：
 

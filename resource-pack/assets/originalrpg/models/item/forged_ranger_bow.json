@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/bow",
+  "textures": {
+    "layer0": "originalrpg:item/forged_ranger_weapon"
+  }
+}

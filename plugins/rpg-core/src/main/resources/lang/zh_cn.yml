@@ -3070,7 +3070,7 @@ admin:
   chapter-invalid: "章节请求无效；原因需为 3–128 个字符。"
   chapter-failed: "章节事务失败，晋升闸门保持原状态。"
   season-unavailable: "赛季结算服务未接线（RpgCore 未注册 SeasonSettlementService）。"
-  season-usage: "用法：/rpgadmin season status｜preview｜<目标态> <变更原因> CONFIRM"
+  season-usage: "用法：/rpgadmin season status｜preview｜advance <目标态> CONFIRM [下一赛季] <变更原因>"
   season-current: "赛季 {season} 当前结算状态：{state}（先 preview 再逐格推进）"
   season-preview: "换季预览：账户 {players}｜有赛季层功勋 {settled}｜赛季层合计 {season-merit}｜永久层合计 {retained}｜赛季荣誉 {honor}。此步不产生任何资金动作。"
   season-confirm: "该迁移会改动功勋账本，请在原因结尾追加 CONFIRM 显式确认。"
@@ -3134,7 +3134,7 @@ hidden-path:
   requirement:
     profile: "角色档案"
     archetype: "对应的基础职业"
-    ascension: "二转"
+    ascension: "对应转数（符箓二转、血契三转）"
     level: "当前转 20 级"
     attribute.agility: "敏捷要求"
     attribute.stamina: "耐力要求"

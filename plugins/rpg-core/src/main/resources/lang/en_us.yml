@@ -3070,7 +3070,7 @@ admin:
   chapter-invalid: "Invalid chapter request; the reason must contain 3–128 characters."
   chapter-failed: "The chapter transaction failed; the ascension gate stayed unchanged."
   season-unavailable: "The season settlement service is not wired (RpgCore registered no SeasonSettlementService)."
-  season-usage: "Usage: /rpgadmin season status | preview | <target-state> <reason> CONFIRM"
+  season-usage: "Usage: /rpgadmin season status | preview | advance <target-state> CONFIRM [next-season] <reason>"
   season-current: "Season {season} settlement state: {state}"
   season-preview: "Settlement preview: {players} wallets | {settled} with seasonal Merit | seasonal total {season-merit} | permanent total {retained} | season honor {honor}. This step moves no funds."
   season-confirm: "This transition changes the Merit ledger; append CONFIRM to the reason."
@@ -3134,7 +3134,7 @@ hidden-path:
   requirement:
     profile: "a character profile"
     archetype: "the matching base class"
-    ascension: "Ascension II"
+    ascension: "the required ascension (II for Talisman, III for Bloodpact)"
     level: "level 20 in this ascension"
     attribute.agility: "the Agility requirement"
     attribute.stamina: "the Stamina requirement"

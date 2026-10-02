@@ -5,7 +5,7 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 5,
+  "round": 7,
   "max_round": 12,
   "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
   "gate": {
@@ -178,6 +178,30 @@
       "fact": "CNB 出网间歇性再次命中：sn=cnb-jvs-1k3tr78iv 里 6/7 个 jar 下载成功、EssentialsX 在 ci.ender.zone read timeout ⇒ 整门 RED 且 test/assemble 被跳过。已给 fetch-deps.sh 加 4 次退避重试 + 单次超时 180s→300s，之后同一门全绿",
       "source": "sn=cnb-jvs-1k3tr78iv vs cnb-5e4-1k3tsd1ed",
       "level": "[S]"
+    },
+    {
+      "id": "E-027",
+      "fact": "W4 全部 4 个任务合入（含 W4-A2 自己报出的 DDL 登记 blocker）；W4-A2 的 blocker 是「rpg_skill_point_grants 未进 Database.java/SchemaManifest ⇒ 真机任何经验授予都会 Table not found 回滚」，转 W5-A1",
+      "source": "out-w4/report.json + .cnb/agent-out/W4-A2-*.json blockers",
+      "level": "[S]"
+    },
+    {
+      "id": "E-028",
+      "fact": "★ 质量门达到六门 + 自测全绿（W5 合入后复验）：sn 见 gate_w5，门禁自测 PASS=14 FAIL=0 / CMD_REFERENCE_GATE / DDL_CONSUMER_GATE / COMPILE_GATE / TEST_GATE(SUM tests=1021 failed=0 errors=0 skipped=2 modules=26) / SUMMARY_GATE / PACKAGE_GATE 全 GREEN",
+      "source": "api_trigger_gate（W5 合入后）",
+      "level": "[S]"
+    },
+    {
+      "id": "E-029",
+      "fact": "★ 本轮修掉四处「假门禁」：① 上一轮的按模块汇总把「模块根本没跑」算成通过（rpg-combat 因 compileTestJava 失败从未执行）② 门禁自测 stage 排在工具安装之前 ⇒ 无 python3 ⇒ 全 exit=127 假红 ③ 测试门要求 Gradle 回显 INFO 级日志作证据 ⇒ 判据与实现不匹配的假红 ④ W4-A2 新增表未登记 DDL",
+      "source": "sn=cnb-l6r-1k3tucifk / cnb-8a1-1k3tv46kd 对比；W5-A1/A2 证据",
+      "level": "[S]"
+    },
+    {
+      "id": "E-030",
+      "fact": "verdict-v3（W5-A3）判 done=false，remaining=6：G-302 第二批（53 个读源码伪测试）、G-DDL-REG（rpg_skill_point_grants）、G-TEST-GATE（当时 main 测试门红）、G-109（4 张 PENDING 表）、G-110（SEASON_ATTUNED 无入口）、G-206（quick_actions 数据包不在仓）。其中 G-TEST-GATE 已由本地修复并复验 GREEN",
+      "source": "plan/verdict-v3.json",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -217,9 +241,9 @@
     "G-201/202/203/207/208/209：文档已订正为实测值；是否要把**行为**改成文档承诺值（如星弹预警 1.1-1.8s → 0.4-0.8s）属设计取舍。",
     "G-206：#minecraft:quick_actions 数据包不在本仓（VCS 缺口），需人类决定是否纳入版本控制。"
   ],
-  "next_action": "等 W4 四个任务；合入后再触发一次质量门；若全绿且 verdict 判 done，则整套收口。G-106 与三条设计取舍留待人类拍板。",
+  "next_action": "等 W6 四个任务 → 合入 → 触发质量门；若仍 GREEN 且无「声明未接线」项则整套收口，剩余只留人类裁决项",
   "updated_by": "WorkBuddy AI（本地调度）",
-  "updated_at": "2026-10-02T08:55:00Z",
+  "updated_at": "2026-10-02T10:45:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
@@ -251,11 +275,15 @@
     "W2": "DONE（15/15 合入，编译门 GREEN sn=cnb-l7u-1k3tn45sp）",
     "W3+": "待 W2 合入后由 Planner 决定（prompt 必须带 merged_gaps）",
     "W3": "DONE 2026-10-02：5/5 合入；A2/A3/A4 成功，A1（G-106）判为设计裁决需人类拍板。质量门升级为 编译→测试→打包 并首次全绿（sn=cnb-5e4-1k3tsd1ed）",
-    "W4": "DISPATCHED 2026-10-02：plan/tasks-w4.json 4 个任务（G-101 驱动入口 / G-107 下半 / G-115 / G-302）"
+    "W4": "DONE 2026-10-02：4/4 合入（另含 3 个后续 PR#33/#34/#36）",
+    "W5": "DONE 2026-10-02：A2（G-302 第二批 25 个伪测试收敛）、A3（差集矩阵 v3）已合入；A1（DDL 登记门禁）分支仍在跑",
+    "W6": "DISPATCHED 2026-10-02：4 个任务（4 张 PENDING 表接线 / SEASON_ATTUNED 入口 / quick_actions 入 VCS / G-106 落地）"
   },
   "gates": {
+    "gate_selftest": "GREEN (PASS=14 FAIL=0)",
     "compile": "GREEN",
-    "test": "GREEN (986 tests / 0 failed / 2 skipped / 26 modules)",
+    "test": "GREEN (1021 tests / 0 failed / 2 skipped / 26 modules)",
+    "summary": "GREEN",
     "package": "GREEN (56 jars / 25 plugin jars 全含 plugin.yml)",
     "ddl_consumer": "GREEN",
     "cmd_reference": "GREEN"

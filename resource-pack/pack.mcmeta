@@ -1,0 +1,9 @@
+{
+  "pack": {
+    "description": "希维塔大陆 · SivitaHub 26.2 server resources",
+    "pack_format": 88,
+    "supported_formats": [88, 88],
+    "min_format": 88,
+    "max_format": 88
+  }
+}

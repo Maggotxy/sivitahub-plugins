@@ -1,0 +1,60 @@
+{
+  "providers": [
+    {
+      "type": "bitmap",
+      "file": "originalrpg:item/journey_hub.png",
+      "ascent": 8,
+      "height": 9,
+      "chars": ["\ue100"]
+    },
+    {
+      "type": "bitmap",
+      "file": "originalrpg:item/journey_class.png",
+      "ascent": 8,
+      "height": 9,
+      "chars": ["\ue101"]
+    },
+    {
+      "type": "bitmap",
+      "file": "originalrpg:item/journey_attribute.png",
+      "ascent": 8,
+      "height": 9,
+      "chars": ["\ue102"]
+    },
+    {
+      "type": "bitmap",
+      "file": "originalrpg:item/journey_explore.png",
+      "ascent": 8,
+      "height": 9,
+      "chars": ["\ue103"]
+    },
+    {
+      "type": "bitmap",
+      "file": "originalrpg:item/journey_hunt.png",
+      "ascent": 8,
+      "height": 9,
+      "chars": ["\ue104"]
+    },
+    {
+      "type": "bitmap",
+      "file": "originalrpg:item/journey_forge.png",
+      "ascent": 8,
+      "height": 9,
+      "chars": ["\ue105"]
+    },
+    {
+      "type": "bitmap",
+      "file": "originalrpg:item/journey_reveal.png",
+      "ascent": 8,
+      "height": 9,
+      "chars": ["\ue106"]
+    },
+    {
+      "type": "bitmap",
+      "file": "originalrpg:item/journey_dungeon.png",
+      "ascent": 8,
+      "height": 9,
+      "chars": ["\ue107"]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "resourcePack.originalrpg.name": "SivitaHub Server Resources",
+  "sivita.quick.title": "SivitaHub · Quick Actions",
+  "sivita.quick.external_title": "SivitaHub",
+  "sivita.quick.body": "If unsure, choose Continue Current Objective. This page keeps only eight frequent actions; trading, wealth, visuals, and every other system live under All Systems.",
+  "sivita.quick.close": "Close",
+  "sivita.quick.current": "Continue Current Objective",
+  "sivita.quick.menu": "All Systems",
+  "sivita.quick.find": "Navigate Current Objective",
+  "sivita.quick.profile": "Character Profile",
+  "sivita.quick.skills": "Skills and Cooldowns",
+  "sivita.quick.market": "Escrow Market",
+  "sivita.quick.mailbox": "Item Mailbox",
+  "sivita.quick.quests": "Tasks and Journey Center",
+  "sivita.quick.wealth": "Wealth Account",
+  "sivita.quick.hub": "Return to Hub",
+  "sivita.quick.home": "Return to Bed Home",
+  "sivita.quick.wild": "Travel to Frontier",
+  "sivita.quick.settings": "Visual Settings"
+}

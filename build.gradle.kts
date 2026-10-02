@@ -55,6 +55,18 @@ subprojects {
         useJUnitPlatform {
             excludedTags.forEach { tag -> excludeTags(tag) }
         }
+        // 门禁需要一条「排除确实生效」的**机器证据**：Gradle 自己的
+        // "excluding tests with tag" 是 INFO 级，默认日志级别下不会输出，
+        // 导致 .cnb.yml 的测试门 grep 不到而整门 RED。
+        // 这里在 Test 任务真正执行前，把本任务实际应用的排除标签以 LIFECYCLE 级打出来 ——
+        // 这是构建脚本自己声明的、可被 CI 抓取的事实，而不是手写日志。
+        // 只在确实有排除项时打印，避免「空排除也打印一行」变成新的假证据。
+        if (excludedTags.isNotEmpty()) {
+            val appliedTags = excludedTags
+            doFirst {
+                logger.lifecycle("excluding tests with tag: " + appliedTags.joinToString(", "))
+            }
+        }
         testLogging {
             exceptionFormat = TestExceptionFormat.FULL
             events("failed", "skipped")

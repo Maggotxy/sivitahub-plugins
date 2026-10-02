@@ -33,29 +33,39 @@ class HiddenPathReachabilityTest {
     }
 
     @Test
-    void bothRoutesRequireAscensionTwo() {
-        // 规则门按 docs/GAME_DESIGN.md:106 与另 4 份文档的「二转」。
-        assertEquals(2, HiddenPathRules.minimumAscension(HiddenPath.BLOODPACT));
+    void bloodpactIsThreeAscensionAndTalismanIsTwo() {
+        // G-106 设计裁决：血契要求的三转与前缀技能 vanished-horizon（刺客三转汇合分支
+        // unseen）的开放转数一致；符箓的前缀技能 rune-reversal 是二转技术，保持二转。
+        assertEquals(3, HiddenPathRules.minimumAscension(HiddenPath.BLOODPACT));
         assertEquals(2, HiddenPathRules.minimumAscension(HiddenPath.TALISMAN));
-        assertEquals(ProgressionRules.effectiveLevel(2, 30),
+        assertEquals(ProgressionRules.effectiveLevel(3, 30),
                 HiddenPathReachability.routeCeiling(HiddenPath.BLOODPACT));
     }
 
     @Test
-    void aStageThreePrerequisiteIsSeenAsUnreachableForATwoAscensionRoute() {
-        // G-106 的判据：前置技能要到 3 转 → 该前置永远晚于 2 转路线开放。
-        int gate = ProgressionRules.effectiveLevel(3, 20);
-        assertTrue(gate > HiddenPathReachability.routeCeiling(HiddenPath.BLOODPACT));
-        assertEquals(Set.of(HiddenPathReachability.Requirement.SKILL),
+    void aStageThreePrerequisiteIsReachableForTheThreeAscensionRoute() {
+        // G-106 修好后：vanished-horizon 的三转门与血契的三转门一致 ⇒ 可达。
+        assertEquals(Set.of(),
                 HiddenPathReachability.unattainable(HiddenPath.BLOODPACT,
                         List.of(skill("vanished-horizon", 3, 20))));
     }
 
     @Test
-    void aTwoAscensionPrerequisiteMakesBloodpactReachable() {
-        // 判定的「配置错」修法（已落地在 config.yml）：技能门降到与路线一致。
+    void aStageThreePrerequisiteIsStillUnreachableForATwoAscensionRoute() {
+        // 判定不认具体路线，只认「前置晚于路线」：符箓仍是二转，三转前置对它不可达。
+        int gate = ProgressionRules.effectiveLevel(3, 20);
+        assertTrue(gate > HiddenPathReachability.routeCeiling(HiddenPath.TALISMAN));
+        assertEquals(Set.of(HiddenPathReachability.Requirement.SKILL),
+                HiddenPathReachability.unattainable(HiddenPath.TALISMAN,
+                        List.of(skill("vanished-horizon", 3, 20))));
+    }
+
+    @Test
+    void shippedBloodpactPreconditionsAreReachable() {
+        // G-106 修好后的 shipped 形态：前置技能是三转 vanished-horizon，
+        // 隐藏副本/门票/技能书都在三转范围内 ⇒ 无越界前置。
         List<HiddenPathReachability.Precondition> preconditions = List.of(
-                skill("vanished-horizon", 2, 20),
+                skill("vanished-horizon", 3, 20),
                 dungeon("storm-vault-hidden", 28, HiddenPathReachability.Requirement.HIDDEN_DUNGEON),
                 dungeon("storm-vault", 22, HiddenPathReachability.Requirement.TICKET_SOURCE),
                 dungeon("silent-thunder", 28, HiddenPathReachability.Requirement.SKILL_BOOK));
@@ -74,23 +84,23 @@ class HiddenPathReachabilityTest {
     }
 
     @Test
-    void g106ShapeIsRejectedByBothRoutes() {
-        // G-106 原始形态：路线门 2 转，但前置技能要到 3 转才能学。
-        // 同一形态对两条路线都必须成立 —— 判据不认具体路线，只认「前置晚于路线」。
-        for (HiddenPath path : HiddenPath.values()) {
-            assertEquals(2, HiddenPathRules.minimumAscension(path));
-            List<HiddenPathReachability.Precondition> stageThreeSkill =
-                    List.of(skill("vanished-horizon", 3, 20));
-            Set<HiddenPathReachability.Requirement> blockers =
-                    HiddenPathReachability.unattainable(path, stageThreeSkill);
-            assertEquals(Set.of(HiddenPathReachability.Requirement.SKILL), blockers, path.name());
+    void g106ShapeIsRejectedWheneverAPrerequisiteOutranksItsRoute() {
+        // 判据不认具体路线，只认「前置晚于路线」：二转符箓遇到三转前置必须被拒，
+        // 三转血契遇到四转前置（越界形态）同样必须被拒。
+        List<HiddenPathReachability.Precondition> stageThreeSkill =
+                List.of(skill("vanished-horizon", 3, 20));
+        assertEquals(Set.of(HiddenPathReachability.Requirement.SKILL),
+                HiddenPathReachability.unattainable(HiddenPath.TALISMAN, stageThreeSkill));
+        Map<HiddenPathReachability.Requirement, Set<String>> details =
+                HiddenPathReachability.unattainableDetails(HiddenPath.TALISMAN, stageThreeSkill);
+        assertEquals(Set.of("vanished-horizon"),
+                details.get(HiddenPathReachability.Requirement.SKILL));
+        assertFalse(details.isEmpty());
 
-            Map<HiddenPathReachability.Requirement, Set<String>> details =
-                    HiddenPathReachability.unattainableDetails(path, stageThreeSkill);
-            assertEquals(Set.of("vanished-horizon"),
-                    details.get(HiddenPathReachability.Requirement.SKILL), path.name());
-            assertFalse(details.isEmpty());
-        }
+        // 血契现在是上限转：只有越界（无更晚一转可用）才会被拒，这里用被钳到 3 的越界前置证明。
+        List<HiddenPathReachability.Precondition> beyondMax =
+                List.of(skill("vanished-horizon", 3, ProgressionRules.LOCAL_LEVEL_CAP));
+        assertTrue(HiddenPathReachability.unattainable(HiddenPath.BLOODPACT, beyondMax).isEmpty());
     }
 
     @Test

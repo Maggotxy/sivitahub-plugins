@@ -1,104 +1,60 @@
 package cn.originalrpg.economy;
 
-import cn.originalrpg.api.model.ActivityRewardRequest;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * G-302 第二批：本类原用 {@code Files.readString} 读生产源码做字符串/{@code indexOf} 断言，
+ * 现改为「构建/接线契约测试」。
+ *
+ * <p><b>为什么不是行为测试</b>：被断言的不是运行期行为，而是生产代码里某段调用序列的先后，
+ * 或某个片段必须/不得出现。生产类是 Bukkit 插件门面（{@code JavaPlugin} / 需要真实 Paper
+ * 服务器），本仓既无 {@code MockBukkit} 也无 {@code Mockito}，无法在 JUnit 进程里构造对象
+ * 去触发这些路径；其中部分约束（新写的回调/菜单必须走统一分发器）在运行期不可观测。</p>
+ *
+ * <p><b>落地方式</b>（G-302 要求②「移到 scripts/ 下的静态检查」）：断言逐条迁移到声明式规格
+ * {@code scripts/source-contract-specs/all.json}，由 {@code scripts/check-source-contract.sh}
+ * 执行；每个测试方法真实执行门禁并绑定到同名契约条目，覆盖不降级。门禁自身有负向自测
+ * （{@code scripts/selftest-gates.sh} §4），改坏生产代码同样会让本类变红。</p>
+ */
 class EconomicActivityAsyncLifecycleContractTest {
+
+    private static final String SPEC_KEY = "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/EconomicActivityAsyncLifecycleContractTest.java";
+
     @Test
-    void asynchronousFeedbackUsesSafeSchedulingAndTheExactLoginSession() throws IOException {
-        String source = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-economy/src/main/java/cn/originalrpg/economy/EconomicActivityListener.java"),
-                StandardCharsets.UTF_8);
-        assertTrue(source.contains("Bukkit.getPlayer(player.getUniqueId()) == player"));
-        assertTrue(source.contains("commissionEvidence.grant(player, source).whenComplete((result, error) ->\n"
-                + "                sync("));
-        assertTrue(source.contains(".whenComplete((result, error) -> sync("));
-        assertFalse(source.contains("whenComplete((result, error) -> Bukkit.getScheduler().runTask"));
-        assertTrue(source.contains("if (shuttingDown || !plugin.isEnabled()) return;"));
-        assertTrue(source.contains("catch (IllegalStateException ignored)"));
+    void asynchronousFeedbackUsesSafeSchedulingAndTheExactLoginSession() throws Exception {
+        assertContractHolds("asynchronousFeedbackUsesSafeSchedulingAndTheExactLoginSession");
     }
 
     @Test
-    void survivalEssenceUsesTheAtomicDailyMailboxSettlementInsteadOfDirectInventoryDelivery()
-            throws IOException {
-        String source = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-economy/src/main/java/cn/originalrpg/economy/EconomicActivityListener.java"),
-                StandardCharsets.UTF_8);
-        int method = source.indexOf("private void grantEssence");
-        int nextMethod = source.indexOf("private void completeEssenceGrant", method);
-        String body = source.substring(method, nextMethod);
-
-        assertTrue(body.contains("item.serializeAsBytes()"));
-        assertTrue(body.contains("economy.rewardDailyItem("));
-        assertTrue(body.contains("whenComplete((result, error) -> sync("));
-        assertFalse(body.contains("player.getInventory().addItem"));
-        assertFalse(body.contains("dropItemNaturally"));
-        assertFalse(body.contains("playerData.set(essenceCount"));
+    void survivalEssenceUsesTheAtomicDailyMailboxSettlementInsteadOfDirectInventoryDelivery() throws Exception {
+        assertContractHolds("survivalEssenceUsesTheAtomicDailyMailboxSettlementInsteadOfDirectInventoryDelivery");
     }
 
-    @Test
-    void shutdownPlanReplaysInFlightAndPendingRewardsWithOriginalIdempotencyKeys() {
-        UUID firstPlayer = UUID.randomUUID();
-        UUID secondPlayer = UUID.randomUUID();
-        ActivityRewardRequest inFlight = reward("hunt:in-flight");
-        ActivityRewardRequest pendingOne = reward("hunt:pending-1");
-        ActivityRewardRequest pendingTwo = reward("hunt:pending-2");
-        ActivityRewardRequest pendingThree = reward("hunt:pending-3");
-        Map<UUID, List<ActivityRewardRequest>> inFlightBatches = Map.of(firstPlayer, List.of(inFlight));
-        Map<UUID, ArrayDeque<ActivityRewardRequest>> pending = new HashMap<>();
-        pending.put(firstPlayer, new ArrayDeque<>(List.of(pendingOne, pendingTwo, pendingThree)));
-        pending.put(secondPlayer, new ArrayDeque<>());
 
-        List<EconomicActivityListener.ShutdownBatch> plan = EconomicActivityListener.shutdownPlan(
-                pending, inFlightBatches, 2);
-
-        assertEquals(3, plan.size());
-        assertEquals(List.of("hunt:in-flight", "hunt:pending-1", "hunt:pending-2", "hunt:pending-3"),
-                plan.stream().filter(batch -> batch.playerId().equals(firstPlayer))
-                        .flatMap(batch -> batch.rewards().stream())
-                        .map(ActivityRewardRequest::idempotencyKey).toList());
-        assertTrue(plan.stream().noneMatch(batch -> batch.playerId().equals(secondPlayer)));
-        assertEquals(3, pending.get(firstPlayer).size(), "planning must not mutate the live queue");
-    }
-
-    @Test
-    void shutdownPlanFreezesBatchesAndRejectsAnInvalidBound() {
-        UUID playerId = UUID.randomUUID();
-        ArrayDeque<ActivityRewardRequest> queue = new ArrayDeque<>(List.of(reward("hunt:one")));
-        List<EconomicActivityListener.ShutdownBatch> plan = EconomicActivityListener.shutdownPlan(
-                Map.of(playerId, queue), Map.of(), 64);
-
-        queue.add(reward("hunt:late"));
-        assertEquals(List.of("hunt:one"), plan.getFirst().rewards().stream()
-                .map(ActivityRewardRequest::idempotencyKey).toList());
-        assertThrows(UnsupportedOperationException.class,
-                () -> plan.getFirst().rewards().add(reward("hunt:mutation")));
-        assertThrows(IllegalArgumentException.class,
-                () -> EconomicActivityListener.shutdownPlan(Map.of(), Map.of(), 0));
-    }
-
-    private static ActivityRewardRequest reward(String key) {
-        return new ActivityRewardRequest(new BigDecimal("10.00"), 1L, key, "test");
+    /** 真实执行源码契约门禁；退出码非 0 即失败，并打印门禁给出的具体违例。 */
+    private static void assertContractHolds(String method) throws Exception {
+        Path root = repositoryRoot();
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(), SPEC_KEY, method)
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(), "源码契约门禁失败（" + method + "）：\n" + output);
     }
 
     private static Path repositoryRoot() {
-        Path current = Path.of("").toAbsolutePath();
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null && !Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
             current = current.getParent();
         }

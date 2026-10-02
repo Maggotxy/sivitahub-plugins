@@ -1,0 +1,20 @@
+{
+  "resourcePack.originalrpg.name": "希维塔大陆服务器资源",
+  "sivita.quick.title": "希维塔大陆 · 快捷操作",
+  "sivita.quick.external_title": "希维塔大陆",
+  "sivita.quick.body": "不知道做什么就先点“继续当前目标”。这里仅保留 8 个高频动作；交易、财富、视觉和其它玩法统一进入“全部系统”。",
+  "sivita.quick.close": "关闭",
+  "sivita.quick.current": "继续当前目标",
+  "sivita.quick.menu": "全部系统",
+  "sivita.quick.find": "当前目标导航",
+  "sivita.quick.profile": "角色档案",
+  "sivita.quick.skills": "技能与冷却",
+  "sivita.quick.market": "托管市场",
+  "sivita.quick.mailbox": "物品邮箱",
+  "sivita.quick.quests": "任务与旅程中心",
+  "sivita.quick.wealth": "财富账户",
+  "sivita.quick.hub": "返回主城",
+  "sivita.quick.home": "返回床家园",
+  "sivita.quick.wild": "前往荒野",
+  "sivita.quick.settings": "视觉设置"
+}

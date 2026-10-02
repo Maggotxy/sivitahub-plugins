@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/crossbow",
+  "textures": {
+    "layer0": "originalrpg:item/forged_ranger_crossbow"
+  }
+}
