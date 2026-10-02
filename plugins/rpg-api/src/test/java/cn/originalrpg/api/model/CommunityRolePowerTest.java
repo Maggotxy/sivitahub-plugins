@@ -7,7 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 七角色能力表的行为级测试：直接调用 {@link CommunityRole#canApprove()} /
- * {@code canModerate()} / {@code isGovernance()} 并断言结果。
+ * {@code canModerate()} 并断言结果；治理通道准入由
+ * {@link CommunityRolePower.Capability#GOVERNANCE_ACTION} 断言。
  */
 final class CommunityRolePowerTest {
 
@@ -24,10 +25,61 @@ final class CommunityRolePowerTest {
     }
 
     @Test
-    void moderationAndGovernanceFollowTheSameThreeRoleGate() {
+    void moderationFollowsTheSameThreeRoleGateAsApproval() {
         for (CommunityRole role : CommunityRole.values()) {
             assertTrue(role.canModerate() == role.canApprove(), role + " moderation 与审批口径必须一致");
-            assertTrue(role.isGovernance() == role.canApprove(), role + " governance 与审批口径必须一致");
+        }
+    }
+
+    /**
+     * G-115：治理通道准入（isGovernance）与投批权（canApprove）是两条独立口径。
+     *
+     * <p>断言的是「两条判定在七角色下各自取什么值」，而不是「它们相等」——
+     * 相等是当前七角色定义的推论，不是不变式。谁把任一侧改成代入另一侧，
+     * 这里的三组期望值就会有一条不成立。</p>
+     */
+    @Test
+    void governanceChannelAdmissionIsItsOwnGateSeparateFromApproval() {
+        // 治理角色：能进治理通道，也能投票批准。
+        for (CommunityRole role : new CommunityRole[]{
+                CommunityRole.OWNER, CommunityRole.OFFICER, CommunityRole.TREASURER}) {
+            assertTrue(role.isGovernance(), role + " 必须是治理角色");
+            assertTrue(role.canApprove(), role + " 治理角色应当能投票");
+            assertTrue(CommunityRolePower.can(role, CommunityRolePower.Capability.GOVERNANCE_ACTION), role.name());
+            assertTrue(CommunityRolePower.can(role, CommunityRolePower.Capability.APPROVE), role.name());
+        }
+        // 领域角色：不进治理通道，也不能投票。
+        for (CommunityRole role : new CommunityRole[]{
+                CommunityRole.BUILDER, CommunityRole.EVENT_HOST, CommunityRole.RECRUITER}) {
+            assertFalse(role.isGovernance(), role + " 不是治理角色");
+            assertFalse(role.canApprove(), role + " 领域角色不能投票");
+            assertFalse(CommunityRolePower.can(role, CommunityRolePower.Capability.GOVERNANCE_ACTION), role.name());
+            assertFalse(CommunityRolePower.can(role, CommunityRolePower.Capability.APPROVE), role.name());
+            // 但可以在自己领域发起动作：准入比投批宽一档。
+            assertTrue(CommunityRolePower.can(role, CommunityRolePower.Capability.SUBMIT_APPROVAL), role.name());
+        }
+        // 普通成员：两条口径都为假。
+        assertFalse(CommunityRole.MEMBER.isGovernance());
+        assertFalse(CommunityRole.MEMBER.canApprove());
+        assertFalse(CommunityRolePower.can(CommunityRole.MEMBER,
+                CommunityRolePower.Capability.GOVERNANCE_ACTION));
+    }
+
+    @Test
+    void governanceChannelAdmissionFailsClosedForNull() {
+        assertFalse(CommunityRolePower.can(null, CommunityRolePower.Capability.GOVERNANCE_ACTION));
+        assertFalse(CommunityRolePower.can(null, CommunityRolePower.Capability.ASSIGN_ROLE));
+    }
+
+    /**
+     * 治理通道准入也覆盖角色任命门槛：七角色下 isGovernance 与 canApprove 同真，
+     * 因此断言「任命门槛仍只放行三个治理角色」，避免改口径时把任命权放宽或收紧。
+     */
+    @Test
+    void assignRoleGateStaysOnTheGovernanceRolesOnly() {
+        for (CommunityRole role : CommunityRole.values()) {
+            assertTrue(CommunityRolePower.can(role, CommunityRolePower.Capability.ASSIGN_ROLE)
+                    == role.isGovernance(), role + " 任命门槛必须与治理通道准入一致");
         }
     }
 

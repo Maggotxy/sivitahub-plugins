@@ -506,8 +506,20 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
                 governance,
                 roleAssignments,
                 governance == null ? null
-                        : (playerId, capability) -> governance.can(playerId, capability)
-                                .toCompletableFuture(),
+                        : new CommunityGovernanceHandler.CapabilityProbe() {
+                            @Override
+                            public CompletableFuture<Boolean> can(
+                                    UUID playerId, CommunityRolePower.Capability capability
+                            ) {
+                                return governance.can(playerId, capability).toCompletableFuture();
+                            }
+
+                            @Override
+                            public CompletableFuture<Boolean> isGovernanceMember(UUID playerId) {
+                                // 治理通道准入有独立的服务层判定，不在命令层重写角色表。
+                                return governance.isGovernanceMember(playerId).toCompletableFuture();
+                            }
+                        },
                 plugin.communityGovernanceEnabled());
     }
 

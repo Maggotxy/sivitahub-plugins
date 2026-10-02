@@ -24,7 +24,16 @@ public final class CommunityRolePower {
         /** 审批期间废除动作。 */
         DENY,
         /** 任命其他成员的角色。 */
-        ASSIGN_ROLE
+        ASSIGN_ROLE,
+        /**
+         * 申请进入治理通道（治理成员资格本身）。
+         *
+         * <p>与 {@link #APPROVE} 是两级门槛：本能力只回答「能不能申请走双批」，
+         * 能不能投票由 {@link #APPROVE} 回答。当前七角色下两者同真，
+         * 但语义不同（见 {@code docs/LONG_TERM_GAME_ECONOMY_PLAN.md} §6），
+         * 因此判定分别写，禁止互相代入。</p>
+         */
+        GOVERNANCE_ACTION
     }
 
     private CommunityRolePower() {
@@ -38,7 +47,10 @@ public final class CommunityRolePower {
             // 发起动作的门槛低于投批：领域角色可以提交本领域动作，是否够格由动作决定。
             case SUBMIT_APPROVAL -> role.canApprove() || isDomainRole(role);
             // 角色任命属于人事权，只有治理角色可以发起。
-            case ASSIGN_ROLE -> role.canApprove();
+            case ASSIGN_ROLE -> role.isGovernance();
+            // 治理通道准入显式走 isGovernance()：这就是这个口径的唯一消费者。
+            // 不得写成 role.canApprove() —— 两条判定语义不同，谁都不能代入谁。
+            case GOVERNANCE_ACTION -> role.isGovernance();
         };
     }
 

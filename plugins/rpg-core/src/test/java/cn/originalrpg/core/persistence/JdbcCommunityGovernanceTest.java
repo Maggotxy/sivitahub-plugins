@@ -391,6 +391,83 @@ class JdbcCommunityGovernanceTest {
     }
 
     // ---------------------------------------------------------------
+    // G-115 治理通道准入（isGovernance）与投批权（canApprove）分工
+    // ---------------------------------------------------------------
+
+    @Test
+    void governanceChannelAdmissionIsReadablePerMemberAndFollowsTheSevenRoleGate() throws Exception {
+        UUID owner = player(15);
+        createCommunity(owner, "Wayfarers", "WAY");
+        UUID treasurer = join(owner, "WAY", CommunityRole.TREASURER);
+        UUID officer = join(owner, "WAY", CommunityRole.OFFICER);
+        UUID builder = join(owner, "WAY", CommunityRole.BUILDER);
+        UUID eventHost = join(owner, "WAY", CommunityRole.EVENT_HOST);
+        UUID recruiter = join(owner, "WAY", CommunityRole.RECRUITER);
+        UUID member = join(owner, "WAY");
+
+        // 治理通道准入：三个治理角色为真，领域角色与普通成员为假。
+        for (UUID actor : List.of(owner, treasurer, officer)) {
+            assertTrue(isGovernanceMember(actor), "治理角色应当能进治理通道");
+        }
+        for (UUID actor : List.of(builder, eventHost, recruiter, member)) {
+            assertFalse(isGovernanceMember(actor), "非治理角色不得进治理通道");
+        }
+        // 非成员与 null 必须失败关闭。
+        assertFalse(isGovernanceMember(UUID.randomUUID()));
+        assertFalse(communities.isGovernanceMember(null).toCompletableFuture().join());
+
+        // 与投批权对照：七角色下两条口径同真同假，但判定是分别取值的。
+        assertEquals(isGovernanceMember(builder), canApprove(builder));
+        assertFalse(isGovernanceMember(builder));
+    }
+
+    @Test
+    void roleGrantAdmissionUsesTheGovernanceChannelNotTheApprovalCapability() throws Exception {
+        UUID owner = player(15);
+        createCommunity(owner, "Wayfarers", "WAY");
+        UUID builder = join(owner, "WAY", CommunityRole.BUILDER);
+        UUID member = join(owner, "WAY");
+        UUID target = join(owner, "WAY");
+
+        // 领域角色能在自己领域提交工程（SUBMIT_APPROVAL），但进不了角色任命通道。
+        assertEquals(CommunityApprovalOutcome.Status.SUCCESS,
+                communities.submit(builder, CommunityGovernanceAction.COMMUNITY_PROJECT,
+                        CommunityGovernanceAction.COMMUNITY_PROJECT.key(), "project-by-builder")
+                        .toCompletableFuture().join().status());
+        assertEquals(CommunityApprovalOutcome.Status.NOT_ALLOWED,
+                communities.approveAssignment(builder, target, CommunityRole.RECRUITER.name(), "grant-by-builder")
+                        .toCompletableFuture().join().status());
+        assertEquals(CommunityApprovalOutcome.Status.NOT_ALLOWED,
+                communities.approveAssignment(member, target, CommunityRole.RECRUITER.name(), "grant-by-member")
+                        .toCompletableFuture().join().status());
+
+        // 治理角色过准入后进入真实的审批记录（提交人第一票）。角色变更要双批，
+        // 因此此时角色还没落地 —— 这里只断言「准入放行且票真的写下」。
+        CommunityApprovalOutcome byOwner = communities
+                .approveAssignment(owner, target, CommunityRole.RECRUITER.name(), "grant-by-owner")
+                .toCompletableFuture().join();
+        assertEquals(CommunityApprovalOutcome.Status.SUCCESS, byOwner.status());
+        assertEquals(1, byOwner.approvals().size());
+        assertEquals(CommunityRole.MEMBER, roleOf(target), "单票不得落地角色变更");
+        assertEquals(1, approvalRows(CommunityGovernanceAction.ROLE_GRANT.key()));
+    }
+
+    @Test
+    void governanceAdmissionIsAlsoExposedThroughTheCapabilityTable() throws Exception {
+        UUID owner = player(15);
+        createCommunity(owner, "Wayfarers", "WAY");
+        UUID builder = join(owner, "WAY", CommunityRole.BUILDER);
+        UUID member = join(owner, "WAY");
+
+        assertTrue(can(owner, CommunityRolePower.Capability.GOVERNANCE_ACTION));
+        assertFalse(can(builder, CommunityRolePower.Capability.GOVERNANCE_ACTION));
+        assertFalse(can(member, CommunityRolePower.Capability.GOVERNANCE_ACTION));
+        // 领域角色的准入线比投批线宽一档：能提交但进不了治理通道。
+        assertTrue(can(builder, CommunityRolePower.Capability.SUBMIT_APPROVAL));
+        assertFalse(can(builder, CommunityRolePower.Capability.APPROVE));
+    }
+
+    // ---------------------------------------------------------------
     // G-103 ① 角色变更只能经双批生效
     // ---------------------------------------------------------------
 
@@ -490,6 +567,10 @@ class JdbcCommunityGovernanceTest {
     }
 
     // ---------------------------------------------------------------
+
+    private boolean isGovernanceMember(UUID playerId) {
+        return communities.isGovernanceMember(playerId).toCompletableFuture().join();
+    }
 
     private boolean canApprove(UUID playerId) {
         return can(playerId, CommunityRolePower.Capability.APPROVE);

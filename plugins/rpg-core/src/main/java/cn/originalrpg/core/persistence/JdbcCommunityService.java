@@ -680,6 +680,24 @@ public final class JdbcCommunityService
         return governanceEnabled;
     }
 
+    /**
+     * 成员是否治理成员（能否进入治理通道）。
+     *
+     * <p>对外可查询：命令层的治理通道准入判定必须问这里，不能在别处重新写角色表。
+     * 判定直接走 {@link CommunityRole#isGovernance()}，与「能否投票」（APPROVE）是两条口径。</p>
+     */
+    @Override
+    public CompletionStage<Boolean> isGovernanceMember(UUID playerId) {
+        if (playerId == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
+            MemberRow member = memberRow(connection, playerId);
+            return member != null
+                    && CommunityRolePower.can(member.role(), CommunityRolePower.Capability.GOVERNANCE_ACTION);
+        }));
+    }
+
     @Override
     public CompletionStage<Boolean> can(UUID playerId, CommunityRolePower.Capability capability) {
         if (playerId == null || capability == null) {
@@ -971,9 +989,15 @@ public final class JdbcCommunityService
         return updateRole(connection, communityId, target, role);
     }
 
-    /** 动作的真实前置角色：工程要 BUILDER、活动要 EVENT_HOST；无前置即治理成员即可。 */
+    /**
+     * 动作的真实前置角色：工程要 BUILDER、活动要 EVENT_HOST；无前置即治理成员即可。
+     *
+     * <p>无前置时的「治理成员」必须走 {@link CommunityRole#isGovernance()}（经能力表），
+     * 不能代入 canApprove()：前者是治理通道准入，后者是投票权，语义不同。</p>
+     */
     private static boolean roleQualified(CommunityRole role, CommunityGovernanceAction action) {
-        return action.requiredRole().map(required -> role == required).orElse(role.canApprove());
+        return action.requiredRole().map(required -> role == required)
+                .orElse(CommunityRolePower.can(role, CommunityRolePower.Capability.GOVERNANCE_ACTION));
     }
 
     private static long requiredApprovals() {

@@ -23,6 +23,15 @@ public interface CommunityGovernanceService {
     /** 该成员当前是否具备某项能力；角色查询全部由服务层完成。 */
     CompletionStage<Boolean> can(UUID playerId, CommunityRolePower.Capability capability);
 
+    /**
+     * 该成员当前是否是治理成员（能否进入治理通道）。
+     *
+     * <p>存在的理由：命令层在「治理通道准入」这一点上需要判定，
+     * 但不得自己去读角色表。与 {@link #can} 的 APPROVE 是两条口径：
+     * 本条回答「能不能申请走双批」，APPROVE 回答「能不能投票」。</p>
+     */
+    CompletionStage<Boolean> isGovernanceMember(UUID playerId);
+
     /** 该成员所处社群当前待处理的动作。 */
     CompletionStage<Optional<CommunityGovernanceAction>> pending(UUID playerId);
 
