@@ -113,3 +113,4 @@
 | G-113 | `JdbcNodeLease.renewAsync()` / `mayStillBeValid()` 零消费者 | gap-matrix §2 |
 | G-114 | `EquipmentOperationCoordinator.markedDeliveryCopy()` 零消费者 | gap-matrix §2 |
 | G-101/102/103/106/108 | 赛季结算服务缺失 / session-lease+outbox 只有 DDL / 社群七角色枚举装饰 / 血契条件不可达成 / 副本 world 键无读取方 | gap-matrix §2 |
+| W2 | 15 个任务：G-107上/下、G-104、G-105、G-110..G-114、G-101、G-102、G-103、G-106、G-108、P2 文档订正 | **DISPATCHED** 2026-10-02，清单 `doc/cnb/tasks-w2.json`（已对账，见 §H） |
