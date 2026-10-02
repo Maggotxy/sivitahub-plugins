@@ -35,6 +35,7 @@ public final class SchemaManifest {
             "rpg_equipment_operations",
             "rpg_skills",
             "rpg_skill_mutation_receipts",
+            "rpg_skill_point_grants",
             "rpg_admin_test_profiles",
             "rpg_admin_test_skills",
             "rpg_skill_book_uses",
@@ -125,6 +126,7 @@ public final class SchemaManifest {
                 List.of("idempotency_key"),
                 List.of("reversal_of")
         ));
+        keys.put("rpg_skill_point_grants", List.of(List.of("source,idempotency_key")));
         keys.put("rpg_activity_ledger", List.of(List.of("idempotency_key")));
         keys.put("rpg_activity_purchases", List.of(List.of("idempotency_key")));
         keys.put("rpg_merit_ledger", List.of(List.of("idempotency_key")));
@@ -172,6 +174,7 @@ public final class SchemaManifest {
         indexes.put("rpg_skill_book_uses", List.of(List.of("player_uuid", "limit_group")));
         indexes.put("rpg_energy_recovery_quotas", List.of(List.of("source_id", "period_key")));
         indexes.put("rpg_skill_mutation_receipts", List.of(List.of("player_uuid", "settled_at")));
+        indexes.put("rpg_skill_point_grants", List.of(List.of("player_uuid", "granted_at")));
         indexes.put("rpg_hidden_path_audit", List.of(List.of("player_uuid", "created_at")));
         indexes.put("rpg_incident_compensations", List.of(List.of("player_uuid", "applied_at")));
         indexes.put("rpg_dungeon_energy_reservations", List.of(

@@ -23,6 +23,10 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
+# 各节红灯不立刻退出，只置位；末尾统一决定退出码（见第 8 节）
+SKIPPED_GATE=0
+export SKIPPED_GATE
+
 # 允许用 DDL_GATE_DDL_FILE 覆盖（仅用于本门禁的负向自测，CI 不设置）
 DDL_FILE="${DDL_GATE_DDL_FILE:-plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java}"
 
@@ -144,7 +148,11 @@ if [ -n "$UNWIRED_LINES" ]; then
   echo ""
   echo "提示：为上述表接入真实读写消费者，或在脚本 EXEMPT 中登记理由（需评审）。"
   echo "DDL_CONSUMER_GATE=RED UNWIRED=$n"
-  exit 1
+  # 显式跳过（而不是 exit）：本脚本同时是「机械门禁」与「被自测调用的判据载体」。
+  # 直接 exit 会让第 6/7 节的判据根本没机会执行，自测里的夹具（只有探针源码，
+  # 第 1 节必然红）就永远看不到 DDL_REGISTRATION_GATE 那一行 —— 门禁在 CI 里
+  # 该不该红由各节自己把错误码累加到 SKIPPED_GATE，最后统一体现。
+  SKIPPED_GATE=1
 fi
 
 # ---- 6. Slash 指令引用门禁 ----
@@ -214,9 +222,135 @@ if [ -n "$CMD_UNKNOWN" ]; then
   echo ""
   echo "提示：把 tooltip 指向已注册的指令，或在脚本 CMD_EXEMPT 中登记持有人（需评审）。"
   echo "CMD_REFERENCE_GATE=RED UNKNOWN=$n"
-  exit 1
+  # 同第 1 节：不立刻退出，置位后继续跑后面几节（末尾统一决定退出码）
+  SKIPPED_GATE=1
 fi
 echo "CMD_REFERENCE_GATE=GREEN"
 
+# ---- 7. DDL 注册门禁（G-302 反向检查）----
+#
+# 失败模式（W4-A2 实测）：代码里写了 `INSERT INTO rpg_skill_point_grants (...)`，
+# 但 DDL 里没有这张表、迁移清单里也没有登记 —— 真机启动后任何授予经验都会以
+# 「Table not found」回滚，而编译、单测（测试自带 H2 夹具）与人工评审全都看不到。
+# 第 1-5 节只查「DDL 里的表有没有消费者」，方向相反；两者合起来才是双向闭合。
+#
+# 判据：plugins/*/src/main 与 tools/*/src/main 里出现的每一个 rpg_* 表名字符串，
+#       必须能在 DDL 真相源里找到 CREATE TABLE IF NOT EXISTS。
+#
+# 表名怎么认（避免把索引名 / 列名 / 常量名当成表名）：
+#   SQL 写法一（代码里实际使用的）：`FROM <t>` / `INTO <t>` / `UPDATE <t>` /
+#     `JOIN <t>` / `DELETE FROM <t>` / `ON <t>`（把 `FROM rpg_x` 命中成
+#     `from_local_level` 这类列名的假阳性就此排除）。
+#   Java 写法二：整个字符串字面量正好是一个 rpg_* 标识符 —— 但 `idx_rpg_*` /
+#     `uq_rpg_*` 是索引名，先按前缀排除掉，否则一条 CREATE INDEX 就会让门禁报
+#     「代码引用了不存在的表」。
+#
+# 关于前缀歧义（最容易写歪的一条规则）：
+#   取到的是一个**完整标识符**（词边界由正则的 [A-Za-z0-9_]* 保证），所以
+#   `FROM rpg_season_settlement_transitions` 拿到的是全长名字，不会截成
+#   `rpg_season_settlement`。也就是说「已知表名的裸前缀」这种写法在数据库方言里
+#   虽然合法，但在本仓的源码里并不出现 —— 第一次实现时我按「最长已知表名前缀」
+#   消歧，结果 W4-A2 那个 typo（`rpg_skill_point_grants_typo` 恰好以
+#   `rpg_skill_point_grants` 开头）被这条消歧规则静默吞掉，门禁恒绿（实测）。
+#   现在的判定是**精确匹配 + 索引名前缀白名单**：任何不在 DDL 里的 rpg_* 名字
+#   （包括前缀式 typo）一律报红。
+
+# 索引名白名单从 DDL 真相源里现抽，不写死。
+#
+# 豁免清单见下方 DDL_TABLE_EXEMPT（分类可审计，与第 1 节 EXEMPT 同样的纪律：
+# 豁免不是放行，只是把「不接线」变成有理由、有文档锚点的显式状态）。
+
+# 可审计豁免清单：分类|表名|理由|文档锚点
+#   PENDING   待接线：表已按设计落库，写入方/消费者在其后的 Phase
+#               （逐条判定见 docs/planning/deferred-tables.md）
+#   INDEXONLY DDL 自带消费：表只服务 DDL 内部的 CREATE INDEX 语句，
+#               业务代码不需要（也不应该）按名字引用它
+DDL_TABLE_EXEMPT_FILE=$(mktemp)
+cat > "$DDL_TABLE_EXEMPT_FILE" <<'DDL_TABLE_EXEMPT_EOF'
+PENDING|rpg_support_credit_accounts|Phase 5 独立 support_credit 账本余额表，落库先行、验签订单服务未接线（宪法 C-012）|docs/planning/deferred-tables.md#21
+PENDING|rpg_support_credit_ledger|Phase 5 support_credit 幂等流水表，schema 契约含 idempotency_key，写入方未实现|docs/planning/deferred-tables.md#22
+PENDING|rpg_market_buy_orders|Phase 4 市场 V2 买单簿，API 模型 MarketOrder 已存在，撮合事务未实现|docs/planning/deferred-tables.md#23
+PENDING|rpg_progression_anomalies|Phase 1 旧档案无法唯一映射时的人工复核清单，迁移写入口未实现|docs/planning/deferred-tables.md#24
+INDEXONLY|rpg_chapter_history|只被 DDL 内 `uq_rpg_chapter_history_revision` 索引消费，运行时读侧无 SQL 消费者，删表需单独评审|docs/planning/deferred-tables.md#0
+DDL_TABLE_EXEMPT_EOF
+
+# 代码扫描范围：全部 src/main（含测试源码？不含 —— 门禁要拦的是真机会执行的代码；
+# 测试自带 H2 夹具，夹具漏建表不会让真机炸）。反过来，夹具里凭空引用不存在的表
+# 也不是本门禁的失败模式，故只扫 src/main。
+UNIVERSE_FILES_LIST=$(mktemp)
+find plugins tools -path '*/src/main/*' -type f \( -name '*.java' -o -name '*.sql' \) 2>/dev/null > "$UNIVERSE_FILES_LIST"
+if [ ! -s "$UNIVERSE_FILES_LIST" ]; then
+  echo "DDL_CONSUMER_GATE=RED 未找到任何 src/main 源码（扫描根目录可能变了，反向检查会恒绿）" >&2
+  exit 2
+fi
+UNIVERSE_FILE_COUNT=$(wc -l < "$UNIVERSE_FILES_LIST" | tr -d ' ')
+
+# DDL 里出现的索引名（idx_rpg_* / uq_rpg_* / CREATE INDEX 上任意名字）。
+# 代码里写索引名是合法的，不能被当成「缺表」。
+INDEX_NAMES=$(grep -oE '(CREATE (UNIQUE )?INDEX IF NOT EXISTS[[:space:]]+[A-Za-z_][A-Za-z0-9_]*)' "$DDL_FILE" \
+  | awk '{print $NF}' | grep '^rpg_' | sort -u || true)
+
+# SQL 关键词后面所跟的标识符：FROM / INTO / UPDATE / JOIN / DELETE FROM / ON / TABLE。
+# ON 只在 `ON <ident>` 命中，且 `ON CONFLICT` / `ON DUPLICATE KEY` 拿到的不是 rpg_*
+# 名字，天然被下面的 `grep '^rpg_'` 过滤掉。
+SQL_TOKENS=$(grep -hoE '(^|[^A-Za-z_])(FROM|INTO|UPDATE|JOIN|DELETE[[:space:]]+FROM|ON|TABLE)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*' \
+  $(cat "$UNIVERSE_FILES_LIST") 2>/dev/null \
+  | awk '{print $NF}' | grep '^rpg_' | sort -u || true)
+
+# Java 里整串字符串字面量就是一个 rpg_* 标识符（常量表名 / 夹具表名）
+STRING_LITERALS=$(grep -hoE '"rpg_[a-z_]+"' $(cat "$UNIVERSE_FILES_LIST") 2>/dev/null \
+  | tr -d '"' | sort -u || true)
+
+# 去掉索引名：判定的是「表」，不是「索引」
+REFERENCED=$(printf '%s\n%s\n' "$SQL_TOKENS" "$STRING_LITERALS" \
+  | sed '/^$/d' | grep -v -x -F -f /dev/null | sort -u)
+if [ -n "$INDEX_NAMES" ]; then
+  REFERENCED=$(printf '%s\n' "$REFERENCED" | grep -v -x -F -e "$(printf '%s' "$INDEX_NAMES" | tr '\n' '|' | sed 's/|$//')" || true)
+fi
+REFERENCED=$(printf '%s\n' "$REFERENCED" | sed '/^$/d' | sort -u)
+
+UNREGISTERED=''
+REF_COUNT=0
+for table in $REFERENCED; do
+  REF_COUNT=$((REF_COUNT + 1))
+  # 精确匹配，不做前缀消歧：前缀式 typo（rpg_skill_point_grants_typo）必须报红
+  if printf '%s\n' "$TABLES" | grep -qx "$table"; then continue; fi
+  line=$(grep -E "^(PENDING|INDEXONLY)\|$table\|" "$DDL_TABLE_EXEMPT_FILE" || true)
+  if [ -n "$line" ]; then
+    cls=$(printf '%s' "$line" | cut -d'|' -f1)
+    reason=$(printf '%s' "$line" | cut -d'|' -f3)
+    anchor=$(printf '%s' "$line" | cut -d'|' -f4)
+    echo "[反向豁免 $cls] $table  <- $reason（见 $anchor）"
+    continue
+  fi
+  UNREGISTERED="$UNREGISTERED$table
+"
+done
+
+echo "反向检查扫描文件数: $UNIVERSE_FILE_COUNT"
+echo "代码引用的 rpg_* 表名: $REF_COUNT 个（去重后）"
+echo "反向豁免清单: $(grep -c '|' "$DDL_TABLE_EXEMPT_FILE") 条（脚本内 DDL_TABLE_EXEMPT，可审计）"
+
+if [ -n "$UNREGISTERED" ]; then
+  echo ""
+  echo "--- 代码引用了 DDL 里不存在的表（真机会 'Table not found' 回滚）---"
+  printf '%s\n' "$UNREGISTERED" | sed '/^$/d' | sed 's/^/  /'
+  n=$(printf '%s\n' "$UNREGISTERED" | sed '/^$/d' | wc -l | tr -d ' ')
+  echo ""
+  echo "提示：在 Database.java 补 CREATE TABLE IF NOT EXISTS，并同步 SchemaManifest.tables()；"
+  echo "      若确实是有意落库先行，请在 DDL_TABLE_EXEMPT 登记理由 + 文档锚点（需评审）。"
+  echo "DDL_REGISTRATION_GATE=RED UNREGISTERED=$n"
+  exit 1
+fi
+echo "DDL_REGISTRATION_GATE=GREEN"
+
+# ---- 8. 汇总 ----
+# 各节在红灯处只置 SKIPPED_GATE，不立刻 exit：这样任何一节红，其它节的判据
+# 仍然会被打印出来（一次 CI 跑就能看全，而不是修一个红再等下一轮）；同时
+# 末尾的退出码仍然严格由「有没有任何一节红」决定，判据没有放松。
+if [ "${SKIPPED_GATE:-0}" -ne 0 ]; then
+  echo "DDL_CONSUMER_GATE=RED（有节判红，详见上方各节的 =RED 行）"
+  exit 1
+fi
 echo "DDL_CONSUMER_GATE=GREEN"
 exit 0

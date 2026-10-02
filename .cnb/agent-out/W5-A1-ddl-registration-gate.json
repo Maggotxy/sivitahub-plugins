@@ -1,0 +1,84 @@
+{
+  "task_id": "W5-A1-ddl-registration-gate",
+  "status": "success",
+  "summary": "修掉 W4-A2 自己报出的 blocker，并把这类问题变成机械门禁。① 把 rpg_skill_point_grants 的 DDL 补进 Database.java（含 UNIQUE(source, idempotency_key) 与运行索引 idx_rpg_skill_point_grants_player），并在 tools/db-migration 的 SchemaManifest 登记表名 / 唯一键 / 运行索引。迁移列表的位置：SchemaManifest.TABLES（唯一登记点，MigrationEngine 用它做发现与数据搬运）。② 全量对账 W2/W3/W4 三波新增的表与 ALTER 增量列：DDL 80 张表对 Manifest 80 条（逐名同序对齐），W4 新增 1 张（rpg_skill_point_grants，本轮补登）、W2 新增 4 张（rpg_season_settlement_gate/_transitions/_progress、rpg_season_merit_wallets）+ 4 组 ALTER 列（rpg_outbox、rpg_session_leases、rpg_community_approvals、rpg_community_identity）、W3 新增 0 张；逐表逐列清单见 evidence.reconciliation。③ scripts/check-ddl-consumers.sh 新增第 7 节反向检查（DDL 注册门禁）：src/main 里出现的每个 rpg_* 表名必须在 DDL 真相源里有 CREATE TABLE —— W4-A2 的坑（代码 INSERT 一张不存在的表，编译与单测全绿、真机 Table not found 回滚）在 CI 阶段就被拦下。④ 门禁接进 .cnb.yml 的 DDL 门禁 stage（docker 仍在 job 级，脚本跑在 sh/dash 下），并在 scripts/selftest-gates.sh 增加第 4 节负向对照（夹具由 scripts/test-frames.py 统一构造）。⑤ 行为级验证：故意把 rpg_skill_point_grants 改成 rpg_skill_point_grants_typo，门禁变红(DDL_REGISTRATION_GATE=RED UNREGISTERED=1)，还原后转绿；两次输出见 evidence.grep。",
+  "changed_files": [
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java",
+    "tools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java",
+    "scripts/check-ddl-consumers.sh",
+    "scripts/selftest-gates.sh",
+    "scripts/test-frames.py",
+    ".cnb.yml",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcDungeonRewardServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/DungeonRewardOutboxWiringTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcAdminIncidentCompensationServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcCommunityServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcCommunityApprovalPersistenceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcCommunityGovernanceTest.java",
+    ".cnb/agent-out/W5-A1-ddl-registration-gate.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh   # 基线（补 DDL 之后）",
+        "hit": "DDL 表数: 80 / 反向检查扫描文件数: 531 / 代码引用的 rpg_* 表名: 80 个（去重后）/ DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / exit=0"
+      },
+      {
+        "cmd": "⑤ 负向对照：把 JdbcProfileService.java 里 `INSERT INTO rpg_skill_point_grants (` 改成 `rpg_skill_point_grants_typo`，再跑门禁",
+        "hit": "typo in file: 1（JdbcProfileService.java:513）\\n--- 代码引用了 DDL 里不存在的表（真机会 'Table not found' 回滚）---\\n  rpg_skill_point_grants_typo\\n提示：在 Database.java 补 CREATE TABLE IF NOT EXISTS，并同步 SchemaManifest.tables()；\\nDDL_REGISTRATION_GATE=RED UNREGISTERED=1  / exit=1"
+      },
+      {
+        "cmd": "⑤ 还原（git checkout 该文件）后再跑门禁",
+        "hit": "typo occurrences after restore = 0 / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / exit=0"
+      },
+      {
+        "cmd": "python3 /tmp/recon.py（② 全量对账：DDL vs SchemaManifest）",
+        "hit": "# W5-A1 全量对账原始输出（W2/W3/W4 新增表/列 → DDL 位置 → 迁移清单位置）\n\n## A. 表级：DDL 80 张 vs SchemaManifest 79 条\n\nDDL\\Manifest = []\nManifest\\DDL = []\n顺序一致 = True（80 张表，序号逐条对齐）\n"
+      },
+      {
+        "cmd": "grep -n 'rpg_skill_point_grants' plugins/rpg-core/.../Database.java tools/db-migration/.../SchemaManifest.java",
+        "hit": "Database.java:398 CREATE TABLE IF NOT EXISTS rpg_skill_point_grants / Database.java:903 CREATE INDEX ... idx_rpg_skill_point_grants_player / SchemaManifest.java:38 \"rpg_skill_point_grants\" / SchemaManifest.java:129 keys.put(...) / SchemaManifest.java:177 indexes.put(...)"
+      },
+      {
+        "cmd": "sh scripts/selftest-gates.sh   # 门禁自测（负向对照）",
+        "hit": "§4 全部 [OK]：库内代码引用的表全部已登记 → GREEN；缺表 → RED；DELETE FROM 关键词缺表 → RED；W4-A2 真实表名已登记 → GREEN；反向豁免打印可审计分类行；同一夹具换成非豁免缺表 → RED。汇总 PASS=18 FAIL=0 / GATE_SELFTEST=GREEN"
+      },
+      {
+        "cmd": "python3 - (允许末项无逗号的正则) 复算 DDL vs SchemaManifest.TABLES",
+        "hit": "DDL: 80 Manifest: 80 / DDL\\Manifest: [] / Manifest\\DDL: [] / order equal: True"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:compileJava :tools:db-migration:compileJava",
+        "result": "BUILD SUCCESSFUL / rc=0"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --rerun-tasks :plugins:rpg-core:test :tools:db-migration:test -PexcludeTags=env",
+        "result": "BUILD SUCCESSFUL / rc=0；plugins/rpg-core tests=271 failures=0 errors=0；tools/db-migration tests=26 failures=0 errors=0；TOTAL 297/0/0"
+      },
+      {
+        "cmd": "python3 -c 'yaml.safe_load(.cnb.yml)' + 打印 push 的 stage 名单",
+        "result": "stages = [准备下载器, 门禁自测（负向对照）, DDL 门禁（G-301 消费者 + G-302 注册，双向）, compile, test, assemble]；docker 在 job 级（True）；YAML 解析通过"
+      }
+    ],
+    "reconciliation": "# W5-A1 全量对账原始输出（W2/W3/W4 新增表/列 → DDL 位置 → 迁移清单位置）\n\n## A. 表级：DDL 80 张 vs SchemaManifest 79 条\n\nDDL\\Manifest = []\nManifest\\DDL = []\n顺序一致 = True（80 张表，序号逐条对齐）\n\n> 首轮对账脚本曾把 rpg_equipment_lifecycle_audit 误报成「未登记」：解析 TABLES 的正则\n> 只匹配带尾逗号的 `\"rpg_x\",`，漏掉了列表最后一条（无尾逗号）。用允许可选逗号的\n> 正则复算后为 80/80 且顺序一致。**这本身就是「对账脚本也会假报」的实例**，\n> 所以门禁的判定没有依赖这份脚本，而是依赖 check-ddl-consumers.sh 的逐名匹配。\n\n## B. 各表位置（DDL 序号 = 建表语句在 Database.java 里的第几条；Manifest 序号 = TABLES 里第几条）\n\nrpg_profiles                        DDL#1   Manifest#1    cols=14\nrpg_chapter_state                   DDL#2   Manifest#2    cols=9\nrpg_chapter_history                 DDL#3   Manifest#3    cols=9\nrpg_accounts                        DDL#4   Manifest#4    cols=3\nrpg_ledger                          DDL#5   Manifest#5    cols=9\nrpg_progression_wallets             DDL#6   Manifest#6    cols=3\nrpg_activity_daily                  DDL#7   Manifest#7    cols=5\nrpg_activity_ledger                 DDL#8   Manifest#8    cols=10\nrpg_daily_item_rewards              DDL#9   Manifest#9    cols=5\nrpg_daily_item_reward_receipts      DDL#10  Manifest#10   cols=11\nrpg_commission_evidence_daily       DDL#11  Manifest#11   cols=4\nrpg_commission_evidence_sources     DDL#12  Manifest#12   cols=5\nrpg_commission_claims               DDL#13  Manifest#13   cols=8\nrpg_activity_purchases              DDL#14  Manifest#14   cols=8\nrpg_incident_compensations          DDL#15  Manifest#15   cols=12\nrpg_incident_compensation_lines     DDL#16  Manifest#16   cols=6\nrpg_merit_ledger                    DDL#17  Manifest#17   cols=7\nrpg_market_listings                 DDL#18  Manifest#18   cols=11\nrpg_market_deliveries               DDL#19  Manifest#19   cols=7\nrpg_equipment_operations            DDL#20  Manifest#20   cols=12\nrpg_skills                          DDL#21  Manifest#21   cols=5\nrpg_skill_mutation_receipts         DDL#22  Manifest#22   cols=10\nrpg_skill_point_grants              DDL#23  Manifest#23   cols=8    <-- W4-A2 新增，本任务补登\nrpg_admin_test_profiles             DDL#24  Manifest#24   cols=14\nrpg_admin_test_skills               DDL#25  Manifest#25   cols=5\nrpg_skill_book_uses                 DDL#26  Manifest#26   cols=6\nrpg_energy_recovery_quotas          DDL#27  Manifest#27   cols=6\nrpg_hidden_path_caps                DDL#28  Manifest#28   cols=2\nrpg_hidden_paths                    DDL#29  Manifest#29   cols=3\nrpg_hidden_path_audit               DDL#30  Manifest#30   cols=5\nrpg_dungeon_energy_reservations     DDL#31  Manifest#31   cols=8\nrpg_dungeon_ticket_escrows          DDL#32  Manifest#32   cols=8\nrpg_dungeon_reward_receipts         DDL#33  Manifest#33   cols=8\nrpg_dungeon_ticket_pity             DDL#34  Manifest#34   cols=4\nrpg_season_rotation_state           DDL#35  Manifest#35   cols=6\nrpg_season_runs                     DDL#36  Manifest#36   cols=10\nrpg_season_run_members              DDL#37  Manifest#37   cols=2\nrpg_season_player_progress          DDL#38  Manifest#38   cols=6\nrpg_season_rotation_claims          DDL#39  Manifest#39   cols=6\nrpg_season_personal_bests           DDL#40  Manifest#40   cols=7\nrpg_node_leases                     DDL#41  Manifest#41   cols=4\nrpg_merchant_limits                 DDL#42  Manifest#42   cols=6\nrpg_merchant_ledger                 DDL#43  Manifest#43   cols=10\nrpg_class_branches                  DDL#44  Manifest#44   cols=4\nrpg_ascension_receipts              DDL#45  Manifest#45   cols=11\nrpg_pet_progress                    DDL#46  Manifest#46   cols=11\nrpg_pet_collection                  DDL#47  Manifest#47   cols=6\nrpg_pet_skins                       DDL#48  Manifest#48   cols=4\nrpg_pet_bond_ledger                 DDL#49  Manifest#49   cols=7\nrpg_pet_revival_intents             DDL#50  Manifest#50   cols=10\nrpg_commerce_accounts               DDL#51  Manifest#51   cols=5\nrpg_payment_ledger                  DDL#52  Manifest#52   cols=7\nrpg_credit_ledger                   DDL#53  Manifest#53   cols=6\nrpg_starlight_operation_limits      DDL#54  Manifest#54   cols=5\nrpg_commerce_purchases              DDL#55  Manifest#55   cols=9\nrpg_commerce_reward_claims          DDL#56  Manifest#56   cols=4\nrpg_currency_exchange_ledger        DDL#57  Manifest#57   cols=9\nrpg_currency_exchange_limits        DDL#58  Manifest#58   cols=6\nrpg_community_identity              DDL#59  Manifest#59   cols=8\nrpg_communities                     DDL#60  Manifest#60   cols=9\nrpg_community_members               DDL#61  Manifest#61   cols=5\nrpg_community_invites               DDL#62  Manifest#62   cols=5\nrpg_community_projects              DDL#63  Manifest#63   cols=6\nrpg_community_contributions         DDL#64  Manifest#64   cols=7\nrpg_community_project_rewards       DDL#65  Manifest#65   cols=7\nrpg_progression_anomalies           DDL#66  Manifest#66   cols=6\nrpg_mechanism_switches              DDL#67  Manifest#67   cols=4\nrpg_season_settlements              DDL#68  Manifest#68   cols=8\nrpg_season_settlement_gate          DDL#69  Manifest#69   cols=3\nrpg_season_settlement_transitions   DDL#70  Manifest#70   cols=11\nrpg_season_settlement_progress      DDL#71  Manifest#71   cols=5\nrpg_season_merit_wallets            DDL#72  Manifest#72   cols=4\nrpg_support_credit_accounts         DDL#73  Manifest#73   cols=3\nrpg_support_credit_ledger           DDL#74  Manifest#74   cols=7\nrpg_market_buy_orders               DDL#75  Manifest#75   cols=7\nrpg_community_approvals             DDL#76  Manifest#76   cols=6\nrpg_session_leases                  DDL#77  Manifest#77   cols=5\nrpg_outbox                          DDL#78  Manifest#78   cols=9\nrpg_equipment_states                DDL#79  Manifest#79   cols=5\nrpg_equipment_lifecycle_audit       DDL#80  Manifest#--    cols=8    <-- 未登记（W1 遗留）\n\n## C. 列级：DDL 自带的 ALTER ... ADD COLUMN IF NOT EXISTS 增量列\n\nrpg_ledger                         ALTER=reversal_of\nrpg_progression_wallets            ALTER=season_id\nrpg_market_listings                ALTER=item_identity,open_item_identity\nrpg_skills                         ALTER=point_cost\nrpg_community_identity             ALTER=community_honor,weekly_commemorations\nrpg_dungeon_energy_reservations    ALTER=owner_node,owner_process\nrpg_commerce_accounts              ALTER=credits\nrpg_commerce_purchases             ALTER=period_key,gold_cost\nrpg_community_approvals            ALTER=requester_uuid,subject,idempotency_key   <-- W2-D4\nrpg_session_leases                 ALTER=node_process_token                        <-- W2-D5\nrpg_outbox                         ALTER=idempotency_key,attempts,last_error       <-- W2-D5\nrpg_skill_point_grants             无（建表即含全部 8 列）                          <-- W4-A2\n\n说明：列级没有「迁移清单」这一层 —— SchemaManifest 只登记表名（TABLES）、\n唯一键（UNIQUE_KEYS）与运行索引（REQUIRED_INDEXES），\n列级强制由 tools/db-migration 的 SchemaManifestContractTest 用\nCREATE TABLE 块 + ALTER 语句推导出来的键集合与 Manifest 双向比对兜住。\n\n## D. 索引级登记\n\nDDL CREATE UNIQUE INDEX      = 5 条\nDDL CREATE INDEX             = 41 条（含新增 idx_rpg_skill_point_grants_player）\nManifest uniqueKeys          = 20 条\nManifest requiredIndexes     = 41 条\n新增：rpg_skill_point_grants -> UNIQUE(source, idempotency_key)、\n      INDEX(player_uuid, granted_at)（本任务补登）\n\n## E. 按 git 归属的波次（每张表的 DDL 行由哪个提交引入）\n\nW4 新增（1 张）:\n  rpg_skill_point_grants   <- 4e4f6c0 [agent/W4-A2-skillpoint-local-milestone]\n                              （本轮 W5-A1 才补进 DDL；依据 plan/skillpoint-migration-notes.md）\nW4 新增列：无\nW3 新增（0 张）：W3 的四个任务全部是门禁/判定/文档类，未新增任何表或列\nW2 新增（4 张 + 3 组列）:\n  rpg_season_settlement_gate          <- fa9175b/66540ac [agent/W2-D1-season-settlement-service]\n  rpg_season_settlement_transitions   <- 同上\n  rpg_season_settlement_progress      <- 同上\n  rpg_season_merit_wallets            <- 同上\n  rpg_outbox                          <- 84f77c7 [agent/W2-D5-session-lease-outbox]（+ALTER idempotency_key/attempts/last_error）\n  rpg_session_leases                  <- 同上（+ALTER node_process_token）\n  rpg_community_approvals             <- aebbd3b [agent/W2-D4-community-role-consumers]（+ALTER requester_uuid/subject/idempotency_key）\nW1/初始化基线：其余 75 张\n\n（DDL 列里的 rpg_mechanism_switches / rpg_season_settlements / rpg_season_settlement_* 等\n在初始化提交里已带上部分表，W2-D1 补齐了缺的 4 张；归属判定用 `git log -S <CREATE TABLE 行>`。）\n\n## F. 对账结论\n\n- W2/W3/W4 新增的 5 张表（W4×1 + W2×4）在**本轮之前**只有 rpg_skill_point_grants 没进 DDL；\n  本轮已补，并将 rpg_season_settlement_* / rpg_session_leases / rpg_outbox /\n  rpg_community_approvals 的**列与索引**与 Manifest 逐条核对为已登记。\n- 表级双向一致：80 张 DDL 表与 80 条 Manifest 登记逐名、同序对齐；\n  Manifest 里没有多余条目。首次扫描报的 rpg_equipment_lifecycle_audit「悬空」\n  是解析正则漏末项的假报（见 §A 注）。\n- 列级与索引级：DDL 的 11 组 ALTER 增量列、41 条运行索引、5 条唯一索引均已登记；\n  本轮新增的 rpg_skill_point_grants 补登 UNIQUE(source, idempotency_key) 与\n  INDEX(player_uuid, granted_at)。\n- 剩余未封闭项在工具层（不是登记缺失）：tools/db-migration 的\n  SchemaManifestContractTest 在本任务之前从未进过 test 门，其自身有两处断言口径\n  不一致（末条建表块的尾逗号；拿裸列名集合比 Manifest 键元组集合）。\n  本任务按「禁止擅自改既有测试」的纪律**不动它**，把它列为待人类拍板的 blocker。\n- 反向门禁（G-302，本轮新增）证明：任何「代码引用了 DDL 里没有的表」都会在 CI 阶段变红。\n"
+  },
+  "unproven": [
+    "[R] Runtime：没有真 Paper + PostgreSQL 的运行证据。门禁只证明「代码引用的表名在 DDL 里有建表语句」，不证明真机上 migrate() 真的跑过、也不证明 ALTER 列在既有库上真的补上了。需要 [R] 才能声称「W4-A2 的 blocker 在运营环境已消除」。",
+    "「迁移列表」在运行时不存在独立清单：Database.java 的 migrate() 就是唯一执行体，SchemaManifest 是 tools/db-migration 的发现/搬运清单，两者靠 SchemaManifestContractTest 在 test 门对齐。本任务只能保证「DDL 有 + Manifest 有」，无法用 grep 逐条证明「真机每次启动都会执行到该条 DDL」（那是 migrate() 的语义，不是清单条目）。",
+    "反向检查只扫 src/main（不含 src/test）。理由写在脚本注释里：门禁要拦的是真机会执行的代码，测试自带 H2 夹具、夹具漏建表不会让真机炸。因此测试夹具里出现的表名不在本门禁射程内。",
+    "反向检查不解析字符串拼接出来的表名（如 \"rpg_\" + name），也不检查存储过程/动态 SQL。本仓目前没有这类写法（已 grep 确认），但这是判据的边界，不是漏洞修复。",
+    "反向检查只断言「表名在 DDL 里」，**不断言「表名在 SchemaManifest 里」**：本轮的 SchemaManifest 同步靠逐条人工对账（见 evidence.reconciliation）完成，还没有机械判据。这条缺口在人类拍板 blocker 2 之后用 SchemaManifestContractTest 补上。"
+  ],
+  "blockers": [
+    "人类决策项 1：tools/db-migration 的 SchemaManifestContractTest 在本任务之前从未在 test 门跑过（该模块的 parameterized 测试历史上就没进过质量门），它自身有两处断言口径不一致，一旦纳入门禁就会红：(a) 最后一个建表块的正则要求 `)\\n\"\"\"` 无尾逗号，而 Database.java 的最后一条是 `\"\"\"+逗号`；(b) 同一断言里把一个「裸列名集合」和 Manifest 的「键元组集合」直接 assertEquals，二者语义不同（存量 22 个键全场不等）。按「禁止删除/跳过既有测试、禁止擅自改断言口径」的纪律，本任务不动该测试，把它列为待人类拍板的 blocker。",
+    "人类决策项 2：是否需要修复 SchemaManifestContractTest 并把 tools/db-migration:test 纳入质量门。若修（改正则 + 把列名比较改成「集合包含」或按 Manifest 的键元组口径重写），则该测试会变成「RpgCore 新增表/键必须同步 Manifest」的机械门禁，与本轮的 DDL 注册门禁形成三方闭合；若不修，则 Manifest 的同步仍然只靠本轮这条反向门禁（它只查「表名在不在 DDL」，**不查 Manifest 是否登记**）。这是取舍，需要人类拍板。"
+  ],
+  "next_steps": [
+    "人工拍板 SchemaManifestContractTest 的修复口径（改测试正则 / 改断言比较对象 / 还是改 Manifest 语义），随后把 tools/db-migration:test 纳入质量门。",
+    "在真机（Paper 26.2 + PostgreSQL）跑一次 migrate()，确认 rpg_skill_point_grants 建表与唯一键在既有库上生效（补 [R]）。",
+    "把 docs/planning/deferred-tables.md 的表数从 79 更新到 80，并补上 rpg_skill_point_grants 的判定行（本轮未改 docs/，超出允许路径）。"
+  ]
+}

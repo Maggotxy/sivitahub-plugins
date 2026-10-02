@@ -100,7 +100,7 @@ class JdbcServicesTest {
                         ascension INTEGER NOT NULL, from_local_level INTEGER NOT NULL,
                         to_local_level INTEGER NOT NULL,
                         granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (source, idempotency_key)
+                        UNIQUE (source, idempotency_key)
                     )
                     """);
             statement.execute("""
