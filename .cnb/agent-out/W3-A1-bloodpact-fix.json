@@ -118,5 +118,5 @@
     "修法落地后：把 hidden-route-reachability.fail-on-contradiction 置 true，并把 rpg-skills 的 everyHiddenPathPreconditionIsAuditedAtThePathsOwnAscension() 与 bloodpactPreconditionsAreAllAuditedAtItsDocumentedAscension() 的期望值改为空集（测试注释里已写明该提示）。",
     "同一「技能门 + 分支选择门」双读判据可推广到 gap-matrix 其他「机制声明了门但门晚于机制」的位置。"
   ],
-  "pr_url": ""
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/26"
 }
