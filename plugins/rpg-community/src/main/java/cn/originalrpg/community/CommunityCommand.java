@@ -1,12 +1,18 @@
 package cn.originalrpg.community;
 
+import cn.originalrpg.api.model.CommunityApprovalOutcome;
 import cn.originalrpg.api.model.CommunityContributionResult;
+import cn.originalrpg.api.model.CommunityGovernanceAction;
 import cn.originalrpg.api.model.CommunityLeaderboardEntry;
 import cn.originalrpg.api.model.CommunityOperationResult;
 import cn.originalrpg.api.model.CommunityProfile;
 import cn.originalrpg.api.model.CommunityProjectRewardResult;
+import cn.originalrpg.api.model.CommunityRole;
+import cn.originalrpg.api.model.CommunityRolePower;
 import cn.originalrpg.api.model.MentorBondResult;
 import cn.originalrpg.api.model.PlayerProfile;
+import cn.originalrpg.api.service.CommunityGovernanceService;
+import cn.originalrpg.api.service.CommunityRoleAssignmentService;
 import cn.originalrpg.api.service.CommunityService;
 import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.ProfileService;
@@ -30,18 +36,23 @@ import org.jetbrains.annotations.Nullable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 final class CommunityCommand implements CommandExecutor, TabCompleter, Listener {
     private final RpgCommunityPlugin plugin;
     private final CommunityService communities;
+    private final CommunityGovernanceService governance;
+    private final CommunityRoleAssignmentService roleAssignments;
     private final ProfileService profiles;
     private final MessageService messages;
     private final Map<UUID, PendingCreate> pendingCreates = new HashMap<>();
@@ -51,11 +62,15 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
     CommunityCommand(
             RpgCommunityPlugin plugin,
             CommunityService communities,
+            CommunityGovernanceService governance,
+            CommunityRoleAssignmentService roleAssignments,
             ProfileService profiles,
             MessageService messages
     ) {
         this.plugin = plugin;
         this.communities = communities;
+        this.governance = governance;
+        this.roleAssignments = roleAssignments;
         this.profiles = profiles;
         this.messages = messages;
     }
@@ -76,6 +91,11 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
             return true;
         }
         String action = args[0].toLowerCase(Locale.ROOT);
+        var governanceRoute = CommunityGovernanceCommandRouter.route(Arrays.copyOfRange(args, 1, args.length));
+        if (governanceRoute.isPresent()) {
+            dispatchGovernance(player, governanceRoute.orElseThrow());
+            return true;
+        }
         switch (action) {
             case "help" -> help(player);
             case "status" -> status(player);
@@ -104,11 +124,19 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
             @NotNull String[] args
     ) {
         if (args.length == 1) {
-            return filter(List.of("help", "status", "browse", "create", "invite", "accept", "leave",
-                    "kick", "transfer", "code", "bond", "contribute", "claim", "leaderboard"), args[0]);
+            return filter(concat(List.of("help", "status", "browse", "create", "invite", "accept", "leave",
+                            "kick", "transfer", "code", "bond", "contribute", "claim", "leaderboard"),
+                            CommunityGovernanceCommandRouter.governanceSubcommands()), args[0]);
         }
         if (args.length == 2 && Set.of("invite", "kick", "transfer").contains(args[0].toLowerCase(Locale.ROOT))) {
             return filter(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[1]);
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("assign")) {
+            return filter(assignableRoleNames(), args[1]);
+        }
+        if (args.length == 2 && Set.of("approve", "approvals", "deny")
+                .contains(args[0].toLowerCase(Locale.ROOT))) {
+            return filter(CommunityGovernanceCommandRouter.actionNames(), args[1]);
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("create")
                 && pendingCreates.containsKey(sender instanceof Player player ? player.getUniqueId() : null)) {
@@ -466,6 +494,211 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
                 }));
     }
 
+    // ------------------------------------------------------------------
+    // Phase 6 治理：七角色能力判定 + 双批审批。开关默认关（接线但不启用）。
+    // ------------------------------------------------------------------
+
+    private void dispatchGovernance(
+            Player player, CommunityGovernanceCommandRouter.Route route
+    ) {
+        if (!plugin.communityGovernanceEnabled() || !plugin.governanceAvailable()) {
+            send(player, "community.governance.disabled");
+            return;
+        }
+        switch (route.action()) {
+            case ROLE_LOOKUP -> roleLookup(player, route.argument());
+            case ROLE_LIST -> roleList(player);
+            case ASSIGN -> assign(player, route.argument());
+            case APPROVE -> approve(player, route);
+            case APPROVALS -> approvals(player, route);
+            case DENY -> deny(player, route);
+        }
+    }
+
+    private void roleLookup(Player player, String targetName) {
+        Optional<CommunityRole> role = CommunityRole.parse(targetName);
+        if (role.isEmpty()) {
+            send(player, "community.governance.role-unknown",
+                    Map.of("role", targetName == null ? "" : targetName));
+            return;
+        }
+        sendRole(player, role.orElseThrow());
+    }
+
+    private void roleList(Player player) {
+        for (CommunityRole role : CommunityRole.values()) {
+            sendRole(player, role);
+        }
+    }
+
+    private void sendRole(Player player, CommunityRole role) {
+        // 能力展示直接选文案键，避免在 messages.text(...) 的第二参数里做动态拼接。
+        String lineKey = role.canApprove() ? "community.governance.role-approver"
+                : CommunityRolePower.isDomainRole(role) ? "community.governance.role-domain"
+                : "community.governance.role-member";
+        send(player, "community.governance.role-line", Map.of(
+                "role", messages.text(player, CommunityRolePower.displayKey(role)),
+                "detail", messages.text(player, lineKey),
+                "moderate", messages.text(player, role.canModerate()
+                        ? "community.governance.moderator" : "community.governance.non-moderator")));
+    }
+
+    private void assign(Player player, String targetName) {
+        OfflinePlayer target = knownPlayer(targetName);
+        if (target == null) {
+            send(player, "community.player-unknown");
+            return;
+        }
+        if (target.getUniqueId().equals(player.getUniqueId())) {
+            send(player, "community.governance.assign-self");
+            return;
+        }
+        UUID sessionToken = start(player, true);
+        if (sessionToken == null) return;
+        roleAssignments.request(player.getUniqueId(), target.getUniqueId(), CommunityRole.RECRUITER,
+                        "role-grant-" + UUID.randomUUID().toString().replace("-", ""))
+                .whenComplete((outcome, error) -> plugin.onMain(() -> {
+                    release(player, sessionToken);
+                    if (!plugin.isAuthenticated(player, sessionToken)) return;
+                    if (error != null) {
+                        failure(player, error);
+                        return;
+                    }
+                    approval(player, outcome);
+                }));
+    }
+
+    private void approve(Player player, CommunityGovernanceCommandRouter.Route route) {
+        CommunityRolePower.Capability capability = CommunityRolePower.Capability.APPROVE;
+        CommunityGovernanceAction action = route.governanceAction();
+        if (action == null) {
+            send(player, "community.governance.action-unknown",
+                    Map.of("action", route.argument() == null ? "" : route.argument()));
+            return;
+        }
+        UUID sessionToken = start(player, true);
+        if (sessionToken == null) return;
+        // 能力查询只用于给出准确提示；真正的拒绝仍然由服务层做出。
+        governance.can(player.getUniqueId(), capability)
+                .thenCompose(allowed -> {
+                    if (!allowed) {
+                        return CompletableFuture.completedFuture(CommunityApprovalOutcome.of(
+                                CommunityApprovalOutcome.Status.NOT_ALLOWED, action));
+                    }
+                    // 第二票必须落在待批准的具体目标上（工程=动作键，角色变更=目标 UUID）。
+                    return pendingSubject(player).thenCompose(subject -> governance.approve(
+                            player.getUniqueId(), action, subject.orElse(null)));
+                })
+                .whenComplete((outcome, error) -> plugin.onMain(() -> {
+                    release(player, sessionToken);
+                    if (!plugin.isAuthenticated(player, sessionToken)) return;
+                    if (error != null) {
+                        failure(player, error);
+                        return;
+                    }
+                    approval(player, outcome);
+                }));
+    }
+
+    private void approvals(Player player, CommunityGovernanceCommandRouter.Route route) {
+        CommunityGovernanceAction action = route.governanceAction();
+        if (action == null) {
+            send(player, "community.governance.action-unknown",
+                    Map.of("action", route.argument() == null ? "" : route.argument()));
+            return;
+        }
+        UUID sessionToken = start(player, false);
+        if (sessionToken == null) return;
+        pendingSubject(player)
+                .thenCompose(subject -> governance.approvals(player.getUniqueId(), action,
+                                subject.orElse(null))
+                        .thenApply(list -> new PendingApprovals(subject.isEmpty() ? null : action, list)))
+                .whenComplete((snapshot, error) -> plugin.onMain(() -> {
+                    release(player, sessionToken);
+                    if (!plugin.isAuthenticated(player, sessionToken)) return;
+                    if (error != null) {
+                        failure(player, error);
+                        return;
+                    }
+                    if (snapshot.pending() == null) {
+                        send(player, "community.governance.no-pending");
+                        return;
+                    }
+                    send(player, "community.governance.pending",
+                            Map.of("action", snapshot.pending().key(), "required",
+                                    CommunityRolePower.REQUIRED_APPROVALS));
+                    for (CommunityApprovalOutcome.GrantedApproval approval : snapshot.approvals()) {
+                        send(player, "community.governance.approval-entry", Map.of(
+                                "player", approval.actor().toString(),
+                                "role", messages.text(player, CommunityRolePower.displayKey(approval.role()))));
+                    }
+                }));
+    }
+
+    private void deny(Player player, CommunityGovernanceCommandRouter.Route route) {
+        CommunityGovernanceAction action = route.governanceAction();
+        if (action == null) {
+            send(player, "community.governance.action-unknown",
+                    Map.of("action", route.argument() == null ? "" : route.argument()));
+            return;
+        }
+        UUID sessionToken = start(player, true);
+        if (sessionToken == null) return;
+        pendingSubject(player)
+                .thenCompose(subject -> governance.deny(player.getUniqueId(), action, subject.orElse(null)))
+                .whenComplete((outcome, error) -> plugin.onMain(() -> {
+                    release(player, sessionToken);
+                    if (!plugin.isAuthenticated(player, sessionToken)) return;
+                    if (error != null) {
+                        failure(player, error);
+                        return;
+                    }
+                    approval(player, outcome);
+                }));
+    }
+
+    private void approval(Player player, CommunityApprovalOutcome outcome) {
+        String suffix = outcome.status().name().toLowerCase(Locale.ROOT).replace('_', '-');
+        send(player, "community.governance." + suffix, Map.of(
+                "action", outcome.action().key(),
+                "count", outcome.approvals().size(),
+                "required", outcome.requiredApprovals()));
+        if (outcome.effective()) send(player, "community.governance.effective");
+    }
+
+    private List<String> assignableRoleNames() {
+        List<String> names = new ArrayList<>();
+        for (CommunityRole role : CommunityRole.values()) {
+            CommunityRolePower.assignable(role.name()).ifPresent(assignable -> names.add(assignable.name()));
+        }
+        return List.copyOf(names);
+    }
+
+    /**
+     * 该玩家所在社群当前待批准动作的具体目标。
+     *
+     * <p>工程类动作的目标就是动作键；角色变更的目标是目标玩家 UUID，
+     * 因此必须从库里的审批记录读回来，不能由命令层猜测。</p>
+     */
+    private CompletableFuture<Optional<String>> pendingSubject(Player player) {
+        return governance.pending(player.getUniqueId())
+                .thenCompose(pending -> {
+                    if (pending.isEmpty()) return CompletableFuture.completedFuture(Optional.<String>empty());
+                    CommunityGovernanceAction action = pending.orElseThrow();
+                    return governance.approvals(player.getUniqueId(), action, action.key())
+                            .thenCompose(votes -> votes.isEmpty()
+                                    ? CompletableFuture.completedFuture(Optional.<String>empty())
+                                    : governance.subjects(player.getUniqueId(), action));
+                })
+                .toCompletableFuture();
+    }
+
+    private record PendingApprovals(
+            CommunityGovernanceAction pending,
+            List<CommunityApprovalOutcome.GrantedApproval> approvals
+    ) {
+    }
+
     private void showProfile(Player player, CommunityProfile profile) {
         send(player, "community.status-title", Map.of("period", plugin.periodKey()));
         if (profile.membership().isEmpty()) {
@@ -627,6 +860,13 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
 
     private static String amount(BigDecimal value) {
         return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    @SafeVarargs
+    private static List<String> concat(List<String>... lists) {
+        List<String> joined = new ArrayList<>();
+        for (List<String> list : lists) joined.addAll(list);
+        return List.copyOf(joined);
     }
 
     private static List<String> filter(List<String> values, String prefix) {

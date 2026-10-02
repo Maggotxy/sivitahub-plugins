@@ -5,6 +5,8 @@ import cn.originalrpg.api.event.AuthenticatedPlayerRevokedEvent;
 import cn.originalrpg.api.model.CosmeticMoment;
 import cn.originalrpg.api.model.MentorBondResult;
 import cn.originalrpg.api.model.PlayerProfile;
+import cn.originalrpg.api.service.CommunityGovernanceService;
+import cn.originalrpg.api.service.CommunityRoleAssignmentService;
 import cn.originalrpg.api.service.CommunityService;
 import cn.originalrpg.api.service.CosmeticEffectService;
 import cn.originalrpg.api.service.OptionalServices;
@@ -37,6 +39,8 @@ public final class RpgCommunityPlugin extends JavaPlugin implements Listener {
     private final java.util.Map<UUID, UUID> verificationInFlight = new ConcurrentHashMap<>();
     private final java.util.Map<UUID, AuthenticatedSession> authenticatedPlayers = new ConcurrentHashMap<>();
     private CommunityService communities;
+    private CommunityGovernanceService governance;
+    private CommunityRoleAssignmentService roleAssignments;
     private ProfileService profiles;
     private JourneyService journeys;
     private MessageService messages;
@@ -45,18 +49,31 @@ public final class RpgCommunityPlugin extends JavaPlugin implements Listener {
     private ZoneId projectZone;
     private int verificationCursor;
 
+    /** 治理服务是否真的被安装（未安装时命令一律按未启用处理，不抛异常）。 */
+    public boolean governanceAvailable() {
+        return governance != null && roleAssignments != null;
+    }
+
+    /** Phase 6 治理开关：默认关闭，只在配置显式开启后才会执行写操作。 */
+    public boolean communityGovernanceEnabled() {
+        return getConfig().getBoolean("community.governance.enabled", false);
+    }
+
     @Override
     public void onEnable() {
         saveDefaultConfig();
         getConfig().options().copyDefaults(true);
         saveConfig();
         communities = requireService(CommunityService.class);
+        // Phase 6 治理是可选接线：没有 provider 时命令返回「未启用」，不影响社群主流程。
+        governance = getServer().getServicesManager().load(CommunityGovernanceService.class);
+        roleAssignments = getServer().getServicesManager().load(CommunityRoleAssignmentService.class);
         profiles = requireService(ProfileService.class);
         journeys = requireService(JourneyService.class);
         messages = requireService(MessageService.class);
         projectZone = zone(getConfig().getString("weekly-project.timezone", "Asia/Shanghai"));
 
-        command = new CommunityCommand(this, communities, profiles, messages);
+        command = new CommunityCommand(this, communities, governance, roleAssignments, profiles, messages);
         var pluginCommand = Objects.requireNonNull(getCommand("community"), "community command");
         pluginCommand.setExecutor(command);
         pluginCommand.setTabCompleter(command);
@@ -65,6 +82,8 @@ public final class RpgCommunityPlugin extends JavaPlugin implements Listener {
         account.setExecutor(accountCommand);
         account.setTabCompleter(accountCommand);
         getServer().getPluginManager().registerEvents(command, this);
+        getServer().getPluginManager().registerEvents(
+                new CommunityGovernanceListener(this, governance, messages), this);
         getServer().getPluginManager().registerEvents(this, this);
 
         long poll = Math.clamp(getConfig().getLong(
