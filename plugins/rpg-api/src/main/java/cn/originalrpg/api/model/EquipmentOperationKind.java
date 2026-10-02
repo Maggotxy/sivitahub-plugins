@@ -8,5 +8,7 @@ public enum EquipmentOperationKind {
     // Persisted by ordinal in recovery envelopes. Append new values only.
     UNBIND,
     LEGACY,
-    SALVAGE
+    SALVAGE,
+    // W3-A3：分解（SALVAGE）走到底的终态。
+    DESTROY
 }

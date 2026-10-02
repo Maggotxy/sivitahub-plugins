@@ -1,0 +1,90 @@
+{
+  "task_id": "W3-A3-exit-path-remaining",
+  "status": "success",
+  "summary": "补 G-110 / gap-matrix §2 M-020/M-028/M-029 的遗留：W2-B3 只把 SALVAGED 与 LEGACY_EXTRACTED 接到真实入口，EquipmentLifecycle 里另外两条退出路径在 src/main 仍无生产入口。本轮逐条处置——(1) DESTROYED 已接线：新增 EquipmentOperationKind.DESTROY（只追加，PDC 信封 ordinal 兼容）、/destroy [confirm] 指令（rpg-items，复用既有装备托管出站 outbox + 幂等键 + 审计流水，金币成本 0）、DestroyRules/DestroyGate/DestroyedTerminalTicket，并把终态墓碑接进耐久守卫与死亡掉落（账本已写终态的装备不能再回到世界）；状态机新增 DESTROYED 作为 BOUND/UNBOUND 上的第二个终态出口。(2) SEASON_ATTUNED 经查确实无触发者：C-008 把它列为退出路径之一，但它属于 Phase 4「装备退出与市场 V2」的新赛季调谐玩法（Phase 7「非副本终局与内容管线」才接线内容），本轮不硬造指令；在 EquipmentLifecycle 留 TODO(W3-A3-exit-path-remaining) 指向该任务 id，并登记为「待 Phase 7 内容管线接入」。行为级测试既跑通已接线路径（含真实 H2 出站到底写 DESTROYED），也把未接线路径显式断言为「当前无入口」。",
+  "changed_files": [
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/model/EquipmentOperationKind.java",
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java",
+    "plugins/rpg-api/src/test/java/cn/originalrpg/api/model/EquipmentOperationEnvelopeTest.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyGate.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyRules.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyedTerminalTicket.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentTerminalStateListener.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentDurabilityListener.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java",
+    "plugins/rpg-items/src/main/resources/plugin.yml",
+    "plugins/rpg-items/src/main/resources/config.yml",
+    "plugins/rpg-items/build.gradle.kts",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyRulesTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyGateTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DestroyOutboxIntegrationTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
+    "plugins/rpg-core/src/main/resources/lang/zh_cn.yml",
+    "plugins/rpg-core/src/main/resources/lang/en_us.yml",
+    "docs/ECONOMY.md"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'SEASON_ATTUNED' plugins/*/src/main",
+        "hit": "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:22/43/46/51/127/141（全部落在状态机自身：枚举声明、两条转移表、SEASON_ATTUNED 的出口、isExitPath()，以及新增的 TODO 注释）——确认除状态机自身外没有任何 src/main 消费者，与任务书给出的原始 grep 一致。"
+      },
+      {
+        "cmd": "grep -rln --include=*.java 'DESTROYED' plugins/*/src/main",
+        "hit": "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java\nplugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcEquipmentLedgerAuditService.java\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyRules.java\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyedTerminalTicket.java\nplugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentDurabilityListener.java ——DESTROYED 从「只命中状态机自身 + 审计查询」变为有 rpg-items src/main 生产入口。"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'EquipmentOperationKind.DESTROY' plugins/rpg-items/src/main",
+        "hit": "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java:92 （EquipmentOperationRequest 构造）\nplugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyGate.java:26 （门禁判定）"
+      },
+      {
+        "cmd": "grep -n 'destroy' plugins/rpg-items/src/main/resources/plugin.yml",
+        "hit": "destroy 指令已注册：usage /destroy [confirm]，permission rpg.destroy（default: true）"
+      },
+      {
+        "cmd": "grep -rn 'TODO(W3-A3-exit-path-remaining)' plugins/rpg-api/src/main",
+        "hit": "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java:140: // TODO(W3-A3-exit-path-remaining)：C-008 列出的第五条退出路径「赛季调谐」（SEASON_ATTUNED）在当前 Phase 下没有触发者..."
+      }
+    ],
+    "test": [
+      {
+        "cmd": "JAVA_HOME=/opt/jdk25 PATH=/opt/jdk25/bin:$PATH GRADLE_USER_HOME=/root/.gradle ./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-items:compileJava --rerun-tasks",
+        "result": "BUILD SUCCESSFUL in 6s / 2 actionable tasks: 2 executed / exit=0"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk25 PATH=/opt/jdk25/bin:$PATH GRADLE_USER_HOME=/root/.gradle ./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-api:compileJava :plugins:rpg-core:compileJava :plugins:rpg-market:compileJava :plugins:rpg-enhancement:compileJava",
+        "result": "BUILD SUCCESSFUL in 4s / 4 actionable tasks / exit=0（DESTROY 追加不改既有序号，rpg-core 持久化与 rpg-market 托管方编译不受影响）"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk25 PATH=/opt/jdk25/bin:$PATH GRADLE_USER_HOME=/root/.gradle ./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-items:test --rerun-tasks",
+        "result": "BUILD SUCCESSFUL in 8s / 12 actionable tasks: 12 executed / exit=0；rpg-items tests=83 skipped=0 failures+errors=0"
+      },
+      {
+        "cmd": "JAVA_HOME=/opt/jdk25 PATH=/opt/jdk25/bin:$PATH GRADLE_USER_HOME=/root/.gradle ./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-api:test :plugins:rpg-market:test :plugins:rpg-enhancement:test --rerun-tasks",
+        "result": "BUILD SUCCESSFUL in 7s / 13 actionable tasks: 13 executed / exit=0；rpg-api tests=85 failures=0、rpg-market tests=50 failures=0、rpg-enhancement tests=13 failures=0"
+      },
+      {
+        "cmd": "新增测试类结果（插件 rpg-items/build/test-results/test/TEST-*.xml）",
+        "result": "DestroyRulesTest tests=5 failures=0 errors=0；DestroyGateTest tests=4；DestroyOutboxIntegrationTest tests=3（真实 H2 出站，落到 rpg_equipment_states.state=DESTROYED）；EquipmentExitPathReachabilityTest tests=3（断言 SEASON_ATTUNED 的 src/main 命中集合恰好只有 EquipmentLifecycle.java 自身）；既有 EquipmentExitPathRulesTest tests=6 / EquipmentExitPathGateTest tests=5 全绿"
+      }
+    ]
+  },
+  "unproven": [
+    "[R] Runtime：未在真实 Paper + PostgreSQL 上跑 /destroy，未做 TPS/MSPT/JDBC 观测。",
+    "[H] Human：未做真人客户端交互验收（确认窗口、背包满、断线重登、双击）。",
+    "投放决策未验证：/destroy 是玩家主动选择的第二条销毁入口，尚未用经济仿真器（Phase 3）评估它对高价值装备 创建/退出 比值的影响。",
+    "EquipmentTerminalStateListener 的数据库读回退分支（墓碑子键缺失时的 ledger.entry() 查询）在测试中是日志警告 + 返回保留；无真人删除墓碑子键的边界记录。"
+  ],
+  "blockers": [],
+  "risks": [
+    "EquipmentOperationKind.DESTROY 只允许追加在末尾：既有序号是 PDC 恢复信封的持久化语义，改位置会把在途操作解码成另一个操作。EquipmentOperationEnvelopeTest.persistedKindOrdinalsRemainAppendOnly 已锁死该合同。",
+    "DESTROYED 现在是 BOUND/UNBOUND 上合法的新终态目标，理论上任何用 EquipmentOperationKind.DESTROY 的请求都能推进到它；外部无法伪造该 kind（envelope 与 request 都来自服务端进程）。",
+    "rpg-items/build.gradle.kts 新增 corePersistence 源集只为测试编译 rpg-core 持久化源码；生产编译面不变（仍只 compileOnly rpg-api），不引入新的运行时依赖，也不改任何依赖版本。"
+  ],
+  "next_steps": [
+    "Phase 7 内容管线接入时补 SEASON_ATTUNED 触发者（新赛季调谐），必须复用 EquipmentLifecycle，不得新造第二套状态机；届时须删除 EquipmentLifecycle 的 TODO(W3-A3-exit-path-remaining) 并更新 EquipmentExitPathReachabilityTest 的断言。",
+    "Phase 3 仿真器上线后，用真实配置评估 /salvage 与 /destroy 并存对高价值装备退出率的影响，再决定是否保留两个入口。",
+    "补充真实 Paper + PostgreSQL 的 /destroy 运行证据与真人交互验收。"
+  ]
+}

@@ -24,6 +24,11 @@ commands:
     description: Sacrifice a finished trait item into a signed legacy blueprint.
     usage: /legacy [confirm]
     permission: rpg.legacy
+  destroy:
+    # C-008 第五条退出路径：分解到底的明确销毁（终态 DESTROYED）。
+    description: Permanently destroy the held forged equipment down to bound essence.
+    usage: /destroy [confirm]
+    permission: rpg.destroy
 permissions:
   rpg.forge:
     default: true
@@ -32,4 +37,6 @@ permissions:
   rpg.unbind:
     default: true
   rpg.legacy:
+    default: true
+  rpg.destroy:
     default: true

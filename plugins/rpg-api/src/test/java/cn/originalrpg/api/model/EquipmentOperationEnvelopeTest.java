@@ -86,7 +86,10 @@ class EquipmentOperationEnvelopeTest {
                         EquipmentOperationKind.LIMIT_BREAK,
                         EquipmentOperationKind.UNBIND,
                         EquipmentOperationKind.LEGACY,
-                        EquipmentOperationKind.SALVAGE
+                        EquipmentOperationKind.SALVAGE,
+                        // W3-A3：DESTROY 只允许追加在末尾，既有序号是 PDC 恢复
+                        // 信封的持久化语义，改一个位置就会把在途操作解码成另一个操作。
+                        EquipmentOperationKind.DESTROY
                 },
                 EquipmentOperationKind.values());
     }
