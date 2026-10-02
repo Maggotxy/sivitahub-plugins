@@ -54,7 +54,7 @@
     "失去租约后『不再写账本』的端到端证明未做：现有 JdbcDungeonEntryService.requireOwned 已按 token 失败关闭，但本轮未新增覆盖全量写路径的集成测试。"
   ],
   "blockers": [],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/12",
   "risks": [
     "supervisor 注册的续期任务运行在 nodeLeaseExecutor（单线程）；renewAsync 只提交任务并立即返回，不会阻塞调度线程。",
     "onDisable 顺序改为：先取消周期续期任务 -> 关闭 lease 执行器 -> release token，避免最后一次心跳与干净释放竞争。",
