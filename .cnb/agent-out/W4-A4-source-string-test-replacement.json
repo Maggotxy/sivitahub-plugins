@@ -3,11 +3,11 @@
   "status": "success",
   "summary": "G-302 第一批（rpg-core）：把 3 个用 Files.readString 读源码的测试类行为化。MechanismKillSwitchContractTest 的「源码里存在 requireEnabled(MechanismRegistry.X)」改为反射检查 FAUCET_ENTRY_POINTS 指向的消费者构造器是否接受 MechanismRegistry + H2 真库断言关闭机制后换季被 BLOCKED 且零落库；JdbcSeasonSettlementWiringTest 的「源码里出现 SeasonSettlementService 字符串」改为类型反射（RpgCommand 构造参数 / 换季服务构造器接 Kill Switch）+ 新增 kill switch 关闭下 fail-closed 不落库的行为断言；LanguageBundleContractTest 的「扫全仓源码解析 messages.text( 第二实参并 indexOf 查键」改为直接构造解析器断言「字面量键 -> 玩家可见文案」真实链路（含占位符替换与未知键回声）。另产出 plan/source-string-tests-remaining.json（48 个剩余测试类，按模块给出理由与行为化方向）。全量替换留后续波次。",
   "changed_files": [
+    ".cnb/agent-out/W4-A4-source-string-test-replacement.json",
+    "plan/source-string-tests-remaining.json",
     "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java",
     "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSeasonSettlementWiringTest.java",
-    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/MechanismKillSwitchContractTest.java",
-    "plan/source-string-tests-remaining.json",
-    ".cnb/agent-out/W4-A4-source-string-test-replacement.json"
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/MechanismKillSwitchContractTest.java"
   ],
   "evidence": {
     "grep": [
@@ -155,5 +155,5 @@
     "优先处理 20 个同时用 indexOf 断言源码字符串顺序的类（伪测试里最硬的一类）。",
     "后续波次沿用同一套路：先按 @Tag(\"env\") / deployment-artifacts 分类，能行为化的行为化，剩下的一律加中文豁免注释并进 PR 豁免清单。"
   ],
-  "pr_url": ""
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/32"
 }
