@@ -3134,7 +3134,7 @@ hidden-path:
   requirement:
     profile: "a character profile"
     archetype: "the matching base class"
-    ascension: "Ascension II"
+    ascension: "the required ascension (II for Talisman, III for Bloodpact)"
     level: "level 20 in this ascension"
     attribute.agility: "the Agility requirement"
     attribute.stamina: "the Stamina requirement"

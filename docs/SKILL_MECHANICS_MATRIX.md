@@ -89,19 +89,35 @@
 路线自身要求的转数下取得，否则路线永久不可达。W2-D3 的通用可达性自检（`rpg-skills`
 `HiddenRouteReachability` + `rpg-api` `HiddenPathReachability`）负责拦住这一类矛盾。
 
-### 依据的文档原文（血契=二转）
+### 裁决（G-106，W6-A4 落地）：把血契改为三转
+
+人类已授权把玩法机制解决完，本条按「改文档最小、改分支图代价最大」的取舍裁决如下：
+
+- `HiddenPathRules.minimumAscension(BLOODPACT)` 由 **2 → 3**（`plugins/rpg-api/.../HiddenPathRules.java`）。
+- 5 份文档里「血契二转」的表述同步为三转（见下表）。符箓仍是二转。
+
+理由：① 只改一个常量，不动 `ClassBranchGraph` 的 2/2/1 强制不变式；② 不需要凭空新选一个二转前置
+技能；③ 代码里 `vanished-horizon` 就是三转技术（5 条一致证据见下），改文档比改分支图代价小。
+
+本条为**本地按人类授权做出的设计裁决，可回滚** —— 回滚方式见 PR 的「如需回滚」一节。
+
+### 改动前 5 份文档的原文（血契=二转）
 
 - `docs/GAME_DESIGN.md:106`：「**血契**：刺客、二转当前等级 20、敏捷 32、耐力 18、**已学「消失地平线」**并通关风暴秘库隐藏关后可接受。」
 - `docs/ROADMAP.md:27`：「血契/符箓**要求二转**、指定技能、对应隐藏副本回执、已领悟的隐藏首领技能书和全服名额，只能在二转章节开放后实际激活。」
 - `docs/CORE_GAMEPLAY_COVERAGE_AUDIT.md:29`：「血契只允许刺客系满足**二转**、等级、五维、技能、沉雷隐藏关与 `silent-thunder` 兑换凭证后激活。」
 - `docs/CONTENT_DEPTH_AUDIT.md:44`：「资格事务同时复核职业、**二转**、等级、五维、指定技能、隐藏副本和已兑换的专属书。」
 
-⇒ 5 份文档一致把血契钉在二转；`HiddenPathRules.minimumAscension(BLOODPACT)` 返回 2，与之一致。
+⇒ 改动前 4 份文档一致把血契钉在二转（`HiddenPathRules.minimumAscension(BLOODPACT)` 返回 2，与之一致）；
+`docs/SKILL_MECHANICS_MATRIX.md` 即本文件。W6-A4 已把上述 4 处与 `HiddenPathRules` 一起改为三转。
 
-### 复核结论：错的不是 `vanished-horizon` 的数值，而是路线选错了前置技能
+### 复核结论（W3-A1 历史记录）：错的不是 `vanished-horizon` 的数值，而是路线选错了前置技能
+
+> 以下是 W3-A1 的**历史**复核记录，作为裁决依据保留。其中「反向抬到 3 会让 rpg-core 测试变红」
+> 与「5 份文档相反」两条已在 W6-A4 一并解决（测试种子同步、文档同步），故不再是阻碍。
 
 W2-D3 曾把 G-106 判为「`vanished-horizon.minimum-ascension: 3` 是配置错」。W3-A1 复核后修正：
-**该技能是三转技能，本身就是对的**，矛盾在于血契（二转）却要求一个三转技能。证据链：
+**该技能是三转技能，本身就是对的**，矛盾在于血契（当时记为二转）却要求一个三转技能。证据链：
 
 1. `rpg-classes` 的 `ClassBranchGraph` 强制每职业 **2/2/1** 个 stage 1/2/3 启用分支；刺客的 stage-3
    分支正是 `unseen`（`requires-any: [void-walker, plague-scholar]` = 两条**二转**路线汇合）。
@@ -112,7 +128,7 @@ W2-D3 曾把 G-106 判为「`vanished-horizon.minimum-ascension: 3` 是配置错
 5. `docs/CONTENT_DEPTH_AUDIT.md:9/23`：「三转已有一条允许两条二转路线汇合的**终局节点**」
    「单个角色沿互斥路线正常学习'起手 + 进阶 + 一转 + 对应二转 + **三转汇合**'五项」，本技能是三转位。
 
-### 反证：三种「单模块」改法都不可行（实测）
+### 反证（W3-A1 历史记录）：三种「单模块」改法都不可行（实测）
 
 | 改法 | 结果 |
 |---|---|
@@ -122,15 +138,27 @@ W2-D3 曾把 G-106 判为「`vanished-horizon.minimum-ascension: 3` 是配置错
 | 改 `HiddenPathRules.requiredSkill(BLOODPACT)` 为二转技能（如 `void-cut`） | `rpg-core` 同一行为测试变红（实测，测试种子写死已学 `vanished-horizon`）；且与 `docs/GAME_DESIGN.md:106`「已学「消失地平线」」相反 |
 
 ⇒ 修法必须跨模块（`rpg-classes` 分支图 / `rpg-core` 测试 / 设计裁决），见 `.cnb/agent-out/W3-A1-bloodpact-fix.json`。
+W6-A4 已按上文「裁决」把血契抬到三转，并同步本文件的文档表述与 `rpg-core` 测试种子。
 
-### 本轮在模块内落地的东西
+### W3-A1 在模块内落地的东西
 
 - 自检判据升级为「**技能门 + 分支选择门**」双读：除 `skills.<id>.minimum-ascension` 外，
   还读 `rpg-classes` 的 `branches.<owner>.<branch>.stage`，取两者上界作门值。
   这样「技能门调低、分支 stage 仍高」的形态也会被拦住（原实现只读技能门，会漏检）。
 - 回归测试：`HiddenRouteReachabilityTest.bloodpactPreconditionsAreAllAuditedAtItsDocumentedAscension()`
   逐条核对血契全部前置（技能门 / 分支门 / 隐藏副本门）能否在其 `minimumAscension()` 那一转取得；
-  `branchSelectionGateIsPartOfTheAuditAndNamesTheStageThreeBranch()` 证明分支门真的参与判定。
+  `branchSelectionGateIsPartOfTheAuditAndUsesTheHigherOfTheTwoGates()` 证明分支门真的参与判定。
+
+### W6-A4 落地的行为级证据（G-106 收口）
+
+- `HiddenPathReachabilityTest.bloodpactIsThreeAscensionAndTalismanIsTwo()`：血契门 = 3，符箓门 = 2。
+- `rpg-core JdbcServicesTest.bloodpactIsEligibleAtThreeAscensionsWithEveryPreconditionMet()`：
+  三转 + 已学前置 + 隐藏副本回执 + 已兑换技能书 ⇒ `eligible()`，且可激活。
+- `rpg-core JdbcServicesTest.bloodpactReportsOnlyTheAscensionGateAtTwoAscensions()`：
+  二转 ⇒ 不可达，且唯一缺项精确为 `ascension`（不是技能/副本/技能书）。
+- `HiddenRouteReachabilityTest.everyHiddenPathPreconditionIsAuditedAtThePathsOwnAscension()`：
+  「不可达前置集合」断言已由具名一条改为**空集**（自检现在真正通过）。
+- `hidden-route-reachability.fail-on-contradiction` 由 `false` 置为 `true`：矛盾今后直接挡住启动。
 
 ## 真人验收清单
 

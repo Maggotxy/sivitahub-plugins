@@ -560,6 +560,44 @@ class JdbcServicesTest {
                 || paths.path(second).toCompletableFuture().join().isPresent());
     }
 
+    /**
+     * 行为级（G-106 ⑸）：三转 + 已学前置技能 vanished-horizon + 隐藏副本回执 + 已兑换技能书 ⇒ 血契 eligible。
+     * 路由器的门来自 {@code HiddenPathRules.minimumAscension(BLOODPACT)}，种子一并按三转写。
+     */
+    @Test
+    void bloodpactIsEligibleAtThreeAscensionsWithEveryPreconditionMet() throws Exception {
+        JdbcHiddenPathService paths = new JdbcHiddenPathService(dataSource, executor);
+        UUID player = UUID.randomUUID();
+        seedBloodpactFacts(player, true);
+
+        var eligibility = paths.eligibility(player, HiddenPath.BLOODPACT).toCompletableFuture().join();
+        assertTrue(eligibility.eligible(),
+                "三转 + 已学前置 + 回执 + 技能书必须可激活：" + eligibility.missingRequirements());
+        assertEquals(List.of(), eligibility.missingRequirements());
+        assertTrue(paths.activate(player, HiddenPath.BLOODPACT).toCompletableFuture().join()
+                .status() == HiddenPathActivationResult.Status.ACTIVATED);
+    }
+
+    /**
+     * 行为级（G-106 ⑸）：二转时血契不可达，且给出的原因必须精确指向转数门，
+     * 不能把「还没到的转数」混成技能/副本/技能书之类的错因。
+     */
+    @Test
+    void bloodpactReportsOnlyTheAscensionGateAtTwoAscensions() throws Exception {
+        JdbcHiddenPathService paths = new JdbcHiddenPathService(dataSource, executor);
+        UUID player = UUID.randomUUID();
+        seedBloodpactFacts(player, true);
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("UPDATE rpg_profiles SET ascension = 2 WHERE player_uuid = '" + player + "'");
+            connection.commit();
+        }
+
+        var eligibility = paths.eligibility(player, HiddenPath.BLOODPACT).toCompletableFuture().join();
+        assertFalse(eligibility.eligible());
+        assertEquals(List.of("ascension"), eligibility.missingRequirements(),
+                "二转玩家唯一缺的应该是转数门，其余前置均已满足");
+    }
+
     @Test
     void hiddenPathRequiresTheMatchingRedeemedHiddenBossBook() throws Exception {
         JdbcHiddenPathService paths = new JdbcHiddenPathService(dataSource, executor);
@@ -3583,13 +3621,17 @@ class JdbcServicesTest {
         }
     }
 
+    /**
+     * 血契全部前置的持久化种子。G-106 裁决后血契要求三转（HiddenPathRules.minimumAscension=3），
+     * 因此这里写 ascension=3 —— 与前置技能 vanished-horizon 所属的三转汇合分支 unseen 一致。
+     */
     private void seedBloodpactFacts(UUID player, boolean redeemedBook) throws Exception {
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
             statement.execute("""
                     INSERT INTO rpg_profiles (
                         player_uuid, archetype, ascension, level, experience, energy, unspent_attribute_points,
                         skill_points, defense, strength, agility, intelligence, stamina
-                    ) VALUES ('%s', 'ASSASSIN', 2, 20, 0, 100, 0, 0, 0, 0, 32, 0, 18)
+                    ) VALUES ('%s', 'ASSASSIN', 3, 20, 0, 100, 0, 0, 0, 0, 32, 0, 18)
                     """.formatted(player));
             statement.execute("INSERT INTO rpg_skills (player_uuid, skill_id, level, point_cost) VALUES ('"
                     + player + "', 'vanished-horizon', 1, 0)");
