@@ -1,0 +1,104 @@
+{
+  "task_id": "W9-A2-anomaly-review-entry",
+  "status": "success",
+  "summary": "补 G-ANOMALY-ACK：宪法要求的 [H] 人工复核出口此前在运行期不可达（写侧已接线、读侧零调用点，异常记录只进不出）。本轮按方案 (a) 在 rpg-admin 补管理面入口 /rpgadmin anomaly <list|ack>：list 列未复核清单（分页 offset/limit + 总数），ack <player-uuid> CONFIRM <结论> 走既有 rpg.admin 权限（不新造权限体系）并把 reviewer/review_note/reviewed_at 落在原行上。复核语义从「删除」改为「幂等签署」（WHERE reviewed_at IS NULL，先到者为准），重复 ack 不报错也不覆盖首个署名。DDL 走 Database.java 的 CREATE TABLE 三列 + 排在建表之后的三条 ALTER TABLE ADD COLUMN IF NOT EXISTS（存量库原地升级），SchemaManifest 无需改（表名未变，DDL_CONSUMER_GATE/DDL_REGISTRATION_GATE 仍绿）。ProgressionAnomalyService javadoc 已写明「读侧已由 /rpgadmin anomaly 接线」，docs/ECONOMY.md 给出完整闭环图。",
+  "changed_files": [
+    "doc/cnb/gap-registry.md",
+    "docs/ECONOMY.md",
+    "docs/planning/deferred-tables.md",
+    "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/AnomalyReviewCommand.java",
+    "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/RpgAdminPlugin.java",
+    "plugins/rpg-admin/src/main/resources/plugin.yml",
+    "plugins/rpg-admin/src/test/java/cn/originalrpg/admin/AnomalyReviewCommandTest.java",
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/model/ProgressionAnomaly.java",
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/service/ProgressionAnomalyService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcProfileService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcProgressionAnomalyService.java",
+    "plugins/rpg-core/src/main/resources/lang/en_us.yml",
+    "plugins/rpg-core/src/main/resources/lang/zh_cn.yml",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcProgressionAnomalyServiceTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/ProgressionAnomalySchemaUpgradeTest.java"
+  ],
+  "pr_url": "",
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'ProgressionAnomalyService' plugins | grep '/src/main/'",
+        "hit": "改前：仅接口定义 + Jdbc 实现 + RpgCorePlugin 注册（零调用点）。改后（排除定义/实现本身）：plugins/rpg-admin/.../RpgAdminPlugin.java:12,98,101,223 与 plugins/rpg-admin/.../AnomalyReviewCommand.java:5,40,46,57,66 —— 读侧出口真实存在。"
+      },
+      {
+        "cmd": "grep -rn --include=*.java -e 'pending(' -e 'acknowledge(' plugins/rpg-admin/src/main",
+        "hit": "AnomalyReviewCommand.java:104 anomalies.pending(offset, limit) / :160 anomalies.acknowledge(playerId, reviewer, note) / :173 anomalies.pending(playerId) —— 三条都是命令层的真实消费点，不再是「只有定义与自身实现」。"
+      },
+      {
+        "cmd": "grep -n 'reviewer\\|reviewed_at\\|review_note' plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java",
+        "hit": "938-940 CREATE TABLE 三列；948/951/954 三条 ALTER TABLE ... ADD COLUMN IF NOT EXISTS（排在 CREATE TABLE 之后，存量库原地升级）。"
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "hit": "DDL 表数: 81 / 豁免清单: 0 条 / CMD_REFERENCE_GATE=GREEN / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / EXIT=0"
+      },
+      {
+        "cmd": "sh scripts/selftest-gates.sh",
+        "hit": "===== 门禁自测汇总：PASS=67 FAIL=0 ===== / GATE_SELFTEST=GREEN / EXIT=0"
+      },
+      {
+        "cmd": "sh scripts/check-file-deps.sh",
+        "hit": "check-file-deps: OK / EXIT=0"
+      },
+      {
+        "cmd": "sh scripts/check-resource-pack.sh",
+        "hit": "RUN=8 SKIPPED=0 / RESOURCE_PACK_GATE=GREEN / EXIT=0"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-admin:test --tests '*AnomalyReviewCommandTest*'",
+        "result": "BUILD SUCCESSFUL（5 例：list 可见→ack 落库署名→重复 ack 幂等→缺 CONFIRM/非法 UUID 拒绝→分页与 limit 收敛）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:test --tests '*JdbcProgressionAnomalyServiceTest*'",
+        "result": "BUILD SUCCESSFUL（11 例：含 reviewer/review_note/reviewed_at 真的落库、重复签署保留首个署名、新快照清空旧署名、pending 只数未复核行）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:test --tests '*ProgressionAnomalySchemaUpgradeTest*'",
+        "result": "BUILD SUCCESSFUL（2 例：存量旧表被 ALTER 补上三列且可重放；ALTER 必须排在 CREATE TABLE 之后）"
+      },
+      {
+        "cmd": "负向对照：把 acknowledge 的 SET reviewer=? 改掉，再跑 AnomalyReviewCommandTest",
+        "result": "5 tests completed, 3 failed（BUILD FAILED）—— 证明测试真的在断言「署名落库」，不是恒绿；随后还原"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --continue ... test -PexcludeTags=env",
+        "result": "rc=0 / SUM tests=1091 failed=0 errors=0 skipped=2 modules=26 / SUMMARY_GATE=GREEN（基线 1081；+8 新测试，另有 2 个依赖 server/ 生产树的既有测试在本沙箱不可跑，改前改后一致）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --continue ... compileJava",
+        "result": "COMPILE_EXIT=0，BUILD SUCCESSFUL，28 tasks"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --continue ... assemble ; python3 scripts/check-plugin-jars.py /tmp/jars.txt",
+        "result": "ASM_EXIT=0；JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0"
+      }
+    ]
+  },
+  "unproven": [
+    "[R] Runtime：未在真实 Paper + PostgreSQL 上跑过 /rpgadmin anomaly list|ack（本沙箱无 Paper 服务端、无 PostgreSQL）。行为级证据是真实 H2 + 真实 JDBC 事务。",
+    "[H] Human：真人复核本身未发生 —— 本轮只把出口做成运行期可达并落库署名，谁在何时签的字仍待真人执行。",
+    "H2/PostgreSQL 的 ALTER TABLE ... ADD COLUMN IF NOT EXISTS 兼容性只在本仓既有的 H2 PostgreSQL 兼容模式上验证过；PostgreSQL 侧本沙箱无实例可跑（该语法 PostgreSQL 9.6+ 支持，且本仓 rpg_progression_wallets 已有同写法先例）。",
+    "命令层的 Bukkit 接线（RpgAdminPlugin.handleAnomalyReview + tab 补全）由编译与既有 WiringTest 范式覆盖，但未在真实服务端点击验证（无 MockBukkit）。"
+  ],
+  "blockers": [],
+  "risks": [
+    "复核口径从「删行」改为「留行 + 署名」是一次语义变更：表会长期保留已复核行。若运维依赖「表行数 = 待办数」，需改用 reviewed_at IS NULL 口径（RpgAdminPlugin 的 list 已按此口径）。",
+    "JdbcProfileService 刷新快照时会清空上一次署名（归 NULL），这是刻意的：新事实不接受旧签字背书。已有行为级测试锁定（aNewUninterpretableSnapshotClearsThePreviousSignature）。",
+    "顺带修了一处既有 DDL 顺序缺陷：Database.java 里 ALTER TABLE rpg_progression_wallets 原来排在它自己的 CREATE TABLE 之前，全新 H2 库上 migrate() 会以 Table not found 失败。已把 ALTER 移到 CREATE 之后。同文件还有其它同类顺序问题（如 CREATE INDEX idx_rpg_season_settlement_transition 早于 rpg_season_settlement_transitions 的 CREATE TABLE），不在本任务范围，未改动，已登记为 next_steps。"
+  ],
+  "next_steps": [
+    "登记并修复 Database.java 里其它「CREATE INDEX / ALTER 早于其 CREATE TABLE」的顺序缺陷（rpg_season_settlement_transitions 等），否则全新库的 migrate() 仍然失败。",
+    "[R] 在真实 Paper + PostgreSQL 上跑一次 /rpgadmin anomaly list|ack，补 [R] 级证据。",
+    "[H] 由真人真实复核一批异常并留署名，补齐 [H] 级证据。",
+    "真人复核的处置策略（是否需要据此回填 rpg_profiles、还是只保留结论）属设计取舍，需人类拍板；本轮严格不做自动改档案（C-013）。"
+  ]
+}

@@ -205,8 +205,54 @@
 经验超过本段上界都会落一行；**禁止用 `level % 30` 猜测映射**。档案读路径
 （`JdbcProfileService`）读到不可解释的档案时条件写一行，正常档案零写放大。
 
-唯一的删除路径是 `acknowledge(playerId, reviewer)`，`reviewer` 为空即拒绝；自动流程只写不删，
-也不据此发补偿（C-013）。这批记录必须由人复核后才能清理（AGENTS.md §6 的 `[H]` 证据）。
+复核出口是 `acknowledge(playerId, reviewer, note)`：`reviewer` 为空即拒绝（没有署名的复核不算复核），
+通过后把 `reviewer` / `review_note` / `reviewed_at` 写在**同一行**上 —— 复核是留下结论而不是删行，
+原判定依据与署名因此能在同一处对照。自动流程只写不签，也不据此发补偿（C-013）。
+
+### [H] 复核闭环（写侧 → 读侧 → 复核 → 落库）
+
+```
+  档案读路径                       管理面出口（本闭环新增的读侧）
+  ────────────────────             ──────────────────────────────────────────
+  JdbcProfileService.load()
+    └─ recordAnomalyIfUninterpretable()
+         │  ProgressionRules.classifyAnomaly(...)   ← 判定口径唯一实现
+         ├─ UPDATE rpg_progression_anomalies        （刷新快照，同时清空旧署名）
+         └─ INSERT rpg_progression_anomalies
+                    │
+                    ▼
+        rpg_progression_anomalies  ←─ SELECT ... WHERE reviewed_at IS NULL
+        （reviewed_at IS NULL            │
+          = 待人工裁决）                  │
+                    ▲                    ▼
+                    │          /rpgadmin anomaly list [<offset> [<limit>]]
+                    │            └─ 未复核清单（分页 + 总数）
+                    │
+                    │          /rpgadmin anomaly ack <player-uuid> CONFIRM <结论>
+                    │            └─ UPDATE ... SET reviewer=?, review_note=?,
+                    │                        reviewed_at=CURRENT_TIMESTAMP
+                    │               WHERE player_uuid=? AND reviewed_at IS NULL
+                    └──────────────┘   ← 幂等：已签署的行不再匹配，先到者为准
+```
+
+四段的落点：
+
+| 段 | 代码 | 落点 |
+|---|---|---|
+| 写侧 | `JdbcProfileService.recordAnomalyIfUninterpretable` | 只是在读到不可解释档案时条件写一行；正常档案零写放大 |
+| 读侧 | `AnomalyReviewCommand`（`/rpgadmin anomaly list`） | 只看 `reviewed_at IS NULL`，并把总数一起报出 |
+| 复核 | `AnomalyReviewCommand`（`ack`，需 `CONFIRM`） | 权限沿用 `rpgadmin` 命令级 `rpg.admin`（默认 op），不新造权限体系 |
+| 落库 | `JdbcProgressionAnomalyService.acknowledge` | `reviewer` / `review_note` / `reviewed_at` 三列；日志只是并行留痕 |
+
+**重复 ack 的口径 = 幂等**（先到者为准）：`WHERE reviewed_at IS NULL` 让第二次更新匹配 0 行，
+命令层据此播报「未作改动：已被 X 于 T 复核」而不是报成功，也不会覆盖首个署名与首次复核时间。
+选幂等而不是拒绝的理由：管理面重试/重复执行是常态（断线重连、脚本重放），把幂等做成拒绝会让
+「清单已清空」与「操作失败」在日志里长得一样；先到者为准同时保证签署不可被后手改写。
+
+**升级路径**：`reviewer` / `review_note` / `reviewed_at` 三列在 `Database.java` 由
+`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` 补齐（排在 `CREATE TABLE` 之后），
+存量节点的旧表因此能原地升级；缺失时 `ack` 会以「列不存在」回滚。
+`ProgressionAnomalySchemaUpgradeTest` 就是这条升级路径的机械证据。
 
 ## 已实现与后续内容门槛
 

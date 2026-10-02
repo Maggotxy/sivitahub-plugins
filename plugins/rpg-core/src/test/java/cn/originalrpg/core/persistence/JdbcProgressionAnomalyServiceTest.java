@@ -14,12 +14,14 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -48,7 +50,8 @@ final class JdbcProgressionAnomalyServiceTest {
                         player_uuid VARCHAR(36) PRIMARY KEY, ascension INTEGER NOT NULL,
                         level INTEGER NOT NULL, experience BIGINT NOT NULL,
                         reason VARCHAR(128) NOT NULL,
-                        detected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)
+                        detected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        reviewer VARCHAR(64), review_note VARCHAR(200), reviewed_at TIMESTAMP)
                     """);
             // 读路径调用链需要的最小档案表。
             statement.execute("""
@@ -150,13 +153,61 @@ final class JdbcProgressionAnomalyServiceTest {
         await(service.inspect(player, 2, 31, 0));
 
         // 没有署名的复核不算复核（[H] 门禁）。
-        assertFalse(await(service.acknowledge(player, "  ")));
-        assertFalse(await(service.acknowledge(player, null)));
-        assertEquals(1, countAnomalies(), "被拒的复核不得删行");
+        assertFalse(await(service.acknowledge(player, "  ", "no signature")));
+        assertFalse(await(service.acknowledge(player, null, "no signature")));
+        assertEquals(1, countAnomalies(), "被拒的复核不得改动行");
+        assertNull(text("SELECT reviewer FROM rpg_progression_anomalies"));
+        assertTrue(await(service.pending(player)).isPresent(), "被拒的复核后仍在待复核清单里");
 
-        assertTrue(await(service.acknowledge(player, "operator-zhang")));
-        assertEquals(0, countAnomalies());
-        assertTrue(await(service.pending(player)).isEmpty());
+        assertTrue(await(service.acknowledge(player, "operator-zhang", "dry-run 确认可唯一映射")));
+        // 签署是赋值而不是删除：行仍在，署名/结论/时间已落库。
+        assertEquals(1, countAnomalies());
+        assertEquals("operator-zhang", text("SELECT reviewer FROM rpg_progression_anomalies"));
+        assertEquals("dry-run 确认可唯一映射", text("SELECT review_note FROM rpg_progression_anomalies"));
+        assertEquals(1L, number("SELECT COUNT(*) FROM rpg_progression_anomalies WHERE reviewed_at IS NOT NULL"));
+        assertTrue(await(service.pending(player)).isEmpty(), "已签署的行不再出现在待复核清单");
+    }
+
+    @Test
+    void repeatedAcknowledgeIsIdempotentAndKeepsTheFirstSignature() throws Exception {
+        UUID player = UUID.randomUUID();
+        await(service.inspect(player, 2, 31, 0));
+
+        assertTrue(await(service.acknowledge(player, "operator-zhang", "first")));
+        // 重复 ack：不报错、不覆盖首个署名与首次复核时间（幂等口径，先到者为准）。
+        assertFalse(await(service.acknowledge(player, "operator-li", "second")));
+        assertEquals("operator-zhang", text("SELECT reviewer FROM rpg_progression_anomalies"));
+        assertEquals("first", text("SELECT review_note FROM rpg_progression_anomalies"));
+    }
+
+    @Test
+    void aNewUninterpretableSnapshotClearsThePreviousSignature() throws Exception {
+        UUID player = UUID.randomUUID();
+        await(service.inspect(player, 2, 31, 0));
+        assertTrue(await(service.acknowledge(player, "operator-zhang", "reviewed")));
+
+        // 档案又变成不可解释状态：旧署名不能替这次的新事实背书。
+        assertEquals(ProgressionAnomalyResult.Status.UPDATED,
+                await(service.inspect(player, 2, 33, 7)).status());
+        assertNull(text("SELECT reviewer FROM rpg_progression_anomalies"));
+        assertNull(text("SELECT reviewed_at FROM rpg_progression_anomalies"));
+        assertTrue(await(service.pending(player)).isPresent(), "新事实必须重新回到待复核清单");
+    }
+
+    @Test
+    void pendingPageAndCountOnlySeeUnreviewedRows() throws Exception {
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        await(service.inspect(first, 0, 31, 0));
+        await(service.inspect(second, 0, 32, 0));
+        assertEquals(2L, await(service.pendingCount()));
+
+        assertTrue(await(service.acknowledge(first, "operator-zhang", "ok")));
+
+        assertEquals(1L, await(service.pendingCount()), "计数必须只数未复核行");
+        assertEquals(List.of(second), await(service.pending(0, 50)).stream()
+                .map(ProgressionAnomaly::playerId).toList());
+        assertEquals(List.of(), await(service.pending(1, 50)), "offset 翻页跨过已复核行后为空");
     }
 
     @Test
@@ -204,6 +255,25 @@ final class JdbcProgressionAnomalyServiceTest {
             insert.setLong(4, experience);
             insert.executeUpdate();
             connection.commit();
+        }
+    }
+
+    /** 读单列标量，用来断言「署名/时间真的落库了」而不是只在返回值里。 */
+    private String text(String sql) throws Exception {
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(sql)) {
+            result.next();
+            return result.getString(1);
+        }
+    }
+
+    private long number(String sql) throws Exception {
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(sql)) {
+            result.next();
+            return result.getLong(1);
         }
     }
 

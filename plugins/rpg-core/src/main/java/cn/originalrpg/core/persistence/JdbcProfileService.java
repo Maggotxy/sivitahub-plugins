@@ -596,9 +596,13 @@ public final class JdbcProfileService implements ProfileService {
         if (reason == null) return;
         // 与 JdbcProgressionAnomalyService 同一口径：H2 的 PostgreSQL 兼容模式不支持
         // 带冲突目标的 upsert，所以改成「已存在则 UPDATE，否则 INSERT」，两库等价。
+        // 刷新快照必须同时清空上一次的复核结论（reviewer/review_note/reviewed_at）：
+        // 档案又变成不可解释状态，旧署名不能替新事实背书，否则 [H] 门禁被上一次签字绕过。
         try (PreparedStatement update = connection.prepareStatement("""
                 UPDATE rpg_progression_anomalies
-                SET ascension = ?, level = ?, experience = ?, reason = ?, detected_at = CURRENT_TIMESTAMP
+                SET ascension = ?, level = ?, experience = ?, reason = ?,
+                    detected_at = CURRENT_TIMESTAMP,
+                    reviewer = NULL, review_note = NULL, reviewed_at = NULL
                 WHERE player_uuid = ?
                 """)) {
             update.setInt(1, profile.ascension());
