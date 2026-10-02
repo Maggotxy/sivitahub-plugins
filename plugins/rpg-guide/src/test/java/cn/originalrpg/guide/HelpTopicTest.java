@@ -1,7 +1,9 @@
 package cn.originalrpg.guide;
 
+import cn.originalrpg.guide.testing.DeploymentEnvironmentFixtures;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
@@ -73,6 +75,7 @@ class HelpTopicTest {
     }
 
     @Test
+    @Tag(DeploymentEnvironmentFixtures.TAG)
     void everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack() throws Exception {
         Path manifest = findFromWorkingTree("resource-pack/runtime-item-models.txt");
         Set<String> declared = Files.readAllLines(manifest).stream()

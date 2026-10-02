@@ -1,5 +1,7 @@
 package cn.originalrpg.hub;
 
+import cn.originalrpg.hub.testing.DeploymentEnvironmentFixtures;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -18,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class WorldTravelConfigurationContractTest {
     @Test
+    @Tag(DeploymentEnvironmentFixtures.TAG)
     void wildernessAndAuthoritativeOverworldBoundaryCannotDriftApart() throws IOException {
         Path root = repositoryRoot();
         Map<?, ?> hub = map(yaml(root.resolve(
@@ -58,6 +61,7 @@ final class WorldTravelConfigurationContractTest {
     }
 
     @Test
+    @Tag(DeploymentEnvironmentFixtures.TAG)
     void mapsAndClaimsFailClosedForDynamicWorlds() throws IOException {
         Path root = repositoryRoot();
         Map<?, ?> squaremap = map(yaml(root.resolve(

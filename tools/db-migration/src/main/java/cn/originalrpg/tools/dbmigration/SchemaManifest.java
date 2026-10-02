@@ -203,6 +203,10 @@ public final class SchemaManifest {
         indexes.put("rpg_equipment_states", List.of(List.of("owner_uuid", "state")));
         indexes.put("rpg_equipment_lifecycle_audit", List.of(List.of("item_id", "created_at")));
         indexes.put("rpg_season_settlement_transitions", List.of(List.of("settlement_id", "created_at")));
+        // Phase 8：单实例多服前置。两张表与它们的运行索引同批落库（Database.java 建表语句尾部），
+        // 迁移前必须登记，否则 H2 → PostgreSQL 会静默搬进一个丢掉热路径索引的库。
+        indexes.put("rpg_session_leases", List.of(List.of("lease_expires_at")));
+        indexes.put("rpg_outbox", List.of(List.of("processed_at", "created_at")));
         return Map.copyOf(indexes);
     }
 }

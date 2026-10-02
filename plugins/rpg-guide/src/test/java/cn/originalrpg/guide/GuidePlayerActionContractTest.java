@@ -1,5 +1,7 @@
 package cn.originalrpg.guide;
 
+import cn.originalrpg.guide.testing.DeploymentEnvironmentFixtures;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -26,6 +28,7 @@ final class GuidePlayerActionContractTest {
     private static final Pattern COMMAND_ACTION = Pattern.compile("\\\"command:([^\\\"]+)\\\"");
 
     @Test
+    @Tag(DeploymentEnvironmentFixtures.TAG)
     void everyGuideCommandActionHasARegisteredOrdinaryPlayerEntry() throws IOException {
         Path root = repositoryRoot();
         Map<String, Boolean> commandAccess = registeredCommands(root);

@@ -5,19 +5,36 @@
 #   2. 需要 NPC 写仓库时必须不写 `sandbox`（或 sandbox: false）+ `workMode: true`
 #   3. 构建脚本跑在 `sh`(dash) 下，不能用 `${PIPESTATUS[@]}`、进程替换、`<<-`
 #
-# 本仓定位：**CNB 为唯一真相源与执行体**。编译门是唯一机械判据，门不绿不算完成。
+# 本仓定位：**CNB 为唯一真相源与执行体**。质量门是唯一机械判据，门不绿不算完成。
 
-# 编译门脚本：判据 = 每个子工程 compileJava 成功（BUILD_EXIT=0）且构建耗时 SECONDS>0
-# （SECONDS>0 是为了防止「缓存命中后 0 秒通过」被当成真编译）
-.compile_gate: &compile_gate
-  - name: 全量编译门
+# 质量门 = 三个阶段，判据全部是退出码 + SECONDS>0
+# （SECONDS>0 是为了防止「缓存命中后 0 秒通过」被当成真执行）：
+#   1. DDL/指令引用门禁 + compileJava   —— 编译门
+#   2. test                              —— 全量测试门（26 子工程）
+#   3. assemble                          —— 打包门（各插件 jar）
+#
+# 测试门的「环境依赖测试」处理方式（W3-A2 决策，见 PR 描述）：
+#   本仓按设计只含 plugins/ docs/ tools/，**不含 server/ 与 resource-pack/**，
+#   因此有 9 个断言「运维侧部署产物」（运行中的 Paper 配置 / 数据包 / 文字包 / 第三方
+#   插件 jar 的命令注册表 / BungeeCord 风格对话包）的测试必然无法在此通过。
+#   它们被显式打上 @Tag("env")，门禁用 excludeTags 'env' 排除，并在日志里把
+#   「被排除的清单」逐条打印出来 —— 是显式分类，不是静默跳过。
+#   禁止的做法（本仓不做）：删测试 / @Disabled / 把断言改恒真 / -x test。
+#
+# 门禁同一套阶段被 push 与 api_trigger_gate 共用（YAML 锚点）。
+# `docker:` 必须写在 job 级（与 `stages:` 同级），写 stage 级会被静默忽略。
+.quality_gate: &quality_gate
+  - name: 全量质量门（编译 → 测试 → 打包）
     docker:
       image: eclipse-temurin:25-jdk
     stages:
       - name: DDL 消费者门禁（G-301）
         script: |
           set -e
-          chmod +x scripts/check-ddl-consumers.sh
+          # 每一次 clone 出来的 gradlew 权限位都可能丢（实测：本地 checkout 后
+          # `./gradlew` 报 Permission denied，退化成 TEST_EXIT=126 / SECONDS=0）。
+          # 这里统一兜底，避免门禁因为一个文件模式位而整段假红。
+          chmod +x gradlew scripts/*.sh scripts/*.py
           sh scripts/check-ddl-consumers.sh
       - name: 准备下载器
         script: |
@@ -79,12 +96,97 @@
           if [ "$rc" -ne 0 ]; then echo "COMPILE_GATE=RED"; exit 1; fi
           if [ $((end-start)) -le 0 ]; then echo "COMPILE_GATE=SUSPECT(0s)"; exit 1; fi
           echo "COMPILE_GATE=GREEN"
+      - name: test
+        script: |
+          # 全量测试门：26 个子工程全部跑 test（不用 -x test 绕过，不跳过任何模块）。
+          # --continue 保证单个模块失败不会让后面的模块被静默跳过 —— 每个模块都真的跑了、
+          # 都在下面「按模块结果」里报告。
+          # env 标签的测试被显式排除（理由见文件头注释），且事后逐条打印排除清单。
+          set -e
+          chmod +x gradlew scripts/dump-test-results.py
+          export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
+          export GRADLE_USER_HOME=/root/.gradle
+          start=$(date +%s)
+          set +e
+          ./gradlew --no-daemon --continue             -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4             -Dorg.gradle.internal.http.connectionTimeout=60000             -Dorg.gradle.internal.http.socketTimeout=60000             -Dorg.gradle.jvmargs="-Xmx1536m -Dfile.encoding=UTF-8"             test -PexcludeTags=env > /tmp/test.log 2>&1
+          rc=$?
+          set -e
+          end=$(date +%s)
+
+          echo "===== 测试日志错误段（失败时上下文）====="
+          grep -nE "FAILED|SKIPPED|tests completed|execution failed" /tmp/test.log | head -200 || true
+          echo "-----"
+
+          # 按模块结果：直接读 build/test-results/test/*.xml，
+          # 所以「某个模块根本没跑」也会以 NO_XML 显式暴露出来。
+          echo "===== 按模块结果（test-results XML 汇总）====="
+          set +e
+          python3 scripts/dump-test-results.py
+          summary_rc=$?
+          set -e
+
+          echo "===== 被显式排除的环境依赖测试（@Tag env）====="
+          excluded=$(grep -rlE '@Tag\([A-Za-z.]*DeploymentEnvironmentFixtures\.TAG\)'               plugins/*/src/test tools/*/src/test 2>/dev/null || true)
+          if [ -z "$excluded" ]; then
+            echo "（无）"
+          else
+            printf '%s\n' "$excluded" > /tmp/env-tagged-files.txt
+            grep -rhA1 '@Tag([A-Za-z.]*DeploymentEnvironmentFixtures\.TAG)'                 plugins/*/src/test tools/*/src/test 2>/dev/null               | grep -oE 'void [A-Za-z0-9_]+' | sed 's/^void /  - /' | sort -u
+            echo "  文件数: $(wc -l < /tmp/env-tagged-files.txt | tr -d ' ')"
+          fi
+
+          echo "===== 重新启用这些测试的方法（本机或完整部署环境）====="
+          echo "  ./gradlew --no-daemon -PexcludeTags= test   # 空 excludeTags = 跑全部"
+          echo "-----"
+          echo "TEST_EXIT=$rc SUMMARY_EXIT=$summary_rc SECONDS=$((end-start))"
+          if [ "$rc" -ne 0 ]; then echo "TEST_GATE=RED"; exit 1; fi
+          if [ "$summary_rc" -ne 0 ]; then echo "TEST_GATE=RED(按模块汇总有失败或模块漏跑)"; exit 1; fi
+          if [ $((end-start)) -le 0 ]; then echo "TEST_GATE=SUSPECT(0s)"; exit 1; fi
+          echo "TEST_GATE=GREEN"
+      - name: assemble
+        script: |
+          # 打包门：产出全部 rpg-* 插件 jar（assemble 带 jar + sourcesJar），并列出产物清单与大小。
+          set -e
+          export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
+          export GRADLE_USER_HOME=/root/.gradle
+          start=$(date +%s)
+          set +e
+          ./gradlew --no-daemon --continue             -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4             assemble > /tmp/assemble.log 2>&1
+          rc=$?
+          set -e
+          end=$(date +%s)
+          tail -n 40 /tmp/assemble.log
+
+          echo "===== jar 产物清单 ====="
+          jars=$(find plugins tools -path '*/build/libs/*.jar' -type f 2>/dev/null | sort)
+          if [ -z "$jars" ]; then echo "PACKAGE_GATE=RED 没有任何 jar 产物"; exit 1; fi
+          # 每行列出大小与相对路径；末尾汇总个数与总字节数
+          printf '%s\n' "$jars" | while IFS= read -r jar; do
+            [ -z "$jar" ] && continue
+            size=$(wc -c < "$jar" | tr -d ' ')
+            printf '  %10s  %s\n' "$size" "$jar"
+          done
+          echo "-----"
+          echo "JAR_COUNT=$(printf '%s\n' "$jars" | sed '/^$/d' | wc -l | tr -d ' ')"
+          echo "JAR_BYTES=$(printf '%s\n' "$jars" | while IFS= read -r j; do [ -n "$j" ] && wc -c < "$j"; done | awk '{s+=$1} END {print s+0}')"
+
+          echo "===== 产物校验：每个插件 jar 必须含 plugin.yml（可被 Paper 加载）====="
+          # 校验逻辑在 scripts/check-plugin-jars.py 里（用 python 读 zip，不用 unzip：
+          # eclipse-temurin 镜像没有 unzip，实测会把 25 个完好的 jar 全部误报）。
+          printf '%s\n' "$jars" > /tmp/jars.txt
+          python3 scripts/check-plugin-jars.py /tmp/jars.txt
+          echo "-----"
+          echo "ASSEMBLE_EXIT=$rc SECONDS=$((end-start))"
+          if [ "$rc" -ne 0 ]; then echo "PACKAGE_GATE=RED"; exit 1; fi
+          if [ $((end-start)) -le 0 ]; then echo "PACKAGE_GATE=SUSPECT(0s)"; exit 1; fi
+          echo "PACKAGE_GATE=GREEN"
 
 $:
-  push: *compile_gate
+  push: *quality_gate
 
   # 每波合完显式触发一次（编排器不会自动跑）
-  api_trigger_gate: *compile_gate
+  # 与 push 共用同一套阶段（同一个 YAML 锚点），不存在「push 严、api_trigger 松」的缝隙。
+  api_trigger_gate: *quality_gate
 
   # NPC 编排：由本地 orchestrator.py 派发（config 现场下发时此段不生效）
   api_trigger_npc:
