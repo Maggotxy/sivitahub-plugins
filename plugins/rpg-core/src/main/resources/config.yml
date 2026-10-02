@@ -40,6 +40,23 @@ network:
   # Safely refund dungeon energy owned by dead process tokens. Live tokens on
   # other Paper nodes are never touched.
   orphan-recovery-seconds: 30
+
+# Phase 8 多服前置（G-102）。两者默认 false：单实例部署下零行为影响。
+session-lease:
+  # 读侧接线：玩家进入本节点时判定「本节点是否持有该玩家的有效会话租约」。
+  # 关闭时不做任何准入判定（保持现状）。开启前请先确认 rpg_session_leases
+  # 已有本节点写入的租约，否则每个玩家都会被 fail-closed 拒绝。
+  enabled: false
+
+outbox:
+  # 总开关。关闭时业务事务完全不写 rpg_outbox（单实例零影响）。
+  # 开启后副本结算会在同一事务登记跨服事件。
+  enabled: false
+  # 后台投递消费者。依赖 enabled=true；单实例不需要跨服通知时保持关闭。
+  dispatch:
+    enabled: false
+  dispatch-interval-seconds: 5
+  dispatch-batch-size: 32
 language:
   # Java code uses English keys. Player-facing text is loaded from lang/*.yml.
   default: zh_cn

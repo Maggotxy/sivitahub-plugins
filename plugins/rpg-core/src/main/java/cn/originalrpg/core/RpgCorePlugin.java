@@ -54,6 +54,9 @@ import cn.originalrpg.core.persistence.JdbcSeasonExpeditionService;
 import cn.originalrpg.core.persistence.JdbcSeasonMeritWalletService;
 import cn.originalrpg.core.persistence.JdbcSeasonSettlementService;
 import cn.originalrpg.core.persistence.JdbcNodeLease;
+import cn.originalrpg.core.persistence.JdbcOutboxRegistry;
+import cn.originalrpg.core.persistence.JdbcSessionLease;
+import cn.originalrpg.core.persistence.OutboxDispatcher;
 import cn.originalrpg.core.persistence.JdbcAdminTestService;
 import cn.originalrpg.core.persistence.JdbcAdminIncidentCompensationService;
 import cn.originalrpg.core.persistence.JdbcAscensionService;
@@ -91,8 +94,12 @@ public final class RpgCorePlugin extends JavaPlugin {
     private ThreadPoolExecutor databaseExecutor;
     private ScheduledExecutorService nodeLeaseExecutor;
     private JdbcNodeLease nodeLease;
+    private JdbcOutboxRegistry outbox;
+    private OutboxDispatcher outboxDispatcher;
+    private JdbcSessionLease sessionLease;
     private NodeLeaseSupervisor nodeLeaseSupervisor;
     private AutoCloseable nodeLeaseRenewal;
+    private final AtomicBoolean outboxDispatchInFlight = new AtomicBoolean();
     private final AtomicBoolean chapterRefreshInFlight = new AtomicBoolean();
     private final FailStopCoordinator failStop = new FailStopCoordinator();
     private final AtomicBoolean reservationRecoveryInFlight = new AtomicBoolean();
@@ -136,6 +143,23 @@ public final class RpgCorePlugin extends JavaPlugin {
                         + "' already has an unexpired Paper process lease");
             }
 
+            // Phase 8 多服前置（G-102）：Transactional Outbox + Session Lease 读侧。
+            // 两者默认关闭：单实例部署下既不轮询 outbox，也不做会话准入判定。
+            // 默认关闭时 outbox 保持 null：业务事务不写任何 outbox 行，单实例零影响。
+            boolean outboxEnabled = getConfig().getBoolean("outbox.enabled", false);
+            if (outboxEnabled) {
+                outbox = new JdbcOutboxRegistry();
+            }
+            boolean outboxDispatchEnabled = getConfig().getBoolean("outbox.dispatch.enabled", false);
+            if (outboxEnabled && outboxDispatchEnabled) {
+                outboxDispatcher = new OutboxDispatcher(database.dataSource(), List.of());
+            }
+            boolean sessionLeaseEnabled = getConfig().getBoolean("session-lease.enabled", false);
+            if (sessionLeaseEnabled) {
+                sessionLease = new JdbcSessionLease(
+                        database.dataSource(), nodeLease.nodeId(), nodeLease.processToken());
+            }
+
             int startingEnergy = getConfig().getInt("progression.starting-energy", 100);
             int energyPerStamina = getConfig().getInt("progression.energy-per-stamina", 2);
             BigDecimal startingBalance = new BigDecimal(getConfig().getString("progression.starting-balance", "0.00"));
@@ -148,7 +172,8 @@ public final class RpgCorePlugin extends JavaPlugin {
             var initialChapter = StartupGate.await(
                     chapters.initialize(), startupTimeout, "Initial chapter ledger gate");
             JdbcProfileService profiles = new JdbcProfileService(
-                    database.dataSource(), databaseExecutor, startingEnergy, energyPerStamina);
+                    database.dataSource(), databaseExecutor, startingEnergy, energyPerStamina,
+                    chapters::maximumOpenAscension);
             JdbcEconomyService economy = new JdbcEconomyService(database.dataSource(), databaseExecutor, startingBalance);
             JdbcActivityEconomyService activityEconomy = new JdbcActivityEconomyService(
                     database.dataSource(), databaseExecutor, startingBalance, mechanisms);
@@ -194,7 +219,7 @@ public final class RpgCorePlugin extends JavaPlugin {
             JdbcDungeonEntryService dungeonEntries = new JdbcDungeonEntryService(
                     database.dataSource(), databaseExecutor, profiles, startingEnergy, energyPerStamina, nodeLease);
             JdbcDungeonRewardService dungeonRewards = new JdbcDungeonRewardService(
-                    database.dataSource(), databaseExecutor, profiles, mechanisms);
+                    database.dataSource(), databaseExecutor, profiles, mechanisms, outbox);
             JdbcSeasonExpeditionService seasonExpeditions = new JdbcSeasonExpeditionService(
                     database.dataSource(), databaseExecutor,
                     Math.clamp(getConfig().getInt("season-expedition.weekly-honor", 100), 0, 1_000),
@@ -275,6 +300,11 @@ public final class RpgCorePlugin extends JavaPlugin {
             startChapterRefresh(chapters);
             startNodeLeaseHeartbeat(nodeLeaseSeconds);
             startReservationRecovery(dungeonEntries);
+            if (outboxEnabled && outboxDispatchEnabled) startOutboxDispatch();
+            if (sessionLeaseEnabled) {
+                getServer().getPluginManager().registerEvents(
+                        new SessionLeaseListener(sessionLease, getLogger()), this);
+            }
             getLogger().info("RPG core started with transactional persistence; season="
                     + initialChapter.seasonId() + " chapter=" + initialChapter.chapterId()
                     + " revision=" + initialChapter.revision() + " node=" + nodeLease.nodeId() + ".");
@@ -345,6 +375,36 @@ public final class RpgCorePlugin extends JavaPlugin {
                 }
             });
         }, seconds * 20L, seconds * 20L);
+    }
+
+    /**
+     * Outbox 后台投递轮询（G-102）。默认关闭；仅在 {@code outbox.dispatch.enabled=true}
+     * 时启动。单实例下不启动，对现有玩法零影响。
+     */
+    private void startOutboxDispatch() {
+        long intervalSeconds = Math.clamp(
+                getConfig().getLong("outbox.dispatch-interval-seconds", 5L), 1L, 60L);
+        int batchSize = Math.clamp(getConfig().getInt("outbox.dispatch-batch-size", 32), 1, 512);
+        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+            if (!outboxDispatchInFlight.compareAndSet(false, true)) return;
+            try {
+                outboxDispatcher.dispatchBatch(batchSize);
+            } catch (RuntimeException error) {
+                getLogger().warning("Outbox dispatch round failed closed: " + error.getMessage());
+            } finally {
+                outboxDispatchInFlight.set(false);
+            }
+        }, intervalSeconds * 20L, intervalSeconds * 20L);
+    }
+
+    /** Transactional Outbox 写入口；业务服务用它在自身事务里登记事件。 */
+    public JdbcOutboxRegistry outbox() {
+        return outbox;
+    }
+
+    /** Session Lease 读侧判定入口；关闭时返回 null（调用方须判空）。 */
+    public JdbcSessionLease sessionLease() {
+        return sessionLease;
     }
 
     private void requestServerShutdown(String reason) {

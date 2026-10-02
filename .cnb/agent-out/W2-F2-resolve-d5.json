@@ -1,0 +1,87 @@
+{
+  "task_id": "W2-F2-resolve-d5",
+  "status": "success",
+  "summary": "用 git merge（非 rebase、非 force push）把 origin/main 合入 agent/W2-D5-session-lease-outbox，消解 PR#16 的冲突。冲突文件 plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java 按「两边语义都保留」解决：本分支的 Outbox/Session Lease 字段（outbox/outboxDispatcher/sessionLease/outboxDispatchInFlight）与 main 的 NodeLeaseSupervisor/nodeLeaseRenewal 字段并存，未做二选一。合并过程中另发现 git 把 plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcProfileService.java 静默退回成 main 版本（本分支新增的 IntSupplier maximumOpenAscension 字段与 5 参构造被丢弃，导致本分支测试 DungeonRewardOutboxWiringTest 编译失败），已在新侧最小化恢复：只加回 import/字段/两个构造，不恢复本分支已按 W2-A1 删除的 ProfileService.ascend() 简化旁路。",
+  "changed_files": [
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcProfileService.java",
+    ".cnb/agent-out/W2-F2-resolve-d5.json"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/16",
+  "evidence": {
+    "merge": [
+      {
+        "cmd": "git fetch origin main && git merge origin/main",
+        "hit": "CONFLICT (content): Merge conflict in plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java；其余文件自动合并"
+      },
+      {
+        "cmd": "git log -1 --pretty=%P",
+        "hit": "7df3ea2 双亲 = a680e5e(本分支) d4e4d5b(origin/main)，确认是 merge commit 而非 rebase"
+      },
+      {
+        "cmd": "grep -n '<<<<<<< \\|>>>>>>> ' plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java",
+        "hit": "无命中（冲突标记已清空）"
+      }
+    ],
+    "grep": [
+      {
+        "cmd": "sed -n '94,102p' plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java",
+        "hit": "outbox / outboxDispatcher / sessionLease / nodeLeaseSupervisor / nodeLeaseRenewal / outboxDispatchInFlight 六个字段同时存在（两边语义均在）"
+      },
+      {
+        "cmd": "grep -rn 'JdbcProfileService(' plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java",
+        "hit": "profiles = new JdbcProfileService(database.dataSource(), databaseExecutor, startingEnergy, energyPerStamina, chapters::maximumOpenAscension) —— 本分支的章节上限口径已恢复"
+      },
+      {
+        "cmd": "git diff origin/main --stat -- plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcProfileService.java",
+        "hit": "18 insertions(+)，1 deletion(-)（相对 main 纯新增，无删除）"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-core:compileJava",
+        "result": "BUILD SUCCESSFUL in 7s, exit=0"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 compileJava",
+        "result": "BUILD SUCCESSFUL in 39s，26 个任务（全量编译门 GREEN）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-items:test",
+        "result": "BUILD SUCCESSFUL in 18s；19 个测试类 60 tests / 0 failures / 0 errors / 0 skipped"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:test --tests 'cn.originalrpg.core.persistence.*'",
+        "result": "BUILD SUCCESSFUL；219 tests / 0 failures / 0 errors（已含本次修复的 DungeonRewardOutboxWiringTest）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-core:test",
+        "result": "243 tests completed, 2 failed；2 个失败是基线既存的环境依赖用例 LanguageBundleContractTest#quickActionTaskButtonUsesTheUnifiedTaskCenter 与 #projectYamlFilesParseWithoutDuplicateKeys（NoSuchFileException: server/datapacks/...、server/config，server/ 不在版本控制内）"
+      },
+      {
+        "cmd": "（基线对照）在 origin/main d4e4d5b 的独立 worktree 上跑 :plugins:rpg-core:test",
+        "result": "229 tests / 2 failed，失败用例与报错完全相同 —— 证明这 2 个失败与本合并无关"
+      }
+    ],
+    "conflict_judgement": [
+      "冲突点只有一个：RpgCorePlugin 的字段声明块。HEAD 侧是 G-102 读侧/Outbox 的四个成员，origin/main 侧是 W2-B6 的 NodeLeaseSupervisor + nodeLeaseRenewal。二者语义不互斥（一个管续期监督，一个管 Outbox 与会话准入），因此取并集。",
+      "载荷/接线函数无需二选一：startNodeLeaseHeartbeat() 两边同签名同调用点，方法体已被 git 自动合并为 main 的 NodeLeaseSupervisor 版本；startOutboxDispatch()/outbox()/sessionLease()/outboxDispatchInFlight 均为本分支独有，自动合并保留。",
+      "outbox 写入口构造点 JdbcDungeonRewardService(..., outbox) 保留本分支版本；main 的 JdbcSeasonMeritWalletService/JdbcSeasonSettlementService 等新增接线也全部保留。"
+    ],
+    "unrelated_breakage_check": [
+      {
+        "cmd": "./gradlew --no-daemon --continue compileTestJava",
+        "hit": "仅 :plugins/rpg-combat:compileTestJava 失败（DefenseWiringTest.java:208 ascend 的 @Override）。与合并无关"
+      },
+      {
+        "cmd": "在 origin/main 干净 worktree 上跑同一条命令",
+        "hit": "同一处、同一报错 —— 属 main 既存问题，未在本任务修（越界风险：该修复不应混入冲突消解 PR）"
+      }
+    ]
+  },
+  "unproven": [
+    "真实两节点 PostgreSQL 场景下的 Session Lease 准入与 Outbox 跨服投递未演练（[R] Runtime 缺位，需预发布专机）。",
+    "本分支未解决 main 既存的 :plugins:rpg-combat:compileTestJava 失败与 2 个 LanguageBundleContractTest 环境依赖失败（非本 PR 职责）。"
+  ],
+  "blockers": []
+}

@@ -34,6 +34,8 @@ public final class JdbcDungeonRewardService implements DungeonRewardService {
     private final JdbcProfileService profiles;
     /** C-005 Kill Switch；为 null 表示未接入注册表（仅未部署注册表的单测）。 */
     private final MechanismRegistry mechanisms;
+    /** G-102 Transactional Outbox 写入口；为 null 表示单实例部署未启用。 */
+    private final OutboxRegistry outbox;
 
     public JdbcDungeonRewardService(
             DataSource dataSource,
@@ -49,10 +51,21 @@ public final class JdbcDungeonRewardService implements DungeonRewardService {
             JdbcProfileService profiles,
             MechanismRegistry mechanisms
     ) {
+        this(dataSource, executor, profiles, mechanisms, null);
+    }
+
+    public JdbcDungeonRewardService(
+            DataSource dataSource,
+            Executor executor,
+            JdbcProfileService profiles,
+            MechanismRegistry mechanisms,
+            OutboxRegistry outbox
+    ) {
         this.dataSource = java.util.Objects.requireNonNull(dataSource, "dataSource");
         this.executor = java.util.Objects.requireNonNull(executor, "executor");
         this.profiles = java.util.Objects.requireNonNull(profiles, "profiles");
         this.mechanisms = mechanisms;
+        this.outbox = outbox;
     }
 
     @Override
@@ -138,6 +151,16 @@ public final class JdbcDungeonRewardService implements DungeonRewardService {
             insert.setBoolean(6, ticket.dropped());
             insert.setInt(7, ticket.failures());
             insert.executeUpdate();
+        }
+        // G-102：副本结算事件与 receipt 在同一事务登记，供多服阶段做跨服通知。
+        // 单实例下 outbox 为 null（未启用），此处不产生任何写入。
+        if (outbox != null) {
+            outbox.publish(connection, "dungeon.completion",
+                    request.runId().toString(),
+                    JdbcOutboxRegistry.idempotencyKey("dungeon.completion",
+                            request.runId().toString(), "settled"),
+                    "{\"runId\":\"" + request.runId() + "\",\"player\":\""
+                            + request.playerId() + "\",\"dungeon\":\"" + request.dungeonId() + "\"}");
         }
         return new DungeonRewardSettlement(
                 DungeonRewardSettlement.Status.SETTLED,

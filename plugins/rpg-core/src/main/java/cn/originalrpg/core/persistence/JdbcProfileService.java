@@ -22,6 +22,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.function.IntSupplier;
 import java.util.regex.Pattern;
 
 public final class JdbcProfileService implements ProfileService {
@@ -34,13 +35,30 @@ public final class JdbcProfileService implements ProfileService {
     private final Executor executor;
     private final int startingEnergy;
     private final int energyPerStamina;
+    private final IntSupplier maximumOpenAscension;
     private final Map<UUID, PlayerProfile> cache = new ConcurrentHashMap<>();
 
     public JdbcProfileService(DataSource dataSource, Executor executor, int startingEnergy, int energyPerStamina) {
+        this(dataSource, executor, startingEnergy, energyPerStamina, () -> 0);
+    }
+
+    public JdbcProfileService(
+            DataSource dataSource, Executor executor, int startingEnergy, int energyPerStamina, int maxOpenAscension
+    ) {
+        this(dataSource, executor, startingEnergy, energyPerStamina,
+                () -> Math.clamp(maxOpenAscension, 0, ProgressionRules.MAX_ASCENSION));
+    }
+
+    public JdbcProfileService(
+            DataSource dataSource, Executor executor, int startingEnergy, int energyPerStamina,
+            IntSupplier maximumOpenAscension
+    ) {
         this.dataSource = dataSource;
         this.executor = executor;
         this.startingEnergy = startingEnergy;
         this.energyPerStamina = energyPerStamina;
+        this.maximumOpenAscension = java.util.Objects.requireNonNull(
+                maximumOpenAscension, "maximumOpenAscension");
     }
 
     @Override
