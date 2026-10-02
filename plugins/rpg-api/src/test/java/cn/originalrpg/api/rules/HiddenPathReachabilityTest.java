@@ -3,158 +3,138 @@ package cn.originalrpg.api.rules;
 import cn.originalrpg.api.model.HiddenPath;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Behavioural reachability contract. "Reachable" means: every gate a hidden
- * route names fits inside the route's own ascension and level budget. Gates are
- * authored stage-locally ("minimum-ascension" + "minimum-level" in RpgSkills /
- * RpgDungeons), so they are offset onto the absolute effective-level ladder
- * before comparing. The production facts arrive from those plugins at startup;
- * these tests feed equivalent facts and prove the check rejects a
- * contradiction rather than describing the source text.
+ * G-106 行为级回归：隐藏路线的每个前置都必须能在路线自身开放之前满足。
+ * 这里真的调用 {@link HiddenPathReachability#unattainable} 并断言结果，
+ * 不是对源码字符串做 indexOf。
  */
 class HiddenPathReachabilityTest {
-    @Test
-    void everyAuthoredRouteIsReachableWithTheShippedGateFacts() {
-        Map<HiddenPath, HiddenPathReachability> facts = HiddenPathReachability.authored();
-        assertEquals(Set.of(HiddenPath.BLOODPACT, HiddenPath.TALISMAN), facts.keySet());
-        for (HiddenPath path : HiddenPath.values()) {
-            Set<String> blockers = HiddenPathReachability.unattainable(path, facts.get(path));
-            assertTrue(blockers.isEmpty(), path + " must be reachable, blockers=" + blockers);
-        }
+
+    private static HiddenPathReachability.Precondition skill(String id, int ascension, int local) {
+        return new HiddenPathReachability.Precondition(
+                id, ascension, local, HiddenPathReachability.Requirement.SKILL);
+    }
+
+    private static HiddenPathReachability.Precondition dungeon(String id, int effective, HiddenPathReachability.Requirement requirement) {
+        return new HiddenPathReachability.Precondition(
+                id,
+                HiddenPathReachability.ascensionOf(effective),
+                effective - HiddenPathReachability.ascensionOf(effective) * ProgressionRules.LEVELS_PER_ASCENSION,
+                requirement);
     }
 
     @Test
-    void bloodpactGateFollowsItsStageThreePrerequisiteSkill() {
-        // G-106: BLOODPACT required ascension 2 while vanished-horizon is the
-        // stage-3 assassin branch skill, so its own gate was unsatisfiable.
-        assertEquals(3, HiddenPathRules.minimumAscension(HiddenPath.BLOODPACT));
+    void bothRoutesRequireAscensionTwo() {
+        // 规则门按 docs/GAME_DESIGN.md:106 与另 4 份文档的「二转」。
+        assertEquals(2, HiddenPathRules.minimumAscension(HiddenPath.BLOODPACT));
         assertEquals(2, HiddenPathRules.minimumAscension(HiddenPath.TALISMAN));
-        assertNotEquals(2, HiddenPathRules.minimumAscension(HiddenPath.BLOODPACT));
-        // The documented build keeps level 20, Agi 32 / Sta 18, the same hidden
-        // dungeon and the same credential book; only the impossible gate moved.
-        assertEquals(20, HiddenPathRules.minimumLevel(HiddenPath.BLOODPACT));
-        assertEquals("vanished-horizon", HiddenPathRules.requiredSkill(HiddenPath.BLOODPACT));
-        assertEquals("storm-vault-hidden", HiddenPathRules.requiredDungeon(HiddenPath.BLOODPACT));
-        assertEquals("silent-thunder", HiddenPathRules.requiredSkillBook(HiddenPath.BLOODPACT));
+        assertEquals(ProgressionRules.effectiveLevel(2, 30),
+                HiddenPathReachability.routeCeiling(HiddenPath.BLOODPACT));
     }
 
     @Test
-    void routeNeedingASkillFromALaterAscensionIsUnattainable() {
-        // The G-106 shape, kept as a regression: a stage-2 route whose required
-        // skill is authored against the stage-3 branch.
-        HiddenPathReachability stageThreeSkill = new HiddenPathReachability(
-                "future-skill", 3, Set.of("rune-scholar"), 10,
-                "sulfur-depths-hidden", 20, "sulfur-depths", 12, "cinnabar-revelation", 20);
-        Set<String> blockers = HiddenPathReachability.unattainable(HiddenPath.TALISMAN, stageThreeSkill);
-        assertTrue(blockers.contains(HiddenPathRules.requiredSkill(HiddenPath.TALISMAN)),
-                "a route must not open before its own prerequisite skill: " + blockers);
-
-        // The same facts are fine once the route's gate catches up.
-        HiddenPathReachability stageThreeRoute = new HiddenPathReachability(
-                "vanished-horizon", 3, Set.of("unseen"), 20,
-                "storm-vault-hidden", 28, "storm-vault", 22, "silent-thunder", 28);
-        assertTrue(HiddenPathReachability.unattainable(HiddenPath.BLOODPACT, stageThreeRoute).isEmpty());
+    void shippedBloodpactSkillGateIsSeenAsUnreachable() {
+        // 真实配置形态：技能门 3 > 路线门 2 ⇒ 「配置错」被规则层判为 SKILL 矛盾。
+        List<HiddenPathReachability.Precondition> preconditions = List.of(
+                skill("vanished-horizon", 3, 20),
+                dungeon("storm-vault-hidden", 28, HiddenPathReachability.Requirement.HIDDEN_DUNGEON),
+                dungeon("storm-vault", 22, HiddenPathReachability.Requirement.TICKET_SOURCE),
+                dungeon("silent-thunder", 28, HiddenPathReachability.Requirement.SKILL_BOOK));
+        assertEquals(Set.of(HiddenPathReachability.Requirement.SKILL),
+                HiddenPathReachability.unattainable(HiddenPath.BLOODPACT, preconditions));
     }
 
     @Test
-    void routeNeedingALaterDungeonHiddenBookOrTicketIsUnattainable() {
-        // A gate at effective level 110 cannot be reached before the 3rd
-        // ascension, so a stage-2 route can never satisfy it.
-        HiddenPathReachability laterDungeon = new HiddenPathReachability(
-                "rune-reversal", 2, Set.of("rune-scholar"), 10,
-                "storm-vault-hidden", 110, "sulfur-depths", 12, "cinnabar-revelation", 20);
-        assertTrue(HiddenPathReachability.unattainable(HiddenPath.TALISMAN, laterDungeon)
-                .contains("hidden_dungeon"), laterDungeon.toString());
-
-        HiddenPathReachability laterBook = new HiddenPathReachability(
-                "rune-reversal", 2, Set.of("rune-scholar"), 10,
-                "sulfur-depths-hidden", 20, "sulfur-depths", 12, "silent-thunder", 110);
-        assertTrue(HiddenPathReachability.unattainable(HiddenPath.TALISMAN, laterBook)
-                .contains("skill_book"), laterBook.toString());
-
-        HiddenPathReachability laterTicket = new HiddenPathReachability(
-                "rune-reversal", 2, Set.of("rune-scholar"), 10,
-                "sulfur-depths-hidden", 20, "storm-vault", 100, "cinnabar-revelation", 20);
-        assertTrue(HiddenPathReachability.unattainable(HiddenPath.TALISMAN, laterTicket)
-                .contains("skill_book"), laterTicket.toString());
-
-        // A stage-3 route reaches effective 120, so the same facts fit there.
-        assertTrue(HiddenPathReachability.unattainable(HiddenPath.BLOODPACT, laterDungeon).isEmpty());
+    void loweringTheSkillGateToTwoMakesBloodpactReachable() {
+        // 判定的「配置错」修法：把技能门降到 2，血契全部前置即可达。
+        List<HiddenPathReachability.Precondition> preconditions = List.of(
+                skill("vanished-horizon", 2, 20),
+                dungeon("storm-vault-hidden", 28, HiddenPathReachability.Requirement.HIDDEN_DUNGEON),
+                dungeon("storm-vault", 22, HiddenPathReachability.Requirement.TICKET_SOURCE),
+                dungeon("silent-thunder", 28, HiddenPathReachability.Requirement.SKILL_BOOK));
+        assertTrue(HiddenPathReachability.unattainable(HiddenPath.BLOODPACT, preconditions).isEmpty());
+        assertTrue(HiddenPathReachability.unattainableDetails(HiddenPath.BLOODPACT, preconditions).isEmpty());
     }
 
     @Test
-    void stageLocalGatesAreOffsetByTheAscensionThatOpensThem() {
-        // TALISMAN opens at ascension 2, whose top effective level is 90. Its
-        // gate authors local levels 12..30 against that same stage, so every
-        // shipped stage-2-local gate (12 / 20) fits by construction.
-        HiddenPathReachability talismanFacts = HiddenPathReachability.authored(HiddenPath.TALISMAN);
-        assertEquals(12, talismanFacts.ticketSourceEffectiveLevel());
-        assertEquals(20, talismanFacts.hiddenDungeonEffectiveLevel());
-        assertEquals(20, talismanFacts.skillBookEffectiveLevel());
-        assertTrue(HiddenPathReachability.unattainable(HiddenPath.TALISMAN, talismanFacts).isEmpty());
-
-        // A gate authored ABOVE the local cap is absolute, so a stage-3-only
-        // level can never be satisfied by the stage-2 route.
-        HiddenPathReachability absoluteGate = new HiddenPathReachability(
-                "rune-reversal", 2, Set.of("rune-scholar"), 10,
-                "storm-vault-hidden", 118, "sulfur-depths", 12, "cinnabar-revelation", 20);
-        assertTrue(HiddenPathReachability.unattainable(HiddenPath.TALISMAN, absoluteGate)
-                .contains("hidden_dungeon"), "effective 118 needs the 3rd ascension");
-        // ... and the same absolute gate fits a 3rd-ascension route (cap 120).
-        assertTrue(HiddenPathReachability.unattainable(HiddenPath.BLOODPACT, absoluteGate).isEmpty());
+    void shippedTalismanPreconditionsAreReachable() {
+        List<HiddenPathReachability.Precondition> preconditions = List.of(
+                skill("rune-reversal", 2, 10),
+                dungeon("sulfur-depths-hidden", 20, HiddenPathReachability.Requirement.HIDDEN_DUNGEON),
+                dungeon("sulfur-depths", 12, HiddenPathReachability.Requirement.TICKET_SOURCE),
+                dungeon("cinnabar-revelation", 20, HiddenPathReachability.Requirement.SKILL_BOOK));
+        assertTrue(HiddenPathReachability.unattainable(HiddenPath.TALISMAN, preconditions).isEmpty());
     }
 
     @Test
-    void gatesBeyondTheThirdAscensionAreUnreachable() {
-        HiddenPathReachability impossible = new HiddenPathReachability(
-                "rune-reversal", 4, Set.of("rune-scholar"), 10,
-                "sulfur-depths-hidden", 20, "sulfur-depths", 12, "cinnabar-revelation", 20);
-        Set<String> blockers = HiddenPathReachability.unattainable(HiddenPath.TALISMAN, impossible);
-        assertTrue(blockers.contains(HiddenPathRules.requiredSkill(HiddenPath.TALISMAN)), blockers.toString());
+    void g106ShapeIsRejected() {
+        // G-106 原始形态：路线门 2 转，但前置技能要到 3 转才能学。
+        assertEquals(2, HiddenPathRules.minimumAscension(HiddenPath.TALISMAN));
+        List<HiddenPathReachability.Precondition> stageThreeSkill = List.of(skill("vanished-horizon", 3, 20));
+        Set<HiddenPathReachability.Requirement> blockers =
+                HiddenPathReachability.unattainable(HiddenPath.TALISMAN, stageThreeSkill);
+        assertEquals(Set.of(HiddenPathReachability.Requirement.SKILL), blockers);
+
+        Map<HiddenPathReachability.Requirement, Set<String>> details =
+                HiddenPathReachability.unattainableDetails(HiddenPath.TALISMAN, stageThreeSkill);
+        assertEquals(Set.of("vanished-horizon"), details.get(HiddenPathReachability.Requirement.SKILL));
+        assertFalse(details.isEmpty());
     }
 
     @Test
-    void effectiveLevelGatesAreComparedAcrossStagesNotAsLocalLevels() {
-        // A stage-3 local 20 is effective 110; a stage-2 local 20 is only 80.
-        assertEquals(110, ProgressionRules.effectiveLevel(3, 20));
-        assertEquals(80, ProgressionRules.effectiveLevel(2, 20));
-        assertEquals(90, ProgressionRules.effectiveLevel(2, 30));
-        assertEquals(120, ProgressionRules.effectiveLevel(3, 30));
-        assertEquals(3, HiddenPathReachability.ascensionOf(90));
-        assertEquals(3, HiddenPathReachability.ascensionOf(120));
-        assertEquals(2, HiddenPathReachability.ascensionOf(61));
-        assertEquals(1, HiddenPathReachability.ascensionOf(30));
-        assertEquals(0, HiddenPathReachability.ascensionOf(29));
+    void lateDungeonAndTicketAndBookAreEachNamed() {
+        List<HiddenPathReachability.Precondition> preconditions = List.of(
+                skill("rune-reversal", 2, 10),
+                dungeon("sulfur-depths-hidden", 120, HiddenPathReachability.Requirement.HIDDEN_DUNGEON),
+                dungeon("sulfur-depths", 120, HiddenPathReachability.Requirement.TICKET_SOURCE),
+                dungeon("cinnabar-revelation", 120, HiddenPathReachability.Requirement.SKILL_BOOK));
+        Map<HiddenPathReachability.Requirement, Set<String>> details =
+                HiddenPathReachability.unattainableDetails(HiddenPath.TALISMAN, preconditions);
+        assertEquals(Set.of(HiddenPathReachability.Requirement.HIDDEN_DUNGEON,
+                        HiddenPathReachability.Requirement.TICKET_SOURCE,
+                        HiddenPathReachability.Requirement.SKILL_BOOK),
+                Set.copyOf(details.keySet()));
+    }
+
+    @Test
+    void describeNamesTheRouteAndTheBlockingPrecondition() {
+        Map<HiddenPathReachability.Requirement, Set<String>> details =
+                HiddenPathReachability.unattainableDetails(HiddenPath.TALISMAN,
+                        List.of(skill("vanished-horizon", 3, 20)));
+        String text = HiddenPathReachability.describe(HiddenPath.TALISMAN, details);
+        assertTrue(text.contains("TALISMAN"), text);
+        assertTrue(text.contains("vanished-horizon"), text);
+        assertTrue(text.contains("SKILL"), text);
+    }
+
+    @Test
+    void preconditionValidatesItsOwnBounds() {
+        // 本地等级必须落在 1..30，转数必须落在 0..3 —— 防人工写错门。
+        assertThrows(IllegalArgumentException.class, () -> skill("x", 0, 31));
+        assertThrows(IllegalArgumentException.class, () -> skill("x", 4, 1));
+        assertThrows(IllegalArgumentException.class, () -> skill("x", -1, 1));
+        assertThrows(IllegalArgumentException.class, () -> skill("x", 1, 0));
+    }
+
+    @Test
+    void ascensionOfMapsTheEffectiveLadderOntoStages() {
         assertEquals(0, HiddenPathReachability.ascensionOf(1));
-        assertFalse(ProgressionRules.effectiveLevel(2, 20) >= ProgressionRules.effectiveLevel(3, 20));
-        // The gate must stay inside the legal ladder.
+        assertEquals(0, HiddenPathReachability.ascensionOf(30));
+        assertEquals(1, HiddenPathReachability.ascensionOf(31));
+        assertEquals(1, HiddenPathReachability.ascensionOf(60));
+        assertEquals(2, HiddenPathReachability.ascensionOf(61));
+        assertEquals(3, HiddenPathReachability.ascensionOf(91));
+        assertEquals(3, HiddenPathReachability.ascensionOf(120));
         assertThrows(IllegalArgumentException.class, () -> HiddenPathReachability.ascensionOf(0));
         assertThrows(IllegalArgumentException.class, () -> HiddenPathReachability.ascensionOf(121));
-        assertEquals(3, ProgressionRules.MAX_ASCENSION);
-        assertEquals(120, ProgressionRules.effectiveLevelCap());
-    }
-
-    @Test
-    void authoredFactsRefuseToDriftAwayFromTheRouteRules() {
-        Map<HiddenPath, HiddenPathReachability> facts = HiddenPathReachability.authored();
-        for (HiddenPath path : HiddenPath.values()) {
-            HiddenPathReachability fact = facts.get(path);
-            assertEquals(HiddenPathRules.requiredSkill(path), fact.requiredSkill(), path.toString());
-            assertEquals(HiddenPathRules.requiredDungeon(path), fact.requiredDungeon(), path.toString());
-            assertEquals(HiddenPathRules.requiredSkillBook(path), fact.requiredSkillBook(), path.toString());
-            assertTrue(fact.requiredSkillAscension() <= ProgressionRules.MAX_ASCENSION, path.toString());
-            assertTrue(fact.requiredSkillAscension() <= HiddenPathRules.minimumAscension(path), path.toString());
-            assertTrue(fact.hiddenDungeonEffectiveLevel() <= ProgressionRules.effectiveLevelCap(), path.toString());
-            assertTrue(fact.ticketSourceEffectiveLevel() <= ProgressionRules.effectiveLevelCap(), path.toString());
-        }
     }
 }

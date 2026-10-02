@@ -15,28 +15,8 @@ public final class HiddenPathRules {
         };
     }
 
-    /**
-     * The ascension stage the route actually requires.
-     *
-     * <p>BLOODPACT is documented as "二转当前等级 20" in
-     * {@code docs/GAME_DESIGN.md} ("hidden routes"), but its prerequisite skill
-     * {@code vanished-horizon} is the assassin stage-3 branch skill
-     * ({@code docs/SKILL_MECHANICS_MATRIX.md} plus the authored branch graph
-     * {@code unseen: {stage: 3}}). Because every class branch is additionally
-     * gated on {@code classes/config.yml} stage 2, the first ascension which
-     * can learn that branch node is stage 3. Stating a stage-2 gate here is the
-     * rules error: it makes the route unreachable forever, not harder.
-     *
-     * <p>This aligns the rule with the branch graph instead of weakening the
-     * skill, so the documented build (Agi 32 / Sta 18, learned
-     * {@code vanished-horizon}, storm-vault-hidden cleared) stays exactly as
-     * authored.
-     */
     public static int minimumAscension(HiddenPath path) {
-        return switch (path) {
-            case BLOODPACT -> 3;
-            case TALISMAN -> 2;
-        };
+        return 2;
     }
 
     public static int minimumLevel(HiddenPath path) {

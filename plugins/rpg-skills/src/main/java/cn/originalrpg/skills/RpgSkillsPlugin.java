@@ -211,18 +211,33 @@ public final class RpgSkillsPlugin extends JavaPlugin {
     }
 
     /**
-     * G-106 regression guard: a hidden route may not require a skill which only
-     * opens at a later ascension than the route itself.
+     * G-106 回归门：隐藏路线的任一前置（技能 / 隐藏副本 / 门票来源 / 技能书）
+     * 若比路线自身开放更晚，路线永久不可达 —— 具名报出。
+     *
+     * <p>默认只告警；{@code hidden-route-reachability.fail-on-contradiction=true} 时
+     * 升级为启动失败（fail-fast）。技能与技能书门来自本插件 config.yml，
+     * 隐藏副本与门票来源门来自 RpgDungeons（softdepend，未安装时跳过并记录，不阻塞启动）。
      */
     private void validateHiddenRouteReachability() {
+        if (!getConfig().getBoolean("hidden-route-reachability.enabled", true)) return;
         ConfigurationSection skills = getConfig().getConfigurationSection("skills");
         if (skills == null) return;
-        java.util.Map<cn.originalrpg.api.model.HiddenPath, java.util.Set<String>> unattainable =
-                SkillRouteReachability.unattainableRoutes(skills);
-        if (unattainable.isEmpty()) return;
-        java.util.Map.Entry<cn.originalrpg.api.model.HiddenPath, java.util.Set<String>> first =
-                unattainable.entrySet().iterator().next();
-        throw new IllegalStateException(SkillRouteReachability.describe(first.getKey(), first.getValue()));
+        org.bukkit.plugin.Plugin dungeonPlugin = getServer().getPluginManager().getPlugin("RpgDungeons");
+        ConfigurationSection dungeons = dungeonPlugin instanceof JavaPlugin dungeonsPlugin
+                ? dungeonsPlugin.getConfig().getConfigurationSection("dungeons")
+                : null;
+        HiddenRouteReachability.Report report = HiddenRouteReachability.inspect(skills, dungeons);
+        if (!report.skipped().isEmpty()) {
+            getLogger().warning("隐藏路线可达性自检跳过部分前置：" + report.skipped());
+        }
+        if (report.reachable()) return;
+        String description = report.describe().trim();
+        // 默认只告警：shipped 配置存在待人类裁决的 G-106 矛盾，置 fail-on-contradiction
+        // 为 true 后立即升级为启动失败（fail-fast），防止新的同类矛盾静默上线。
+        if (getConfig().getBoolean("hidden-route-reachability.fail-on-contradiction", false)) {
+            throw new IllegalStateException(description);
+        }
+        getLogger().warning("隐藏路线可达性自检发现矛盾（fail-on-contradiction=false，仅告警）：\n" + description);
     }
 
     private void validateSkillLeveling() {

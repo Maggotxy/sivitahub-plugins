@@ -2,195 +2,138 @@ package cn.originalrpg.api.rules;
 
 import cn.originalrpg.api.model.HiddenPath;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 
 /**
- * Everything a hidden route references outside its own definition: the skill
- * that must already be learned, the ascension stage its class branch opens at,
- * the hidden dungeon gate and the boss book which credits the route. Those
- * values live in RpgSkills / RpgClasses / RpgDungeons, so callers pass them in
- * and {@link #unattainable} decides whether the route is satisfiable at all.
+ * 隐藏路线的「可达性」判定：路线要求的一切前置（必须已学的技能、隐藏副本、
+ * 门票来源、技能书领悟）都必须能在路线自身开放之前或同时满足。
  *
- * <p>This is a contract, not a simulation: it refuses to guess XP curves, gold
- * income or player skill, and only checks the hard authored gates.
+ * <p>前置的真实数值分散在 rpg-skills / rpg-classes / rpg-dungeons 的配置里，
+ * 所以调用方把 {@link Precondition} 传进来，{@link #unattainable} 只做一件事：
+ * 把每个前置门换算到同一条绝对有效等级天梯（{@link ProgressionRules#effectiveLevel}），
+ * 再与路线自身的门比较。任何「前置比路线更晚开放」的组合都会被具名报出，
+ * 这就是 G-106 那一类配置矛盾的通用检测。
+ *
+ * <p>这不是仿真：不猜经验曲线、不猜金币产出，只看作者写死的硬门。
  */
-public record HiddenPathReachability(
-        String requiredSkill,
-        int requiredSkillAscension,
-        Set<String> requiredSkillBranches,
-        int requiredSkillEffectiveLevel,
-        String requiredDungeon,
-        int hiddenDungeonEffectiveLevel,
-        String ticketSource,
-        int ticketSourceEffectiveLevel,
-        String requiredSkillBook,
-        int skillBookEffectiveLevel
-) {
-    public static final String BLOODPACT_SKILL = "vanished-horizon";
-    public static final String BLOODPACT_SKILL_BRANCH = "unseen";
-    public static final String BLOODPACT_DUNGEON = "storm-vault-hidden";
-    public static final String BLOODPACT_TICKET_SOURCE = "storm-vault";
-    public static final String BLOODPACT_SKILL_BOOK = "silent-thunder";
-    public static final String TALISMAN_SKILL = "rune-reversal";
-    public static final String TALISMAN_SKILL_BRANCH = "rune-scholar";
-    public static final String TALISMAN_DUNGEON = "sulfur-depths-hidden";
-    public static final String TALISMAN_TICKET_SOURCE = "sulfur-depths";
-    public static final String TALISMAN_SKILL_BOOK = "cinnabar-revelation";
+public final class HiddenPathReachability {
+    private HiddenPathReachability() {
+    }
 
-    public HiddenPathReachability {
-        Objects.requireNonNull(requiredSkill, "requiredSkill");
-        Objects.requireNonNull(requiredSkillBranches, "requiredSkillBranches");
-        requiredSkillBranches = Set.copyOf(requiredSkillBranches);
-        Objects.requireNonNull(requiredDungeon, "requiredDungeon");
-        Objects.requireNonNull(requiredSkillBook, "requiredSkillBook");
+    /** 前置在 eligibility 里的 requirement code，与 {@code HiddenPathEligibility.missingRequirements()} 对齐。 */
+    public enum Requirement {
+        /** 路线要求的技能未学（{@link HiddenPathRules#requiredSkill}）。 */
+        SKILL,
+        /** 隐藏副本回执缺失。 */
+        HIDDEN_DUNGEON,
+        /** 技能书未领悟。 */
+        SKILL_BOOK,
+        /** 隐藏门票来源（普通副本）未通关。 */
+        TICKET_SOURCE
     }
 
     /**
-     * The authored facts of both shipped routes, validated against
-     * {@link HiddenPathRules} so a rules/config drift fails at startup instead
-     * of silently making a route unattainable.
+     * 一个前置的硬门。
+     *
+     * @param id              前置标识（技能 id / 副本 id / 技能书 id），用于报错定位
+     * @param ascension       该前置最早开放的转数
+     * @param localLevel      该前置在 {@code ascension} 那一转下的本地等级
+     * @param requirement     归类的 requirement code
      */
-    public static Map<HiddenPath, HiddenPathReachability> authored() {
-        Map<HiddenPath, HiddenPathReachability> facts = Map.of(
-                HiddenPath.BLOODPACT, new HiddenPathReachability(
-                        BLOODPACT_SKILL, 3, Set.of(BLOODPACT_SKILL_BRANCH), 20,
-                        BLOODPACT_DUNGEON, 28, BLOODPACT_TICKET_SOURCE, 22, BLOODPACT_SKILL_BOOK, 28),
-                HiddenPath.TALISMAN, new HiddenPathReachability(
-                        TALISMAN_SKILL, 2, Set.of(TALISMAN_SKILL_BRANCH), 10,
-                        TALISMAN_DUNGEON, 20, TALISMAN_TICKET_SOURCE, 12, TALISMAN_SKILL_BOOK, 20));
-        facts.forEach((path, fact) -> {
-            requireEquals(HiddenPathRules.requiredSkill(path), fact.requiredSkill(),
-                    path + " required skill");
-            requireEquals(HiddenPathRules.requiredDungeon(path), fact.requiredDungeon(),
-                    path + " required dungeon");
-            requireEquals(HiddenPathRules.requiredSkillBook(path), fact.requiredSkillBook(),
-                    path + " required skill book");
-        });
-        return facts;
+    public record Precondition(String id, int ascension, int localLevel, Requirement requirement) {
+        public Precondition {
+            Objects.requireNonNull(id, "id");
+            Objects.requireNonNull(requirement, "requirement");
+            if (ascension < 0 || ascension > ProgressionRules.MAX_ASCENSION) {
+                throw new IllegalArgumentException("ascension must be between 0 and "
+                        + ProgressionRules.MAX_ASCENSION + ": " + ascension);
+            }
+            if (localLevel < 1 || localLevel > ProgressionRules.LOCAL_LEVEL_CAP) {
+                throw new IllegalArgumentException("localLevel must be between 1 and "
+                        + ProgressionRules.LOCAL_LEVEL_CAP + ": " + localLevel);
+            }
+        }
+
+        /** 该前置的绝对有效等级门。 */
+        public int absoluteGate() {
+            return ProgressionRules.effectiveLevel(ascension, localLevel);
+        }
     }
 
-    /** The authored facts of one route. */
-    public static HiddenPathReachability authored(HiddenPath path) {
-        return authored().get(Objects.requireNonNull(path, "path"));
-    }
-
-    /** The highest level a route's own gate can ever be evaluated at. */
-    private static int routeGateAbsolute(HiddenPath path) {
+    /**
+     * 路线自身能到的最高绝对有效等级：路线门那一转的本地满级。
+     * 玩家可以在路线门那一转的任意本地等级激活路线，所以比较基准取该转顶端。
+     */
+    public static int routeCeiling(HiddenPath path) {
+        Objects.requireNonNull(path, "path");
         return ProgressionRules.effectiveLevel(
                 HiddenPathRules.minimumAscension(path), ProgressionRules.LOCAL_LEVEL_CAP);
     }
 
-    /** Turn an authored stage-local level into an absolute effective level. */
-    private static int absolute(int authoredLevel, int routeAscension) {
-        if (!isStageLocal(authoredLevel)) return Math.min(authoredLevel, ProgressionRules.effectiveLevelCap());
-        // A gate tied to an earlier stage is already past; only a gate which
-        // needs the route's own or a later ascension can block the route.
-        int requiredAscension = authoredLevel / ProgressionRules.LEVELS_PER_ASCENSION;
-        return ProgressionRules.effectiveLevel(
-                Math.min(Math.max(requiredAscension, routeAscension), ProgressionRules.MAX_ASCENSION),
-                authoredLevel);
-    }
-
-    /** Stage-local gates are 1..30; anything larger is already absolute. */
-    private static boolean isStageLocal(int authoredLevel) {
-        return authoredLevel <= ProgressionRules.LOCAL_LEVEL_CAP;
-    }
-
     /**
-     * Requirement codes which no player can ever satisfy on this route. An
-     * empty result means every gate of the route fits inside the route's own
-     * ascension and level budget; codes match
-     * {@code HiddenPathEligibility.missingRequirements()}.
+     * 无法满足的前置 requirement codes。空集 = 路线自身与其全部前置的硬门一致。
      *
-     * <p>The route itself declares local levels against its own ascension, but
-     * its prerequisites declare local levels against the ascension that opens
-     * them ("minimum-ascension" + "minimum-level" in RpgSkills / RpgDungeons).
-     * Both are offset onto the same absolute ladder before comparing, which is
-     * exactly the class of contradiction G-106 shipped.
-     *
-     * <p>Called with the live RpgSkills / RpgClasses / RpgDungeons facts at
-     * startup, this catches every "route requires something that opens later
-     * than the route itself" configuration contradiction.
+     * <p>判定规则只有一条：前置的绝对有效等级门 &gt; 路线的绝对有效等级上限 ⇒
+     * 该前置永远比路线更晚开放 ⇒ 路线永久不可达。
      */
-    public static Set<String> unattainable(HiddenPath path, HiddenPathReachability facts) {
+    public static Set<Requirement> unattainable(HiddenPath path, List<Precondition> preconditions) {
         Objects.requireNonNull(path, "path");
-        Objects.requireNonNull(facts, "facts");
-        int routeAscension = HiddenPathRules.minimumAscension(path);
-        // The route gate itself is satisfiable for any level inside its own
-        // stage, so the budget to compare against is that stage's top level.
-        int routeGate = routeGateAbsolute(path);
-        Objects.requireNonNull(facts, "facts");
-        Set<String> blockers = new TreeSet<>();
-        // The required skill is authored against the branch stage which opens
-        // it, so its own ascension is part of the gate.
-        if (facts.requiredSkillAscension() > routeAscension
-                || facts.requiredSkillAscension() > ProgressionRules.MAX_ASCENSION) {
-            blockers.add(limitCode(path, Limit.SKILL));
-        } else if (facts.requiredSkillEffectiveLevel() > ProgressionRules.LOCAL_LEVEL_CAP) {
-            // An absolute skill level must still fit inside the route stage.
-            if (facts.requiredSkillEffectiveLevel() > routeGate) blockers.add(limitCode(path, Limit.SKILL));
-        }
-        // The credential book drops from the route's hidden dungeon; the hidden
-        // ticket in turn comes from the matching normal dungeon.
-        if (absolute(facts.hiddenDungeonEffectiveLevel(), routeAscension) > routeGate) {
-            blockers.add(limitCode(path, Limit.HIDDEN_DUNGEON));
-        }
-        if (absolute(facts.skillBookEffectiveLevel(), routeAscension) > routeGate) {
-            blockers.add(limitCode(path, Limit.SKILL_BOOK));
-        }
-        if (absolute(facts.ticketSourceEffectiveLevel(), routeAscension) > routeGate) {
-            blockers.add(limitCode(path, Limit.SKILL_BOOK));
+        Objects.requireNonNull(preconditions, "preconditions");
+        int ceiling = routeCeiling(path);
+        Set<Requirement> blockers = new LinkedHashSet<>();
+        for (Precondition precondition : preconditions) {
+            if (precondition.absoluteGate() > ceiling) {
+                blockers.add(precondition.requirement());
+            }
         }
         return Set.copyOf(blockers);
     }
 
-    /**
-     * The stall a contradictory route would produce. Each limit maps to the
-     * requirement code players already see in {@code /class hidden}, so the
-     * startup failure names the same thing the menu would have hidden forever.
-     */
-    public enum Limit {
-        SKILL,
-        HIDDEN_DUNGEON,
-        SKILL_BOOK
-    }
-
-    /** The player-facing requirement code for a limit of a route. */
-    public static String limitCode(HiddenPath path, Limit limit) {
+    /** 无法满足的前置明细，键 = requirement code，值 = 该 code 下所有越界前置的 id。 */
+    public static Map<Requirement, Set<String>> unattainableDetails(
+            HiddenPath path, List<Precondition> preconditions) {
         Objects.requireNonNull(path, "path");
-        Objects.requireNonNull(limit, "limit");
-        return switch (limit) {
-            case SKILL -> HiddenPathRules.requiredSkill(path);
-            case HIDDEN_DUNGEON -> "hidden_dungeon";
-            case SKILL_BOOK -> "skill_book";
-        };
+        Objects.requireNonNull(preconditions, "preconditions");
+        int ceiling = routeCeiling(path);
+        Map<Requirement, Set<String>> blockers = new java.util.EnumMap<>(Requirement.class);
+        for (Precondition precondition : preconditions) {
+            if (precondition.absoluteGate() > ceiling) {
+                blockers.computeIfAbsent(precondition.requirement(), key -> new LinkedHashSet<>())
+                        .add(precondition.id());
+            }
+        }
+        return Map.copyOf(blockers);
     }
 
     /**
-     * The ascension stage which first reaches an effective level.
-     *
-     * <p>Stage {@code a} covers effective levels
-     * {@code a * 30 + 1 .. a * 30 + 30}, so this is a ceil-division, not the
-     * floor {@code (level - 1) / 30} that {@code totalExperienceToEffective}
-     * still uses for its own span arithmetic.
+     * 有效等级所属转数。1..30 → 0，31..60 → 1，…，91..120 → 3。
      */
     public static int ascensionOf(int effectiveLevel) {
         if (effectiveLevel < 1 || effectiveLevel > ProgressionRules.effectiveLevelCap()) {
             throw new IllegalArgumentException("effectiveLevel must be between 1 and "
-                    + ProgressionRules.effectiveLevelCap());
+                    + ProgressionRules.effectiveLevelCap() + ": " + effectiveLevel);
         }
-        int perStage = ProgressionRules.LEVELS_PER_ASCENSION;
-        return Math.min(ProgressionRules.MAX_ASCENSION, effectiveLevel / perStage);
+        return Math.min(ProgressionRules.MAX_ASCENSION,
+                (effectiveLevel - 1) / ProgressionRules.LEVELS_PER_ASCENSION);
     }
 
-    private static void requireEquals(String expected, String actual, String what) {
-        if (!Objects.equals(expected, actual)) {
-            throw new IllegalStateException(
-                    "Hidden-path reachability drift on " + what + ": rules=" + expected + " facts=" + actual);
-        }
+    /** 启动失败用的可读描述。 */
+    public static String describe(HiddenPath path, Map<Requirement, Set<String>> blockers) {
+        Objects.requireNonNull(path, "path");
+        Objects.requireNonNull(blockers, "blockers");
+        StringBuilder text = new StringBuilder("隐藏路线 ")
+                .append(path)
+                .append(" 要求的最小转数为 ")
+                .append(HiddenPathRules.minimumAscension(path))
+                .append("（有效等级上限 ")
+                .append(routeCeiling(path))
+                .append("），但以下前置开放更晚，路线永久不可达：");
+        blockers.forEach((requirement, ids) ->
+                text.append(' ').append(requirement).append('=').append(ids));
+        return text.toString();
     }
 }

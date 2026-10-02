@@ -5,7 +5,7 @@ api-version: '${paperApi}'
 authors: [OriginalRpg]
 description: Class selection and staged progression.
 depend: [RpgApi, RpgCore, AuthMe]
-softdepend: [RpgCosmetics, RpgSkills, RpgDungeons]
+softdepend: [RpgCosmetics]
 commands:
   class:
     description: View or choose a class.

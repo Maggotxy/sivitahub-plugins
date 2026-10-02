@@ -3278,7 +3278,7 @@ class JdbcServicesTest {
                     INSERT INTO rpg_profiles (
                         player_uuid, archetype, ascension, level, experience, energy, unspent_attribute_points,
                         skill_points, defense, strength, agility, intelligence, stamina
-                    ) VALUES ('%s', 'ASSASSIN', 3, 20, 0, 100, 0, 0, 0, 0, 32, 0, 18)
+                    ) VALUES ('%s', 'ASSASSIN', 2, 20, 0, 100, 0, 0, 0, 0, 32, 0, 18)
                     """.formatted(player));
             statement.execute("INSERT INTO rpg_skills (player_uuid, skill_id, level, point_cost) VALUES ('"
                     + player + "', 'vanished-horizon', 1, 0)");

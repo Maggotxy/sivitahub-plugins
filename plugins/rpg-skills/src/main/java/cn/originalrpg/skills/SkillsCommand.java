@@ -12,7 +12,6 @@ import cn.originalrpg.api.model.EquipmentSnapshot;
 import cn.originalrpg.api.model.EquipmentTraitCatalog;
 import cn.originalrpg.api.model.SkillCooldownSnapshot;
 import cn.originalrpg.api.model.SkillHudSnapshot;
-import cn.originalrpg.api.rules.ProgressionRules;
 import cn.originalrpg.api.service.EquipmentService;
 import cn.originalrpg.api.service.ClassBranchService;
 import cn.originalrpg.api.service.ProfileService;
@@ -2098,10 +2097,8 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                 messages.text(player, "skill-command.ascension-required", Map.of(
                         "ascension", ascension)));
         int level = Math.max(1, skill.getInt("minimum-level", 1));
-        if (profile.effectiveLevel() < ProgressionRules.effectiveLevel(ascension, level)) {
-            return new SkillLock(SkillMenuPolicy.Gate.LEVEL,
-                    messages.text(player, "skill-command.level-required", Map.of("level", level)));
-        }
+        if (profile.level() < level) return new SkillLock(SkillMenuPolicy.Gate.LEVEL,
+                messages.text(player, "skill-command.level-required", Map.of("level", level)));
         String branch = skill.getString("branch", "");
         if (!branch.isBlank() && !selectedBranches.containsValue(branch)) return new SkillLock(
                 SkillMenuPolicy.Gate.BRANCH, messages.text(player, "skill-command.branch-required", Map.of(
@@ -2365,11 +2362,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
             return;
         }
         int minimumLevel = Math.max(1, skill.getInt("minimum-level", 1));
-        // minimum-level is authored against the local 1..30 ladder of the
-        // ascension which first opens the skill, not against the player's
-        // current stage. A later-stage player at local 1 still satisfies a
-        // stage-2 skill which asked for local 10.
-        if (profile.effectiveLevel() < ProgressionRules.effectiveLevel(minimumAscension, minimumLevel)) {
+        if (profile.level() < minimumLevel) {
             player.sendMessage(Component.text(messages.text(player, "skill-command.level-required", Map.of(
                     "level", minimumLevel)), NamedTextColor.RED));
             finishLearning(player, sourceMenu);
