@@ -33,6 +33,7 @@ import cn.originalrpg.api.model.AscensionResult;
 import cn.originalrpg.api.model.HiddenPath;
 import cn.originalrpg.api.model.HiddenPathActivationResult;
 import cn.originalrpg.api.service.DungeonEntryService;
+import cn.originalrpg.api.service.ProfileService;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.AfterEach;
@@ -1062,8 +1063,9 @@ class JdbcServicesTest {
 
     @Test
     void classBranchesRequireMatchingClassAndOpenedAscensionStage() {
-        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2, 3);
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
         JdbcClassBranchService branches = new JdbcClassBranchService(dataSource, executor);
+        JdbcAscensionService ascensions = new JdbcAscensionService(dataSource, executor, profiles, () -> 3);
         UUID playerId = UUID.randomUUID();
         profiles.chooseArchetype(playerId, Archetype.MAGE).toCompletableFuture().join();
 
@@ -1074,8 +1076,7 @@ class JdbcServicesTest {
         assertEquals(ClassBranchResult.Status.STAGE_LOCKED, locked.status());
         assertEquals(ClassBranchResult.Status.CLASS_MISMATCH, mismatch.status());
 
-        profiles.grantExperience(playerId, Long.MAX_VALUE).toCompletableFuture().join();
-        profiles.ascend(playerId).toCompletableFuture().join();
+        ascendThroughService(profiles, ascensions, playerId, 1);
         ClassBranchResult selected = branches.choose(playerId, Archetype.MAGE, 1, "pyromancer")
                 .toCompletableFuture().join();
         ClassBranchResult duplicate = branches.choose(playerId, Archetype.MAGE, 1, "arcanist")
@@ -1087,13 +1088,17 @@ class JdbcServicesTest {
 
     @Test
     void higherClassBranchesEnforceRouteInsideTheSelectionTransaction() {
-        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2, 3);
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
         JdbcClassBranchService branches = new JdbcClassBranchService(dataSource, executor);
-        UUID playerId = fullyAscended(profiles, Archetype.MAGE);
+        JdbcAscensionService ascensions = new JdbcAscensionService(dataSource, executor, profiles, () -> 3);
+        UUID playerId = UUID.randomUUID();
+        profiles.chooseArchetype(playerId, Archetype.MAGE).toCompletableFuture().join();
+        ascendThroughService(profiles, ascensions, playerId, 1);
 
         assertEquals(ClassBranchResult.Status.SUCCESS, branches.choose(
                 playerId, Archetype.MAGE, 1, "pyromancer", java.util.Set.of())
                 .toCompletableFuture().join().status());
+        ascendThroughService(profiles, ascensions, playerId, 2);
         ClassBranchResult wrongRoute = branches.choose(
                 playerId, Archetype.MAGE, 2, "chronomancer", java.util.Set.of("arcanist"))
                 .toCompletableFuture().join();
@@ -1103,6 +1108,7 @@ class JdbcServicesTest {
         assertEquals(ClassBranchResult.Status.SUCCESS, branches.choose(
                 playerId, Archetype.MAGE, 2, "ash-shaper", java.util.Set.of("pyromancer"))
                 .toCompletableFuture().join().status());
+        ascendThroughService(profiles, ascensions, playerId, 3);
         assertEquals(ClassBranchResult.Status.SUCCESS, branches.choose(
                 playerId, Archetype.MAGE, 3, "first-principle",
                 java.util.Set.of("ash-shaper", "chronomancer"))
@@ -1111,13 +1117,18 @@ class JdbcServicesTest {
 
     @Test
     void thirdAscensionMergeAcceptsEitherLegalSecondAscensionRoute() {
-        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2, 3);
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
         JdbcClassBranchService branches = new JdbcClassBranchService(dataSource, executor);
-        UUID playerId = fullyAscended(profiles, Archetype.MAGE);
+        JdbcAscensionService ascensions = new JdbcAscensionService(dataSource, executor, profiles, () -> 3);
+        UUID playerId = UUID.randomUUID();
+        profiles.chooseArchetype(playerId, Archetype.MAGE).toCompletableFuture().join();
+        ascendThroughService(profiles, ascensions, playerId, 1);
 
         branches.choose(playerId, Archetype.MAGE, 1, "arcanist").toCompletableFuture().join();
+        ascendThroughService(profiles, ascensions, playerId, 2);
         branches.choose(playerId, Archetype.MAGE, 2, "chronomancer", java.util.Set.of("arcanist"))
                 .toCompletableFuture().join();
+        ascendThroughService(profiles, ascensions, playerId, 3);
         ClassBranchResult result = branches.choose(
                 playerId, Archetype.MAGE, 3, "first-principle",
                 java.util.Set.of("ash-shaper", "chronomancer"))
@@ -1128,9 +1139,12 @@ class JdbcServicesTest {
 
     @Test
     void concurrentBranchSelectionPersistsOnlyOneChoice() {
-        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2, 3);
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
         JdbcClassBranchService branches = new JdbcClassBranchService(dataSource, executor);
-        UUID playerId = fullyAscended(profiles, Archetype.WARRIOR);
+        JdbcAscensionService ascensions = new JdbcAscensionService(dataSource, executor, profiles, () -> 3);
+        UUID playerId = UUID.randomUUID();
+        profiles.chooseArchetype(playerId, Archetype.WARRIOR).toCompletableFuture().join();
+        ascendThroughService(profiles, ascensions, playerId, 1);
 
         CompletableFuture<ClassBranchResult> guardian = branches.choose(
                 playerId, Archetype.WARRIOR, 1, "guardian").toCompletableFuture();
@@ -1144,14 +1158,65 @@ class JdbcServicesTest {
         assertEquals(1, branches.branches(playerId).toCompletableFuture().join().size());
     }
 
-    private static UUID fullyAscended(JdbcProfileService profiles, Archetype archetype) {
-        UUID playerId = UUID.randomUUID();
-        profiles.chooseArchetype(playerId, archetype).toCompletableFuture().join();
-        for (int stage = 1; stage <= 3; stage++) {
-            profiles.grantExperience(playerId, Long.MAX_VALUE).toCompletableFuture().join();
-            profiles.ascend(playerId).toCompletableFuture().join();
+    /**
+     * Drives one ascension through the only legal entry point.
+     * Seeds the authored facts AscensionRules requires at each stage, then asserts SUCCESS.
+     * Branch prerequisites are not seeded here: callers choose them through the real service.
+     */
+    private void ascendThroughService(
+            JdbcProfileService profiles, JdbcAscensionService ascensions, UUID player, int stage
+    ) {
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            int skills = switch (stage) {
+                case 1 -> 2;
+                case 2 -> 5;
+                default -> 7;
+            };
+            int clears = switch (stage) {
+                case 1 -> 1;
+                case 2 -> 10;
+                default -> 30;
+            };
+            long merit = switch (stage) {
+                case 1 -> 20L;
+                case 2 -> 100L;
+                default -> 300L;
+            };
+            String[] dungeons = switch (stage) {
+                case 1 -> new String[]{"ancient-ruins"};
+                case 2 -> new String[]{"sulfur-depths", "storm-vault", "storm-vault-hidden"};
+                default -> new String[]{"storm-vault", "storm-vault-hidden"};
+            };
+            for (int index = 0; index < skills; index++) {
+                statement.execute("INSERT INTO rpg_skills (player_uuid, skill_id, level, point_cost) VALUES ('"
+                        + player + "', 'ascend_skill_" + index + "', 1, 0) ON CONFLICT DO NOTHING");
+            }
+            for (int index = 0; index < clears; index++) {
+                statement.execute("INSERT INTO rpg_dungeon_reward_receipts (run_id, player_uuid, dungeon_id, "
+                        + "experience_awarded, queued_deliveries, ticket_dropped, ticket_failures) VALUES ('"
+                        + UUID.randomUUID() + "', '" + player + "', '" + dungeons[index % dungeons.length]
+                        + "', 1, 0, FALSE, 0)");
+            }
+            statement.execute("DELETE FROM rpg_progression_wallets WHERE player_uuid = '" + player + "'");
+            statement.execute("INSERT INTO rpg_progression_wallets (player_uuid, merit) VALUES ('"
+                    + player + "', " + merit + ")");
+            connection.commit();
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not seed ascension facts for stage " + stage, exception);
         }
-        return playerId;
+        profiles.grantExperience(player, Long.MAX_VALUE).toCompletableFuture().join();
+        int equipmentScore = switch (stage) {
+            case 1 -> 40;
+            case 2 -> 160;
+            default -> 300;
+        };
+        boolean journey = stage == 1;
+        AscensionResult result = ascensions.ascend(player,
+                        new AscensionEvidence(stage, journey, equipmentScore, Set.of(UUID.randomUUID())))
+                .toCompletableFuture().join();
+        assertEquals(AscensionResult.Status.SUCCESS, result.status(), "stage " + stage + " ascension");
+        assertEquals(stage, result.profile().ascension());
     }
 
     @Test
@@ -1960,12 +2025,17 @@ class JdbcServicesTest {
                 dataSource, executor, "launch-1", "awakening", definitions);
         assertEquals("awakening", chapters.initialize().toCompletableFuture().join().chapterId());
 
-        JdbcProfileService profiles = new JdbcProfileService(
-                dataSource, executor, 100, 2, chapters::maximumOpenAscension);
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
+        JdbcAscensionService ascensions = new JdbcAscensionService(
+                dataSource, executor, profiles, chapters::maximumOpenAscension);
         UUID player = UUID.randomUUID();
         profiles.chooseArchetype(player, Archetype.WARRIOR).toCompletableFuture().join();
         profiles.grantExperience(player, 1_000_000_000L).toCompletableFuture().join();
-        assertThrows(CompletionException.class, () -> profiles.ascend(player).toCompletableFuture().join());
+        seedAscensionFacts(player, 2, 1, 20, "ancient-ruins");
+        AscensionEvidence evidence = new AscensionEvidence(
+                1, true, 40, Set.of(UUID.randomUUID()));
+        assertEquals(AscensionResult.Status.CHAPTER_LOCKED,
+                ascensions.eligibility(player, evidence).toCompletableFuture().join().status());
 
         ChapterTransitionResult skipped = chapters.advance(
                 "convergence", "test", "skip must fail").toCompletableFuture().join();
@@ -1974,7 +2044,9 @@ class JdbcServicesTest {
                 "resonance", "test", "balance gates passed").toCompletableFuture().join();
         assertEquals(ChapterTransitionResult.Status.SUCCESS, advanced.status());
         assertEquals(1, advanced.state().revision());
-        assertEquals(1, profiles.ascend(player).toCompletableFuture().join().ascension());
+        AscensionResult ascended = ascensions.ascend(player, evidence).toCompletableFuture().join();
+        assertEquals(AscensionResult.Status.SUCCESS, ascended.status());
+        assertEquals(1, ascended.profile().ascension());
 
         ChapterTransitionResult replay = chapters.advance(
                 "resonance", "other-shard", "same transition replay").toCompletableFuture().join();
@@ -1988,8 +2060,42 @@ class JdbcServicesTest {
     }
 
     @Test
+    void ascensionBypassEntryPointIsGoneFromTheProfileSurface() {
+        // ProfileService 只能读写档案，不得再暴露转生入口（AGENTS.md §3 / C-015）。
+        assertThrows(NoSuchMethodException.class,
+                () -> ProfileService.class.getMethod("ascend", UUID.class));
+        assertThrows(NoSuchMethodException.class,
+                () -> JdbcProfileService.class.getMethod("ascend", UUID.class));
+        long declarations = java.util.Arrays.stream(ProfileService.class.getDeclaredMethods())
+                .filter(method -> method.getName().equals("ascend"))
+                .count();
+        assertEquals(0L, declarations);
+    }
+
+    @Test
+    void ascensionOnlyHappensThroughTheServiceAndIsAudited() throws Exception {
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
+        JdbcAscensionService ascensions = new JdbcAscensionService(dataSource, executor, profiles, () -> 3);
+        UUID player = UUID.randomUUID();
+        profiles.chooseArchetype(player, Archetype.WARRIOR).toCompletableFuture().join();
+        profiles.grantExperience(player, 1_000_000_000L).toCompletableFuture().join();
+
+        seedAscensionFacts(player, 2, 1, 20, "ancient-ruins");
+        AscensionResult result = ascensions.ascend(player,
+                        new AscensionEvidence(1, true, 40, Set.of(UUID.randomUUID())))
+                .toCompletableFuture().join();
+        assertEquals(AscensionResult.Status.SUCCESS, result.status());
+        assertEquals(1, result.profile().ascension());
+        assertEquals(1, profiles.get(player).toCompletableFuture().join().ascension());
+        // 权威路径必须留下收据与功勋流水，简化旁路不会写这两张表。
+        assertEquals(1, scalar("SELECT COUNT(*) FROM rpg_ascension_receipts WHERE player_uuid = '" + player + "'"));
+        assertEquals(1, scalar("SELECT COUNT(*) FROM rpg_merit_ledger WHERE idempotency_key = 'ascension:"
+                + player + ":1'"));
+    }
+
+    @Test
     void compoundAscensionRechecksFactsDebitsMeritAndRejectsDoubleClick() throws Exception {
-        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2, () -> 3);
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
         JdbcAscensionService ascensions = new JdbcAscensionService(dataSource, executor, profiles, () -> 3);
         UUID player = UUID.randomUUID();
         profiles.chooseArchetype(player, Archetype.WARRIOR).toCompletableFuture().join();
@@ -2019,7 +2125,7 @@ class JdbcServicesTest {
 
     @Test
     void secondAscensionRequiresThePreviousBranchInsideTheTransaction() throws Exception {
-        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2, () -> 3);
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
         JdbcAscensionService ascensions = new JdbcAscensionService(dataSource, executor, profiles, () -> 3);
         UUID player = UUID.randomUUID();
         profiles.chooseArchetype(player, Archetype.RANGER).toCompletableFuture().join();
@@ -2047,7 +2153,7 @@ class JdbcServicesTest {
 
     @Test
     void laterAscensionRejectsRepeatedTutorialDungeonClears() throws Exception {
-        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2, () -> 3);
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
         JdbcAscensionService ascensions = new JdbcAscensionService(dataSource, executor, profiles, () -> 3);
         UUID player = UUID.randomUUID();
         profiles.chooseArchetype(player, Archetype.MAGE).toCompletableFuture().join();
