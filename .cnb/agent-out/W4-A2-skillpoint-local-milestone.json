@@ -93,5 +93,5 @@
     "跑 plan/skillpoint-migration-notes.md §2 的只读 dry-run，把跨段吞点嫌疑档案交给人类；确认要补偿后走 JdbcAdminIncidentCompensationService（incident_key 幂等），禁止直接 UPDATE rpg_profiles。",
     "rpg-api 的 combat 模块测试在 W2-A1 后已被就地修过一次；本 PR 未触碰 ProfileService 接口，无需重复修。"
   ],
-  "pr_url": ""
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/31"
 }
