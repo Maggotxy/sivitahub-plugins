@@ -1,7 +1,7 @@
 {
   "task_id": "W7-A4-hud-implementation-alignment",
   "status": "success",
-  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/43",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/45",
   "summary": "HUD 实现已对齐设计基准，并已随 PR #43 合入 main（merge commit 28046db）。① 量出两边实际值（PNG IHDR）：右轨 26x91、徽章 29x26、法力 1x87x20 帧三项本就一致；图标实际 16x18（基准 18x18）、选中框实际 21x21（note 未定寸）。② 已把 49 张语义图标（42 技能 + 7 职业）由 16x18 补成 18x18 画布（左右各 1px 透明留白，可见内容逐像素不变），选中框 21x21 -> 18x18 对齐单格槽位；生成器 generate_betterhud_panels.py 同步修正，实测可从 reviewed 源确定性逐像素重算。③ 唯一来源 docs/reference/hud-layout.json + 机械门禁 resource-pack/tools/verify_hud_layout.py（141 条判据）已接在 resource-pack/build.sh 打包前，并由 scripts/selftest-gates.sh §5b 做绿/红负向对照，.cnb.yml 的门禁自测 stage 会跑（未改 CI 配置）。④ 三处基准做不到的项已取可行值并写进 docs/hud-imagegen-prompt-v2.md 的 implementation note：槽位 22px 影格使末槽底边 85 而非 88（88 会压掉面板右下收边角）；徽章右留白取 1px 而非 2px（26 偶 29 奇，1px 梯度不可满足）；BetterHud 定位字体 height 是行高（实测 8/11/18）不是素材像素高，故像素尺寸一律以 PNG 头为准。⑤ HudGlyphs.available() 仍只在 SUCCESSFULLY_LOADED 为真，逐玩家回退原版符号的行为未改动。本次为「上一轮失败」的针对性修复：上一轮实现与门禁全部正确且已合并，唯一缺陷是结果 JSON 的 pr_url 为空（未回填 PR 编号），导致任务被判失败；本轮补回真实 PR 链接并复跑全部门禁独立复核。",
   "changed_files": [
     "docs/reference/hud-layout.json",
@@ -113,5 +113,6 @@
     "实现与 PR #43 均已合入 main，本任务无需再开 PR；如需进一步动作只在维护窗口做 [R]/[H] 证据。",
     "维护窗口内按 docs/RESOURCE_PACK_QA.md：停服 -> 跑 generate_betterhud_panels.py 刷新 server/config-templates/BetterHud/assets -> 启动 Paper 让 BetterHud 重新生成 build.zip/pack 字体 -> sync-betterhud-pack.sh -> resource-pack/build.sh（含新门禁）-> verify-installation.sh。",
     "两名玩家在 GUI 缩放 2/3/4 下复验右侧轨与计分板/ActionBar/聊天不遮挡（[R] + [H] 证据），并在 docs/COMPLETION_AUDIT.md 的对应行更新。"
-  ]
+  ],
+  "pr_url_main_implementation": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/43"
 }
