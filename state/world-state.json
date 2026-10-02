@@ -5,7 +5,7 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 7,
+  "round": 9,
   "max_round": 12,
   "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
   "gate": {
@@ -202,6 +202,36 @@
       "fact": "verdict-v3（W5-A3）判 done=false，remaining=6：G-302 第二批（53 个读源码伪测试）、G-DDL-REG（rpg_skill_point_grants）、G-TEST-GATE（当时 main 测试门红）、G-109（4 张 PENDING 表）、G-110（SEASON_ATTUNED 无入口）、G-206（quick_actions 数据包不在仓）。其中 G-TEST-GATE 已由本地修复并复验 GREEN",
       "source": "plan/verdict-v3.json",
       "level": "[S]"
+    },
+    {
+      "id": "E-031",
+      "fact": "★ 质量门扩到七门 + 门禁自测 PASS=62 FAIL=0：RESOURCE_PACK_GATE（新增，8 条判据）/ DDL_CONSUMER / CMD_REFERENCE / COMPILE / TEST / SUMMARY / PACKAGE 全 GREEN；SUM tests=1063 failed=0 errors=0 skipped=2 modules=26。素材门禁带 14 条负向对照（删 items 定义 / 删 model 断闭包 / 加野纹理 / PNG 改 16×16 / 半透明 alpha / HUD 图集裁一列 / 改码位 等，全部能真的变红）",
+      "source": "api_trigger_gate（素材门禁接入后）",
+      "level": "[S]"
+    },
+    {
+      "id": "E-032",
+      "fact": "W6-A1 把最后 4 张 PENDING 表全部接线并**清空 DDL 门禁的 EXEMPT 清单（79 张表全部有消费者）**；W6-A2 把 SEASON_ATTUNED 接成内部调用点（由换季结算在 SETTLING 阶段调用，没有硬造玩家指令）",
+      "source": "PR#42 / PR#44 已合入；.cnb/agent-out/W6-A1|A2.json",
+      "level": "[S]"
+    },
+    {
+      "id": "E-033",
+      "fact": "★ 素材层纳入 CNB：resource-pack/ 已入库（629 文件 / 1.7M，排除 ai/.venv 与 ai/output 86M）。含 81 个物品定义、模型、纹理、字体、语言、生成器、校验器、AI 美术生产线、build.sh、runtime-item-models.txt。动机与 G-206 同源：被依赖的产物不在唯一真相源里",
+      "source": "commit ffaeacb",
+      "level": "[S]"
+    },
+    {
+      "id": "E-034",
+      "fact": "用 ImageGen 生成了 HUD 布局参考图 docs/reference/hud-layout-v2.png（按 docs/hud-imagegen-prompt-v2.md 的提示词），作为 HUD 实现的可视基准；附 README 说明只作布局基准、不参与打包",
+      "source": "commit aefb378",
+      "level": "[S]"
+    },
+    {
+      "id": "E-035",
+      "fact": "W7-A4 把 HUD 实现对齐设计基准（轨 26×91 / 4×(18×18) 图标 / 29×26 徽章 / 1×87 法力条）并加了「唯一来源 + 实现一致性」门禁；W7-A1 的素材门禁已接进质量门",
+      "source": "PR#43 / PR#41 已合入",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -241,9 +271,9 @@
     "G-201/202/203/207/208/209：文档已订正为实测值；是否要把**行为**改成文档承诺值（如星弹预警 1.1-1.8s → 0.4-0.8s）属设计取舍。",
     "G-206：#minecraft:quick_actions 数据包不在本仓（VCS 缺口），需人类决定是否纳入版本控制。"
   ],
-  "next_action": "等 W6 四个任务 → 合入 → 触发质量门；若仍 GREEN 且无「声明未接线」项则整套收口，剩余只留人类裁决项",
+  "next_action": "等 W7-A2 与 PR#39；合入后触发最终质量门。剩余仅两条真正需要人类（动生产机 / 真实客户端）。",
   "updated_by": "WorkBuddy AI（本地调度）",
-  "updated_at": "2026-10-02T10:45:00Z",
+  "updated_at": "2026-10-02T11:35:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
@@ -277,15 +307,38 @@
     "W3": "DONE 2026-10-02：5/5 合入；A2/A3/A4 成功，A1（G-106）判为设计裁决需人类拍板。质量门升级为 编译→测试→打包 并首次全绿（sn=cnb-5e4-1k3tsd1ed）",
     "W4": "DONE 2026-10-02：4/4 合入（另含 3 个后续 PR#33/#34/#36）",
     "W5": "DONE 2026-10-02：A2（G-302 第二批 25 个伪测试收敛）、A3（差集矩阵 v3）已合入；A1（DDL 登记门禁）分支仍在跑",
-    "W6": "DISPATCHED 2026-10-02：4 个任务（4 张 PENDING 表接线 / SEASON_ATTUNED 入口 / quick_actions 入 VCS / G-106 落地）"
+    "W6": "DONE 2026-10-02：4/4 合入（4 张 PENDING 表 / SEASON_ATTUNED 内部调用点 / quick_actions 入 VCS / G-106 血契改三转）",
+    "W7": "进行中：A1 素材门禁（已合入）、A4 HUD 对齐（已合入）、A3 冲突消解（已推分支，PR#39 待合）、A2 P2 行为按承诺值落地（仍在跑）"
   },
   "gates": {
-    "gate_selftest": "GREEN (PASS=14 FAIL=0)",
+    "gate_selftest": "GREEN (PASS=62 FAIL=0)",
+    "resource_pack": "GREEN (8 判据 + 14 负向对照)",
+    "ddl_consumer": "GREEN (79 张表全部有消费者，EXEMPT 已清空)",
+    "cmd_reference": "GREEN",
     "compile": "GREEN",
-    "test": "GREEN (1021 tests / 0 failed / 2 skipped / 26 modules)",
+    "test": "GREEN (1063 tests / 0 failed / 2 skipped / 26 modules)",
     "summary": "GREEN",
-    "package": "GREEN (56 jars / 25 plugin jars 全含 plugin.yml)",
-    "ddl_consumer": "GREEN",
-    "cmd_reference": "GREEN"
-  }
+    "package": "GREEN (56 jars / 25 plugin jars 全含 plugin.yml)"
+  },
+  "decisions_by_agent": [
+    {
+      "id": "D-001",
+      "decision": "G-106 血契改三转（改 1 个常量 + 同步 5 份文档 + 同步 rpg-core 测试）",
+      "why": "不动 ClassBranchGraph 的 2/2/1 强制不变式；不需要凭空指定新前置技能；与 5 条代码级证据一致",
+      "reversible": "PR 含「如需回滚」一节",
+      "by": "WorkBuddy AI（按人类 2026-10-02 授权）"
+    },
+    {
+      "id": "D-002",
+      "decision": "P2 六条把**行为**改到文档承诺值（星弹预警 0.4–0.8s、商人净损耗下限 10%、每日事件上限显式实现 等）",
+      "why": "文档承诺值 = 设计意图；做不到的才改文档并说明",
+      "by": "WorkBuddy AI（按人类授权）"
+    },
+    {
+      "id": "D-003",
+      "decision": "素材层（resource-pack/）纳入 CNB 版本控制",
+      "why": "被依赖的产物必须在唯一真相源里，否则素材无版本控制、无门禁、NPC 改不了",
+      "by": "WorkBuddy AI"
+    }
+  ]
 }
