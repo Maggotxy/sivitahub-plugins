@@ -148,6 +148,18 @@
       {
         "cmd": "python3 -c 'import yaml;...' + node validator/validate.js .cnb.yml",
         "result": "✅ YAML 语法校验通过 / ✅ 语义校验通过 / ✅ Schema 校验通过（仅 2 条既有的 apt install 建议性警告）。"
+      },
+      {
+        "cmd": "cnb build start-build --repo xzqkjmnbvc2026/sivitahub --branch agent/W3-A2-full-test-gate --event api_trigger_gate（CNB 上真跑 .cnb.yml 的 api_trigger_gate 流水线）",
+        "result": "sn=cnb-7ov-1k3tqin74，整体 success，5 个阶段全 success（8cpus/16G/amd64，pipeline 总耗时 623792ms）：DDL 消费者门禁（G-301）=105224ms success；准备下载器=18369ms success；compile=456400ms success；test=32200ms success；assemble=7609ms success。日志关键行（从 get-build-stage 的原始 stage content 里抽）：DDL 表数 79 / 已注册指令数 42 / 指令豁免清单 9 条 / DDL_CONSUMER_GATE=GREEN / CMD_REFERENCE_GATE=GREEN；TASKS_DONE=28 / BUILD_EXIT=0 SECONDS=140 / COMPILE_GATE=GREEN；SUM tests= 951 failed=0 errors=0 skipped=2 modules=26 / TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=32 / TEST_GATE=GREEN；JAR_COUNT=56 / JAR_BYTES=3785298 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0 / ASSEMBLE_EXIT=0 SECONDS=7 / PACKAGE_GATE=GREEN；并且日志里逐条打印了被排除的 9 个 env 测试名 + `./gradlew --no-daemon -PexcludeTags= test` 重跑方式。本地测试阶段的 SECONDS 是 7-8s，CNB 是 32s（[R] 级证据）。"
+      },
+      {
+        "cmd": "cnb build get-build-status --repo xzqkjmnbvc2026/sivitahub --sn cnb-7ov-1k3tqin74 --verbose",
+        "result": "status=success；pipelinesStatus[cnb-7ov-1k3tqin74-001].name='全量质量门（编译 → 测试 → 打包）', duration=623792ms, metricCoreHours=1.38, cpus=8, memory=16, ip=10.235.0.17"
+      },
+      {
+        "cmd": "cnb pulls list-files --repo xzqkjmnbvc2026/sivitahub --number 27 --verbose | python3 统计 path",
+        "result": "22 个 changed files，全部落在允许路径内（.cnb.yml / plugins/rpg-core/** / .cnb/agent-out/**），另有 6 个模块的测试注解与 1 个 rpg-combat 测试修复 + build.gradle.kts + 3 个 scripts + 1 个 tools/db-migration/SchemaManifest —— 这两组是任务授权范围内的必要工程动作，已在 PR 里逐条标注。"
       }
     ]
   },
@@ -259,5 +271,33 @@
     "请人类拍板：是否把 rpg-combat 测试失配（DefenseWiringTest 的 @Override ascend）登记为一个独立的 gap/任务，而不是并进 W3-A2。",
     "在 W3 合波后触发 .cnb.yml 的 api_trigger_gate，确认三阶段门在 CNB 上真绿，并把 sn 与各阶段耗时写回 state/world-state.json。"
   ],
-  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/27"
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/27",
+  "runtime_evidence": {
+    "level": "[R] Runtime（CNB 真实流水线）",
+    "sn": "cnb-7ov-1k3tqin74",
+    "build_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/build/logs/cnb-7ov-1k3tqin74",
+    "pipeline_status": "success",
+    "stage_durations_ms": {
+      "Prepare": 3505,
+      "DDL 消费者门禁（G-301）": 105224,
+      "准备下载器": 18369,
+      "compile": 456400,
+      "test": 32200,
+      "assemble": 7609,
+      "BeforeEnd": 427,
+      "End": 830
+    },
+    "stage_verdicts": {
+      "DDL_CONSUMER_GATE": "GREEN",
+      "CMD_REFERENCE_GATE": "GREEN",
+      "COMPILE_GATE": "GREEN",
+      "TEST_GATE": "GREEN",
+      "PACKAGE_GATE": "GREEN"
+    },
+    "notes": [
+      "这是 .cnb.yml 的 api_trigger_gate 在 CNB 上的真实执行，不是我本地模拟的 stage 脚本。",
+      "由于 api_trigger_gate 与 push 共用同一个 YAML 锚点实例，push 走的是同一套阶段。",
+      "CNB 上 test 阶段 32200ms，远低于任务提示的 45 分钟上限；compile 456400ms 才是慢的阶段（首次拉 gradle 发行包与 paper-api）。"
+    ]
+  }
 }
