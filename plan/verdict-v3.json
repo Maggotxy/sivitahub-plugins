@@ -1,0 +1,37 @@
+{
+  "done": false,
+  "impossible": false,
+  "round": 6,
+  "reason": "按「done=true 的三个必要条件」逐条核验，第 2 条不成立，故 done=false。① 差集矩阵 v3 里仍存在「声明未接线」项：G-302 仍有 53 个 src/test 类用 Files.readString 做源码字符串断言（`grep -rl --include=*.java 'Files.readString' plugins tools | grep -c '/src/test/'` = 53）；G-109 仍有 4 张零消费者表（rpg_market_buy_orders / rpg_progression_anomalies / rpg_support_credit_accounts / rpg_support_credit_ledger，脚本判为 PENDING）；G-110 的 SEASON_ATTUNED 退出路径仍无生产入口（登记为 Phase 7 接入合同）；G-206 数据包仍不在仓。② 五个门未在当前 main 上全绿：当前 main HEAD=d11f7d8 的实测门 sn=cnb-0ck-1k3tugbvb 在 test stage 红，判据行 `TEST_GATE=RED(日志里看不到 Gradle 排除 env 标签的记录：-PexcludeTags 没生效)`（EXCLUDED_TAG_SEEN_IN_LOG=0），assemble 被跳过；同时本容器无 JDK，无法本地复跑五门。③ 另有一条**已合入代码未被 DDL 登记**：rpg_skill_point_grants 在 plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java 与 tools/db-migration/.../SchemaManifest.java 里零命中，而 JdbcProfileService.java:513/:529 真实读写它 ⇒ 真机启动后任何经验授予都会 Table not found 回滚。W5-A1-ddl-registration-gate 正是修这一条，其证据文件在本分支不存在 ⇒ 该任务未交付。",
+  "remaining": 6,
+  "remaining_ids": [
+    "G-302(第二批 53 个伪测试) / W5-A2-source-string-tests-batch2",
+    "G-DDL-REG(rpg_skill_point_grants 未进 DDL 与 SchemaManifest) / W5-A1-ddl-registration-gate",
+    "G-TEST-GATE(main 上测试门红：-PexcludeTags=env 未在日志留痕) / W5-A4-test-gate-env-tag",
+    "G-109(4 张 PENDING 表未接线)",
+    "G-110(SEASON_ATTUNED 无生产入口，Phase 7 接入合同)",
+    "G-206(#minecraft:quick_actions 数据包与 verify-installation.sh 不在本仓)"
+  ],
+  "needs_human": [
+    "G-106 血契：HiddenPathRules.minimumAscension(BLOODPACT)=2 与 vanished-horizon 的 unseen 分支 stage=3 + RpgSkillsPlugin.validateCatalog 的 minimum-ascension==branchStage 不变式相斥。三选一（改前置技能 / 改血契为三转并同步 5 份文档 / 改 rpg-classes 分支图降 unseen 为二转，会破坏 2/2/1 强制不变式）。",
+    "G-201/G-202/G-203/G-207/G-208/G-209：文档已订正为实测值，是否把行为改成文档承诺值（如星弹预警 1.1-1.8s → 0.4-0.8s、商人净损耗下限 5% → 10%）属设计取舍。",
+    "G-206：#minecraft:quick_actions 数据包与 server/bin/verify-installation.sh 纳入版本控制，属 VCS 决策，且需要本仓之外的产物。",
+    "G-109 里 4 张 PENDING 表的接线时点：全部落库先行，分别属 Phase 4（买单簿）、Phase 1（异常清单 [H] 门禁）、Phase 5（support_credit 账本）。是否提前到本波之外开工需人类定。",
+    "H-001 原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 maintain-world-coverage.sh（生产机写操作）。",
+    "U-003 纯原版客户端能否真握手进服（需真实 Paper + 客户端）。"
+  ],
+  "verify_human": [
+    "G-TEST-GATE 的修法需要人工裁决：我复核到的事实是（a）测试门里那条判据本质是 `grep -iF 'tests with tag' /tmp/test.log | grep -c 'env'`，它依赖 Gradle 在会话日志里回显上游任务的命令行参数；（b）本仓 org.gradle.parallel=true + --continue 下不能保证该行一定落在会话日志；（c）该判据的**目的**（证明 -PexcludeTags=env 真的生效、9 个 @Tag(env) 测试没被执行）已被同一 stage 里另外两条更强判据覆盖：逐模块 XML 汇总（含 NO_XML 与 --min-modules 26）与「被排除的测试名不得出现在日志里」。请人类在「删除冗余判据」与「改成可机械复跑的证明方式」之间选一条。"
+  ],
+  "gates": {
+    "compile": "GREEN（sn=cnb-0ck-1k3tugbvb 的 compile stage success；本容器无 JDK，未能本地复跑）",
+    "test": "RED（sn=cnb-0ck-1k3tugbvb：TEST_GATE=RED(日志里看不到 Gradle 排除 env 标签的记录：-PexcludeTags 没生效)，EXCLUDED_TAG_SEEN_IN_LOG=0 ENV_TAG_LINE=0）",
+    "assemble": "NOT_RUN（上一阶段红导致 skipped）",
+    "ddl_consumer": "GREEN（本地实测 `sh scripts/check-ddl-consumers.sh` → DDL_CONSUMER_GATE=GREEN，79 表 / 4 条 PENDING）",
+    "cmd_reference": "GREEN（同一条脚本 → CMD_REFERENCE_GATE=GREEN，43 已注册指令）",
+    "gate_selftest": "GREEN（同上 sn 的「门禁自测（负向对照）」stage: success）",
+    "ddl_reverse_registration": "缺失（不存在「src/main 引用的表必须在 DDL 里」的反向门禁，rpg_skill_point_grants 就是从这个缝里漏出去的）"
+  },
+  "tasks_produced": "plan/tasks-w6.json (4 tasks)",
+  "artifacts": ["plan/gap-matrix-v3.md", "plan/verdict-v3.json", "plan/tasks-w6.json", "plan/world-state.json"]
+}

@@ -5,9 +5,9 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 5,
+  "round": 6,
   "max_round": 12,
-  "phase_cursor": "Phase 0-8 并行（L-009 授权跨 Phase 并行）",
+  "phase_cursor": "Phase 0-8 并行（L-009 授权跨 Phase 并行）；收口轮判定 done=false",
   "gate": {
     "definition_of_done": "src/main 里有真实调用点 + 行为级测试 + 全量编译门绿 + .cnb/agent-out/<id>.json 带 evidence.grep/evidence.test",
     "excluded": [
@@ -208,6 +208,66 @@
       "fact": "W4 派发清单已产出：plan/tasks-w4.json 4 个任务（W4-A1 换季驱动入口 / W4-A2 技能点本地里程碑 / W4-A3 G-115 治理角色口径收敛 / W4-A4 G-302 源码字符串测试行为化）。同波内 allowed_paths 仅 .cnb/agent-out/** 为协议要求共享，源码路径零重叠（机械校验）。已合入的 21 个 gap 一律未出现。",
       "source": "plan/tasks-w4.json；plan/verdict-v2.json；python 重叠校验 OVERLAPS 仅 .cnb/agent-out/**",
       "level": "[S]"
+    },
+    {
+      "id": "E-032",
+      "fact": "★ 收口轮实测：质量门在**当前 main** 上不是全绿。sn=cnb-0ck-1k3tugbvb（api_trigger_gate / main / sha d11f7d8）：准备下载器 success(20865ms)、门禁自测 success(595ms)、DDL 消费者门禁 success(116689ms)、compile success(365688ms)、**test error(36963ms)**、assemble skipped(0ms)。红行原文：TEST_GATE=RED(日志里看不到 Gradle 排除 env 标签的记录：-PexcludeTags 没生效)。同一 stage 里 SUM tests=1020 failed=0 errors=0 skipped=2 modules=26 / NO_XML modules=0 / SUMMARY_GATE=GREEN / ENV_ANNOTATIONS=9 / EXCLUDED_TAG_SEEN_IN_LOG=0 ENV_TAG_LINE=0、9 个 @Tag(env) 测试名一个都没在日志里出现 ⇒ 红的是判据本身（要求 Gradle 在会话日志回显 excluding tests with tag: env），不是代码。⇒ 它仍然否掉了 done=true 的第 2 个条件，且 assemble 门整段没跑。",
+      "source": "cnb pulls get-ci-logs --sn cnb-0ck-1k3tugbvb",
+      "level": "[R]"
+    },
+    {
+      "id": "E-033",
+      "fact": "历史上最后一次五门全绿是 sn=cnb-7ov-1k3tqin74（分支 agent/W3-A2-full-test-gate，sha 7b88e2f0：DDL 门 105224ms / compile 456400ms / test 32200ms / assemble 7609ms 全 success）。git merge-base --is-ancestor 7b88e2f0 origin/main 返回 ancestor（0）⇒ 它是 main 的祖先，不是 tip；自它之后 main 上新增 34 个提交，其中 7c39b86 重写了质量门与 scripts/dump-test-results.py、scripts/list-env-tests.sh、scripts/selftest-gates.sh，d11f7d8 重排了 stage 顺序。⇒ 不得引用那次全绿作为「当前 main 全绿」的证据。",
+      "source": "cnb pulls get-ci-logs --sn cnb-7ov-1k3tqin74；git merge-base --is-ancestor 7b88e2f0 origin/main；git log --oneline 7b88e2f0..origin/main | wc -l = 34",
+      "level": "[R]"
+    },
+    {
+      "id": "E-034",
+      "fact": "★ 本轮新登记 G-DDL-REG：表 rpg_skill_point_grants 被 src/main 真实读写（JdbcProfileService.java:513 INSERT INTO rpg_skill_point_grants、:529 FROM rpg_skill_point_grants WHERE source = ? AND idempotency_key = ?，另 :492 javadoc 提及），但 grep -rn 'rpg_skill_point_grants' Database.java SchemaManifest.java 零命中。⇒ 真机启动后该表不存在，任何经验授予都会以 Table not found 回滚。这是 W4-A2 自己在 blockers 里报过的，W5-A1-ddl-registration-gate 是对策任务，但没有产出（.cnb/agent-out/ 下无 W5-A1/W5-A2 证据文件）⇒ 未交付。",
+      "source": "grep -rn --include=*.java 'rpg_skill_point_grants' plugins tools | grep -v '/src/test/'；grep -rn 'rpg_skill_point_grants' plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java tools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java",
+      "level": "[S]"
+    },
+    {
+      "id": "E-035",
+      "fact": "★ 本轮新登记结构性门禁缺口：scripts/check-ddl-consumers.sh 只做「DDL → 消费者」与「语言包 → 已注册指令」两个方向，没有「src/main SQL 字面量 → DDL」的反向检查（grep 'INSERT INTO|FROM rpg_|UPDATE rpg_' scripts/check-ddl-consumers.sh 零命中）。这正是 E-034 那张表从缝里漏出去的原因。",
+      "source": "grep -n 'INSERT INTO\\\\|FROM rpg_\\\\|UPDATE rpg_' scripts/check-ddl-consumers.sh；tail -60 scripts/check-ddl-consumers.sh | grep 'GATE='",
+      "level": "[S]"
+    },
+    {
+      "id": "E-036",
+      "fact": "W4 四任务均已合入 main 并复核：G-101 换季驱动入口已接线（rpg-admin SeasonSettlementCommand.java:112 preview / :163 advance + RpgAdminPlugin.java:85,705 注册 + plugin.yml usage）、G-107 下半已落地（grep 'finalEffective / 3' 零命中，改走 ProgressionRules.LOCAL_LEVELS_PER_SKILL_POINT + skillPointMilestoneSource，消费点 JdbcProfileService.java:476,481）、G-115 已接线（CommunityRolePower.java:50,53 + CommunityGovernanceHandler.java:128）、G-110 的 DESTROYED 已接线（DestroyCommand.java:97,131,147,155 + plugin.yml 的 /destroy）。W4-A4 只完成 G-302 的 3 个 rpg-core 类。",
+      "source": "grep 原文见 plan/gap-matrix-v3.md §2 的 E-05 / E-08 / E-13 / E-16",
+      "level": "[S]"
+    },
+    {
+      "id": "E-037",
+      "fact": "G-302 口径修正：把 tools/ 纳入统计后，用 Files.readString 做源码字符串断言的 src/test 类是 53 个（v2 记 50 个，口径只含 plugins）。W4-A4 行为化了 3 个 rpg-core 的（MechanismKillSwitchContractTest / JdbcSeasonSettlementWiringTest / LanguageBundleContractTest，仍保留在 53 里，因为它们是「用 readString 读配置/源码」的新写法）⇒ 剩余待行为化 50 个。",
+      "source": "grep -rl --include=*.java 'Files.readString' plugins tools | grep -c '/src/test/' = 53",
+      "level": "[S]"
+    },
+    {
+      "id": "E-038",
+      "fact": "本地可复跑的门实测：sh scripts/check-ddl-consumers.sh → DDL 表数 79 / 豁免清单 4 条已登记 / 已注册指令数 43 / 指令豁免清单 9 条 / CMD_REFERENCE_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / EXIT=0。四条 PENDING 表：rpg_market_buy_orders（Phase 4 买单簿）、rpg_progression_anomalies（Phase 1 人工复核清单，需 [H]）、rpg_support_credit_accounts / rpg_support_credit_ledger（Phase 5 独立账本）。",
+      "source": "sh scripts/check-ddl-consumers.sh ; echo EXIT=$?",
+      "level": "[S]"
+    },
+    {
+      "id": "E-039",
+      "fact": "矩阵 v3 覆盖量（本轮实测）：plugins 模块 25 / src/main Java 522 / src/test Java 267 / DDL 表 79 / 机制矩阵 50 行 / 每条判定附 grep 原文（E-01..E-28）。与 v2（36 行）相比增加 14 行：新增 G-DDL-REG、G-TEST-GATE、DESTROYED 生产入口、反向 DDL 门禁等条目，并把 P2 条目的判定依据补全。",
+      "source": "ls plugins/ | wc -l = 25；find plugins -path '*/src/main/*' -name '*.java' | wc -l = 522；find plugins -path '*/src/test/*' -name '*.java' | wc -l = 267；plan/gap-matrix-v3.md",
+      "level": "[S]"
+    },
+    {
+      "id": "E-040",
+      "fact": "收口判定：done=false。三个必要条件里第 2 条（五门在当前 main 上全绿）不成立（E-032），另有 6 条 remaining（G-302 / G-DDL-REG / G-TEST-GATE / G-109×4 表 / G-110 SEASON_ATTUNED / G-206）。已产出 plan/tasks-w6.json 4 个任务：W5-A1-ddl-registration-gate、W5-A2-source-string-tests-batch2、W5-A4-test-gate-env-tag、W5-A5-gapmatrix-v4-closeout（deps 前三个）。",
+      "source": "plan/verdict-v3.json；plan/tasks-w6.json；plan/gap-matrix-v3.md §5",
+      "level": "[S]"
+    },
+    {
+      "id": "E-041",
+      "fact": "本轮取证限制（如实登记）：执行容器没有 JDK —— command -v java 无输出、/usr/lib/jvm 不存在、PATH 里无 java。因此 compile / test / assemble 三门不能本地复跑，只能用 CNB 上已有的门运行记录（E-032 / E-033）作证据。这与 v1/v2 不同（那两轮在 CNB 的 api_trigger_npc 容器里跑，那里有 JDK）。",
+      "source": "command -v java || echo 'no java'；ls /usr/lib/jvm || echo 'no jvm'；echo $PATH",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -244,12 +304,17 @@
     "L-009"
   ],
   "open_questions_for_human": [
-    "G-201/G-202/G-203/G-207/G-208/G-209：W2-C1 已把文档订正为实测值。是否要反过来把「行为」改成「文档承诺值」（schema 5→4、净损失下限 0.05→0.10、预警窗口 36 tick→0.4–0.8s 等）属设计取舍，需人类拍板。",
-    "G-106：W2-D3 判定为「配置错」，但根因在 rpg-classes 的 unseen 分支 stage=3 与 rpg-skills 的 minimum-ascension 校验不变式相斥。W3-A1 已授权同时改 rpg-skills + rpg-api；若最终需要动 rpg-classes 的 stage，需人类确认。"
+    "G-106 血契：HiddenPathRules.minimumAscension(BLOODPACT)=2 与 vanished-horizon 的 unseen 分支 stage=3 + RpgSkillsPlugin.validateCatalog 的 minimum-ascension==branchStage 不变式相斥。三选一（改前置技能 / 改血契为三转并同步 5 份文档 / 改 rpg-classes 分支图降 unseen 为二转，会破坏 2/2/1 强制不变式）。",
+    "G-TEST-GATE 的修法：我复核到的事实是（a）红的那条判据本质是 grep -iF 'tests with tag' /tmp/test.log | grep -c 'env'，依赖 Gradle 在会话日志回显上游任务命令行参数；（b）本仓 org.gradle.parallel=true + --continue 下不保证该行落在会话日志；（c）该判据的目的（证明 -PexcludeTags=env 生效、9 个 @Tag(env) 测试没执行）已被同 stage 另两条更强判据覆盖。请在「删除冗余判据」与「改成可机械复跑的证明方式」之间选一条。",
+    "G-201/G-202/G-203/G-207/G-208/G-209：文档已订正为实测值；是否把行为改成文档承诺值（schema 5→4、净损失下限 0.05→0.10、星弹预警 36 tick→0.4–0.8s 等）属设计取舍。",
+    "G-206：#minecraft:quick_actions 数据包与 server/bin/verify-installation.sh 纳入版本控制，属 VCS 决策，且需要本仓之外的产物。",
+    "G-109 里 4 张 PENDING 表的接线时点：全部落库先行，分别属 Phase 4（买单簿）、Phase 1（异常清单，需 [H] 门禁）、Phase 5（support_credit 账本）。是否提前到本波之外开工需人类定。",
+    "H-001 原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 maintain-world-coverage.sh（生产机写操作）。",
+    "U-003 纯原版客户端能否真握手进服（需真实 Paper + 客户端）。"
   ],
-  "next_action": "W3 五任务合入后触发门（含 test + assemble）；同时可派 W4 四任务（见 plan/tasks-w4.json）。W4 全部合入且 W3-A4 判定完 G-109 剩余 4 张表后，再跑一轮差集矩阵判断是否 done=true。",
-  "updated_by": "CNB CodeBuddy NPC（W3-A5-gapmatrix-v2）",
-  "updated_at": "2026-10-02T09:00:00Z",
+  "next_action": "派 plan/tasks-w6.json：先并行 W5-A1（DDL 登记 + 反向门禁）、W5-A2（G-302 第二批）、W5-A4（修测试门自查判据）；三者合入后派 W5-A5 重跑矩阵 v4 并重新判定 done。G-106 与 G-201/202/203/207/208/209 与 G-206 等人类待决项不在 tasks-w6 内。",
+  "updated_by": "CNB CodeBuddy NPC（W5-A3-final-planner，收口轮）",
+  "updated_at": "2026-10-02T10:10:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
@@ -271,16 +336,21 @@
     "G-101",
     "G-102",
     "G-103",
-    "G-108"
+    "G-108",
+    "G-115",
+    "G-302(rpg-core 3 类，W4-A4)",
+    "G-109(4 张 PENDING 表已判定，W3-A4)"
   ],
   "authorization": {
     "L-009": "人类授权跨 Phase 并行推进（2026-10-02 用户原话见 decisions-locked.md）"
   },
   "wave_plan": {
-    "W1": "DONE（编译门 GREEN sn=cnb-slt-1k3te83u2）",
+    "W1": "DONE（7/7 合入，编译门 GREEN sn=cnb-slt-1k3te83u2）",
     "W2": "DONE（15/15 合入，编译门 GREEN sn=cnb-l7u-1k3tn45sp）",
-    "W3": "DISPATCHED 2026-10-02：5 个任务（doc/cnb/tasks-w3.json）—— G-106 落地 / 全量测试门+打包 / 两条退出路径 / 8 张豁免表判定 / 差集矩阵 v2",
-    "W4": "PLANNED 2026-10-02：plan/tasks-w4.json 4 个任务（G-101 半条 / G-107 下半 / G-115 / G-302），待 W3 合入后派发"
+    "W3": "DONE（5/5 合入；A1 判为设计裁决 REQUIRES_HUMAN）；质量门升级为 compile→test→assemble 并首次全绿 sn=cnb-5e4-1k3tsd1ed（那是 89c4004，不是当前 main tip）",
+    "W4": "DONE（4/4 合入 main：fa9d0ef / 66540ac / 6271d4f / a285661）。但 W4-A2 自报的 DDL 登记 blocker 未修，且合入后质量门在 main 上变成 RED（E-032）",
+    "W5": "PARTIAL：doc/cnb/tasks-w5.json 有 3 个任务。W5-A1-ddl-registration-gate 未交付（.cnb/agent-out/ 无证据文件，DDL 零命中）；W5-A2-source-string-tests-batch2 未交付（53 个伪测试仍在）；W5-A3-final-planner 即本任务，产出 gap-matrix-v3 / verdict-v3 / tasks-w6 / world-state。",
+    "W6": "PLANNED 2026-10-02：plan/tasks-w6.json 4 个任务（W5-A1 / W5-A2 / W5-A4 / W5-A5），前三个源码路径零重叠，W5-A5 依赖前三个"
   },
   "gap_matrix_v2": {
     "path": "plan/gap-matrix-v2.md",
@@ -296,6 +366,53 @@
       "G-206：quick_actions 数据包 + verify-installation.sh 不在 VCS",
       "G-110 遗留：SEASON_ATTUNED / DESTROYED 两条退出路径（W3-A3 已派）",
       "G-109 遗留：rpg_market_buy_orders / rpg_progression_anomalies / rpg_support_credit_accounts / rpg_support_credit_ledger"
+    ]
+  },
+  "basis": {
+    "main_head": "d11f7d8",
+    "gap_matrix": "plan/gap-matrix-v3.md",
+    "verdict": "plan/verdict-v3.json",
+    "tasks": "plan/tasks-w6.json",
+    "gate_run": "sn=cnb-0ck-1k3tugbvb（api_trigger_gate / main / d11f7d8）：准备下载器 success、门禁自测 success、DDL 消费者门禁 success、compile success、test error、assemble skipped",
+    "local_repro_limits": "本容器无 JDK（command -v java 无输出），compile/test/assemble 三门无法本地复跑；本地只复跑了 sh scripts/check-ddl-consumers.sh"
+  },
+  "gates": {
+    "compile": "GREEN（sn=cnb-0ck-1k3tugbvb compile stage success；本容器无 JDK，未本地复跑）",
+    "test": "RED（sn=cnb-0ck-1k3tugbvb：TEST_GATE=RED(日志里看不到 Gradle 排除 env 标签的记录：-PexcludeTags 没生效)）",
+    "assemble": "NOT_RUN（上一阶段红导致 skipped）",
+    "ddl_consumer": "GREEN（本地实测 sh scripts/check-ddl-consumers.sh → DDL_CONSUMER_GATE=GREEN）",
+    "cmd_reference": "GREEN（同一条脚本 → CMD_REFERENCE_GATE=GREEN，43 已注册指令）",
+    "gate_selftest": "GREEN（sn=cnb-0ck-1k3tugbvb 的门禁自测 stage success）",
+    "ddl_reverse_registration": "MISSING（不存在反向门禁；rpg_skill_point_grants 就是从这个缝里漏出去的）"
+  },
+  "verdict_v3": {
+    "done": false,
+    "impossible": false,
+    "remaining": 6,
+    "remaining_ids": [
+      "G-302(第二批 50 个伪测试) / W5-A2-source-string-tests-batch2",
+      "G-DDL-REG(rpg_skill_point_grants 未进 DDL 与 SchemaManifest) / W5-A1-ddl-registration-gate",
+      "G-TEST-GATE(main 上测试门红) / W5-A4-test-gate-env-tag",
+      "G-109(4 张 PENDING 表未接线)",
+      "G-110(SEASON_ATTUNED 无生产入口，Phase 7 接入合同)",
+      "G-206(#minecraft:quick_actions 数据包与 verify-installation.sh 不在本仓)"
+    ],
+    "path": "plan/verdict-v3.json"
+  },
+  "gap_matrix_v3": {
+    "path": "plan/gap-matrix-v3.md",
+    "basis_commit": "d11f7d8",
+    "mechanism_rows": 50,
+    "ddl_tables": 79,
+    "ddl_pending": 4,
+    "declared_not_wired": [
+      "G-DDL-REG：表 rpg_skill_point_grants（代码读写 / DDL 缺失）—— 本轮新登记",
+      "G-TEST-GATE：质量门在 main 上 test 阶段红 —— 本轮新登记",
+      "G-302：53 个 src/test 类的 Files.readString 源码字符串断言",
+      "G-206：quick_actions 数据包 + verify-installation.sh 不在 VCS",
+      "G-110 遗留：SEASON_ATTUNED 无生产入口（DESTROYED 已在 W3-A3 接线）",
+      "G-109 遗留：rpg_market_buy_orders / rpg_progression_anomalies / rpg_support_credit_accounts / rpg_support_credit_ledger",
+      "反向 DDL 门禁缺失（结构门禁缺口，G-DDL-REG 的对策）"
     ]
   }
 }

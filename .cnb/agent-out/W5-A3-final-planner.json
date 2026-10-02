@@ -1,0 +1,112 @@
+{
+  "task_id": "W5-A3-final-planner",
+  "status": "success",
+  "summary": "收口轮。基于当前 main @ d11f7d8 重跑全量差集矩阵，产出 4 份产物：plan/gap-matrix-v3.md（50 条机制矩阵 + 79 张 DDL 表对账 + E-01..E-28 每条判定的 grep 命令原文）、plan/verdict-v3.json（done=false / impossible=false / remaining=6）、plan/tasks-w6.json（4 个任务）、plan/world-state.json（round 6，evidence 41 条，新增 E-032..E-041）。判定 done=false 的**首要原因**是实测证据：质量门在**当前 main** 上不是全绿 —— sn=cnb-0ck-1k3tugbvb（api_trigger_gate / main / d11f7d8）里 compile success，但 **test error**，红行原文 `TEST_GATE=RED(日志里看不到 Gradle 排除 env 标签的记录：-PexcludeTags 没生效)`，assemble 被 skipped。该 stage 里 26 个模块全跑了（modules=26 / NO_XML=0）、1020 个用例 0 失败、SUMMARY_GATE=GREEN、9 个 @Tag(env) 测试一个都没执行 ⇒ 红的是判据本身而非代码，但它仍然否掉了 done=true 的第 2 个条件。次要原因两条：① 本轮新登记 G-DDL-REG —— 表 rpg_skill_point_grants 被 JdbcProfileService.java:513,529 真实读写，但 Database.java 与 SchemaManifest.java 零命中 ⇒ 真机启动后任何经验授予以 Table not found 回滚（W4-A2 自己报的 blocker，W5-A1 未交付）；② G-302 仍有 53 个 src/test 类用 Files.readString 做源码字符串断言（W4-A4 只行为化了 3 个）。另有 4 条已确认的事实需要在下一轮口径中修正：v2 判为「声明未接线」的 G-101 换季驱动入口（rpg-admin SeasonSettlementCommand.java:112/:163）、G-107 下半（finalEffective / 3 零命中）、G-115（CommunityRolePower.java:50,53）、G-110 的 DESTROYED（DestroyCommand.java:97,131,147,155）四条**现在都已接线**。",
+  "changed_files": [
+    "plan/gap-matrix-v3.md",
+    "plan/verdict-v3.json",
+    "plan/tasks-w6.json",
+    "plan/world-state.json",
+    ".cnb/agent-out/W5-A3-final-planner.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'settlements\\.preview\\|settlements\\.advance' plugins/rpg-admin/src/main",
+        "hit": "SeasonSettlementCommand.java:112 settlements.preview(seasonId)；:163 settlements.advance(seasonId, nextSeasonId, next, sender.getName(), reason) ⇒ G-101 从「部分接线」改判「已接线」"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'finalEffective / 3' plugins | grep '/src/main/'",
+        "hit": "（零命中）⇒ G-107 下半已落地"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'LOCAL_LEVELS_PER_SKILL_POINT\\|skillPointMilestoneSource' plugins | grep '/src/main/'",
+        "hit": "ProgressionRules.java:14,79,111,117；JdbcProfileService.java:476,481"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'isGovernance' plugins | grep '/src/main/' | grep -v 'isGovernanceMember'",
+        "hit": "CommunityRolePower.java:50 case ASSIGN_ROLE -> role.isGovernance()；:53 case GOVERNANCE_ACTION -> role.isGovernance()；CommunityGovernanceHandler.java:128 ⇒ G-115 已接线"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'EquipmentOperationKind.DESTROY' plugins/*/src/main",
+        "hit": "DestroyCommand.java:97,131,147,155；DestroyRules.java:24 ⇒ G-110 的 DESTROYED 已接线"
+      },
+      {
+        "cmd": "grep -rni --include=*.java 'seasonattun\\|season_attuned\\|attun' plugins/*/src/main | grep -v 'EquipmentLifecycle.java'",
+        "hit": "（零命中）⇒ G-110 的 SEASON_ATTUNED 仍无生产入口"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'rpg_skill_point_grants' plugins tools | grep -v '/src/test/'",
+        "hit": "JdbcProfileService.java:492（javadoc）、:513（INSERT INTO rpg_skill_point_grants）、:529（FROM rpg_skill_point_grants WHERE source = ? AND idempotency_key = ?）"
+      },
+      {
+        "cmd": "grep -rn 'rpg_skill_point_grants' plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java tools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java",
+        "hit": "（零命中）⇒ 新登记的 G-DDL-REG：代码读写一张 DDL 里不存在的表"
+      },
+      {
+        "cmd": "grep -n 'INSERT INTO\\|FROM rpg_\\|UPDATE rpg_' scripts/check-ddl-consumers.sh",
+        "hit": "（零命中）⇒ 门禁没有「代码侧 SQL 字面量 → DDL」的反向检查"
+      },
+      {
+        "cmd": "grep -rl --include=*.java 'Files.readString' plugins tools | grep -c '/src/test/'",
+        "hit": "53（其中 3 个 rpg-core 的已在 W4-A4 行为化 ⇒ 剩余 50 个）"
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh ; echo EXIT=$?",
+        "hit": "DDL 表数: 79 / 豁免清单: 4 条已登记 / 已注册指令数: 43 / CMD_REFERENCE_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / EXIT=0"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'rpg_market_buy_orders\\|rpg_progression_anomalies\\|rpg_support_credit' plugins tools | grep -v '/src/test/'",
+        "hit": "Database.java:1005,917,987,994（DDL）；SchemaManifest.java:89,80,87,88,150（迁移登记）⇒ 除 DDL 与登记外零消费者"
+      },
+      {
+        "cmd": "command -v java || echo 'no java' ; ls /usr/lib/jvm || echo 'no jvm'",
+        "hit": "no java / no jvm ⇒ 本容器无法本地复跑 compile / test / assemble"
+      },
+      {
+        "cmd": "ls plugins/ | wc -l ; find plugins -path '*/src/main/*' -name '*.java' | wc -l ; find plugins -path '*/src/test/*' -name '*.java' | wc -l",
+        "hit": "25 / 522 / 267"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh ; echo EXIT=$?",
+        "result": "DDL_CONSUMER_GATE=GREEN / CMD_REFERENCE_GATE=GREEN / EXIT=0（本地实测，纯文本判定，不需要 JDK）"
+      },
+      {
+        "cmd": "cnb pulls get-ci-logs --sn cnb-0ck-1k3tugbvb   # api_trigger_gate / main / d11f7d8",
+        "result": "❌ test stage error。SUM tests=1020 failed=0 errors=0 skipped=2 modules=26 / NO_XML modules=0 / SUMMARY_GATE=GREEN / ENV_ANNOTATIONS=9 / EXCLUDED_TAG_SEEN_IN_LOG=0 ENV_TAG_LINE=0 / TEST_GATE=RED(日志里看不到 Gradle 排除 env 标签的记录：-PexcludeTags 没生效)。耗时概览：准备下载器 success(20865ms)、门禁自测 success(595ms)、DDL 消费者门禁 success(116689ms)、compile success(365688ms)、test error(36963ms)、assemble skipped(0ms)"
+      },
+      {
+        "cmd": "cnb pulls get-ci-logs --sn cnb-7ov-1k3tqin74   # 历史最后一次五门全绿",
+        "result": "所有流水线均无失败的 Stage / 整体构建状态: success（DDL 门 105224ms / compile 456400ms / test 32200ms / assemble 7609ms）。该 sha=7b88e2f0 是 main 的祖先而非 tip（git merge-base --is-ancestor 返回 0），自它之后 main 新增 34 个提交，其中 7c39b86 重写了质量门与 scripts/*.py ⇒ 不能作为「当前 main 全绿」的证据"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:<mod>:test（或全量 test/assemble）",
+        "result": "NOT_RUN —— 本容器没有 JDK（E-041），无法本地复跑。本轮不做任何「跑过了」的声明"
+      }
+    ]
+  },
+  "unproven": [
+    "compile / test / assemble 三门**没有在本容器复跑**（无 JDK）。这三门在「当前 main」上的状态来自 CNB 上一次 api_trigger_gate（sn=cnb-0ck-1k3tugbvb），不是本轮新触发的门运行。",
+    "G-TEST-GATE 的**修法**没有被本轮验证：我证明了「红的是判据」与「判据目的已被另两条判据覆盖」，但「删掉它 / 改成 XML 断言 / 让 Gradle 回显」这三种修法哪一种在本仓的 Gradle 配置下真的可行，需要一次真实门运行才能定。已作为 needs_human 项登记。",
+    "G-302 的 53 个类里，哪些**本质上是构建契约测试**（例如断言 build.gradle.kts 或 plugin.yml 的内容，而非运行行为）没有逐条判定；`plan/source-string-tests-remaining.json` 给出的方向未经本轮校验。",
+    "G-DDL-REG 的影响面只做了静态判定（DDL 无该表 ⇒ 运行期 Table not found）。没有在真实 PostgreSQL 上跑过 `Database.migrate()` + 一次经验授予，[R] 级证据缺失。",
+    "G-109 的 4 张 PENDING 表「是否有其它未登记的写入方」只做了 `plugins` + `tools` 的字面量 grep；SQL 拼接式表名（`\"INSERT INTO \" + prefix + ...`）会漏判。本仓未发现这种写法（`grep -rn '\"rpg_' plugins/*/src/main | grep -v Database.java` 只命中 JdbcEconomyAnalyticsService 的 3 处完整表名字面量），但这是抽样级结论。",
+    "反向 DDL 门禁「必须排除注释/javadoc」的口径（JdbcProfileService.java:492 就是一行 javadoc 提到表名）只在设计上写在 tasks-w6 里，没有实现、没有负向对照。"
+  ],
+  "blockers": [
+    "无阻塞本任务交付的 blocker。但有一条**上轮遗留、本轮未修**的事实需要明确：W5-A1-ddl-registration-gate 与 W5-A2-source-string-tests-batch2 在 main 上没有交付（.cnb/agent-out/ 下无 W5-A1/W5-A2 证据文件，且 rpg_skill_point_grants 在 DDL/SchemaManifest 上零命中）。这两条已原样进入 plan/tasks-w6.json。",
+    "需要人类拍板（不影响本任务交付）：① G-TEST-GATE 的修法选择（见 needs_human）；② G-106 血契三选一；③ G-201/202/203/207/208/209 是否把行为改成文档承诺值；④ G-206 数据包是否纳入 VCS；⑤ G-109 里 4 张 PENDING 表的接线时点；⑥ H-001 生产机世界边界补齐；⑦ U-003 原版客户端握手验证。"
+  ],
+  "needs_human": [
+    "G-TEST-GATE：请在「删除冗余判据（并把日志回显降级为可观测指标）」与「改成可机械复跑的证明方式（例如对 9 个 @Tag(env) 方法名断言其不得出现在 XML 结果里）」之间选一条。复核事实：(a) 红判据本质是 `grep -iF 'tests with tag' /tmp/test.log | grep -c 'env'`，依赖 Gradle 在会话日志回显上游任务命令行参数；(b) 本仓 org.gradle.parallel=true + --continue 下不保证该行落在会话日志；(c) 该判据目的已被同 stage 的「逐模块 XML 汇总（含 NO_XML 与 --min-modules 26）」与「被排除的测试名不得出现在日志里」覆盖。",
+    "G-106 血契：HiddenPathRules.minimumAscension(BLOODPACT)=2 与 vanished-horizon 的 unseen 分支 stage=3 + RpgSkillsPlugin.validateCatalog 的 minimum-ascension==branchStage 不变式相斥。三选一（改前置技能 / 改血契为三转并同步 5 份文档 / 改 rpg-classes 分支图降 unseen 为二转，会破坏 2/2/1 强制不变式）。",
+    "G-201/G-202/G-203/G-207/G-208/G-209：文档已订正为实测值；是否把行为改成文档承诺值（schema 5→4、净损失下限 0.05→0.10、星弹预警 36 tick→0.4–0.8s 等）属设计取舍。",
+    "G-206：#minecraft:quick_actions 数据包与 server/bin/verify-installation.sh 纳入版本控制，属 VCS 决策，且需要本仓之外的产物。",
+    "G-109：4 张 PENDING 表的接线时点（Phase 4 买单簿 / Phase 1 异常清单需 [H] 门禁 / Phase 5 support_credit 账本）。",
+    "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 maintain-world-coverage.sh（生产机写操作，L-006 只读）。",
+    "U-003：纯原版客户端能否真握手进服（需真实 Paper + 客户端）。"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/35"
+}
