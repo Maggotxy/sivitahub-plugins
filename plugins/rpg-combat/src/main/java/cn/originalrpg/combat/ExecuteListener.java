@@ -53,6 +53,7 @@ final class ExecuteListener implements Listener {
     private final NamespacedKey projectileCritical;
     private final NamespacedKey projectileRareTrait;
     private final NamespacedKey projectileRareTraitActive;
+    private final DefenseTag defenseTag;
 
     ExecuteListener(
             Plugin plugin, ProfileService profiles, EquipmentService equipment,
@@ -74,6 +75,7 @@ final class ExecuteListener implements Listener {
         projectileCritical = new NamespacedKey(plugin, "projectile_weapon_critical");
         projectileRareTrait = new NamespacedKey(plugin, "projectile_weapon_rare_trait");
         projectileRareTraitActive = new NamespacedKey(plugin, "projectile_weapon_rare_trait_active");
+        defenseTag = new DefenseTag();
     }
 
     /**
@@ -119,10 +121,37 @@ final class ExecuteListener implements Listener {
         }
     }
 
+    /**
+     * 非实体来源伤害（摔落 / 岩浆 / 火焰 …）的防御结算。
+     *
+     * 玩家与实体互砍走的是 {@link EntityDamageByEntityEvent}，Bukkit 为它维护独立的
+     * HandlerList，父类监听器收不到，因此那里的防御必须由 {@link #onDamage} 亲自施加。
+     * 两个监听器共用 {@link #applyDefenseMultiplier} 的幂等标记：同一伤害只被减一次。
+     */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDefensiveDamage(EntityDamageEvent event) {
-        if (!(event.getEntity() instanceof Player target)
-                || !DefensePolicy.isDefendable(event.getCause().name())) return;
+        if (!(event.getEntity() instanceof Player target)) return;
+        applyDefenseMultiplier(event, target);
+    }
+
+    /**
+     * 对可防御伤害施加五维「防御」与装备 defense 词条，且保证同一伤害只施加一次。
+     *
+     * 幂等有两层，任何一层判定为「本 tick 已施加」就直接返回，绝不重复相乘：
+     * 1. {@link #onDamage} 互砍路径自己施加，不依赖父类监听器；标记随 {@code event} 存活；
+     * 2. {@link DefenseTag} 守卫 —— Bukkit 目前不会把子事件派发给父类监听器
+     *    （两者 HandlerList 独立），但若将来两个监听器都收到同一事件、或监听器被重复注册，
+     *    第二次进入会在同一游戏刻被拦下。换一刻才允许重新结算，这与守卫字段语义一致。
+     * 标记只覆盖「同一个事件对象」；一次伤害只会在一个游戏刻内派发一次，因此足够。
+     *
+     * 注意：实体互砍时调用链是「先结算防御、再结算攻击加成」，因此攻击方倍率作用于已经
+     * 被减伤后的伤害，与非实体伤害（摔落 / 岩浆）的口径一致。
+     */
+    void applyDefenseMultiplier(EntityDamageEvent event, Player target) {
+        if (event.getDamage() <= 0.0 || !DefensePolicy.isDefendable(event.getCause().name())) return;
+        int currentTick = plugin.getServer().getCurrentTick();
+        if (defenseTag.alreadyApplied(event, currentTick)) return;
+        defenseTag.mark(event, currentTick);
         event.setDamage(Math.max(0.0, event.getDamage() * defenseMultiplier(target)));
     }
 
@@ -163,6 +192,9 @@ final class ExecuteListener implements Listener {
                 plugin.getConfig().getDouble("damage.skill-boss-multiplier", 0.75));
         double forgedBasePower = skillId == null && weapon != null
                 ? Math.max(0, weapon.stat("base-power")) : 0.0;
+        // 防御结算必须在这里补上：玩家互砍只派发本事件，父类的 onDefensiveDamage 收不到。
+        // 先施加一次防御减伤，再叠攻击倍率，与非实体伤害的「先减伤后结算」口径一致。
+        if (target instanceof Player playerTarget) applyDefenseMultiplier(event, playerTarget);
         event.setDamage(Math.max(0.0,
                 (event.getDamage() + forgedBasePower) * attack.multiplier() * targetMultiplier));
         boolean executed = applyRareTraits(event, attacker, target, weapon, attackerProfile.orElse(null));
