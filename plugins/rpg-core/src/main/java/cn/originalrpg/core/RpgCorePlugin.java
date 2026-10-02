@@ -144,8 +144,7 @@ public final class RpgCorePlugin extends JavaPlugin {
             var initialChapter = StartupGate.await(
                     chapters.initialize(), startupTimeout, "Initial chapter ledger gate");
             JdbcProfileService profiles = new JdbcProfileService(
-                    database.dataSource(), databaseExecutor, startingEnergy, energyPerStamina,
-                    chapters::maximumOpenAscension);
+                    database.dataSource(), databaseExecutor, startingEnergy, energyPerStamina);
             JdbcEconomyService economy = new JdbcEconomyService(database.dataSource(), databaseExecutor, startingBalance);
             JdbcActivityEconomyService activityEconomy = new JdbcActivityEconomyService(
                     database.dataSource(), databaseExecutor, startingBalance, mechanisms);

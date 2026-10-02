@@ -80,7 +80,7 @@ final class JdbcDungeonRewardServiceTest {
             connection.commit();
         }
         executor = Executors.newFixedThreadPool(10);
-        profiles = new JdbcProfileService(dataSource, executor, 100, 2, 3);
+        profiles = new JdbcProfileService(dataSource, executor, 100, 2);
         rewards = new JdbcDungeonRewardService(dataSource, executor, profiles);
         playerId = UUID.randomUUID();
         profiles.chooseArchetype(playerId, Archetype.WARRIOR).toCompletableFuture().join();
