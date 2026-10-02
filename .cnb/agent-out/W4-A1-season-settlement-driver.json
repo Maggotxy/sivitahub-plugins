@@ -1,0 +1,90 @@
+{
+  "task_id": "W4-A1-season-settlement-driver",
+  "status": "success",
+  "summary": "补 G-101 剩余半条：给 C-010 换季九态状态机接上「玩家不可直接调用」的生产驱动入口。新增 /rpgadmin season <status|preview|advance>，advance 必须带 CONFIRM 字面量，权限沿用 rpgadmin 命令级 rpg.admin（默认 op），配置开关 season-settlement.enabled 默认 false（L-009：接线但不启用）。驱动器只解析入参 + 转发 SeasonSettlementService.preview()/advance()，不含第二套状态机、不直接读写换季表。行为级测试跑真实 H2 + 真实 JDBC：管理面入口把 DRAFT 逐格推到 COMPLETED 并每步回读落库状态；非法迁移被拒且一行不写；SETTLING 不给下一赛季被拒（拒绝「只改 season-id 假装换季」）；未启用开关与 MechanismRegistry.SEASON_SETTLEMENT 熔断都 fail-closed。另加机械门禁断言 preview()/advance() 在 src/main 有非自身消费者。",
+  "changed_files": [
+    "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SeasonSettlementCommand.java",
+    "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/AdminConfirmation.java",
+    "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SettlementTarget.java",
+    "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/RpgAdminPlugin.java",
+    "plugins/rpg-admin/src/main/resources/config.yml",
+    "plugins/rpg-admin/src/main/resources/plugin.yml",
+    "plugins/rpg-admin/src/test/java/cn/originalrpg/admin/SeasonSettlementCommandTest.java",
+    "plugins/rpg-admin/src/test/java/cn/originalrpg/admin/SeasonSettlementWiringTest.java",
+    "plugins/rpg-admin/build.gradle.kts",
+    "plugins/rpg-api/src/main/java/cn/originalrpg/api/service/SeasonSettlementService.java",
+    "plugins/rpg-core/src/main/resources/lang/zh_cn.yml",
+    "plugins/rpg-core/src/main/resources/lang/en_us.yml",
+    ".cnb/agent-out/W4-A1-season-settlement-driver.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'SeasonSettlementService\\|seasonSettlements\\.' plugins | grep '/src/main/'",
+        "hit": "任务前：只有 state() 有消费者（RpgCommand.java:114）。任务后新增 rpg-admin/RpgAdminPlugin.java:86 load(SeasonSettlementService.class) 与 SeasonSettlementCommand 的 preview()/advance() 调用点。"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'seasonSettlements\\.\\|settlements\\.' plugins/rpg-admin/src/main plugins/rpg-core/src/main | grep -E 'preview\\(|advance\\('",
+        "hit": "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SeasonSettlementCommand.java:112:        settlements.preview(seasonId).whenComplete((preview, error) -> runMain(() -> {\nplugins/rpg-admin/src/main/java/cn/originalrpg/admin/SeasonSettlementCommand.java:163:        settlements.advance(seasonId, nextSeasonId, next, sender.getName(), reason)  ⇒ preview() 与 advance() 各有真实生产消费者"
+      },
+      {
+        "cmd": "grep -rn --include=*.java '\\badvance(' plugins | grep '/src/main/'",
+        "hit": "任务前无外部换季推进调用点；任务后新增 SeasonSettlementCommand.java:163 与 RpgAdminPlugin.handleSeason 分派链。"
+      },
+      {
+        "cmd": "grep -rn 'rpg_season_settlements\\|rpg_season_settlement_transitions\\|rpg_season_settlement_progress\\|rpg_season_settlement_gate' plugins/rpg-admin/src/main",
+        "hit": "（无输出）⇒ 管理面零直改换季表，全部经 SeasonSettlementService。SeasonSettlementWiringTest.adminSeasonEntryIsSourcedFromTheAuthoritativeFacadeNotFromASecondStateMachine 机械断言此条。"
+      },
+      {
+        "cmd": "grep -n 'season-settlement:' -A 5 plugins/rpg-admin/src/main/resources/config.yml",
+        "hit": "season-settlement:  # C-010 换季九态状态机（G-101）的管理面入口。L-009：能力接线但不启用 —— ...  enabled: false"
+      },
+      {
+        "cmd": "grep -n 'CONFIRM' plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SeasonSettlementCommand.java",
+        "hit": "advance 分支经 AdminConfirmation.isConfirmed(args[3]) 判定；未带 CONFIRM 时只播报 admin.season-confirm，advance 调用计数为 0。"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew :plugins:rpg-admin:test --rerun-tasks",
+        "result": "BUILD SUCCESSFUL；SeasonSettlementCommandTest tests=8 failures=0 errors=0；SeasonSettlementWiringTest tests=3 failures=0 errors=0；rpg-admin 全量 27 tests / 0 failures。"
+      },
+      {
+        "cmd": "./gradlew :plugins:rpg-core:test --tests '*SeasonSettlement*' --rerun-tasks",
+        "result": "BUILD SUCCESSFUL（W2-D1 既有 JdbcSeasonSettlementServiceTest / JdbcSeasonSettlementWiringTest 未被改动，仍绿）"
+      },
+      {
+        "cmd": "python3 汇总 plugins/*/build/test-results/test/*.xml",
+        "result": "TOTAL_TESTS 980 FAILURES 9 —— 9 条全是任务前已存在的问题（见 unproven），本案新增 11 条测试全部通过。"
+      },
+      {
+        "cmd": "./gradlew compileJava",
+        "result": "BUILD SUCCESSFUL（BUILD_EXIT=0，26 tasks）"
+      },
+      {
+        "cmd": "./gradlew test --continue",
+        "result": "rpg-core 261 tests/2 failed、rpg-guide 58/2、rpg-hub 42/2、rpg-story 19/1、rpg-world 11/2 —— 与在未改动的工作树上跑同一命令得到的失败集合逐条一致（见 unproven）。"
+      }
+    ]
+  },
+  "unproven": [
+    "未在真实 Paper + PostgreSQL 上跑过 /rpgadmin season（[R] 缺失）。本轮的证据是 H2 + 真实 JDBC 事务 + 真实 SeasonSettlementService，不是进程级部署验收。",
+    "权限判定沿用 rpgadmin 命令级 permission: rpg.admin（plugin.yml，default: op），未新增独立权限节点；即「与 incident/chapter 同一套判定」。是否要为换季单开更细的权限节点属设计取舍，未擅自决定。",
+    "advance 的 [<next-season>] 是位置参数（第 5 个）。原因文本因此不能以「像赛季 id 的单词」开头而不被吞；服务侧会对目标赛季做 [a-z0-9][a-z0-9._-]{0,31} 校验并在非法时拒绝。若要改成显式 flag（如 --next=launch-2）属交互取舍，未擅自决定。",
+    "FAILED → ROLLED_BACK 的补偿资金语义仍无人拍板（W2-D1 遗留），本轮只让该边可从管理面触达，未定义回滚要退回什么。",
+    "全量 test 的 9 条失败全部依赖仓库里不存在的 server/ 目录（server/config、server/runtime、resource-pack 产物）：在未改动的工作树上复跑得到完全相同的 9 条失败，故判定为既有环境依赖失败，非本任务引入。它们会在有 server/ 产物的 CI 环境里通过。"
+  ],
+  "blockers": [],
+  "risks": [
+    "换季是资金动作，管理面开关一旦被改成 true，/rpgadmin season advance settling CONFIRM <新赛季> <原因> 就会真的结清赛季层功勋。默认 false 已挡在前；建议真机开启前先跑 /rpgadmin season preview 核对赛季层合计，并把操作者限制在 ops。",
+    "rpg-admin 的测试现在依赖 rpg-core 的测试 classpath（build.gradle.kts 新增 testImplementation(project(\":plugins:rpg-core\"))）。理由是换季状态机就在 rpg-core，用假的「状态机」测「入口接上了」会同时放过实现里的崩溃一致性问题。这让 rpg-admin:test 与 rpg-core:compileJava 建立了任务依赖，编译时间略增。",
+    "rpg-admin 未注册 SeasonSettlementService 时（RpgCore 未启用）season 子命令不注册，直接提示 admin.season-unavailable。若未来允许 rpg-admin 单独加载，这是失败关闭而不是静默降级。",
+    "AdminConfirmation 同时为 season 与既有 incident/equipment/chapter 的 CONFIRM 判定提供单点实现（行为等价替换）。这是一次跨子命令的收敛；已核验三处原逻辑均为 args[3].equals(\"CONFIRM\")，替换后语义不变。"
+  ],
+  "next_steps": [
+    "人类裁决 FAILED → ROLLED_BACK 的补偿资金语义（W2-D1 遗留），落地后可把该边接进同一个 season 子命令。",
+    "真机 PostgreSQL 上跑一次非生产的 dry-run 换季补 [R] 证据，并把 preview 结果接进 rpg-admin 的 economy.json 快照。",
+    "如需要，为换季单开权限节点（当前与 incident/chapter 同源）。"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/30"
+}

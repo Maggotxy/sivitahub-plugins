@@ -9,6 +9,7 @@ import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.AdminTestService;
 import cn.originalrpg.api.service.AdminIncidentCompensationService;
 import cn.originalrpg.api.service.PetRevivalService;
+import cn.originalrpg.api.service.SeasonSettlementService;
 import cn.originalrpg.api.service.EquipmentLedgerAuditService;
 import cn.originalrpg.api.model.EconomyActivity;
 import cn.originalrpg.api.model.IncidentActivityCompensation;
@@ -56,6 +57,7 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
     private AdminIncidentCompensationService incidentCompensations;
     private PetRevivalService petRevivals;
     private EquipmentLedgerAuditService ledgerAudit;
+    private SeasonSettlementCommand seasonSettlements;
     private final AtomicBoolean economyCollectionInFlight = new AtomicBoolean();
     private final AtomicBoolean snapshotLifecycleActive = new AtomicBoolean();
     private final AtomicLong snapshotGenerations = new AtomicLong();
@@ -78,6 +80,15 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
                 PetRevivalService.class), "PetRevivalService");
         ledgerAudit = Objects.requireNonNull(getServer().getServicesManager().load(
                 EquipmentLedgerAuditService.class), "EquipmentLedgerAuditService");
+        // Phase 5 换季「接线但不启用」（L-009）：服务与命令都在位，开关默认关。
+        // SeasonSettlementService 缺失（RpgCore 未启用）时子命令不注册，而不是留一个抛错的壳。
+        seasonSettlements = SeasonSettlementCommand.of(
+                this, getServer().getServicesManager().load(SeasonSettlementService.class),
+                getServer().getServicesManager().load(ChapterService.class), messages,
+                getConfig().getBoolean("season-settlement.enabled", false)).orElse(null);
+        if (seasonSettlements == null) {
+            getLogger().warning("SeasonSettlementService is not registered; /rpgadmin season stays unbound.");
+        }
         PluginCommand command = Objects.requireNonNull(getCommand("rpgadmin"), "rpgadmin command");
         command.setExecutor(this);
         command.setTabCompleter(this);
@@ -121,6 +132,9 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
         if (args.length >= 1 && args[0].equalsIgnoreCase("incident")) {
             return handleIncident(sender, args);
         }
+        if (args.length >= 1 && args[0].equalsIgnoreCase("season")) {
+            return handleSeason(sender, args);
+        }
         if (args.length >= 1 && args[0].equalsIgnoreCase("petrevival")) {
             return handlePetRevival(sender, args);
         }
@@ -162,7 +176,7 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
                     completeIncident(sender, result, error));
             return true;
         }
-        if (args.length != 4 || !args[1].equalsIgnoreCase("apply") || !args[3].equals("CONFIRM")) {
+        if (args.length != 4 || !args[1].equalsIgnoreCase("apply") || !AdminConfirmation.isConfirmed(args[3])) {
             sender.sendMessage(Component.text(messages.text(sender, "admin.incident-usage"), NamedTextColor.YELLOW));
             return true;
         }
@@ -175,6 +189,19 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
                 + request.incidentKey() + " target=" + request.playerId());
         incidentCompensations.apply(request).whenComplete((result, error) -> completeIncident(sender, result, error));
         return true;
+    }
+
+    /**
+     * C-010 换季驱动入口（G-101 剩余半条）。九态状态机与资金事务在
+     * {@link SeasonSettlementService} 内，本方法只做「开关 + 权限 + CONFIRM + 转发」。
+     */
+    private boolean handleSeason(CommandSender sender, String[] args) {
+        if (seasonSettlements == null) {
+            sender.sendMessage(Component.text(
+                    messages.text(sender, "admin.season-unavailable"), NamedTextColor.RED));
+            return true;
+        }
+        return seasonSettlements.handle(sender, args);
     }
 
     private boolean handlePetRevival(CommandSender sender, String[] args) {
@@ -288,7 +315,7 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
         if (args.length >= 4 && (args[1].equalsIgnoreCase("quarantine") || args[1].equalsIgnoreCase("restore"))) {
             boolean freezing = args[1].equalsIgnoreCase("quarantine");
             // A freeze is the conservative direction, so only the thaw is gated.
-            if (!freezing && !args[3].equals("CONFIRM")) {
+            if (!freezing && !AdminConfirmation.isConfirmed(args[3])) {
                 sender.sendMessage(Component.text(messages.text(sender, "admin.equipment-ledger-usage"),
                         NamedTextColor.YELLOW));
                 return true;
@@ -614,7 +641,7 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
             return true;
         }
         if (args.length < 5 || !args[1].equalsIgnoreCase("advance")
-                || !args[3].equals("CONFIRM")) {
+                || !AdminConfirmation.isConfirmed(args[3])) {
             sender.sendMessage(Component.text(messages.text(sender, "admin.chapter-usage"), NamedTextColor.YELLOW));
             return true;
         }
@@ -672,7 +699,11 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
             CommandSender sender, Command command, String alias, String[] args
     ) {
         if (args.length == 1) return prefix(List.of(
-                "economy", "chapter", "incident", "petrevival", "equipment", "xp", "energy", "test"), args[0]);
+                "economy", "chapter", "season", "incident", "petrevival", "equipment",
+                "xp", "energy", "test"), args[0]);
+        if (args[0].equalsIgnoreCase("season")) {
+            return seasonSettlements == null ? List.of() : SeasonSettlementCommand.complete(args);
+        }
         if (args[0].equalsIgnoreCase("incident")) {
             if (args.length == 2) return prefix(List.of("audit", "apply"), args[1]);
             if (args.length == 3) return prefix(List.of("ledger-outage-2026-08-12-cure-white"), args[2]);

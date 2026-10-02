@@ -8,7 +8,7 @@ depend: [RpgApi, RpgCore]
 commands:
   rpgadmin:
     description: RPG administration tools.
-    usage: /rpgadmin <economy|chapter ...|incident ...|petrevival <queue|audit|retry|compensate> ...|equipment <watchlist|inspect|audit|quarantine|restore> ...|xp ...|energy ...|test ...>
+    usage: /rpgadmin <economy|chapter ...|season <status|preview|advance <target> CONFIRM [next-season] <reason>>|incident ...|petrevival <queue|audit|retry|compensate> ...|equipment <watchlist|inspect|audit|quarantine|restore> ...|xp ...|energy ...|test ...>
     permission: rpg.admin
 permissions:
   rpg.admin:

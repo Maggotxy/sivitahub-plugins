@@ -3083,6 +3083,8 @@ admin:
   season-blocked: "本步被阻塞：事实指纹不一致或机制已熔断，状态可能已置为 FAILED。"
   season-invalid: "结算请求无效；原因需为 3–128 个字符。"
   season-failed: "赛季结算事务失败，状态机保持原状态。"
+  season-disabled: "管理面换季入口未启用（season-settlement.enabled=false）；九态状态机与资金事务原样保留，本命令不做任何读或写。"
+  season-advance-usage: "用法：/rpgadmin season advance <目标态> CONFIRM [下一赛季] <变更原因>；只能沿九态逐格推进，SETTLING 必须给出不同的下一赛季。"
   report-failed: "经济日报读取失败。"
   report-title: "经济日报 {date}"
   report-supply: "账户 {accounts} / 总金币 {gold} / 30 日活跃金币 {active} / 功勋 {merit} / 星辉 {starlight}"
