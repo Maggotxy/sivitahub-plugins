@@ -15,7 +15,7 @@
     "plugins/rpg-skills/build.gradle.kts",
     ".cnb/agent-out/W2-B2-damage-bus-single-settlement.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/13",
   "evidence": {
     "toolchain": {
       "java": "openjdk 25.0.4.1 2026-08-18 LTS (Temurin, 自取到 /opt/jdk25)",
