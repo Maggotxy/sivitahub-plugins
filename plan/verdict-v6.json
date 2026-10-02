@@ -1,0 +1,80 @@
+{
+  "done": true,
+  "impossible": false,
+  "round": 13,
+  "basis": "main @ 6d12e0301120e6a6c21dd8b03599d0c009ad497c（= origin/main HEAD，git ls-remote origin refs/heads/main 实测同一 commit）；plan/gap-matrix-v6.md",
+  "reason": "按 done=true 的三条必要条件逐条核验，三条全部成立，故 done=true。① 差集矩阵无「声明未接线」项：「声明未接线」= 0 条。本轮把 verdict-v5 的两条 remaining 逐条复核且两条均判为假缺口（见下）。② 无「可派工的实现缺口」：G-302 最后 2 个测试类已由 W9-A1 迁进声明式源码契约门禁（27 个规格键全部有真实执行门禁的包装器，45 次调用 0 处空跑）；G-ANOMALY-ACK 已由 W9-A2 补上 /rpgadmin anomaly list|ack（pending(int,int)/pending(UUID)/pendingCount/acknowledge 四个读侧方法全部有 src/main 调用点）。剩余项只有 REQUIRES_HUMAN（动生产机 / 真实 Paper / 真实客户端握手），已在 needs_human 登记。③ 八门在当前 main 上全绿：**成立**，采信 sn=cnb-kb4-1k3uk7cro（event=push，sha=6d12e0301120e6a6c21dd8b03599d0c009ad497c，与当前 main HEAD 同一 commit），status=success，11 格中 8 个门 stage 全 success 且耗时非零：GATE_SELFTEST=GREEN(PASS=67 FAIL=0,545955ms) / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN(DDL 表数 81, 豁免 0) / CMD_REFERENCE_GATE=GREEN(已注册指令 43, 豁免 9) / RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0,514ms) / COMPILE_GATE=GREEN(BUILD_EXIT=0 SECONDS=133,159066ms) / TEST_GATE=GREEN(SUM tests=1091 failed=0 errors=0 skipped=2 modules=26, NO_XML modules=0, SUMMARY_GATE=GREEN, ENV_ANNOTATIONS=8,37176ms) / PACKAGE_GATE=GREEN(JAR_COUNT=56 JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0, ASSEMBLE_EXIT=0, 8287ms)。",
+  "condition_1_no_declared_unwired": true,
+  "condition_1_note": "差集矩阵 v6 的判定列里「声明未接线」= 0 条。v5 的 2 条 remaining 本轮复核后均为假缺口。",
+  "condition_2_gates_green_on_current_main": true,
+  "condition_2_evidence": "sn=cnb-kb4-1k3uk7cro (event=push, sha=6d12e03, status=success, 8 个门 stage 全 success 且耗时非零)；交叉印证 sha=a9114d3 的 4 个构建全 success，其中 cnb-q2d-1k3uj566m (api_trigger_gate) 八门判据行齐全",
+  "condition_3_only_requires_human_remains": true,
+  "condition_3_note": "剩余项全部是 REQUIRES_HUMAN：需真实 Paper / 真实客户端 / 生产机写操作，本仓（无 server/、本容器无 JDK）无法自行取得 [R]/[H] 证据。",
+  "remaining": 0,
+  "remaining_ids": [],
+  "recheck": {
+    "G-303-SCSTALE": {
+      "verdict": "假缺口（撤掉）",
+      "claim": "verdict-v5 称 scripts/check-source-contract.sh:34 的 `exec python3 - <<'PY'` 从继承 stdin 读代码，有变异体仍 GREEN exit=0，27 个 *ContractTest 一起假绿",
+      "reproduced_steps": [
+        "F=plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java",
+        "python3 把规格第一条 required 字面量 'Bukkit.getPlayer(player.getUniqueId()) == player' 替换成 '/*MUTATED*/'（写盘）",
+        "grep -c 'MUTATED' $F → 1；grep -c '<原字面量>' $F → 0（证明变异落盘）",
+        "sh scripts/check-source-contract.sh --all → SOURCE_CONTRACT_GATE=RED，exit=1",
+        "sh scripts/check-source-contract.sh <ClassAsyncLifecycleContractTest.java> <method> → RED，exit=1",
+        "sh scripts/check-source-contract.sh --all < /dev/null → RED，exit=1",
+        "true | sh scripts/check-source-contract.sh --all → RED，exit=1",
+        "echo \"print('HIJACKED')\" | sh scripts/check-source-contract.sh --all → RED，exit=1",
+        "printf \"print('SOURCE_CONTRACT_GATE=GREEN');sys.exit(0)\" | sh scripts/check-source-contract.sh --all → RED，exit=1",
+        "yes 'print(GREEN)' | head -100000 | sh scripts/check-source-contract.sh --all → RED，exit=1"
+      ],
+      "conclusion": "here-doc 完整覆盖继承 stdin；5 种 stdin 形态 + 2 种投毒形态全部 RED / exit=1，无任一种假绿。包装器 ProcessBuilder 未 redirectInput（= 继承 stdin 形态）且 assertEquals(0, exitValue())，因此门禁 RED 必使测试 RED。27 个包装器 45 次调用的 SPEC_KEY 与 method 全部命中规格（mismatches=0），不存在空跑。selftest-gates §4b 另有 4 条负向对照全过。",
+      "why_v5_saw_green": "最可能来源：用 `sh script | tail -5; echo $?` 取退出码 —— 拿到的是 tail 的退出码，恒为 0（本轮复现 TAIL_EXIT=0，而同命令写文件后 REAL_EXIT=1）。次可能：变异未落在被跑的那棵树上（改错 worktree / 变异被 stash / 改的是另一份同名文件）。已排除「跑的是别的 spec key」（单 key 与 --all 都红）。",
+      "secondary_observation": "门禁对「存在 spec key 但不存在的 method」会空跑并打印 GREEN exit=0（SOURCE_CONTRACT_CHECKS=0）。现状安全（27 个包装器 method 全存在），作为观察项记入 gap-matrix-v6 §6，不构成缺口。"
+    },
+    "G-ENV-PENDING": {
+      "verdict": "假缺口（时序假象，撤掉）",
+      "claim": "verdict-v5 称三次质量门运行全部卡在 stage-1 start,0，拿不到判据行",
+      "evidence": [
+        "cnb build get-build-logs --targetRef main --page-size 6 → 最新构建 sn=cnb-kb4-1k3uk7cro, sha=6d12e0301120e6a6c21dd8b03599d0c009ad497c（= 当前 main HEAD）, event=push",
+        "cnb build get-build-status --sn cnb-kb4-1k3uk7cro → 首次 pending（stage-2 start,0）；180s 后 pending（stage-4 start,0）；300s 后 success（11 格，8 个门 stage 全 success 且耗时非零）",
+        "cnb build build-runner-download-log --pipelineId cnb-kb4-1k3uk7cro-001 → 判据行：GATE_SELFTEST=GREEN(PASS=67 FAIL=0) / DDL 表数: 81 / CMD_REFERENCE_GATE=GREEN / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / RESOURCE_PACK_GATE=GREEN / COMPILE_GATE=GREEN(BUILD_EXIT=0 SECONDS=133) / TEST_GATE=GREEN(SUM tests=1091 failed=0 modules=26) / SUMMARY_GATE=GREEN / PACKAGE_GATE=GREEN(JAR_COUNT=56)"
+      ],
+      "conclusion": "stage-N 显示 `start,0` 是该 stage 正在执行的实时显示，不是卡死也不是判据缺失。W10 查询时撞上的是另一个正在跑的构建（本轮直接抓到三次采样现场）。当前 main HEAD 自己的门 success 且八门判据行齐全。"
+    }
+  },
+  "gates": {
+    "evidence_sn": "cnb-kb4-1k3uk7cro",
+    "evidence_sha": "6d12e0301120e6a6c21dd8b03599d0c009ad497c",
+    "evidence_event": "push",
+    "evidence_relation": "sha 与 origin/main HEAD 同一 commit（git ls-remote origin refs/heads/main 实测）；本任务分支基点 a9114d3 的代码树与当前 main 对 plugins/tools/scripts 完全相同（git diff --name-only a9114d3 HEAD 只有 doc/cnb/tasks-w11.json）",
+    "prepare_downloader": "GREEN（stage-0 success，27671ms）",
+    "gate_selftest": "GREEN（PASS=67 FAIL=0，545955ms）",
+    "ddl_consumer": "GREEN（DDL 表数 81 / 豁免 0 条 / 零消费者 0 张，106803ms）",
+    "ddl_registration": "GREEN（反向：代码引用的 81 个 rpg_* 表名全部在 DDL 里；反向豁免 0 条）",
+    "cmd_reference": "GREEN（已注册指令 43 条 / 豁免 9 条）",
+    "resource_pack": "GREEN（RUN=8 SKIPPED=0，514ms）",
+    "compile": "GREEN（BUILD_EXIT=0 SECONDS=133，159066ms）",
+    "test": "GREEN（SUM tests=1091 failed=0 errors=0 skipped=2 modules=26 / NO_XML modules=0 / SUMMARY_GATE=GREEN / ENV_ANNOTATIONS=8 / TEST_EXIT=0，37176ms）",
+    "assemble": "GREEN（JAR_COUNT=56 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0 / ASSEMBLE_EXIT=0，8287ms）",
+    "crosscheck_sn": "cnb-q2d-1k3uj566m（sha=a9114d3，api_trigger_gate，success，八门判据行齐全）；同 sha 另 3 个构建（cnb-rsl-1k3uj57rd / cnb-2gk-1k3uj57nj / cnb-fk2-1k3uj4nt）均 success",
+    "local_rerun_limitation": "本容器无 JDK（command -v java 无输出、/usr/lib/jvm 不存在）；compile/test/assemble 不能本地复跑，只能用 CNB 门运行记录。本地可复跑且已复跑：check-ddl-consumers.sh / check-resource-pack.sh / selftest-gates.sh / check-source-contract.sh / check-config-fallbacks.sh / check-trusted-menu-holders.sh / check-repo-artifacts.sh / install-datapacks.sh --check / check-file-deps.sh，全部 exit=0。"
+  },
+  "not_a_gap": [
+    "G-303-SCSTALE —— 本轮复核为假缺口（见 recheck）：here-doc 完整覆盖继承 stdin，7 种输入形态全部 RED/exit=1；27 个包装器 45 次调用 0 处空跑。",
+    "G-ENV-PENDING —— 本轮复核为假缺口（见 recheck）：stage-N `start,0` 是在跑中的实时显示；当前 main HEAD 门 success 且八门判据行齐全。",
+    "门禁对「不存在的 method」空跑打印 GREEN —— 现状安全（27 个包装器 method 全部存在），记为观察项，非缺口。",
+    "SACRIFICED / EquipmentOperationKind.SEASON_ATTUNEMENT 零消费者 / isAuthoritativeNamespace 字面量零命中 —— 与 v4 一致，刻意设计或间接接线，非缺口。"
+  ],
+  "needs_human": [
+    "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/maintain-world-coverage.sh（生产机写操作，L-006）。",
+    "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端（生产机只读，REQUIRES_HUMAN）。",
+    "W7-A2 遗留的 4 条 unproven（G-207 计数器是内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）都需要真实 Paper 运行环境，属 [R] 级证据，本仓（无 server/）无法自行取得。"
+  ],
+  "artifacts": [
+    "plan/gap-matrix-v6.md",
+    "plan/verdict-v6.json",
+    "plan/tasks-w11.json",
+    "plan/world-state.json"
+  ]
+}

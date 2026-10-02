@@ -1,0 +1,6 @@
+{
+  "_comment": "第十一波（复核 + 收尾判定轮）：done=true，无真实剩余缺口，故为空。verdict-v5 的 2 条 remaining 经逐条复核均为假缺口（G-303-SCSTALE 的 here-doc 完整覆盖继承 stdin，7 种输入形态全部 RED/exit=1 且 27 个包装器 45 次调用 0 处空跑；G-ENV-PENDING 的 stage-N start,0 是在跑中的实时显示，当前 main HEAD 门 sn=cnb-kb4-1k3uk7cro success 且八门判据行齐全）。",
+  "_basis": "main @ 6d12e03；plan/gap-matrix-v6.md；plan/verdict-v6.json",
+  "_excluded_from_this_wave": "W9 已合入并验证闭环的 G-302（最后 2 个测试类迁进声明式源码契约门禁）与 G-ANOMALY-ACK（/rpgadmin anomaly list|ack）不再出现；已撤掉的两条假缺口 G-303-SCSTALE / G-ENV-PENDING 不得再派工。",
+  "tasks": []
+}
