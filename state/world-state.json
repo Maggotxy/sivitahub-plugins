@@ -5,7 +5,7 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 13,
+  "round": 16,
   "max_round": 12,
   "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
   "gate": {
@@ -268,6 +268,30 @@
       "fact": "安装目标模式 Stop hook：项目级 `D:/Development/sivitahub/.workbuddy/settings.json` 与 `.workbuddy-ai/settings.json`，另加用户级 `~/.workbuddy-ai/settings.json`（带 cwd 门控，因为项目级 settings 改动不触发热重载，见 goal-mode §10）。用户级只增改 hooks 键，已备份。达成口径写进 hook：八门全绿 + 差集矩阵无「声明未接线」+ 只剩 REQUIRES_HUMAN；同时写明授权豁免与越权红线",
       "source": "三个 settings.json 已写入并校验（用户级顶层键完整保留）",
       "level": "[S]"
+    },
+    {
+      "id": "E-042",
+      "fact": "W9 全部合入：#49 在 rpg-admin 补 `/rpgadmin anomaly <list|ack>`（reviewer/review_note/reviewed_at 落库、走既有 rpg.admin 权限、真实 H2 行为级测试）；#50 把最后 2 个纯源码字符串测试类（rpg-mobs MobRewardAsyncLifecycleContractTest、rpg-pets PetRevivalLifecycleContractTest）的断言迁进声明式源码契约门禁 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh",
+      "source": "PR#49/#50 merged=true",
+      "level": "[S]"
+    },
+    {
+      "id": "E-043",
+      "fact": "★ 本地反证掉一条假缺口：verdict-v5 声称 `scripts/check-source-contract.sh` 的 `exec python3 - <<'PY'` 会从继承 stdin 读代码 ⇒ 27 个 ContractTest 假绿。本地实测 5 种形态全部 exit=1 且 RED（全量 / 单方法 / stdin=/dev/null / 空管道 / 有数据管道），包装器 ProcessBuilder 未 redirectInput 的形态已覆盖 ⇒ 假缺口。**最可能的误判来源**：`sh script | tail -5; echo $?` 取到的是 tail 的退出码（恒 0）",
+      "source": "本地实测（见 doc/cnb/tasks-w11.json 里给 Planner 的反证）",
+      "level": "[S]"
+    },
+    {
+      "id": "E-044",
+      "fact": "★★ **verdict-v6（W11-A1）判 done=true / remaining=0**：① 差集矩阵「声明未接线」= 0 条，且无可派工实现缺口；② 八门在 main@6d12e03 全绿（采信 sn=cnb-kb4-1k3uk7cro push 事件 11/11 stage）：GATE_SELFTEST PASS=67 FAIL=0 / DDL_REGISTRATION GREEN / DDL_CONSUMER GREEN（81 张表，豁免 0）/ CMD_REFERENCE GREEN（43 指令，豁免 9）/ RESOURCE_PACK GREEN（RUN=8 SKIPPED=0）/ COMPILE GREEN（BUILD_EXIT=0 SECONDS=133）/ TEST GREEN（SUM tests=1091 failed=0 errors=0 skipped=2 modules=26，NO_XML=0）/ PACKAGE GREEN（JAR_COUNT=56，JAR_MISSING_PLUGIN_YML=0）；③ 剩余只有 REQUIRES_HUMAN",
+      "source": "plan/verdict-v6.json",
+      "level": "[S]"
+    },
+    {
+      "id": "E-045",
+      "fact": "唯一剩下的三条都需要真实环境，本仓做不到：H-001（生产机写操作：跑 maintain-world-coverage.sh 补 5435 个四角区块）、U-003（真实 Paper + 真实客户端握手）、W7-A2 的 4 条 [R] 级 unproven（G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）",
+      "source": "plan/verdict-v6.json 的 needs_human",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -303,13 +327,13 @@
     "L-008"
   ],
   "open_questions_for_human": [
-    "★ G-106 血契：代码与文档冲突，需人类选一条修法。证据：vanished-horizon 是三转技能（5 条一致证据），但 5 份文档把血契钉在二转。可选：(a) 改 HiddenPathRules.requiredSkill(BLOODPACT) 为某个二转技能并同步 rpg-core 测试种子与文档；(b) 把血契改为三转并同步 5 份文档；(c) 改 rpg-classes 的分支图把 unseen 降为二转（会破坏 2/2/1 强制不变式，已机械复现为 2/3/0）。",
-    "G-201/202/203/207/208/209：文档已订正为实测值；是否要把**行为**改成文档承诺值（如星弹预警 1.1-1.8s → 0.4-0.8s）属设计取舍。",
-    "G-206：#minecraft:quick_actions 数据包不在本仓（VCS 缺口），需人类决定是否纳入版本控制。"
+    "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/maintain-world-coverage.sh（生产机写操作）。",
+    "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
+    "W7-A2 的 4 条 [R] 级 unproven：G-207 计数器是内存态（重启丢当天场次）/ G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证。"
   ],
-  "next_action": "等 W8-A1 的 verdict-v4。若 done=true 则目标达成；若 false，按 plan/tasks-w8.json 派下一波。",
+  "next_action": "目标已达成（verdict-v6 done=true / remaining=0）。剩余三项均需真实 Paper / 生产机，属 REQUIRES_HUMAN。",
   "updated_by": "WorkBuddy AI（本地调度）",
-  "updated_at": "2026-10-02T14:50:00Z",
+  "updated_at": "2026-10-02T16:10:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
@@ -345,16 +369,19 @@
     "W5": "DONE 2026-10-02：A2（G-302 第二批 25 个伪测试收敛）、A3（差集矩阵 v3）已合入；A1（DDL 登记门禁）分支仍在跑",
     "W6": "DONE 2026-10-02：4/4 合入（4 张 PENDING 表 / SEASON_ATTUNED 内部调用点 / quick_actions 入 VCS / G-106 血契改三转）",
     "W7": "DONE 2026-10-02：4/4 交付（A1 素材门禁 / A2 P2 七条 / A3 冲突消解 / A4 HUD 对齐）",
-    "W8": "DISPATCHED：最终验收轮（gap-matrix-v4 + verdict-v4）"
+    "W8": "DONE：最终验收轮（gap-matrix-v4 + verdict-v4，判 done=false / remaining=2）",
+    "W9": "DONE：2/2 合入（/rpgadmin anomaly 入口 + G-302 最后 2 个测试类迁进声明式源码契约门禁）",
+    "W10": "DONE：收尾判定轮 v5（判 done=false / remaining=2，但两条后被复核为假缺口）",
+    "W11": "DONE：复核两条并给出 **verdict-v6：done=true / remaining=0**"
   },
   "gates": {
     "gate_selftest": "GREEN (PASS=67 FAIL=0)",
-    "resource_pack": "GREEN (8 判据 + 14 负向对照)",
-    "ddl_consumer": "GREEN (79 张表全部有消费者，EXEMPT 已清空)",
-    "ddl_registration": "GREEN (反向：src/main 引用的表名必须存在于 DDL)",
-    "cmd_reference": "GREEN",
-    "compile": "GREEN",
-    "test": "GREEN (1081 tests / 0 failed / 2 skipped / 26 modules)",
+    "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
+    "ddl_consumer": "GREEN (81 张表，豁免 0)",
+    "ddl_registration": "GREEN",
+    "cmd_reference": "GREEN (43 指令，豁免 9)",
+    "compile": "GREEN (BUILD_EXIT=0 SECONDS=133)",
+    "test": "GREEN (1091 tests / 0 failed / 2 skipped / 26 modules)",
     "summary": "GREEN",
     "package": "GREEN (56 jars / 25 plugin jars 全含 plugin.yml)"
   },
@@ -378,5 +405,14 @@
       "why": "被依赖的产物必须在唯一真相源里，否则素材无版本控制、无门禁、NPC 改不了",
       "by": "WorkBuddy AI"
     }
-  ]
+  ],
+  "status": "DONE —— verdict-v6 判 done=true / remaining=0",
+  "verdict": {
+    "done": true,
+    "impossible": false,
+    "remaining": 0,
+    "remaining_ids": [],
+    "basis": "plan/verdict-v6.json（W11-A1）",
+    "decided_at": "2026-10-02"
+  }
 }
