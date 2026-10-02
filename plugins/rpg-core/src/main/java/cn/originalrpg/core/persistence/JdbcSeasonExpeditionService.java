@@ -44,9 +44,18 @@ public final class JdbcSeasonExpeditionService implements SeasonExpeditionServic
     private final Executor executor;
     private final int weeklyHonor;
     private final int serverFirstBonus;
+    /** C-005 Kill Switch；为 null 表示未接入注册表。 */
+    private final MechanismRegistry mechanisms;
 
     public JdbcSeasonExpeditionService(
             DataSource dataSource, Executor executor, int weeklyHonor, int serverFirstBonus
+    ) {
+        this(dataSource, executor, weeklyHonor, serverFirstBonus, null);
+    }
+
+    public JdbcSeasonExpeditionService(
+            DataSource dataSource, Executor executor, int weeklyHonor, int serverFirstBonus,
+            MechanismRegistry mechanisms
     ) {
         this.dataSource = java.util.Objects.requireNonNull(dataSource, "dataSource");
         this.executor = java.util.Objects.requireNonNull(executor, "executor");
@@ -55,12 +64,17 @@ public final class JdbcSeasonExpeditionService implements SeasonExpeditionServic
         }
         this.weeklyHonor = weeklyHonor;
         this.serverFirstBonus = serverFirstBonus;
+        this.mechanisms = mechanisms;
     }
 
     @Override
     public CompletionStage<SeasonExpeditionResult> complete(SeasonExpeditionCompletion completion) {
         CanonicalCompletion request = canonical(completion);
         if (request == null) return CompletableFuture.completedFuture(invalid());
+        // C-005：赛季远征结算会发放荣誉/纪念，属 faucet，受 Kill Switch 熔断。
+        if (mechanisms != null && !mechanisms.requireEnabled(MechanismRegistry.SEASON_SETTLEMENT)) {
+            return CompletableFuture.completedFuture(invalid());
+        }
         return AsyncJdbc.supply(executor, () -> inTransaction(connection -> settle(connection, request)));
     }
 

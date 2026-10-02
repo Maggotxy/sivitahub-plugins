@@ -47,10 +47,17 @@ public final class JdbcCommunityService implements CommunityService {
 
     private final DataSource dataSource;
     private final Executor executor;
+    /** C-005 Kill Switch；为 null 表示未接入注册表。 */
+    private final MechanismRegistry mechanisms;
 
     public JdbcCommunityService(DataSource dataSource, Executor executor) {
+        this(dataSource, executor, null);
+    }
+
+    public JdbcCommunityService(DataSource dataSource, Executor executor, MechanismRegistry mechanisms) {
         this.dataSource = dataSource;
         this.executor = executor;
+        this.mechanisms = mechanisms;
     }
 
     @Override
@@ -566,6 +573,12 @@ public final class JdbcCommunityService implements CommunityService {
                 || !positiveMoney(minimumContribution) || honorAward < 1 || honorAward > 1_000_000) {
             return CompletableFuture.completedFuture(projectReward(
                     CommunityProjectRewardResult.Status.INVALID, validPeriod(periodKey) ? periodKey : "invalid",
+                    0, 0, 0, ZERO, safeMoney(minimumContribution)));
+        }
+        // C-005：社区工程周期奖励发放荣誉/纪念，属 faucet，受 Kill Switch 熔断。
+        if (mechanisms != null && !mechanisms.requireEnabled(MechanismRegistry.COMMUNITY_PROJECT)) {
+            return CompletableFuture.completedFuture(projectReward(
+                    CommunityProjectRewardResult.Status.INVALID, periodKey,
                     0, 0, 0, ZERO, safeMoney(minimumContribution)));
         }
         BigDecimal goal = money(periodGoal);

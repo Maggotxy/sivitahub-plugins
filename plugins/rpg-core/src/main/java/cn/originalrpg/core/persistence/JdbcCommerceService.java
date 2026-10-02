@@ -50,13 +50,15 @@ public final class JdbcCommerceService implements CommerceService {
     private final BigDecimal startingBalance;
     private final OperationalStarlightPolicy starlightPolicy;
     private final Clock clock;
+    /** C-005 Kill Switch；为 null 表示未接入注册表。 */
+    private final MechanismRegistry mechanisms;
 
     public JdbcCommerceService(DataSource dataSource, Executor executor) {
-        this(dataSource, executor, BigDecimal.ZERO, OperationalStarlightPolicy.testDefault(), Clock.systemUTC());
+        this(dataSource, executor, BigDecimal.ZERO, OperationalStarlightPolicy.testDefault(), Clock.systemUTC(), null);
     }
 
     public JdbcCommerceService(DataSource dataSource, Executor executor, BigDecimal startingBalance) {
-        this(dataSource, executor, startingBalance, OperationalStarlightPolicy.testDefault(), Clock.systemUTC());
+        this(dataSource, executor, startingBalance, OperationalStarlightPolicy.testDefault(), Clock.systemUTC(), null);
     }
 
     public JdbcCommerceService(
@@ -65,7 +67,17 @@ public final class JdbcCommerceService implements CommerceService {
             BigDecimal startingBalance,
             OperationalStarlightPolicy starlightPolicy
     ) {
-        this(dataSource, executor, startingBalance, starlightPolicy, Clock.systemUTC());
+        this(dataSource, executor, startingBalance, starlightPolicy, Clock.systemUTC(), null);
+    }
+
+    public JdbcCommerceService(
+            DataSource dataSource,
+            Executor executor,
+            BigDecimal startingBalance,
+            OperationalStarlightPolicy starlightPolicy,
+            MechanismRegistry mechanisms
+    ) {
+        this(dataSource, executor, startingBalance, starlightPolicy, Clock.systemUTC(), mechanisms);
     }
 
     JdbcCommerceService(
@@ -75,11 +87,23 @@ public final class JdbcCommerceService implements CommerceService {
             OperationalStarlightPolicy starlightPolicy,
             Clock clock
     ) {
+        this(dataSource, executor, startingBalance, starlightPolicy, clock, null);
+    }
+
+    JdbcCommerceService(
+            DataSource dataSource,
+            Executor executor,
+            BigDecimal startingBalance,
+            OperationalStarlightPolicy starlightPolicy,
+            Clock clock,
+            MechanismRegistry mechanisms
+    ) {
         this.dataSource = dataSource;
         this.executor = executor;
         this.startingBalance = money(startingBalance);
         this.starlightPolicy = java.util.Objects.requireNonNull(starlightPolicy, "starlightPolicy");
         this.clock = java.util.Objects.requireNonNull(clock, "clock");
+        this.mechanisms = mechanisms;
     }
 
     @Override
@@ -163,6 +187,11 @@ public final class JdbcCommerceService implements CommerceService {
         if (delta > starlightPolicy.maximumPerGrant()) {
             return CompletableFuture.completedFuture(
                     creditResult(CreditResult.Status.PER_GRANT_LIMIT_REACHED, 0L, null));
+        }
+        // C-005：正向发放星辉是 faucet，受 Kill Switch 约束（扣减不受限）。
+        if (delta > 0 && mechanisms != null
+                && !mechanisms.requireEnabled(MechanismRegistry.STARLIGHT_GRANT)) {
+            return CompletableFuture.completedFuture(creditResult(CreditResult.Status.INVALID, 0L, null));
         }
         return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
             CommerceStatus current = loadOrCreate(connection, playerId, true);
@@ -504,6 +533,11 @@ public final class JdbcCommerceService implements CommerceService {
         if (playerId == null || rewardId == null || requiredLifetimePaid == null
                 || itemPayload == null || itemPayload.isBlank() || itemPayload.length() > 2_000_000
                 || !REWARD_ID.matcher(rewardId).matches() || requiredLifetimePaid.signum() < 0) {
+            return CompletableFuture.completedFuture(
+                    new RewardClaimResult(RewardClaimResult.Status.INVALID, null, Optional.empty()));
+        }
+        // C-005：付费奖励领取是发物口，由星辉/商务机制开关统一熔断。
+        if (mechanisms != null && !mechanisms.requireEnabled(MechanismRegistry.STARLIGHT_GRANT)) {
             return CompletableFuture.completedFuture(
                     new RewardClaimResult(RewardClaimResult.Status.INVALID, null, Optional.empty()));
         }

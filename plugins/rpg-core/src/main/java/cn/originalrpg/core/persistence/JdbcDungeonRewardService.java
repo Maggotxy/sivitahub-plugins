@@ -32,25 +32,48 @@ public final class JdbcDungeonRewardService implements DungeonRewardService {
     private final DataSource dataSource;
     private final Executor executor;
     private final JdbcProfileService profiles;
+    /** C-005 Kill Switch；为 null 表示未接入注册表（仅未部署注册表的单测）。 */
+    private final MechanismRegistry mechanisms;
 
     public JdbcDungeonRewardService(
             DataSource dataSource,
             Executor executor,
             JdbcProfileService profiles
     ) {
+        this(dataSource, executor, profiles, null);
+    }
+
+    public JdbcDungeonRewardService(
+            DataSource dataSource,
+            Executor executor,
+            JdbcProfileService profiles,
+            MechanismRegistry mechanisms
+    ) {
         this.dataSource = java.util.Objects.requireNonNull(dataSource, "dataSource");
         this.executor = java.util.Objects.requireNonNull(executor, "executor");
         this.profiles = java.util.Objects.requireNonNull(profiles, "profiles");
+        this.mechanisms = mechanisms;
     }
 
     @Override
     public CompletionStage<DungeonRewardSettlement> settle(DungeonRewardRequest request) {
         validate(request);
+        if (!dungeonFaucetEnabled()) {
+            // C-005 fail-closed：机制关闭时零输出。调用方保留恢复日志，
+            // 重新开启开关后由幂等 receipt 决定重放或首次结算。
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "Dungeon reward faucet is disabled by mechanism "
+                            + MechanismRegistry.DUNGEON_GOLD + " (C-005 kill switch)"));
+        }
         return AsyncJdbc.supply(executor, () -> inTransaction(connection -> settle(connection, request)))
                 .thenApply(result -> {
                     profiles.cacheCommitted(result.profile());
                     return result;
                 });
+    }
+
+    private boolean dungeonFaucetEnabled() {
+        return mechanisms == null || mechanisms.requireEnabled(MechanismRegistry.DUNGEON_GOLD);
     }
 
     @Override

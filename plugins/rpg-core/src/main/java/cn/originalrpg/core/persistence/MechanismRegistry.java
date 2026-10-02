@@ -5,8 +5,10 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Phase 0: mechanism directory + Kill Switch.
@@ -33,8 +35,26 @@ public final class MechanismRegistry {
             COMMUNITY_PROJECT, true
     );
 
+    /**
+     * C-005 四件套里 Kill Switch 一腿的权威清单：机制 id -> 该机制的消费者入口。
+     * 门禁测试按此清单逐个校验每个机制都有真实调用点。
+     */
+    public static final Map<String, String> FAUCET_ENTRY_POINTS = Map.of(
+            HUNT_GOLD, "JdbcActivityEconomyService",
+            DUNGEON_GOLD, "JdbcDungeonRewardService",
+            COMMISSION_GOLD, "JdbcActivityEconomyService",
+            MARKET_ESCROW, "JdbcMarketService",
+            SEASON_SETTLEMENT, "JdbcSeasonExpeditionService",
+            STARLIGHT_GRANT, "JdbcCommerceService",
+            COMMUNITY_PROJECT, "JdbcCommunityService"
+    );
+
     private final DataSource dataSource;
     private final Map<String, Boolean> cache = new ConcurrentHashMap<>();
+    /** C-005 指标一腿：被 Kill Switch 拒绝的发币/发物次数。 */
+    private final Map<String, LongAdder> deniedCounts = new ConcurrentHashMap<>();
+    /** C-005 指标一腿：通过 Kill Switch 的发币/发物次数。 */
+    private final Map<String, LongAdder> allowedCounts = new ConcurrentHashMap<>();
 
     public MechanismRegistry(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -84,6 +104,43 @@ public final class MechanismRegistry {
         if (value != null) return value;
         // Unknown mechanisms fail closed per C-005
         return false;
+    }
+
+    /**
+     * Faucet 口子的统一 Kill Switch 校验点。
+     *
+     * <p>与 C-005 一致：未登记的机制 fail closed（未配置即未启用）。
+     * 返回 false 时调用方必须不产生任何输出，不得用内存补偿绕过。</p>
+     */
+    public boolean requireEnabled(String mechanismId) {
+        if (isEnabled(mechanismId)) {
+            allowedCounts.computeIfAbsent(mechanismId, ignored -> new LongAdder()).increment();
+            return true;
+        }
+        deniedCounts.computeIfAbsent(mechanismId, ignored -> new LongAdder()).increment();
+        return false;
+    }
+
+    /** C-005 指标：只读报告各机制的通过/拒绝计数。 */
+    public Map<String, MechanismMetric> metrics() {
+        Map<String, MechanismMetric> snapshot = new java.util.TreeMap<>();
+        for (Map.Entry<String, Boolean> entry : DEFAULTS.entrySet()) {
+            LongAdder denied = deniedCounts.get(entry.getKey());
+            LongAdder allowed = allowedCounts.get(entry.getKey());
+            snapshot.put(entry.getKey(), new MechanismMetric(
+                    isEnabled(entry.getKey()),
+                    allowed == null ? 0L : allowed.sum(),
+                    denied == null ? 0L : denied.sum()));
+        }
+        return Map.copyOf(snapshot);
+    }
+
+    public List<String> mechanismIds() {
+        return List.copyOf(DEFAULTS.keySet());
+    }
+
+    /** 单个机制的 Kill Switch 指标快照。 */
+    public record MechanismMetric(boolean enabled, long allowed, long denied) {
     }
 
     public void setEnabled(String mechanismId, boolean enabled, String actor) {

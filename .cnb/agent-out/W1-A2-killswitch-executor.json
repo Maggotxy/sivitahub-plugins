@@ -1,0 +1,32 @@
+{
+  "task_id": "W1-A2-killswitch-executor",
+  "status": "success",
+  "summary": "补 G-002：为 MechanismRegistry 接上 C-005 要求的真实 Kill Switch 消费者。实现 requireEnabled() 统一闸门 + 通过/拒绝指标；在 7 个 faucet 入口（hunt/dungeon/commission 金币、副本发物、市场托管上架、赛季结算、星辉发放+付费奖励领取、社区工程周期奖励）接入后，机制关闭时该路径 fail-closed 零输出。新增门禁测试 MechanismKillSwitchContractTest：反射扫 MechanismRegistry 机制常量，逐个断言 src/main 中存在 requireEnabled(MechanismRegistry.X) 调用点；已用变异测试验证（临时新增一个零消费者机制 → 测试确实 FAILED）。",
+  "changed_files": [
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/MechanismRegistry.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcActivityEconomyService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcDungeonRewardService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcCommerceService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcMarketService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcSeasonExpeditionService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcCommunityService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/MechanismKillSwitchContractTest.java",
+    ".cnb/agent-out/W1-A2-killswitch-executor.json"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/7",
+  "risks": [
+    "C-005 四件套的『幂等键 + 日/周额度 + 指标』只做到部分补齐：Kill Switch 一腿已接通，指标一腿新增了 requireEnabled 的通过/拒绝计数，但尚无导出/告警消费方（仅 metrics() 只读 API）。",
+    "副本发物 fail-closed 选择返回 failed future，rpg-dungeons 的恢复日志会保留该批次并等待重启/重连重放；长期关闭 dungeon 开关会累积未结算批次（不会铸币，但会堆积）。没有合适的 rpg-api Status 可表达 DISABLED（rpg-api 不在允许改动路径内），故未新增状态。",
+    "活动发币被拒时复用 ActivityRewardResult.Status.INVALID；语义上不是「机制关闭」专用状态，调用方无法与参数非法区分（同因 rpg-api 越界限制）。",
+    "JdbcMarketService 只对 prepare()（上架入口）加了闸门；已上架清单的结算/取消路径未加闸门（避免关开关时卡死存量订单）。",
+    "full compileJava 在 rpg-integrations/rpg-essentials/rpg-classes/rpg-guide 因 vendor 依赖缺失而失败，属既有 W1-A0 阻塞，与本任务无关；:plugins:rpg-core:compileJava 绿。",
+    "rpg-core 全量测试 205 项中 2 项失败（LanguageBundleContractTest 依赖仓库外的 server/ 目录），已在 clean HEAD 上复现，属既有环境问题。"
+  ],
+  "next_steps": [
+    "把 metrics() 接到持久化指标导出/告警（C-005 指标一腿目前只有内存计数，无外部消费方）。",
+    "若要区分『机制关闭』与『参数非法』，需在 rpg-api 增加 DISABLED 状态枚举（需先扩允许改动路径或另开任务）。",
+    "对 C-005 剩余三腿（幂等键、日/周额度、指标）逐 faucet 做对照审计，确认 G-002 关闭后是否还有未登记 faucet。",
+    "更新 doc/cnb/gap-registry.md 中 G-002 状态 TODO → PR-OPEN。"
+  ]
+}

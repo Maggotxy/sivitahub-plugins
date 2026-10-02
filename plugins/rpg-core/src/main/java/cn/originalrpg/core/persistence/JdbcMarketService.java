@@ -32,11 +32,25 @@ public final class JdbcMarketService implements MarketService {
     private final Executor executor;
     private final BigDecimal startingBalance;
     private final EquipmentStateLedger lifecycle = new EquipmentStateLedger();
+    /** C-005 Kill Switch；为 null 表示未接入注册表。 */
+    private final MechanismRegistry mechanisms;
 
     public JdbcMarketService(DataSource dataSource, Executor executor, BigDecimal startingBalance) {
+        this(dataSource, executor, startingBalance, null);
+    }
+
+    public JdbcMarketService(
+            DataSource dataSource, Executor executor, BigDecimal startingBalance, MechanismRegistry mechanisms
+    ) {
         this.dataSource = dataSource;
         this.executor = executor;
         this.startingBalance = money(startingBalance);
+        this.mechanisms = mechanisms;
+    }
+
+    /** C-005：托管市场上架是 C-009 的唯一流通入口，受 Kill Switch 熔断。 */
+    private boolean escrowEnabled() {
+        return mechanisms == null || mechanisms.requireEnabled(MechanismRegistry.MARKET_ESCROW);
     }
 
     @Override
@@ -51,6 +65,9 @@ public final class JdbcMarketService implements MarketService {
     ) {
         if (!validListingInput(listingId, sellerId, itemPayload, price, feeRate)
                 || maximumOpenListings < 1 || maximumOpenListings > 100 || itemIdentity == null) {
+            return completed(MarketOperationResult.Status.INVALID, null, BigDecimal.ZERO);
+        }
+        if (!escrowEnabled()) {
             return completed(MarketOperationResult.Status.INVALID, null, BigDecimal.ZERO);
         }
         BigDecimal normalizedPrice = money(price);
