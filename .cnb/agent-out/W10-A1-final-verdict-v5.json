@@ -1,0 +1,166 @@
+{
+  "task_id": "W10-A1-final-verdict-v5",
+  "status": "success",
+  "summary": "收尾判定轮 v5。基于当前 main（@ a9114d3，= 本分支基点，与 origin/main 同一 commit）重跑全量差集矩阵并逐条取证。结论 **done=false**，remaining=2。verdict-v4 的 2 条本轮实测确认闭环：① G-302 最后 2 个类（rpg-mobs MobRewardAsyncLifecycleContractTest / rpg-pets PetRevivalLifecycleContractTest）的断言已全部迁进 scripts/source-contract-specs/all.json（27 规格键 / 45 method / 186 required + 38 forbidden + 14 ordered = 238 判据，自洽），两个类改为真执行 check-source-contract.sh 并断言 exitValue()==0，7 个 @Test 方法数不变，源码字符串断言零残留，27 个 *ContractTest 全部用 exitValue() 判绿/红。② G-ANOMALY-ACK 由 /rpgadmin anomaly <list|ack> 接线（rpg-admin AnomalyReviewCommand），pending(offset,limit)/pendingCount()/acknowledge(playerId,reviewer,note)/pending(playerId) 四条读侧方法各有 1 个真实 src/main 调用点，reviewer/review_note/reviewed_at 三列有 CREATE + 三条 ALTER 存量升级 + 真实读写。零消费者核对全为 0：81 张 DDL 表逐张复核 0 张零消费者、代码引用但 DDL 无 0 张、24 个 config.yml 顶层键零读取方 0 条、W9 新引入物无新零消费者（W9 未改任何 config.yml，该项为空集）。但本轮实测到 **2 条新的可派工实现缺口**，故 done=false：G-303-SCSTALE（scripts/check-source-contract.sh:34 的 `exec python3 - <<'PY'` 让 `python3 -` 读继承来的 stdin 而非脚本自身 here-doc ⇒ 有变异体在场时单方法与全量门禁都输出 SOURCE_CONTRACT_GATE=GREEN exit=0，27 个 *ContractTest 会一起假绿，而 selftest-gates.sh §4b 只在交互终端下有效、抓不住它）；G-ENV-PENDING（main HEAD a9114d3 的 push cnb-fk2-1k3uj4qnt、同 sha 的 api_trigger_gate cnb-q2d-1k3uj566m、以及 6a244ed 的 push cnb-p6b-1k3uj3pir 三次运行全部 pending 且停在 stage-1 start,0 ⇒ 六门一次都没产出判据行；最近成功记录 sha=c63f446 早于 W9 合入，不代表当前 main）。doen=true 的条件②因此**查不到**，如实记为不成立。未改任何 src/main 源码（全部变异已还原，git status 为空）。",
+  "changed_files": [
+    "plan/gap-matrix-v5.md",
+    "plan/verdict-v5.json",
+    "plan/tasks-w10.json",
+    "plan/world-state.json",
+    ".cnb/agent-out/W10-A1-final-verdict-v5.json"
+  ],
+  "pr_url": "",
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "git rev-parse HEAD; git ls-remote origin refs/heads/main; git log --oneline --first-parent -4",
+        "hit": "HEAD=a9114d3ec71eb8e289caf856c4f65db898f4adf3；origin refs/heads/main 同 sha；前 4 条为 a9114d3 / 6a244ed(W9-A1) / a624b61(W9-A2) / ac82403(W8-A1) ⇒ W9 两次合入都已在 main"
+      },
+      {
+        "cmd": "grep -n 'contains(\\|indexOf(\\|Files.readString' plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobRewardAsyncLifecycleContractTest.java plugins/rpg-pets/src/test/java/cn/originalrpg/pets/PetRevivalLifecycleContractTest.java",
+        "hit": "只有 2 处命中，均为类注释里描述历史：mobs:14 «原用 Files.readString ... 做字符串/{@code indexOf} 断言»；pets:14 «原用 Files.readString 读生产源码做字符串断言»。代码里零命中 ⇒ 断言已迁出"
+      },
+      {
+        "cmd": "grep -c '@Test' 两个类",
+        "hit": "mobs=3 pets=4（合计 7，与迁移前方法数一致；无删除、无 @Disabled）"
+      },
+      {
+        "cmd": "grep -rln 'check-source-contract' plugins/*/src/test/java --include=*.java | wc -l  然后逐文件检查是否存在 exitValue() 断言",
+        "hit": "27 个类；逐文件检查无任何「缺 exitValue 断言」的 ⇒ 27 个类全部真执行门禁并断言退出码"
+      },
+      {
+        "cmd": "sh scripts/check-source-contract.sh --all",
+        "hit": "SOURCE_CONTRACT_CHECKS=238 SPECS=27 / SOURCE_CONTRACT_GATE=GREEN / exit=0"
+      },
+      {
+        "cmd": "python3 统计 all.json",
+        "hit": "SPECS=27 CHECKS=45 required=186 forbidden=38 ordered=14；186+38+14=238 与门禁 CHECKS 数自洽"
+      },
+      {
+        "cmd": "逐方法跑门禁（7 个 @Test 对应的 method）",
+        "hit": "experienceBuffer=9 checks GREEN /delayedItems=11 GREEN /feedback=3 GREEN /revivalUsesDurableSaga=7 GREEN /everyFuture=12 GREEN /oldQuitAndCallbacks=9 GREEN /buildTargets=2 GREEN，全部 exit=0"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'ProgressionAnomalyService' plugins | grep '/src/main/'",
+        "hit": "rpg-admin/AnomalyReviewCommand.java:5,25,37,40,46,57,66（import + 字段 + 三处构造注入）；rpg-admin/RpgAdminPlugin.java:12,98,101,223；rpg-core/RpgCorePlugin.java:14,50,212,213,289；rpg-core/JdbcProgressionAnomalyService.java:6,41,50；rpg-api/ProgressionAnomalyService.java:27；rpg-core/JdbcProfileService.java:590,597 ⇒ 与 v4 的差异：rpg-admin 两个文件是真实调用点"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'anomalies\\.pending\\|anomalies\\.acknowledge' plugins | grep '/src/main/'",
+        "hit": "AnomalyReviewCommand.java:104 anomalies.pending(offset, limit) / :111 anomalies.pendingCount() / :160 anomalies.acknowledge(playerId, reviewer, note) / :173 anomalies.pending(playerId) ⇒ v4 的三个零消费者方法现在各有 1 个真实调用点"
+      },
+      {
+        "cmd": "grep -n '\"list\"\\|\"ack\"' plugins/rpg-admin/src/main/java/cn/originalrpg/admin/AnomalyReviewCommand.java",
+        "hit": "79（list 分支）/ 94（ack 分支）/ 243-246（tab 补全覆盖 list/ack 与各自参数位）⇒ 两条路径都在"
+      },
+      {
+        "cmd": "grep -n 'anomaly' plugins/rpg-admin/src/main/resources/plugin.yml",
+        "hit": "usage: /rpgadmin <...|anomaly <list [<offset> [<limit>]]|ack <player-uuid> CONFIRM <note>>|...> ⇒ 命令引用门禁可查到注册"
+      },
+      {
+        "cmd": "grep -n 'reviewer\\|review_note\\|reviewed_at' plugins/rpg-core/.../JdbcProgressionAnomalyService.java 与 Database.java",
+        "hit": "Service: 79,81,104,106,123（SELECT / COUNT WHERE reviewed_at IS NULL）、149,150（UPDATE SET reviewer/review_note/reviewed_at WHERE reviewed_at IS NULL 幂等签署）、176（新快照清空旧署名）、204,229,237（读回映射）。Database: 940,941,942（CREATE TABLE 三列）、950,953,956（三条 ALTER TABLE ADD COLUMN IF NOT EXISTS 存量升级）⇒ 三列都有真实读写"
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "hit": "DDL 表数: 81 / 豁免清单: 0 条 / CMD_REFERENCE_GATE=GREEN / 已注册指令数 43 / 指令豁免 9 条 / 反向检查扫描文件数 549 / 代码引用的 rpg_* 表名 81 个 / 反向豁免 0 条 / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / EXIT=0"
+      },
+      {
+        "cmd": "python3 逐张 grep 81 张表（排除 Database.java / SchemaManifest.java 自身）",
+        "hit": "DDL 表数: 81 / 零消费者表: 0 [] / 任何 src/main 都没提到: 0 [] ⇒ (c) 成立"
+      },
+      {
+        "cmd": "python3 遍历 24 个 plugins/*/src/main/resources/config.yml 的顶层键，逐个在全部 src/main Java 文本里查字面量",
+        "hit": "config.yml 文件数: 24 / 顶层键字面量在 src/main 中零命中的条目数: 0 ⇒ (d) 成立"
+      },
+      {
+        "cmd": "git diff --stat 4648797 a9114d3 -- plugins/*/src/main/resources/config.yml",
+        "hit": "无输出 ⇒ W9 三个提交未新增/未改动任何 config.yml，「W9 新增配置键」为空集"
+      },
+      {
+        "cmd": "python3 检查 all.json 两个新规格键 + 全量字段计数 + grep 脚本读取的字段",
+        "hit": "两个键的顶层键均为 [pathFragments(list), checks(list), files(list)]，checks 里字段齐备；全量 method 45 / required 45 / forbidden 45 / ordered 45；脚本第 65/74/78/83 行分别读 entry['files'] / check['required'] / check['forbidden'] / check['ordered'] ⇒ 无「声明了但脚本不读」的规格键。pathFragments 全部 27 个规格都是空列表且脚本从不读，属 W5-A2 既有形态（非 W9 引入），只登记为清理项"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "sh scripts/selftest-gates.sh",
+        "result": "===== 门禁自测汇总：PASS=67 FAIL=0 ===== / GATE_SELFTEST=GREEN / exit=0"
+      },
+      {
+        "cmd": "sh scripts/check-resource-pack.sh",
+        "result": "RUN=8 SKIPPED=0 / RESOURCE_PACK_GATE=GREEN / exit=0"
+      },
+      {
+        "cmd": "sh scripts/check-config-fallbacks.sh / check-trusted-menu-holders.sh / check-repo-artifacts.sh / check-file-deps.sh / install-datapacks.sh --check",
+        "result": "CONFIG_FALLBACK_GATE=GREEN / TRUSTED_MENU_GATE=GREEN / REPO_ARTIFACT_GATE=GREEN / check-file-deps: OK / DATAPACK_CHECK=GREEN packs=sivita-navigation，全部 exit=0"
+      },
+      {
+        "cmd": "sh scripts/list-env-tests.sh | wc -l",
+        "result": "8（与门禁 TEST stage 的 ENV_ANNOTATIONS=8 基线一致）"
+      },
+      {
+        "cmd": "★ 负向对照（G-303-SCSTALE 证据）：sh /tmp/mutate_and_prove.sh —— 同一次调用内先改坏 rpg-mobs 的一条 required 字面量，再跑单方法门禁与全量门禁",
+        "result": "MUTATION_BEFORE: 1 / MUTATION_AFTER (BROKEN 命中数): 1 / git status: ' M plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/ExperienceWriteBuffer.java' / required 字面量还在吗: 0 / 门禁输出 SOURCE_CONTRACT_CHECKS=9 SPECS=1 + SOURCE_CONTRACT_GATE=GREEN + GATE_EXIT=0 / 全量门禁 SOURCE_CONTRACT_CHECKS=238 SPECS=27 + SOURCE_CONTRACT_GATE=GREEN + ALL_EXIT=0 / RESTORED git status: [] ⇒ **有变异体在场却判 GREEN，缺陷成立**"
+      },
+      {
+        "cmd": "★ 决定性对照：在同一层 sh 里先跑一次门禁（RED 路径）再跑一次带变异的门禁",
+        "result": "第二次仍输出 SOURCE_CONTRACT_CHECKS=238 SPECS=27 + SOURCE_CONTRACT_GATE=GREEN ⇒ 门禁读到的是上一次的陈旧输出，证实根因在 stdin 继承（脚本 :34 `exec python3 - <<'PY'`）而非判据逻辑"
+      },
+      {
+        "cmd": "★ 反面验证：把脚本改成「从脚本自身读代码」而不是把 here-doc 交给 python3 -，同一变异下判红",
+        "result": "/tmp/scm/scripts/check-source-contract.sh（同构最小夹具）：SOURCE_CONTRACT_CHECKS=1 SPECS=1 + SOURCE_CONTRACT_GATE=RED Target.java::m1: 必须出现但缺失 -> 'needle-must-exist' + exit=1 ⇒ 判据逻辑正确，缺陷在取源码的方式"
+      },
+      {
+        "cmd": "★ 同源第二种触发：规格 JSON 键含单引号",
+        "result": "把 all.json 换成 {\"O'Brien.java\":{...}} 后内联 python 源码被单引号截断成 SyntaxError，门禁不报错而退化 ⇒ 畸形/不可解析规格无法判红，覆盖不到"
+      },
+      {
+        "cmd": "★ 复现 §4b 判据（证明 selftest 抓不住该失效模式）",
+        "result": "用仓库真实门禁 + 临时规格：不可能满足的 ordered 契约 → exit=1（交互终端下 §4b 为真，所以自测 PASS）；但它与被测门禁在同一个 terminal 里跑，换成非交互 stdin / 陈旧输出即失效 ⇒ selftest PASS=67 不能覆盖 G-303-SCSTALE"
+      },
+      {
+        "cmd": "★「八门在当前 main」查询：cnb build get-build-logs --repo xzqkjmnbvc2026/sivitahub --targetRef main --page-size 15",
+        "result": "97 条记录。sha=a9114d3 两条（push sn=cnb-fk2-1k3uj4qnt status=pending；api_trigger_gate sn=cnb-q2d-1k3uj566m status=pending），sha=6a244ed 一条（push sn=cnb-p6b-1k3uj3pir status=pending）。上一条成功：cnb-ves-1k3ug78vf(api_trigger_gate, sha=c63f446) / cnb-ihu-1k3ug6u6p(push, sha=c63f446)"
+      },
+      {
+        "cmd": "cnb build get-build-status --sn cnb-fk2-1k3uj4qnt / cnb-p6b-1k3uj3pir / cnb-q2d-1k3uj566m（审计期间 4 次重复查询，最后一次 15:31:58Z）",
+        "result": "三次全部 status=pending、duration=0，11 格为：success(Prepare) success(准备下载器) success(计数字段) success success success start,0(门禁自测 stage-1) pending×5(stage-2..End) ⇒ 六门（门禁自测/DDL双向/素材/compile/test/assemble）一次都没产出判据行。**查不到**全绿证据"
+      },
+      {
+        "cmd": "cnb build get-build-status --sn cnb-ves-1k3ug78vf（历史参照）",
+        "result": "status=success，11 格全 success（stage-1..stage-6 = 562533/107056/584/160040/36212/7221 ms）。逐格判据行：stage-1 GATE_SELFTEST=GREEN PASS=67 FAIL=0；stage-2 DDL 表数 81 / 豁免 0 / CMD_REFERENCE_GATE=GREEN / 已注册指令 43 / 豁免 9 / DDL_REGISTRATION_GATE=GREEN / DDL_CONSUMER_GATE=GREEN；stage-3 RESOURCE_PACK_GATE=GREEN RUN=8 SKIPPED=0；stage-4 COMPILE_GATE=GREEN BUILD_EXIT=0 SECONDS=132 TASKS_DONE=28 ATTEMPTS=1；stage-5 TEST_GATE=GREEN SUM tests=1081 failed=0 errors=0 skipped=2 modules=26 NO_XML=0 SUMMARY_GATE=GREEN ENV_ANNOTATIONS=8 EXCLUDED_TAG_SEEN_IN_LOG=26 ENV_TAG_LINE=26；stage-6 PACKAGE_GATE=GREEN JAR_COUNT=56 JAR_BYTES=3953909 JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0 ASSEMBLE_EXIT=0。**但该 sha=c63f446 是 main 祖先、早于 W9 的 6a244ed 与 a624b61 ⇒ 不能作为条件②的证据**"
+      }
+    ]
+  },
+  "unproven": [
+    "[R] Runtime：compile / test / assemble 三门在**当前 main** 上没有运行记录（三次 running 全 pending 且停在 stage-1），本容器又无 JDK（command -v java 无输出、/usr/lib/jvm 不存在），因此无法给出当前 main 的八门判据行。这是本轮判 done=false 的直接原因之一。",
+    "[R] Runtime：/rpgadmin anomaly list|ack 未在真实 Paper + PostgreSQL 上跑过；行为级证据是真实 H2 + 真实 JDBC 事务。",
+    "[H] Human：真人复核异常并署名本身未发生。",
+    "[R] Runtime：G-302 迁移后，关服排空顺序 / 在途写入归属 / 延迟邮件重放 / 复苏 saga 仍未在真实 Paper 上验证（rpg-mobs / rpg-pets 无 MockBukkit/Mockito，生产类依赖真实 Plugin / Bukkit.getScheduler() / ProfileService）。静态契约门禁是当前可保证的强度上限。",
+    "config.yml 的二级以下叶子键未做全量判定（本仓大量 getConfigurationSection + getKeys(false) 动态遍历，字面量 grep 判不出来）；本轮只对 24 个 config.yml 的顶层键做了全量对账。"
+  ],
+  "risks": [
+    "★ 本轮最重要的发现是门禁自身的失效模式，而不是业务缺口：G-303-SCSTALE 会让 scripts/check-source-contract.sh 在有变异体的情况下输出 GREEN，而 27 个 *ContractTest 全部依赖它的退出码。在它修好之前，任何引用「source-contract 全绿」「27 个 ContractTest 全过」的结论都应当降级看待。",
+    "G-303-SCSTALE 与 G-ENV-PENDING 有同源部分（门禁/脚本在非交互 stdin 下的行为），但它们落在不同文件与不同 stage，必须分别验证。",
+    "G-ENV-PENDING 无法用本仓库内的改动确证根因（可能是 Runner 侧、可能是 stage-1 调用链在非交互 stdin 下阻塞）。W11-A2 要求先拿 stage-1 真实日志再下结论，不得猜测。",
+    "本轮判定会被用来决定项目是否收口。本报告刻意不采信早于 W9 合入的八门记录（sha=c63f446），也不把「无法判定」写成「缺口」，两类取舍都已在 verdict-v5.json 的 condition_*_note 与 not_a_gap 里写明理由。"
+  ],
+  "next_steps": [
+    "派 W11-A1（修 check-source-contract.sh 读 stdin 的问题 + 加真负向对照 + 畸形规格必须 RED）与 W11-A2（查清 stage-1 卡住，拿日志原文），见 plan/tasks-w10.json。",
+    "W11 完成后重跑收尾判定轮：需要 ① 源码契约门禁在非交互 stdin 下有变异体必须 RED；② 当前 main 的质量门跑出 11 格判据行。两条都关闭且八门在最新 main 上全绿，才能判 done=true。",
+    "核实 W9-A2 提出的 next_step：Database.java 里是否还有其它「CREATE INDEX / ALTER 早于其 CREATE TABLE」的顺序缺陷（W9-A2 只修了 rpg_progression_wallets 与 rpg_progression_anomalies 相关部分，点名 rpg_season_settlement_transitions）。本轮未复核这一条，如实标注为未做。",
+    "清理项（不阻塞收口）：all.json 全部 27 个规格里 pathFragments 都是空列表且脚本从不读该字段，可考虑删除以免误导。",
+    "state/world-state.json 不在本任务 allowed_paths（plan/** 与 .cnb/agent-out/**）内，本轮**未改**它：跨 agent 交接账本的更新以 plan/world-state.json 为准，需要落到 state/ 的动作交回调度器。"
+  ],
+  "blockers": [],
+  "_verdict": {
+    "done": false,
+    "impossible": false,
+    "remaining": 2,
+    "remaining_ids": [
+      "G-303-SCSTALE",
+      "G-ENV-PENDING"
+    ]
+  },
+  "_note_for_scheduler": "本任务只被允许改 plan/** 与 .cnb/agent-out/**。审计过程中为验证 G-303-SCSTALE 曾临时改坏 plugins/rpg-mobs 的一处生产字面量作为变异体，已于同一次调用内还原；所有调用结束后 `git status --porcelain` 为空，工作区未留残留。evidence.test 里的变异输出是**故意制造**的负向对照，不是把仓库改坏。"
+}
