@@ -155,10 +155,10 @@ fetch() {
 # 值 = 仓库相对路径，空格分隔。
 # PHASE_FETCH  = 本脚本负责下载 + 校验的 jar
 # PHASE_VENDOR = Sivita 自改版，本脚本只检查存在性，不下载
-PHASE_FETCH="libs/AuthMe-6.0.0-Paper.jar libs/EssentialsX-2.22.1-dev-382de4f.jar libs/worldedit-bukkit-7.4.4.jar libs/worldedit-core-7.4.4.jar libs/Citizens-2.0.43-b4231.jar libs/BetonQuest-3.1.0.jar"
-PHASE_VENDOR="libs/vendor/BetterHud-bukkit-2.1.0-SNAPSHOT-447.jar libs/vendor/MyPet-4.0.0-Sivita.jar libs/vendor/worldguard-bukkit-7.0.18-Sivita.jar"
+PHASE_FETCH="libs/AuthMe-6.0.0-Paper.jar libs/worldedit-bukkit-7.4.4.jar libs/worldedit-core-7.4.4.jar libs/Citizens-2.0.43-b4231.jar libs/BetonQuest-3.1.0.jar"
+PHASE_VENDOR="libs/vendor/EssentialsX-2.22.1-dev-382de4f.jar libs/vendor/BetterHud-bukkit-2.1.0-SNAPSHOT-447.jar libs/vendor/MyPet-4.0.0-Sivita.jar libs/vendor/worldguard-bukkit-7.0.18-Sivita.jar"
 
-# 6 个有公开源的编译期依赖（BetterHud 已转为 vendor，见下）。
+# 5 个有公开源的编译期依赖（BetterHud 与 EssentialsX 已转为 vendor，见下）。
 # 源优先级：Maven 仓库坐标 > 官方 CI artifact > GitHub Releases。
 # 校验值是 2026-10-02 首次拉取时的实测值（sha256 / sha1）。
 
@@ -176,11 +176,12 @@ fetch "AuthMe-6.0.0-Paper.jar" \
     "58948fcbc697497506257d09d8a7909bf48de6aefe7bec6ba5ab4c41be41b7b8" \
     "aefb475df26c72fe39c48e0ef9daf5e8b0574e28" || FAILED="$FAILED AuthMe-6.0.0-Paper.jar"
 
-# 3) EssentialsX —— 精确构建 dev+17-382de4f 只存在于官方 Jenkins（ci.ender.zone build 1821）
-fetch "EssentialsX-2.22.1-dev-382de4f.jar" \
-    "https://ci.ender.zone/job/EssentialsX/1821/artifact/jars/EssentialsX-2.22.1-dev+17-382de4f.jar" \
-    "482fe19591fa39e36c109553cf4f577609030df7172bc7fdd69a1e32dd31d797" \
-    "a97b9dc5714a36ba0d384fc655a945123ab27b01" || FAILED="$FAILED EssentialsX-2.22.1-dev-382de4f.jar"
+# 3) EssentialsX —— **转为 vendor**。原因：它原本从 ci.ender.zone 的 Jenkins artifact URL 下载，
+#    但那个 URL **不是不可变源**：实测同一天两次下载得到不同内容
+#    （期望 sha256 482fe195… → 实际 125ad362…，sn=质量门（W6/W7 全部合入后））。
+#    而生产机 lamb 上的那份又是第三个内容（46042680…）。
+#    ⇒ 按 K1 原则「编译期依赖必须与运行时 jar 完全同版本」，改为 vendor 生产机那一份。
+
 
 # 4) WorldEdit —— 原引用 worldedit-bukkit-7.4.4.jar，但 build.gradle.kts 实际只用到
 #    com.sk89q.worldedit.bukkit.BukkitAdapter(在 worldedit-bukkit) 与
@@ -226,6 +227,7 @@ check_vendor() {
         FAILED="$FAILED vendor/$name"
     fi
 }
+check_vendor "EssentialsX-2.22.1-dev-382de4f.jar"
 check_vendor "BetterHud-bukkit-2.1.0-SNAPSHOT-447.jar"
 check_vendor "MyPet-4.0.0-Sivita.jar"
 check_vendor "worldguard-bukkit-7.0.18-Sivita.jar"
@@ -236,4 +238,4 @@ if [ -n "$FAILED" ]; then
     echo "fetch-deps: 失败条目：$FAILED" >&2
     exit 1
 fi
-echo "fetch-deps: 全部就绪（libs/ 6 个公开源 artifact + vendor 3 个本地取回）"
+echo "fetch-deps: 全部就绪（libs/ 5 个公开源 artifact + vendor 4 个本地取回）"

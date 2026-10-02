@@ -5,6 +5,7 @@
 
 | 文件 | 引用方 | 生产机来源 | sha1 |
 |---|---|---|---|
+| `EssentialsX-2.22.1-dev-382de4f.jar` | `plugins/rpg-essentials/build.gradle.kts` | `lamb:/home/lamb/minecraft/server/vendor/essentialsx/EssentialsX-2.22.1-dev-382de4f.jar` | `f546f02e4ca9af07fa503221df487d9d1aecd30a` |
 | `MyPet-4.0.0-Sivita.jar` | `plugins/rpg-pets/build.gradle.kts` | `lamb:/home/lamb/minecraft/server/vendor/mypet/MyPet-4.0.0-Sivita.jar` | `4a17f3b5511edba5a39c813fcd4ad68bfd904957` |
 | `worldguard-bukkit-7.0.18-Sivita.jar` | `plugins/rpg-hub/build.gradle.kts` | `lamb:/home/lamb/minecraft/server/runtime/plugins/worldguard-bukkit-7.0.18-Sivita.jar` | `10e328f3238699ea9d9f866fba3acdb06d416d9f` |
 
