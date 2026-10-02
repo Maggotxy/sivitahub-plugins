@@ -1,0 +1,93 @@
+{
+  "task_id": "W2-B5-authoritative-namespace",
+  "status": "success",
+  "summary": "补 G-112：AuthoritativeItemPolicy.isAuthoritativeNamespace() 零消费者 → 在 rpg-items 侧接入两处真实路径，并补行为级测试。① 签名门：EquipmentSecurity#isAuthentic 前置 authoritativeNamespace(item)（逐 PDC key allMatch），拒绝携带非权威命名空间标记的物品（覆盖解绑/传承/市场托管/耐久全部下游）。② 锻造输入门：ForgeListener#isCoreMaterial 前置 authoritativeNamespaceOnly(item)，拒绝带第三方标记的核心材料。两处都走 isAuthoritativeKey -> isAuthoritativeNamespace。关键发现：AuthoritativeItemPolicy.isAuthoritative(ItemStack) 用的是 anyMatch，只要有一个权威标记就返回 true —— 直接复用它会让「第三方标记 + 一个权威标记」的伪造核心材料通过，所以锻造门用 allMatch 语义，并在测试里把这个 anyMatch 反例也断言下来。行为级测试 5 条全绿（AuthoritativeNamespaceGateTest 3 + ForgeInputNamespaceGateTest 2），两条负向对照（注释掉生产调用）分别让对应测试变红，证明测试真在测接线。",
+  "changed_files": [
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentSecurity.java",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeListener.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/ItemStackTestHarness.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/AuthoritativeNamespaceGateTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/ForgeInputNamespaceGateTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/PaperRegistryStub.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/PaperInternalApiStub.java",
+    "plugins/rpg-items/src/test/resources/META-INF/services/io.papermc.paper.registry.RegistryAccess",
+    "plugins/rpg-items/src/test/resources/META-INF/services/io.papermc.paper.InternalAPIBridge",
+    "plugins/rpg-items/build.gradle.kts",
+    ".cnb/agent-out/W2-B5-authoritative-namespace.json"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/18",
+  "constitution_basis": [
+    "C-001 单一权威状态：物品的权威状态只能来自本服命名空间；出现外来命名空间标记即不属权威状态，按未签名处理（fail-closed），不引入任何第二套状态源。",
+    "AGENTS.md §1.1 / L-002：不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本 —— 本次只加命名空间判定，无新增状态机。",
+    "L-008 判据：src/main 真实调用点 + 行为级测试 + 编译门。本次三件都齐。"
+  ],
+  "semantics_decision": "任务书要求「权威命名空间通过、非权威命名空间被拒（fail-closed）」。经实测 AuthoritativeItemPolicy.isAuthoritative(ItemStack) 是 anyMatch（AuthoritativeItemPolicy.java:91），只要 PDC 里存在任一权威标记就返回 true，因此对「外来标记 + 一个权威标记」的物品不构成拒绝。为满足 fail-closed 口径，两处接线都使用逐 key 的 allMatch（全部 key 都必须是权威命名空间），而不是复用 isAuthoritative。这是本次唯一语义取舍，已在测试中断言该 anyMatch 反例。",
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'isAuthoritativeNamespace' plugins",
+        "hit": "修改前（gap-matrix §2 M-025 原文复现）：只命中自身定义文件\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/AuthoritativeItemPolicy.java:79:    public static boolean isAuthoritativeNamespace(String namespace) {\nplugins/rpg-api/src/main/java/cn/originalrpg/api/rules/AuthoritativeItemPolicy.java:86:        return key != null && isAuthoritativeNamespace(key.getNamespace());\n修改后：src/main 里 rpg-items 两处消费者经 isAuthoritativeKey 调用它；另有 2 处命中在新增测试文件（注解与断言）\nplugins/rpg-items/src/test/java/cn/originalrpg/items/security/AuthoritativeNamespaceGateTest.java:36: .isAuthoritativeNamespace(...)"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'isAuthoritativeKey' plugins/rpg-api/src/main plugins/rpg-items/src/main",
+        "hit": "plugins/rpg-api/.../AuthoritativeItemPolicy.java:85:    public static boolean isAuthoritativeKey(NamespacedKey key) {\nplugins/rpg-items/.../forge/ForgeListener.java:969:                .allMatch(AuthoritativeItemPolicy::isAuthoritativeKey);\nplugins/rpg-items/.../security/EquipmentSecurity.java:118:                .allMatch(AuthoritativeItemPolicy::isAuthoritativeKey);\n→ 两处 src/main 消费者均在 rpg-items，非自身定义文件"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'authoritativeNamespace' plugins/rpg-items/src/main",
+        "hit": "plugins/rpg-items/.../forge/ForgeListener.java:948:        if (!authoritativeNamespaceOnly(item)) return false;\nplugins/rpg-items/.../forge/ForgeListener.java:965:    private static boolean authoritativeNamespaceOnly(ItemStack item) {\nplugins/rpg-items/.../security/EquipmentSecurity.java:104:        if (!authoritativeNamespace(item)) return false;\nplugins/rpg-items/.../security/EquipmentSecurity.java:114:    private static boolean authoritativeNamespace(ItemStack item) {"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'isAuthoritative(' plugins/rpg-api/src/main",
+        "hit": "plugins/rpg-api/.../AuthoritativeItemPolicy.java:92:                .anyMatch(AuthoritativeItemPolicy::isAuthoritativeKey);  ← anyMatch，不能用于 fail-closed 命名空间门"
+      }
+    ],
+    "commands": [
+      {
+        "cmd": "./gradlew --no-daemon --rerun-tasks :plugins:rpg-items:compileJava :plugins:rpg-items:test",
+        "exit": 0,
+        "env": "JAVA_HOME=/opt/jdk25 (Temurin 25.0.4.1)，Gradle 9.1.0，paper-api 26.2.build.100-stable",
+        "tail": "> Task :plugins:rpg-items:compileTestJava\n> Task :plugins:rpg-items:test\nBUILD SUCCESSFUL in 10s\n8 actionable tasks: 8 executed"
+      },
+      {
+        "cmd": "解释 build/test-results/test/*.xml",
+        "result": "TOTAL tests=49 failures=0 errors=0（含新增 AuthoritativeNamespaceGateTest=3、ForgeInputNamespaceGateTest=2）"
+      }
+    ],
+    "negative_control": [
+      {
+        "what": "注释掉 EquipmentSecurity#isAuthentic 里的 `if (!authoritativeNamespace(item)) return false;`",
+        "cmd": "./gradlew --no-daemon :plugins:rpg-items:test --tests '*AuthoritativeNamespaceGateTest*'",
+        "result": "FAILED —— AuthoritativeNamespaceGateTest > foreignNamespaceMarkerFailsClosedOnEveryAuthenticityCheck() FAILED；3 tests completed, 1 failed",
+        "conclusion": "签名门测试确实在测那行接线"
+      },
+      {
+        "what": "把 ForgeListener#authoritativeNamespaceOnly 的 allMatch 改成恒返回 true",
+        "cmd": "./gradlew --no-daemon :plugins:rpg-items:test --tests '*ForgeInputNamespaceGateTest*'",
+        "result": "FAILED —— ForgeInputNamespaceGateTest > coreMaterialCarryingAForeignMarkerIsRejected() FAILED；2 tests completed, 1 failed",
+        "conclusion": "锻造输入门测试确实在测生产方法本体（反射调用，不是复制判据）"
+      },
+      {
+        "what": "恢复两处生产代码后重跑",
+        "cmd": "./gradlew --no-daemon :plugins:rpg-items:test",
+        "result": "BUILD SUCCESSFUL，49/49 绿"
+      }
+    ],
+    "test_harness_note": "paper-api 只有接口，没有 ItemMeta / PersistentDataContainer 实现；JUnit 进程里 new ItemStack(...) 的 craftDelegate 为 null，getItemMeta() 直接 NPE。复现：java -cp paper-api.jar ProveIt → 'FAILED: NullPointerException: Cannot invoke ItemStack.getType() because this.craftDelegate is null'。因此新增 ItemStackTestHarness（内存 ItemMeta 代理 + 真实 PDC 语义）与 PaperRegistryStub / PaperInternalApiStub （ServiceLoader 注册，供 Material.asItemType() 与伤害事件构造），让测试能真正构造物品、写 PDC、签名、再跑被测代码。这不是源码字符串断言：测试执行的是真实方法并断言返回值。"
+  },
+  "unproven": [
+    "未在真实 Paper 服务端上跑（无 [R] Runtime 证据）。签名门与锻造门的行为验证在 JUnit + 内存 ItemStack 夹具内完成；服务端上的实际触发路径（玩家放材料进锻造菜单、把带外来标记的物品拿去解绑）属 [R] 级，需人工或集成环境确认。",
+    "isAuthoritativeNamespace 的 AUTHORITATIVE_NAMESPACES 白名单是否完整未复核：本次未新增/删除任何命名空间，只是把判定接到消费点。白名单与 25 个模块的对应关系在 rpg-api 测试 AuthoritativeItemPolicyTest 里已有覆盖。",
+    "JDK/Gradle 非编译门同款环境：本地用 eclipse-temurin 25.0.4.1 + Gradle wrapper 9.1.0 跑通 compileJava/test；CNB push 编译门（eclipse-temurin:25-jdk）仍需流水线复验。"
+  ],
+  "blockers": [],
+  "next_steps": [
+    "等 CNB push 编译门 GREEN 后由人工合入 main（不得由 NPC 自动 merge）。",
+    "人工复核：本次把「命名空间门」放在 isAuthentic 之前会让「PDC 里混入任何外来命名空间标记的已签名装备」直接失效。若生产上确实存在第三方插件给本服装备追加 PDC 标记（例如附属插件给装备打自定义 tag），这些装备会在上线后变「未签名」，需要人工先离线扫一遍存量装备的 PDC 命名空间分布再合入。命令样例：对 rpgitems 存档做一次 PDC dump，统计出现过的非权威命名空间。",
+    "若复核发现外来标记确实常见，取舍应改为「只对权威命名空间做白名单判定，外来命名空间单独记审计告警」而不是直接 fail-closed —— 属需要人类拍板的语义选择，本任务按任务书要求先做了 fail-closed。"
+  ],
+  "risks": [
+    "与 next_steps 第 2 条同一条：isAuthentic 收紧到全 PDC key 都必须是权威命名空间，是行为收紧而非放宽。存量装备若被第三方插件打过非权威命名空间标记，会从「已签名」变「未签名」，影响解绑/传承/市场托管与耐久保护。合入前建议离线核查存量 PDC 命名空间分布。",
+    "isCustomEquipment（只看 rpgitems:item_id）未加命名空间门，保持原语义：它只用来判断「像不像自制装备」，真正的安全判定在 isAuthentic。没有收紧它，因为改动面更大且可能影响锻造菜单对普通物品的识别。",
+    "ForgeListener 新增的 authoritativeNamespaceOnly 对空 PDC 返回 true（无标记的普通物品仍返回 true），命名空间门只负责「有标记时必须权威」，是否算核心材料仍由后续 marked 判定负责。这一分层在注释里写明。"
+  ]
+}
