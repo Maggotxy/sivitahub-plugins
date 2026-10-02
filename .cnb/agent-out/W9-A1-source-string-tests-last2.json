@@ -9,7 +9,7 @@
     "plan/source-string-tests-remaining.json",
     ".cnb/agent-out/W9-A1-source-string-tests-last2.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/50",
   "risks": [
     "两个类只做「声明式源码契约」不做行为断言，原因是本仓无 MockBukkit/Mockito 且生产类依赖真实 Bukkit 运行时；运行期行为（关服排空顺序、在途写入归属、延迟邮件重放、复苏 saga）仍未被真实 Paper 运行时验证 —— 与 W5-A2 批次同类取舍，属 [T] 测试级保证而非 [R] Runtime。",
     "pets 的 build.gradle.kts 构建契约断言依赖 libs/vendor/MyPet-4.0.0-Sivita.jar 入库；若人类将来更换运行时制品名，需同步规格里的 required/forbidden 字面量（门禁会红，不会静默）。"
