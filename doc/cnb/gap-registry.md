@@ -10,10 +10,10 @@
 
 | id | 缺口 | 证据（file:line） | 状态 |
 |---|---|---|---|
-| G-001 | 五维「防御」+ 装备 `defense` 词条在 PVE/PVP **全部失效**，只对摔落/岩浆生效 | `rpg-combat/.../ExecuteListener.java:212-222` 只被 `:126` 的 `EntityDamageEvent` 调用；互砍走 `:130` 的 `EntityDamageByEntityEvent`（Bukkit 独立 HandlerList）。`DefensePolicyTest.java:25-26` 断言 ENTITY_ATTACK/PROJECTILE 应可防御 ⇒ 是接线 bug | TODO |
-| G-002 | Kill Switch 有表有注册点、**零消费者**，宪法 `C-005` 四件套缺一腿 | `rpg-core/.../persistence/MechanismRegistry.java:82 isEnabled()/:89 setEnabled()` 全仓零调用；只有 `RpgCorePlugin.java:101` 启动播种 | TODO |
-| G-003 | 装备 HMAC 签名密钥**明文写进 config.yml**，无轮换 | `rpg-items/.../RpgItemsPlugin.java:106-124`（无 `RPG_ITEM_SIGNING_KEY` 时把密钥落盘） | TODO |
-| G-004 | 迁移 advisory lock **两把不是同一把**，离线工具可与在线节点并发 DDL | `tools/db-migration/.../MigrationEngine.java:205` 用 `0x5349564954414D47`；`rpg-core/.../Database.java:1064` 用 `(0x53495649,0x52504731)`。`ARCHITECTURE.md:67` 称「同一把锁」 | TODO |
+| G-001 | 五维「防御」+ 装备 `defense` 词条在 PVE/PVP **全部失效**，只对摔落/岩浆生效 | `rpg-combat/.../ExecuteListener.java:212-222` 只被 `:126` 的 `EntityDamageEvent` 调用；互砍走 `:130` 的 `EntityDamageByEntityEvent`（Bukkit 独立 HandlerList）。`DefensePolicyTest.java:25-26` 断言 ENTITY_ATTACK/PROJECTILE 应可防御 ⇒ 是接线 bug | **DONE** W1-A1 / PR#5 / `056b3e1` —— 接线到 `EntityDamageByEntityEvent`（`ExecuteListener.java:197`），幂等标记防双减，新增 `DefenseWiringTest`（4 例），并做负向对照（删掉调用点测试变红） |
+| G-002 | Kill Switch 有表有注册点、**零消费者**，宪法 `C-005` 四件套缺一腿 | `rpg-core/.../persistence/MechanismRegistry.java:82 isEnabled()/:89 setEnabled()` 全仓零调用；只有 `RpgCorePlugin.java:101` 启动播种 | **DONE** W1-A2 / PR#7 / `cd097b8` —— 新增 `requireEnabled()` 闸门 + 7 个 faucet 接入 + `MechanismKillSwitchContractTest`（变异测试验证有效） |
+| G-003 | 装备 HMAC 签名密钥**明文写进 config.yml**，无轮换 | `rpg-items/.../RpgItemsPlugin.java:106-124`（无 `RPG_ITEM_SIGNING_KEY` 时把密钥落盘） | **DONE** W1-A3 / PR#2 / `9aa2e2b` —— 新增 `EquipmentSigningMaterial`（env 唯一来源、缺失 fail-closed），支持当前+3 把退役密钥轮换，旧明文字段启动告警 |
+| G-004 | 迁移 advisory lock **两把不是同一把**，离线工具可与在线节点并发 DDL | `tools/db-migration/.../MigrationEngine.java:205` 用 `0x5349564954414D47`；`rpg-core/.../Database.java:1064` 用 `(0x53495649,0x52504731)`。`ARCHITECTURE.md:67` 称「同一把锁」 | **DONE** W1-A4 / PR#6 / `ecae668` —— 工具侧改用 `pg_advisory_xact_lock(0x53495649, 0x52504731)`（与 `Database.java:20-21` 完全一致，已人工核对），删掉旧 bigint 形式，加 30s 等待上限 |
 
 ## B. P1 —— 「声明了但没接线」类
 
@@ -47,9 +47,9 @@
 
 | id | 缺口 | 状态 |
 |---|---|---|
-| G-301 | **每张 DDL 表必须在 `src/main` 里有引用点** —— 加一条 CI 门禁，否则该模式会持续复发 | TODO |
+| G-301 | **每张 DDL 表必须在 `src/main` 里有引用点** —— 加一条 CI 门禁，否则该模式会持续复发 | **DONE** W1-A5 / PR#1 / `e8013ef` —— `scripts/check-ddl-consumers.sh` 接入 push 流水线；首跑 GREEN：75 张表 / 67 已接线 / 8 张已登记豁免 |
 | G-302 | 7 个 `*ContractTest` 用 `Files.readString + indexOf` 断言**源码字符串顺序**，不执行行为，重构即失效 ⇒ `[T]` 级证据要打折；需替换为行为级测试 | TODO |
-| G-303 | 全量差集矩阵：**每个机制 × 是否有消费者 × 是否有行为测试**，作为后续所有波次的唯一输入 | TODO |
+| G-303 | 全量差集矩阵：**每个机制 × 是否有消费者 × 是否有行为测试**，作为后续所有波次的唯一输入 | **DONE** W1-P1 / PR#3 / `fceea06` —— `plan/gap-matrix.md`（488 行：39 条机制矩阵 + 75 张表消费者矩阵 + 每条 grep 原文）+ `plan/tasks-w2.json` |
 
 ## E. 不可逆 / 需人类
 
@@ -63,8 +63,8 @@
 
 | id | 缺口 | 证据 | 状态 |
 |---|---|---|---|
-| G-401 | **构建不自包含**：8 处 `compileOnly(files(...))` 指向 `server/runtime/plugins/` 与 `server/vendor/`，而这两条路径被 `.gitignore` 忽略 ⇒ **干净克隆无法编译** | 编译门首验 sn=`cnb-4r1-1k3tb2rk8`：`BUILD_EXIT=1 SECONDS=101`，首个失败点 `plugins/rpg-integrations/.../BetterHudGameplayHudService.java:4 error: package kr.toxicity.hud.api does not exist` | TODO |
-| G-402 | 缺 `scripts/fetch-deps.sh`：第三方 jar 没有可复现的公开拉取路径（对照 Cube Recall 的 `fetch-deps.sh` + sha1 校验） | 8 个依赖见下表 | TODO |
+| G-401 | **构建不自包含**：8 处 `compileOnly(files(...))` 指向 `server/runtime/plugins/` 与 `server/vendor/`，而这两条路径被 `.gitignore` 忽略 ⇒ **干净克隆无法编译** | 编译门首验 sn=`cnb-4r1-1k3tb2rk8`：`BUILD_EXIT=1 SECONDS=101`，首个失败点 `plugins/rpg-integrations/.../BetterHudGameplayHudService.java:4 error: package kr.toxicity.hud.api does not exist` | **DONE** W1-A0 / PR#4 / `80fafb6` —— 8 处 `compileOnly(files(...))` 全部改指 `libs/`；实测 fetch-deps 7/7 双校验通过 |
+| G-402 | 缺 `scripts/fetch-deps.sh`：第三方 jar 没有可复现的公开拉取路径（对照 Cube Recall 的 `fetch-deps.sh` + sha1 校验） | 8 个依赖见下表 | **DONE** W1-A0 —— `scripts/fetch-deps.sh` + `scripts/check-file-deps.sh`（含反向验证） |
 | G-403 | 其中 **2 个是 Sivita 自改版，公开源不存在**，只能由本地从 `lamb` 取回后作为 vendor 二进制入库 | `MyPet-4.0.0-Sivita.jar`、`worldguard-bukkit-7.0.18-Sivita.jar` | **DONE 2026-10-02**：已由本地从 lamb 取回并入库 `libs/vendor/`（commit `02486f1`，sha1 见 `libs/vendor/README.md`） |
 
 ### 8 个文件依赖全清单（`compileOnly(files(...))`）
@@ -84,4 +84,32 @@
 
 | 波 | 内容 | 状态 |
 |---|---|---|
-| W1 | A0 fetch-deps（阻塞项）+ P1 差集矩阵 + A1..A5（4 条 P0 + DDL 门禁） | **DISPATCHED** 2026-10-02，7 个 NPC 任务并行，分支 `agent/W1-*` 已建 |
+| W1 | A0 fetch-deps（阻塞项）+ P1 差集矩阵 + A1..A5（4 条 P0 + DDL 门禁） | **MERGED** 2026-10-02，7/7 PR 合入，越界 0；见 E-011 |
+
+## H. W2 对账结果（**派发前必须先做这一步**）
+
+`plan/tasks-w2.json`（W1-P1 产出）**不可直接派**：Planner 的分支基点早于 W1 的合并点，
+它的清单里有 5 项是 W1 已经合完的（实测教训见 `state/world-state.json` E-014）。
+
+| W2 任务 | 与 W1 的关系 | 处置 |
+|---|---|---|
+| W2-A1-killswitch-executor | = W1-A2，已合入 `cd097b8` | **丢弃** |
+| W2-A2-ddl-consumer-gate | = W1-A5，已合入 `e8013ef` | **丢弃** |
+| W2-C2-damage-bus-single-settlement | 其 G-001 部分 = W1-A1，已合入 `056b3e1` | **改写**：只保留 G-105（攻方增益二次放大） |
+| W2-D1-signing-key-fail-closed | = W1-A3，已合入 `9aa2e2b` | **丢弃** |
+| W2-D2-migration-lock-unify | = W1-A4，已合入 `ecae668` | **丢弃** |
+| W2-B1-phase1-remove-ascend-bypass | 新增（G-107 上半） | **保留** |
+| W2-B2-skillpoint-milestone | 新增（G-107 下半，deps B1） | **保留** |
+| W2-C1-mailbox-freeze-creative | 新增（G-104） | **保留** |
+| W2-E1-docs-accuracy | 新增（P2 订正，deps D2→需改成无 deps） | **保留**（去掉对 D2 的依赖，D2 已合入） |
+
+**W2 还应该补进 planner 未覆盖、但 gap-matrix 已实证的「声明未接线」项**（这些才是「完成全部玩法机制细节」的主体）：
+
+| 新 id | 缺口 | 来源 |
+|---|---|---|
+| G-110 | `EquipmentLifecycle.requiresExitPath()` / `isTradeable()` / `isExitPath()` 零消费者（宪法 C-008 装备退出路径未接线） | gap-matrix §2 |
+| G-111 | `ProgressionRules.totalExperienceForAscension()` / `totalExperienceToEffective()` / `effectiveLevelCap()` 零消费者 | gap-matrix §2 |
+| G-112 | `AuthoritativeItemPolicy.isAuthoritativeNamespace()` 零消费者 | gap-matrix §2 |
+| G-113 | `JdbcNodeLease.renewAsync()` / `mayStillBeValid()` 零消费者 | gap-matrix §2 |
+| G-114 | `EquipmentOperationCoordinator.markedDeliveryCopy()` 零消费者 | gap-matrix §2 |
+| G-101/102/103/106/108 | 赛季结算服务缺失 / session-lease+outbox 只有 DDL / 社群七角色枚举装饰 / 血契条件不可达成 / 副本 world 键无读取方 | gap-matrix §2 |
