@@ -223,6 +223,42 @@ class SeasonSettlementCommandTest {
         assertEquals(300L, number("SELECT season_merit FROM rpg_season_merit_wallets"));
     }
 
+    /**
+     * 失败关闭的次序必须与「只读/写入」对应，不能整段一起关。
+     *
+     * <p>熔断的分界线是「会不会动账本」，不是「命令叫什么」：杀伤开关只掐资金动作
+     * （到 SETTLING / COMPLETED 的推进），让操作者仍能读 status / preview 定位问题 ——
+     * 把所有分支一起 fail-closed 会让已进入 FREEZING 的赛季连事实都读不出来。</p>
+     *
+     * <p>本用例直接查 {@link cn.originalrpg.core.persistence.MechanismRegistry} 的指标：
+     * 读路径一次都不得问熔断，写路径必须被拒绝。</p>
+     */
+    @Test
+    void killSwitchOnlyGatesTheLedgerPathsAndStillAllowsTheReadOnlyOnes() throws Exception {
+        uuidInfrastructure();
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("INSERT INTO rpg_mechanism_switches (mechanism_id, enabled, updated_by) "
+                    + "VALUES ('season.settlement.enabled', FALSE, 'test')");
+            connection.commit();
+        }
+        Harness harnessWithSwitch = new Harness(dataSource, Runnable::run, true, true);
+        // 先让赛季层有钱可结算，否则「没有资金动作」这一条断言会退化成恒真。
+        wallet(UUID.randomUUID(), 500, SEASON, 300);
+
+        harnessWithSwitch.run("season", "status");
+        harnessWithSwitch.run("season", "preview");
+        // 只读两分支不得触碰熔断：拒绝计数保持 0 才说明读路径真的没被关。
+        assertEquals(0L, harnessWithSwitch.denials(), "只读分支不得查询 Kill Switch");
+
+        RpgCommandResult refused = harnessWithSwitch.run(
+                "season", "advance", "previewed", AdminConfirmation.LITERAL, "kill switch is off");
+        assertEquals(SeasonSettlementResult.Status.BLOCKED, harnessWithSwitch.lastStatus(refused));
+        assertTrue(harnessWithSwitch.denials() > 0L, "资金动作必须真的被熔断拦下");
+        assertEquals("DRAFT", storedStatus());
+        assertEquals(0L, count("rpg_season_settlements"));
+        assertEquals(0L, count("rpg_season_settlement_transitions"));
+    }
+
     // ------------------------------------------------------------ tab 补全
 
     @Test
@@ -382,6 +418,7 @@ class SeasonSettlementCommandTest {
         private final CountingService counting;
         private final SeasonSettlementCommand command;
         private final List<String> messages = new ArrayList<>();
+        private final cn.originalrpg.core.persistence.MechanismRegistry registry;
 
         Harness(HikariDataSource dataSource, Executor executor, boolean enabled) {
             this(dataSource, executor, enabled, false);
@@ -391,9 +428,11 @@ class SeasonSettlementCommandTest {
             if (withKillSwitch) {
                 var registry = new cn.originalrpg.core.persistence.MechanismRegistry(dataSource);
                 registry.initialize();
+                this.registry = registry;
                 this.service = new cn.originalrpg.core.persistence.JdbcSeasonSettlementService(
                         dataSource, executor, registry);
             } else {
+                this.registry = null;
                 this.service = new cn.originalrpg.core.persistence.JdbcSeasonSettlementService(
                         dataSource, executor, null);
             }
@@ -411,6 +450,12 @@ class SeasonSettlementCommandTest {
 
         long advanceCalls() {
             return counting.advanceCalls;
+        }
+
+        /** Kill Switch 的拒绝计数：0 表示读路径压根没问过熔断。 */
+        long denials() {
+            return registry == null ? 0L : registry.metrics()
+                    .get(cn.originalrpg.core.persistence.MechanismRegistry.SEASON_SETTLEMENT).denied();
         }
 
         SeasonSettlementResult.Status lastStatus(RpgCommandResult result) {

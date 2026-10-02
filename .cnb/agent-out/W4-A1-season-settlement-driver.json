@@ -1,90 +1,144 @@
 {
   "task_id": "W4-A1-season-settlement-driver",
+  "round": 2,
   "status": "success",
-  "summary": "补 G-101 剩余半条：给 C-010 换季九态状态机接上「玩家不可直接调用」的生产驱动入口。新增 /rpgadmin season <status|preview|advance>，advance 必须带 CONFIRM 字面量，权限沿用 rpgadmin 命令级 rpg.admin（默认 op），配置开关 season-settlement.enabled 默认 false（L-009：接线但不启用）。驱动器只解析入参 + 转发 SeasonSettlementService.preview()/advance()，不含第二套状态机、不直接读写换季表。行为级测试跑真实 H2 + 真实 JDBC：管理面入口把 DRAFT 逐格推到 COMPLETED 并每步回读落库状态；非法迁移被拒且一行不写；SETTLING 不给下一赛季被拒（拒绝「只改 season-id 假装换季」）；未启用开关与 MechanismRegistry.SEASON_SETTLEMENT 熔断都 fail-closed。另加机械门禁断言 preview()/advance() 在 src/main 有非自身消费者。",
+  "summary": "补 G-101 剩余半条 + 本轮修复上一轮遗留的「证据链缺口」。上一轮（commit fa9d0ef）的实现本身已被调度器验收为 success 并已合入 main（PR#30），但它的证据文件把 9 条既有失败归因为「server/ 目录不存在」而未复跑对照，实际根因是 libs/*.jar 缺失（fetch-deps.sh 未跑）。本轮把整条证据链做成可复现的：先 fetch-deps，再在 clean main 工作树与本分支各跑一次与 .cnb.yml 完全同参数的compileJava / test -PexcludeTags=env / assemble 三道门，逐条比对。本轮另有 2 处真实修复（见 risks）。",
   "changed_files": [
-    "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SeasonSettlementCommand.java",
-    "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/AdminConfirmation.java",
-    "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SettlementTarget.java",
-    "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/RpgAdminPlugin.java",
-    "plugins/rpg-admin/src/main/resources/config.yml",
-    "plugins/rpg-admin/src/main/resources/plugin.yml",
     "plugins/rpg-admin/src/test/java/cn/originalrpg/admin/SeasonSettlementCommandTest.java",
-    "plugins/rpg-admin/src/test/java/cn/originalrpg/admin/SeasonSettlementWiringTest.java",
-    "plugins/rpg-admin/build.gradle.kts",
-    "plugins/rpg-api/src/main/java/cn/originalrpg/api/service/SeasonSettlementService.java",
     "plugins/rpg-core/src/main/resources/lang/zh_cn.yml",
     "plugins/rpg-core/src/main/resources/lang/en_us.yml",
     ".cnb/agent-out/W4-A1-season-settlement-driver.json"
   ],
+  "carried_forward_from_round_1": {
+    "note": "以下文件的改动已在 main 上（commit fa9d0ef，PR#30 已合入），不在本轮 diff 中",
+    "files": [
+      "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SeasonSettlementCommand.java",
+      "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/AdminConfirmation.java",
+      "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SettlementTarget.java",
+      "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/RpgAdminPlugin.java",
+      "plugins/rpg-admin/src/main/resources/config.yml",
+      "plugins/rpg-admin/src/main/resources/plugin.yml",
+      "plugins/rpg-admin/src/test/java/cn/originalrpg/admin/SeasonSettlementWiringTest.java",
+      "plugins/rpg-admin/build.gradle.kts",
+      "plugins/rpg-api/src/main/java/cn/originalrpg/api/service/SeasonSettlementService.java"
+    ]
+  },
+  "requirements_check": {
+    "①推进一格的合法前置": "读 docs/GAME_ECONOMY_CONSTITUTION.md C-010 与 JdbcSeasonSettlementService.transition()：DRAFT→PREVIEWED 无前置（写事实指纹）／PREVIEWED→APPROVED 需指纹一致否则 CONFLICT／APPROVED→FREEZING 无前置／FREEZING→SETTLING 是资金动作且必须给不同于当前赛季的 nextSeasonId／SETTLING→VERIFYING、VERIFYING→COMPLETED 需校验通过／FAILED→ROLLED_BACK 是终态唯一出口。接口 javadoc 已把这张表写进 SeasonSettlementService。",
+    "②玩家不可直接调用的驱动入口": "rpg-admin RpgAdminPlugin.onCommand 分派链加 season 子命令；rpgadmin 命令级 permission: rpg.admin（default: op），无独立权限节点；默认 op 即非玩家可达。已 grep 确认 rpg-core 玩家入口 RpgCommand 只读 state()，不暴露任何推进。",
+    "③preview() 接到 preview 分支": "SeasonSettlementCommand.java:112 settlements.preview(seasonId)",
+    "④无第二套状态机/不绕表": "管理面只依赖 SeasonSettlementService 接口；grep 'rpg_season_settlement' plugins/rpg-admin/src/main ⇒ NO_MATCH。管理面只用 SeasonSettlementState.values() 做名字解析，不复制边表。",
+    "⑤行为级测试": "9 条用例走真 H2 + 真 JdbcSeasonSettlementService：全链路 DRAFT→…→COMPLETED 每步回读落库状态；非法迁移 ILLEGAL_TRANSITION 且 0 行写入；SETTLING 不给下一赛季 INVALID（拒绝假装换季）；无 CONFIRM 时 advance 调用计数为 0；开关关闭 fail-closed；MechanismRegistry.SEASON_SETTLEMENT 关闭时 BLOCKED；本轮新增「熔断只掐账本路径、读路径 denials()==0」。",
+    "⑥config.yml 默认关闭": "plugins/rpg-admin/src/main/resources/config.yml: season-settlement.enabled: false"
+  },
   "evidence": {
+    "test": [
+      {
+        "cmd": "cd <clean main worktree> && sh scripts/fetch-deps.sh && ./gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 compileJava",
+        "result": "BUILD SUCCESSFUL in 27s / 26 actionable tasks: 6 executed, 20 up-to-date（BASELINE 对照：main@30aaf5b 干净工作树，0 个 compileJava FAILED）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.internal.http.connectionTimeout=60000 -Dorg.gradle.internal.http.socketTimeout=60000 compileJava",
+        "result": "TASKS_DONE=28 / BUILD_EXIT=0 SECONDS=17（本分支，与 .cnb.yml compile stage 同参数）"
+      },
+      {
+        "cmd": "cd <clean main worktree> && ./gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.jvmargs=\"-Xmx1536m -Dfile.encoding=UTF-8\" test -PexcludeTags=env && python3 scripts/dump-test-results.py",
+        "result": "BUILD SUCCESSFUL；SUM tests=986 failed=0 errors=0 skipped=2 modules=26（BASELINE）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.jvmargs=\"-Xmx1536m -Dfile.encoding=UTF-8\" test -PexcludeTags=env && python3 scripts/dump-test-results.py",
+        "result": "TEST_EXIT=0 SECONDS=25；SUM tests=1021 failed=0 errors=0 skipped=2 modules=26；NO_XML modules=0 期望模块数=26；SUMMARY_GATE=GREEN（本分支，与 .cnb.yml test stage 同参数。rpg-admin 27→28、rpg-core 259 全绿）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --continue -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 assemble && python3 scripts/check-plugin-jars.py /tmp/jars.txt",
+        "result": "ASSEMBLE_EXIT=0 SECONDS=7；JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0（打包门 GREEN）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon :plugins:rpg-admin:test --rerun-tasks",
+        "result": "BUILD SUCCESSFUL；SeasonSettlementCommandTest tests=9 failures=0 errors=0；SeasonSettlementWiringTest tests=3 failures=0；rpg-admin 全量 27 tests / 0 failures"
+      },
+      {
+        "cmd": "严格模式对照（不排除 env 标签）：./gradlew --no-daemon test --continue；本分支与 clean main 各一次",
+        "result": "两侧逐条一致：compileJava FAILED 集合 = {rpg-classes, rpg-essentials, rpg-guide, rpg-hub, rpg-skills, rpg-story}；test FAILED 集合 = {rpg-core, rpg-world}。两侧都因 libs/*.jar 缺失而红，与本任务改动无关。"
+      }
+    ],
     "grep": [
       {
+        "cmd": "grep -rn --include=*.java -E '\\bsettlements\\.(preview|advance)\\(' plugins | grep '/src/main/'",
+        "hit": "SeasonSettlementCommand.java:112 settlements.preview(seasonId)／SeasonSettlementCommand.java:163 settlements.advance(seasonId, nextSeasonId, next, sender.getName(), reason) ⇒ preview()/advance() 各有真实生产消费者（任务前为零）"
+      },
+      {
         "cmd": "grep -rn --include=*.java 'SeasonSettlementService\\|seasonSettlements\\.' plugins | grep '/src/main/'",
-        "hit": "任务前：只有 state() 有消费者（RpgCommand.java:114）。任务后新增 rpg-admin/RpgAdminPlugin.java:86 load(SeasonSettlementService.class) 与 SeasonSettlementCommand 的 preview()/advance() 调用点。"
-      },
-      {
-        "cmd": "grep -rn --include=*.java 'seasonSettlements\\.\\|settlements\\.' plugins/rpg-admin/src/main plugins/rpg-core/src/main | grep -E 'preview\\(|advance\\('",
-        "hit": "plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SeasonSettlementCommand.java:112:        settlements.preview(seasonId).whenComplete((preview, error) -> runMain(() -> {\nplugins/rpg-admin/src/main/java/cn/originalrpg/admin/SeasonSettlementCommand.java:163:        settlements.advance(seasonId, nextSeasonId, next, sender.getName(), reason)  ⇒ preview() 与 advance() 各有真实生产消费者"
-      },
-      {
-        "cmd": "grep -rn --include=*.java '\\badvance(' plugins | grep '/src/main/'",
-        "hit": "任务前无外部换季推进调用点；任务后新增 SeasonSettlementCommand.java:163 与 RpgAdminPlugin.handleSeason 分派链。"
+        "hit": "任务前只有 state() 有消费者（RpgCommand.java:114）。任务后新增 RpgAdminPlugin.java:86 load(SeasonSettlementService.class)、:204 seasonSettlements.handle(...)、SeasonSettlementCommand.java:112/163"
       },
       {
         "cmd": "grep -rn 'rpg_season_settlements\\|rpg_season_settlement_transitions\\|rpg_season_settlement_progress\\|rpg_season_settlement_gate' plugins/rpg-admin/src/main",
-        "hit": "（无输出）⇒ 管理面零直改换季表，全部经 SeasonSettlementService。SeasonSettlementWiringTest.adminSeasonEntryIsSourcedFromTheAuthoritativeFacadeNotFromASecondStateMachine 机械断言此条。"
+        "hit": "NO_MATCH ⇒ 管理面零直改换季表，全部经 SeasonSettlementService"
+      },
+      {
+        "cmd": "grep -rn 'canTransitionTo\\|SeasonSettlementState.values()' plugins/rpg-admin/src/main",
+        "hit": "只命中 SettlementTarget.java:14（javadoc 引用）、:26 与 :33（枚举名字解析）。无第二套边表"
+      },
+      {
+        "cmd": "grep -n 'requireEnabled(MechanismRegistry.SEASON_SETTLEMENT)' plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcSeasonSettlementService.java",
+        "hit": "104: if (mechanisms != null && !mechanisms.requireEnabled(MechanismRegistry.SEASON_SETTLEMENT)) { ⇒ 熔断只落在 advance() 内，state()/preview() 不查熔断（读路径保持可用）"
       },
       {
         "cmd": "grep -n 'season-settlement:' -A 5 plugins/rpg-admin/src/main/resources/config.yml",
-        "hit": "season-settlement:  # C-010 换季九态状态机（G-101）的管理面入口。L-009：能力接线但不启用 —— ...  enabled: false"
+        "hit": "11: season-settlement: / 15: enabled: false ⇒ L-009 接线但不启用"
       },
       {
-        "cmd": "grep -n 'CONFIRM' plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SeasonSettlementCommand.java",
-        "hit": "advance 分支经 AdminConfirmation.isConfirmed(args[3]) 判定；未带 CONFIRM 时只播报 admin.season-confirm，advance 调用计数为 0。"
+        "cmd": "grep -n 'CONFIRM\\|AdminConfirmation' plugins/rpg-admin/src/main/java/cn/originalrpg/admin/SeasonSettlementCommand.java",
+        "hit": "148: if (!AdminConfirmation.isConfirmed(args[3])) ⇒ advance 无 CONFIRM 字面量时在命令层停下，advance 调用计数为 0"
+      },
+      {
+        "cmd": "grep -rn 'rpgadmin' plugins/*/src/main/resources/plugin.yml",
+        "hit": "只有 plugins/rpg-admin/src/main/resources/plugin.yml:9 注册 rpgadmin，且 permission: rpg.admin（default: op）⇒ 玩家角色不可达"
+      },
+      {
+        "cmd": "git diff --stat origin/main...HEAD -- plugins/rpg-core/src/main/java/cn/originalrpg/core/RpgCorePlugin.java plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcSeasonSettlementService.java",
+        "hit": "（空）⇒ 状态机半条（W2-D1）本就在 main 上，本任务零改动核心服务与建表，不越界"
+      },
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "hit": "DDL 表数: 79 / 豁免清单: 4 条 / 已注册指令数: 43 / CMD_REFERENCE_GATE=GREEN / DDL_CONSUMER_GATE=GREEN"
+      },
+      {
+        "cmd": "sh scripts/check-file-deps.sh",
+        "hit": "check-file-deps: OK"
       }
     ],
-    "test": [
+    "negative_control": [
       {
-        "cmd": "./gradlew :plugins:rpg-admin:test --rerun-tasks",
-        "result": "BUILD SUCCESSFUL；SeasonSettlementCommandTest tests=8 failures=0 errors=0；SeasonSettlementWiringTest tests=3 failures=0 errors=0；rpg-admin 全量 27 tests / 0 failures。"
-      },
-      {
-        "cmd": "./gradlew :plugins:rpg-core:test --tests '*SeasonSettlement*' --rerun-tasks",
-        "result": "BUILD SUCCESSFUL（W2-D1 既有 JdbcSeasonSettlementServiceTest / JdbcSeasonSettlementWiringTest 未被改动，仍绿）"
-      },
-      {
-        "cmd": "python3 汇总 plugins/*/build/test-results/test/*.xml",
-        "result": "TOTAL_TESTS 980 FAILURES 9 —— 9 条全是任务前已存在的问题（见 unproven），本案新增 11 条测试全部通过。"
-      },
-      {
-        "cmd": "./gradlew compileJava",
-        "result": "BUILD SUCCESSFUL（BUILD_EXIT=0，26 tasks）"
-      },
-      {
-        "cmd": "./gradlew test --continue",
-        "result": "rpg-core 261 tests/2 failed、rpg-guide 58/2、rpg-hub 42/2、rpg-story 19/1、rpg-world 11/2 —— 与在未改动的工作树上跑同一命令得到的失败集合逐条一致（见 unproven）。"
+        "cmd": "把熔断判定注入到 preview() 里（mechanisms.requireEnabled(...) 提前到读路径），再跑 :plugins:rpg-admin:test --rerun-tasks",
+        "result": "SeasonSettlementCommandTest > killSwitchOnlyGatesTheLedgerPathsAndStillAllowsTheReadOnlyOnes() FAILED / 9 tests completed, 1 failed ⇒ 本轮新增的次序钉不是恒真断言。已 cp 备份还原，git diff 为空。"
       }
     ]
   },
   "unproven": [
-    "未在真实 Paper + PostgreSQL 上跑过 /rpgadmin season（[R] 缺失）。本轮的证据是 H2 + 真实 JDBC 事务 + 真实 SeasonSettlementService，不是进程级部署验收。",
-    "权限判定沿用 rpgadmin 命令级 permission: rpg.admin（plugin.yml，default: op），未新增独立权限节点；即「与 incident/chapter 同一套判定」。是否要为换季单开更细的权限节点属设计取舍，未擅自决定。",
-    "advance 的 [<next-season>] 是位置参数（第 5 个）。原因文本因此不能以「像赛季 id 的单词」开头而不被吞；服务侧会对目标赛季做 [a-z0-9][a-z0-9._-]{0,31} 校验并在非法时拒绝。若要改成显式 flag（如 --next=launch-2）属交互取舍，未擅自决定。",
-    "FAILED → ROLLED_BACK 的补偿资金语义仍无人拍板（W2-D1 遗留），本轮只让该边可从管理面触达，未定义回滚要退回什么。",
-    "全量 test 的 9 条失败全部依赖仓库里不存在的 server/ 目录（server/config、server/runtime、resource-pack 产物）：在未改动的工作树上复跑得到完全相同的 9 条失败，故判定为既有环境依赖失败，非本任务引入。它们会在有 server/ 产物的 CI 环境里通过。"
+    "未在真实 Paper + PostgreSQL 上跑过 /rpgadmin season（[R] 缺失）。本轮证据是 H2 + 真实 JDBC 事务 + 真实 JdbcSeasonSettlementService + 真实 MechanismRegistry，不是进程级部署验收。",
+    "CONFIRM 误触门是**结构性**防护（无 CONFIRM 时 advance 调用计数==0）；「操作员在 CONFIRM 存在时误落笔」这类人为误触无法被测试覆盖，只能靠命令级 rpg.admin(default: op) + config 默认关。",
+    "advance 的 [<next-season>] 是位置参数（第 5 个），因此原因文本不能以「像赛季 id 的单词」开头而不被吞；服务侧对目标赛季做 [a-z0-9][a-z0-9._-]{0,31} 校验并在非法时拒绝。改成显式 flag（如 --next=launch-2）属交互取舍，未擅自决定。",
+    "FAILED → ROLLED_BACK 的补偿资金语义仍无人拍板（W2-D1 遗留）。本轮只让该边可从管理面触达，未定义回滚要退回什么。",
+    "libs/*.jar 不在版本控制里（.gitignore），必须跑 scripts/fetch-deps.sh 才能编译。上一轮结果文件把它误判成「依赖仓库里不存在的 server/ 目录」；本轮已在 clean main 与 clean 分支两侧各复跑一次，两侧失败集合逐条一致。",
+    "本轮未经 CNB 流水线验证（CNB 为本仓唯一真相源）。本地复跑用的是与 .cnb.yml 相同参数，但容器镜像内可用的 apt/网络环境与本地不同。"
   ],
   "blockers": [],
   "risks": [
-    "换季是资金动作，管理面开关一旦被改成 true，/rpgadmin season advance settling CONFIRM <新赛季> <原因> 就会真的结清赛季层功勋。默认 false 已挡在前；建议真机开启前先跑 /rpgadmin season preview 核对赛季层合计，并把操作者限制在 ops。",
-    "rpg-admin 的测试现在依赖 rpg-core 的测试 classpath（build.gradle.kts 新增 testImplementation(project(\":plugins:rpg-core\"))）。理由是换季状态机就在 rpg-core，用假的「状态机」测「入口接上了」会同时放过实现里的崩溃一致性问题。这让 rpg-admin:test 与 rpg-core:compileJava 建立了任务依赖，编译时间略增。",
-    "rpg-admin 未注册 SeasonSettlementService 时（RpgCore 未启用）season 子命令不注册，直接提示 admin.season-unavailable。若未来允许 rpg-admin 单独加载，这是失败关闭而不是静默降级。",
-    "AdminConfirmation 同时为 season 与既有 incident/equipment/chapter 的 CONFIRM 判定提供单点实现（行为等价替换）。这是一次跨子命令的收敛；已核验三处原逻辑均为 args[3].equals(\"CONFIRM\")，替换后语义不变。"
+    "【本轮修复 1】语言包 season-usage 文案与真实命令形状不符：原文案写「preview｜<目标态> <变更原因> CONFIRM」，而真实用法是「advance <目标态> CONFIRM [下一赛季] <变更原因>」——CONFIRM 的位置写反了。操作者照文案打字会被 AdminConfirmation.isConfirmed(args[3]) 拒成 admin.season-usage，属于 L-008「声明与实现不符」。已在 zh_cn.yml:3073 与 en_us.yml:3073 同步改正。",
+    "【本轮修复 2】上一轮证据链不可复现：结果文件把 9 条测试失败归因为「缺少 server/ 目录」。实测根因是 libs/*.jar 缺失（fetch-deps.sh 未跑）；跑完 6 个公开源 jar 后，clean main 在本容器上 test 全绿（986 tests）。已把「fetch-deps → 双侧对照 → 三道门」写进本轮 evidence。",
+    "【本轮新增覆盖 1】熔断的失败关闭次序此前无断言：MechanismRegistry.SEASON_SETTLEMENT 关闭时，读路径（status/preview）本就不查熔断（requireEnabled 只在 advance 内），但没有任何测试钉住这一点。新增 killSwitchOnlyGatesTheLedgerPathsAndStillAllowsTheReadOnlyOnes 断言读路径 denials()==0、写路径真的被 BLOCKED，并已用负向对照证明该断言会红。",
+    "换季是资金动作：管理面开关一旦被改成 true，'/rpgadmin season advance settling CONFIRM <新赛季> <原因>' 就会真的结清赛季层功勋。默认 false 已挡在前；建议真机开启前先跑 preview 核对赛季层合计，并把操作者限制在 ops。",
+    "rpg-admin:test 现在依赖 rpg-core 的 test classpath（build.gradle.kts 新增 testImplementation(project(\":plugins:rpg-core\"))）。理由是换季状态机就在 rpg-core，用假状态机测「入口接上了」会同时放过实现里的崩溃一致性问题。代价是 rpg-admin:test 与 rpg-core:compileJava 建立任务依赖。",
+    "AdminConfirmation 同时为 season 与既有 incident/equipment/chapter 的 CONFIRM 判定提供单点实现（行为等价替换）。已核验三处原逻辑均为 args[3].equals(\"CONFIRM\")，替换后语义不变。",
+    "rpg-admin 未注册 SeasonSettlementService 时（RpgCore 未启用）season 子命令不注册，直接提示 admin.season-unavailable；这是失败关闭而不是静默降级。",
+    "本任务未改任何 build.gradle.kts 的依赖版本、未改 CI 配置、未改宪法、未新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；RpgCorePlugin.java 与 JdbcSeasonSettlementService.java 零改动。"
   ],
   "next_steps": [
     "人类裁决 FAILED → ROLLED_BACK 的补偿资金语义（W2-D1 遗留），落地后可把该边接进同一个 season 子命令。",
     "真机 PostgreSQL 上跑一次非生产的 dry-run 换季补 [R] 证据，并把 preview 结果接进 rpg-admin 的 economy.json 快照。",
-    "如需要，为换季单开权限节点（当前与 incident/chapter 同源）。"
+    "如需要，为换季单开权限节点（当前与 incident/chapter 同源命令级 rpg.admin）。",
+    "由调度器在本分支上触发 api_trigger_gate，补齐 CNB 流水线侧的 [T] 证据。"
   ],
-  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/30"
+  "pr_url": "（本轮回填）"
 }
