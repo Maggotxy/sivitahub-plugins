@@ -31,19 +31,26 @@ if [ ! -f "$DDL_FILE" ]; then
   exit 2
 fi
 
-# 可审计豁免清单：表名|理由（tab 前的空格会被忽略）
-# 只允许「已规划的未来预留」，禁止拿豁免掩盖本该接线的漏接。
+# 可审计豁免清单：分类|表名|理由|文档锚点（字段以 | 分隔，行首空格忽略）
+#
+# 分类取值（显式，门禁输出里可区分）：
+#   PENDING   待接线：能力仍然有效，消费者晚于 schema 落地（计划内）
+#   ABANDONED 已废弃：能力已被取代/被锁死，DDL 保留但不再接线（计划外）
+# 两类都计入「未接线」计数并触发 RED；豁免只是分类可审计，不是放行。
+# 禁止拿豁免掩盖本该接线的漏接；禁止静默删除豁免条目。
+# 逐条判定与 grep 证据见 docs/planning/deferred-tables.md。
 EXEMPT=$(cat <<'EXEMPT_EOF'
-rpg_outbox|Phase 8 Transactional Outbox，多服/Session Lease 落地前预留（docs/audits/PHASE7_8_EVIDENCE.md）
-rpg_session_leases|Phase 8 跨服 player->node 租约，依赖 Velocity 多服，尚未接入（docs/audits/PHASE7_8_EVIDENCE.md）
-rpg_support_credit_accounts|Phase 5 support_credit 独立账本，落库先行、账本服务未接线（docs/audits/PHASE2_3_5_EVIDENCE.md）
-rpg_support_credit_ledger|Phase 5 support_credit 独立账本流水，同上，尚无读写消费者（docs/audits/PHASE2_3_5_EVIDENCE.md）
-rpg_market_buy_orders|市场 V2 买单簿，Phase 4 退出机制的一部分，撮合未实现
-rpg_community_approvals|Phase 6 社区治理双批/继任审批流，治理服务未实现
-rpg_season_settlements|Phase 5 软赛季结算事务表，仅状态机注释引用（SeasonSettlementState.java），无持久化消费者
-rpg_progression_anomalies|成长异常审计表，Phase 1 dry-run 冻结期预留，写入口未接线
+PENDING|rpg_support_credit_accounts|Phase 5 独立 support_credit 账本余额表，落库先行、验签订单服务未接线（宪法 C-012 物理隔离）|docs/planning/deferred-tables.md#21
+PENDING|rpg_support_credit_ledger|Phase 5 support_credit 幂等流水表，schema 契约含 idempotency_key 唯一键，写入方未实现|docs/planning/deferred-tables.md#22
+PENDING|rpg_market_buy_orders|Phase 4 市场 V2 买单簿，API 模型 MarketOrder 已存在，撮合事务未实现（C-009 单一托管）|docs/planning/deferred-tables.md#23
+PENDING|rpg_progression_anomalies|Phase 1 旧档案无法唯一映射时的人工复核清单，迁移写入口未实现，需 [H] 门禁|docs/planning/deferred-tables.md#24
 EXEMPT_EOF
 )
+# W2 已完成接线、应删除的旧豁免（保留一行注释说明为什么删，便于审计追溯）：
+#   rpg_outbox              -> JdbcOutboxRegistry / OutboxDispatcher   (W2-D5)
+#   rpg_session_leases      -> JdbcSessionLease                        (W2-B6/W2-D5)
+#   rpg_community_approvals -> JdbcCommunityService                    (W2-D4, G-103)
+#   rpg_season_settlements  -> JdbcSeasonSettlementService             (W2-D1, G-101)
 
 # ---- 1. 从 DDL 抽取表名 ----
 TABLES=$(grep -oE 'CREATE TABLE IF NOT EXISTS[[:space:]]+rpg_[a-z_]+' "$DDL_FILE" \
@@ -79,6 +86,7 @@ done
 
 # ---- 4. 应用豁免清单 ----
 # DDL_GATE_IGNORE_EXEMPT=1 时不套用豁免，用于验证门禁确实会拦下漏接（CI 不设置）
+EXEMPT_DECLARED=$(printf '%s\n' "$EXEMPT" | grep -cE '^(PENDING|ABANDONED)\|' || true)
 if [ "${DDL_GATE_IGNORE_EXEMPT:-0}" = "1" ]; then
   EXEMPT=""
 fi
@@ -87,9 +95,17 @@ REAL_UNWIRED=''
 if [ -n "$UNWIRED" ]; then
   printf '%s' "$UNWIRED" | while IFS= read -r t; do
     [ -z "$t" ] && continue
-    if printf '%s\n' "$EXEMPT" | grep -q "^$t|"; then
-      reason=$(printf '%s\n' "$EXEMPT" | grep "^$t|" | sed "s/^$t|//")
-      echo "[豁免] $t  <- $reason"
+    # 豁免条目形如 分类|表名|理由|文档锚点，按表名精确匹配（$t| 或 |$t|）
+    line=$(printf '%s\n' "$EXEMPT" | grep -E "^(PENDING|ABANDONED)\|$t\|" || true)
+    if [ -n "$line" ]; then
+      cls=$(printf '%s' "$line" | cut -d'|' -f1)
+      reason=$(printf '%s' "$line" | cut -d'|' -f3)
+      anchor=$(printf '%s' "$line" | cut -d'|' -f4)
+      if [ "$cls" = "ABANDONED" ]; then
+        echo "[已废弃] $t  <- $reason（见 $anchor）"
+      else
+        echo "[待接线] $t  <- $reason（见 $anchor）"
+      fi
     else
       echo "[未接线] $t"
     fi
@@ -98,18 +114,26 @@ else
   : > /tmp/ddl-gate-report.txt
 fi
 
-EXCUSED=$(grep '^\[豁免\]' /tmp/ddl-gate-report.txt || true)
+PENDING_LINES=$(grep '^\[待接线\]' /tmp/ddl-gate-report.txt || true)
+ABANDONED_LINES=$(grep '^\[已废弃\]' /tmp/ddl-gate-report.txt || true)
+EXCUSED=$(cat /tmp/ddl-gate-report.txt | grep -E '^\[(待接线|已废弃)\]' || true)
 UNWIRED_LINES=$(grep '^\[未接线\]' /tmp/ddl-gate-report.txt || true)
 
 # ---- 5. 报告 ----
 echo "DDL 真相源: $DDL_FILE"
 echo "DDL 表数: $TABLE_COUNT"
-echo "豁免清单: $(printf '%s\n' "$EXEMPT" | wc -l | tr -d ' ') 条（脚本内 EXEMPT，可审计）"
+echo "豁免清单: $EXEMPT_DECLARED 条已登记（本次生效 $(printf '%s\n' "$EXEMPT" | grep -cE '^(PENDING|ABANDONED)\|' || true) 条；脚本内 EXEMPT，可审计）"
 echo ""
 
-if [ -n "$EXCUSED" ]; then
-  echo "--- 已豁免（未来预留）---"
-  printf '%s\n' "$EXCUSED"
+if [ -n "$PENDING_LINES" ]; then
+  echo "--- 待接线 PENDING（能力有效，消费者晚于 schema 落地）---"
+  printf '%s\n' "$PENDING_LINES"
+  echo ""
+fi
+
+if [ -n "$ABANDONED_LINES" ]; then
+  echo "--- 已废弃 ABANDONED（能力被取代/锁死，保留 DDL 不再接线）---"
+  printf '%s\n' "$ABANDONED_LINES"
   echo ""
 fi
 

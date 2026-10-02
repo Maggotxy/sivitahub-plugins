@@ -1,0 +1,90 @@
+{
+  "task_id": "W3-A4-exempt-tables-judgement",
+  "status": "success",
+  "summary": "把 DDL 消费者门禁的 8 张豁免表逐条判定为可审计事实。刷新发现：8 条豁免里 4 条已在 W2 接线（rpg_outbox / rpg_session_leases / rpg_community_approvals / rpg_season_settlements），旧豁免条目未删是「模糊状态」的实例，本次删除并在脚本里留注释追溯。剩余 4 张仍零消费者，逐条判定结论：全部为「落库先行」（schema 先落、消费者晚于 Phase），无一张为「能力已废弃」，无一张建议删表。① 判定写入 docs/planning/deferred-tables.md（Phase / 设计意图原文引用 / 真实原因 / 建议处置 / grep 证据）；② scripts/check-ddl-consumers.sh 引入显式分类 PENDING|ABANDONED（四段式：分类|表名|理由|文档锚点），门禁输出能区分「待接线」与「已废弃」，两者仍计入 RED；③ docs/DATABASE_MIGRATION.md 加交叉引用；④ 产出 plan/deferred-tables-tasks.json（3 个任务，格式对齐 doc/cnb/tasks-w2.json），本任务不执行接线。门禁正跑 GREEN（79 表 / 4 条 PENDING），负向自测（DDL_GATE_IGNORE_EXEMPT=1）仍 RED=4。",
+  "changed_files": [
+    "docs/planning/deferred-tables.md",
+    "docs/DATABASE_MIGRATION.md",
+    "scripts/check-ddl-consumers.sh",
+    "plan/deferred-tables-tasks.json",
+    ".cnb/agent-out/W3-A4-exempt-tables-judgement.json"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/24",
+  "risks": [
+    "判定基于 SQL 关键字正则（与门禁同一判据），非静态类型分析；若消费者用动态拼接表名会漏判。当前仓库未发现该写法。",
+    "4 张 PENDING 表的「建议处置」引用的文档原文（如 Phase 计划）本身被审计文档系统性拔高过，本次只引用其设计意图，不代表其已达成。",
+    "rpg_progression_anomalies 的接线受 [H] 真人 dry-run 门禁：无真实玩家库 dry-run 结果时无法确认是否需要该能力，已写成 deps+blocked 条件给下游任务。",
+    "本任务不改 DDL、不删表；「删表」仅为文档层建议，落地需单独 PR + 人类评审（本次判定结论无需删表）。"
+  ],
+  "next_steps": [
+    "W4-A1-support-credit-ledger：接线 support_credit 余额表+流水表（同一 PR），完成后删除对应 PENDING 豁免。",
+    "W4-A2-market-buy-orders：接线市场 V2 买单撮合，复用 C-009 单一托管。",
+    "W4-B1-progression-anomalies-migration：先跑只读 dry-run 交人类确认；结果为空则应改判 ABANDONED 而非强行接线。",
+    "约定：表接线后必须同步删除脚本豁免条目，避免本任务修掉的「失效豁免」再次出现（已写入 deferred-tables.md §5）。"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include='*.java' 'rpg_support_credit_accounts' plugins tools",
+        "hit": "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java:987:                CREATE TABLE IF NOT EXISTS rpg_support_credit_accounts (\ntools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java:87:            \"rpg_support_credit_accounts\",\n=> 仅 DDL 定义 + 迁移清单，src/main 零 SQL 消费者"
+      },
+      {
+        "cmd": "grep -rn --include='*.java' 'rpg_support_credit_ledger' plugins tools",
+        "hit": "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java:994:                CREATE TABLE IF NOT EXISTS rpg_support_credit_ledger (\ntools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java:88:            \"rpg_support_credit_ledger\",\ntools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java:150:        keys.put(\"rpg_support_credit_ledger\", List.of(List.of(\"idempotency_key\")));\n=> 唯一键契约已定但无写入方"
+      },
+      {
+        "cmd": "grep -rn --include='*.java' 'rpg_market_buy_orders' plugins tools",
+        "hit": "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java:1005:                CREATE TABLE IF NOT EXISTS rpg_market_buy_orders (\ntools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java:89:            \"rpg_market_buy_orders\",\n=> 仅 DDL + 迁移清单；plugins/rpg-market 全模块零命中"
+      },
+      {
+        "cmd": "grep -rn --include='*.java' 'rpg_progression_anomalies' plugins tools",
+        "hit": "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java:917:                CREATE TABLE IF NOT EXISTS rpg_progression_anomalies (\ntools/db-migration/src/main/java/cn/originalrpg/tools/dbmigration/SchemaManifest.java:80:            \"rpg_progression_anomalies\",\n=> 仅 DDL + 迁移清单，无迁移写入口"
+      },
+      {
+        "cmd": "sh /tmp/probe.sh  # 复刻门禁逐表判定逻辑（见下 cmd），对 8 张豁免表输出 HIT/NO-HIT",
+        "hit": "rpg_outbox HIT plugins/rpg-core/.../JdbcOutboxRegistry.java\nrpg_outbox HIT plugins/rpg-core/.../OutboxDispatcher.java\nrpg_session_leases HIT plugins/rpg-core/.../JdbcSessionLease.java\nrpg_support_credit_accounts NO-HIT\nrpg_support_credit_ledger NO-HIT\nrpg_market_buy_orders NO-HIT\nrpg_community_approvals HIT plugins/rpg-core/.../JdbcCommunityService.java\nrpg_season_settlements HIT plugins/rpg-core/.../JdbcSeasonSettlementService.java\nrpg_progression_anomalies NO-HIT\n=> 8 张里 4 张已由 W2 接线，旧豁免失效；4 张真无消费者"
+      },
+      {
+        "cmd": "grep -rn 'support_credit\\|SupportCredit' plugins --include='*.java' -il",
+        "hit": "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java\n=> 全仓库唯一命中点仍为 DDL 文件本身"
+      },
+      {
+        "cmd": "grep -rn 'MarketOrder\\|rpg_market_' plugins/rpg-market --include='*.java'",
+        "hit": "(空)\n=> rpg-market 模块对 MarketOrder 模型与 rpg_market_* 表零引用，买单簿无消费者"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "sh scripts/check-ddl-consumers.sh",
+        "result": "DDL 表数: 79 / 豁免清单: 4 条已登记（本次生效 4 条）\n--- 待接线 PENDING --- [待接线] rpg_market_buy_orders / rpg_progression_anomalies / rpg_support_credit_accounts / rpg_support_credit_ledger\nDDL_CONSUMER_GATE=GREEN （exit=0）"
+      },
+      {
+        "cmd": "DDL_GATE_IGNORE_EXEMPT=1 sh scripts/check-ddl-consumers.sh",
+        "result": "--- 未接线表 --- [未接线] rpg_market_buy_orders / rpg_progression_anomalies / rpg_support_credit_accounts / rpg_support_credit_ledger\nDDL_CONSUMER_GATE=RED UNWIRED=4 （exit=1）=> 负向自测通过，豁免未掩盖漏接"
+      },
+      {
+        "cmd": "把一条 PENDING 临时改成 ABANDONED 后 sh scripts/check-ddl-consumers.sh（已还原）",
+        "result": "--- 待接线 PENDING --- [待接线] rpg_progression_anomalies / rpg_support_credit_accounts / rpg_support_credit_ledger\n--- 已废弃 ABANDONED --- [已废弃] rpg_market_buy_orders  <- ...\nDDL_CONSUMER_GATE=GREEN （exit=0）=> ABANDONED 分类可区分且仍计入统计"
+      },
+      {
+        "cmd": "sh -n scripts/check-ddl-consumers.sh",
+        "result": "POSIX sh 语法 OK（dash 兼容，未引入 bash 特性）"
+      },
+      {
+        "cmd": "DDL_GATE_DDL_FILE=nonexistent sh scripts/check-ddl-consumers.sh",
+        "result": "DDL_CONSUMER_GATE=RED 找不到 DDL 真相源: nonexistent （exit=2）=> 失败关闭行为未回归"
+      },
+      {
+        "cmd": "python3 -c \"import json; d=json.load(open('plan/deferred-tables-tasks.json')); print(list(d['tasks'][0].keys()))\"",
+        "result": "['id', 'mode', 'goal', 'deps', 'allowed_paths', 'max_retries', 'extra_rules'] => 与 doc/cnb/tasks-w2.json 任务字段一致；3 个任务 W4-A1/A2/B1"
+      }
+    ]
+  },
+  "unproven": [
+    "未取得 [R] Runtime：本次只做判定与登记，未在真实 Paper + PostgreSQL 上验证任何接线。",
+    "未取得 [H] Human：rpg_progression_anomalies 是否真的需要接线，取决于真实玩家库 dry-run 结果，需人类确认。",
+    "未执行 plan/deferred-tables-tasks.json 中的任何任务（任务要求不外派执行）。",
+    "「能力已废弃」分类本次为空，ABANDONED 分支仅用临时改写做了一次性自测，仓库内无长期 ABANDONED 条目。"
+  ],
+  "blockers": []
+}
