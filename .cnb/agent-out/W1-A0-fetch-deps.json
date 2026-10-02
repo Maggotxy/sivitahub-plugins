@@ -18,7 +18,7 @@
     "plugins/rpg-essentials/build.gradle.kts",
     ".cnb/agent-out/W1-A0-fetch-deps.json"
   ],
-  "pr_url": "PENDING",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/4",
   "risks": [
     "BetterHud 归一化：原引用 BetterHud-bukkit-2.1.0-SNAPSHOT-447.jar 在公开源上不存在（上游 Releases 最高 2.0.0，Actions artifacts=0，Modrinth 无该项目 dev build）。scripts/fetch-deps.sh 固定到 1.14.1-bukkit 并改名为 libs/BetterHud-bukkit-1.14.1.jar，build.gradle.kts 已同步。1.14.1 提供 rpg-integrations 实际用到的全部 API（BetterHud.getInstance().getPlayerManager()、HudPlayer.isHudEnabled()/setHudEnabled()、HudPlayerJoinEvent extends PlayerEvent），已逐类核对 class 文件；但对应**运行时**应为生产机上的 2.1.0-SNAPSHOT-447，长期存在 API 漂移风险。**需要人类拍板**：是接受 1.14.1 作编译基线，还是把 447 也并入 vendor（REQUIRES_LOCAL）。",
     "WorldEdit 拆成两个 artifact：worldedit-bukkit-7.4.4.jar 在上游 Maven（maven.enginehub.org）只有 140KB 的旧遗留发布事故产物，不含 rpg-hub 实际使用的 com.sk89q.worldedit.bukkit.BukkitAdapter 与 com.sk89q.worldedit.math.BlockVector2。已在 libs/ 同时引入 worldedit-core-7.4.4.jar（含 BlockVector2）与 worldedit-bukkit-7.4.4.jar（含 BukkitAdapter），rpg-hub/build.gradle.kts 改为两个 rootProject.file 引用。这是 build 层面的一个额外改动点，评审需确认是否接受。",
@@ -35,28 +35,76 @@
   ],
   "evidence": {
     "fetch_runtime": [
-      {"cmd": "sh scripts/fetch-deps.sh", "result": "EXIT=0；7 个公开源 artifact 全部 sha256+sha1 校验通过，vendor 2 个存在性检查通过"},
-      {"cmd": "sh scripts/fetch-deps.sh --check", "result": "EXIT=0（离线只校验）"},
-      {"cmd": "干净克隆模拟（/tmp/clone-sim，无任何 libs jar）", "result": "7 个全部 GET+校验通过；vendor 缺失时 EXIT=1 并打印 libs/vendor/README.md 指引"},
-      {"cmd": "损坏 libs/AuthMe-6.0.0-Paper.jar 后重跑", "result": "检出 sha256 不匹配 -> 重新下载 -> 校验通过 -> EXIT=0（自愈）"},
-      {"cmd": "把 AuthMe URL 改成不存在的版本后重跑", "result": "EXIT=1，stderr 打印 [AuthMe-6.0.0-Paper.jar] 下载失败 + 失败条目清单"}
+      {
+        "cmd": "sh scripts/fetch-deps.sh",
+        "result": "EXIT=0；7 个公开源 artifact 全部 sha256+sha1 校验通过，vendor 2 个存在性检查通过"
+      },
+      {
+        "cmd": "sh scripts/fetch-deps.sh --check",
+        "result": "EXIT=0（离线只校验）"
+      },
+      {
+        "cmd": "干净克隆模拟（/tmp/clone-sim，无任何 libs jar）",
+        "result": "7 个全部 GET+校验通过；vendor 缺失时 EXIT=1 并打印 libs/vendor/README.md 指引"
+      },
+      {
+        "cmd": "损坏 libs/AuthMe-6.0.0-Paper.jar 后重跑",
+        "result": "检出 sha256 不匹配 -> 重新下载 -> 校验通过 -> EXIT=0（自愈）"
+      },
+      {
+        "cmd": "把 AuthMe URL 改成不存在的版本后重跑",
+        "result": "EXIT=1，stderr 打印 [AuthMe-6.0.0-Paper.jar] 下载失败 + 失败条目清单"
+      }
     ],
     "gate": [
-      {"cmd": "sh scripts/check-file-deps.sh", "result": "EXIT=0，9 个 files(...) 依赖全部在清单内"},
-      {"cmd": "向 plugins/rpg-guide/build.gradle.kts 追加 compileOnly(files(rootProject.file(\"libs/NotInManifest.jar\"))) 后重跑", "result": "EXIT=1，[FAIL] libs/NotInManifest.jar（反向验证门禁有效，验后已还原）"}
+      {
+        "cmd": "sh scripts/check-file-deps.sh",
+        "result": "EXIT=0，9 个 files(...) 依赖全部在清单内"
+      },
+      {
+        "cmd": "向 plugins/rpg-guide/build.gradle.kts 追加 compileOnly(files(rootProject.file(\"libs/NotInManifest.jar\"))) 后重跑",
+        "result": "EXIT=1，[FAIL] libs/NotInManifest.jar（反向验证门禁有效，验后已还原）"
+      }
     ],
     "source_checks": [
-      {"cmd": "unzip -l BetterHud-bukkit-1.14.1.jar | grep kr/toxicity/hud/api", "result": "88 个 API class，含 BetterHud/PlayerManager/HudPlayer/HudPlayerJoinEvent；逐类核对成员存在"},
-      {"cmd": "AuthMe-6.0.0-Paper.jar", "result": "fr/xephi/authme/api/v3/AuthMeApi.class、fr/xephi/authme/events/{Login,Logout,Register}Event.class 均存在"},
-      {"cmd": "worldedit-core-7.4.4.jar", "result": "com/sk89q/worldedit/math/BlockVector2.class 存在，常量池含 at(II)Lcom/sk89q/worldedit/math/BlockVector2;"},
-      {"cmd": "worldedit-bukkit-7.4.4.jar", "result": "com/sk89q/worldedit/bukkit/BukkitAdapter.class 存在"},
-      {"cmd": "EssentialsX-2.22.1-dev+17-382de4f.jar", "result": "com/earth2me/essentials/CommandSource.class、net/essentialsx/api/v2/events/TeleportRequestResponseEvent.class 存在"},
-      {"cmd": "Citizens-2.0.43-b4231.jar", "result": "net/citizensnpcs/api/{CitizensAPI,ai/Navigator,event/DespawnReason,npc/NPCRegistry,trait/trait/Equipment,trait/trait/PlayerFilter}.class、net/citizensnpcs/trait/{SkinTrait,LookClose}.class 均存在"},
-      {"cmd": "BetonQuest-3.1.0.jar", "result": "org/betonquest/betonquest/api 下 12 个被引用类全部存在"}
+      {
+        "cmd": "unzip -l BetterHud-bukkit-1.14.1.jar | grep kr/toxicity/hud/api",
+        "result": "88 个 API class，含 BetterHud/PlayerManager/HudPlayer/HudPlayerJoinEvent；逐类核对成员存在"
+      },
+      {
+        "cmd": "AuthMe-6.0.0-Paper.jar",
+        "result": "fr/xephi/authme/api/v3/AuthMeApi.class、fr/xephi/authme/events/{Login,Logout,Register}Event.class 均存在"
+      },
+      {
+        "cmd": "worldedit-core-7.4.4.jar",
+        "result": "com/sk89q/worldedit/math/BlockVector2.class 存在，常量池含 at(II)Lcom/sk89q/worldedit/math/BlockVector2;"
+      },
+      {
+        "cmd": "worldedit-bukkit-7.4.4.jar",
+        "result": "com/sk89q/worldedit/bukkit/BukkitAdapter.class 存在"
+      },
+      {
+        "cmd": "EssentialsX-2.22.1-dev+17-382de4f.jar",
+        "result": "com/earth2me/essentials/CommandSource.class、net/essentialsx/api/v2/events/TeleportRequestResponseEvent.class 存在"
+      },
+      {
+        "cmd": "Citizens-2.0.43-b4231.jar",
+        "result": "net/citizensnpcs/api/{CitizensAPI,ai/Navigator,event/DespawnReason,npc/NPCRegistry,trait/trait/Equipment,trait/trait/PlayerFilter}.class、net/citizensnpcs/trait/{SkinTrait,LookClose}.class 均存在"
+      },
+      {
+        "cmd": "BetonQuest-3.1.0.jar",
+        "result": "org/betonquest/betonquest/api 下 12 个被引用类全部存在"
+      }
     ],
     "portability": [
-      {"cmd": "readlink -f /bin/sh", "result": "/usr/bin/dash —— 两个脚本均在该 dash 下实测运行"},
-      {"cmd": "grep bash-isms (PIPESTATUS, <<<, [[, 数组等)", "result": "仅命中脚本里说明「不使用」的注释行，无实际 bash-ism"}
+      {
+        "cmd": "readlink -f /bin/sh",
+        "result": "/usr/bin/dash —— 两个脚本均在该 dash 下实测运行"
+      },
+      {
+        "cmd": "grep bash-isms (PIPESTATUS, <<<, [[, 数组等)",
+        "result": "仅命中脚本里说明「不使用」的注释行，无实际 bash-ism"
+      }
     ]
   },
   "unproven": [
