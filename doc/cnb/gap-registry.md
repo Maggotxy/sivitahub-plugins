@@ -27,7 +27,8 @@
 | G-106 | **血契按文档条件不可达成**：要求二转，但前置技能 `vanished-horizon` 要求 `minimum-ascension: 3` | `HiddenPathRules.java:18-20` + `rpg-skills/src/main/resources/config.yml:373-378` | TODO |
 | G-107 | `AGENTS.md` 明令删除的 `ascend()` 旁路仍在；技能点仍按 `effectiveLevel/3`；「本地里程碑+幂等补偿」未实现 | `JdbcProfileService.java:304-326`（仅 `@Deprecated`）、`:569` | TODO |
 | G-108 | 副本 `config.yml` 里 6 个 `world: dungeon_*` 键**无任何读取方**（实际世界名运行时生成） | 全仓 grep 零调用 | TODO |
-| G-109 | 75 张表里约 10 张**只有 DDL 没有消费者**：`rpg_season_settlements`、`rpg_session_leases`、`rpg_outbox`、`rpg_market_buy_orders`、`rpg_support_credit_accounts/ledger`、`rpg_community_approvals`、`rpg_progression_anomalies` | DDL 与 src/main 对账 | TODO |
+| G-109 | 75 张表里约 10 张**只有 DDL 没有消费者**：`rpg_season_settlements`、`rpg_session_leases`、`rpg_outbox`、`rpg_market_buy_orders`、`rpg_support_credit_accounts/ledger`、`rpg_community_approvals`、`rpg_progression_anomalies` | DDL 与 src/main 对账 | **DONE** W6-A1（写侧）+ W9-A2（读侧，见 G-ANOMALY-ACK） |
+| G-ANOMALY-ACK | `ProgressionAnomalyService` 的 `pending` / `acknowledge` **零 src/main 调用点**：写侧已接线（`JdbcProfileService:602/:608`），读侧没有出口 ⇒ 宪法要求的 `[H]` 人工复核在运行期不可达，异常记录只进不出 | `grep -rn --include=*.java 'ProgressionAnomalyService' plugins \| grep '/src/main/'` → 仅定义与实现 | **DONE** W9-A2 —— `/rpgadmin anomaly list\|ack`（`AnomalyReviewCommand`）+ `reviewer/review_note/reviewed_at` 三列落库 + 幂等签署；`AnomalyReviewCommandTest`（5 例）/ `JdbcProgressionAnomalyServiceTest`（11 例）/ `ProgressionAnomalySchemaUpgradeTest`（2 例） |
 
 ## C. P2 —— 文档失真（订正即可，不改行为）
 

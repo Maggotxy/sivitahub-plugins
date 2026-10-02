@@ -186,7 +186,6 @@ public final class Database implements AutoCloseable {
                 )
                 """,
                 "ALTER TABLE rpg_ledger ADD COLUMN IF NOT EXISTS reversal_of VARCHAR(96)",
-                "ALTER TABLE rpg_progression_wallets ADD COLUMN IF NOT EXISTS season_id VARCHAR(32)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_progression_wallets (
                     player_uuid VARCHAR(36) PRIMARY KEY,
@@ -194,6 +193,9 @@ public final class Database implements AutoCloseable {
                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
+                // 列追加必须排在本表的 CREATE TABLE 之后：全新 H2 库上
+                // 「先 ALTER 后 CREATE」会以 Table not found 让整个 migrate() 失败。
+                "ALTER TABLE rpg_progression_wallets ADD COLUMN IF NOT EXISTS season_id VARCHAR(32)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_activity_daily (
                     player_uuid VARCHAR(36) NOT NULL,
@@ -934,8 +936,24 @@ public final class Database implements AutoCloseable {
                     level INTEGER NOT NULL,
                     experience BIGINT NOT NULL,
                     reason VARCHAR(128) NOT NULL,
-                    detected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    detected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    reviewer VARCHAR(64),
+                    review_note VARCHAR(200),
+                    reviewed_at TIMESTAMP
                 )
+                """,
+                // [H] 门禁的三列是在 Phase 1 之后补的：新库由上面的 CREATE TABLE 直接带上，
+                // 存量库（已经建过表的真实节点）必须显式 ALTER，否则升级后
+                // /rpgadmin anomaly ack 会以「列不存在」回滚。H2 与 PostgreSQL 都支持
+                // ADD COLUMN IF NOT EXISTS，两库同一句 SQL。
+                """
+                ALTER TABLE rpg_progression_anomalies ADD COLUMN IF NOT EXISTS reviewer VARCHAR(64)
+                """,
+                """
+                ALTER TABLE rpg_progression_anomalies ADD COLUMN IF NOT EXISTS review_note VARCHAR(200)
+                """,
+                """
+                ALTER TABLE rpg_progression_anomalies ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP
                 """,
                 """
                 CREATE TABLE IF NOT EXISTS rpg_mechanism_switches (

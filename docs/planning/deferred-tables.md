@@ -119,7 +119,7 @@
 | `rpg_support_credit_accounts` | 5 | 落库先行 | **已接线（W6-A1）** | 完成 |
 | `rpg_support_credit_ledger` | 5 | 落库先行 | **已接线（W6-A1，与上表同 PR）** | 完成 |
 | `rpg_market_buy_orders` | 4 | 落库先行 | **已接线（W6-A1）** | 完成 |
-| `rpg_progression_anomalies` | 1 | 落库先行 | **已接线（W6-A1）**，[H] 复核出口已实现 | 完成（真人复核留待 [H]） |
+| `rpg_progression_anomalies` | 1 | 落库先行 | **已接线（W6-A1 写侧 / W9-A2 读侧）**，[H] 复核出口运行期可达 | 完成（真人复核留待 [H]） |
 
 **无一张判定为「删表」；无一张判定为「能力已废弃」。**
 
@@ -158,9 +158,14 @@ plugins/rpg-core/src/main/java/.../JdbcProfileService.java             （读路
 买单托管写的是 `rpg_accounts`，成交流水写的是 `rpg_ledger`，交付写的是 `rpg_market_deliveries`，
 与卖单 `JdbcMarketService` 完全同一套表（`JdbcMarketBuyOrderServiceTest.fillingSettlesTaxedPayoutAndDeliversThroughTheSameMailbox`）。
 
-**[H] 门禁的落地方式**：`rpg_progression_anomalies` 的唯一删除路径是
-`acknowledge(playerId, reviewer)`，`reviewer` 为空即拒绝（没有署名的复核不算复核）。
-自动流程只写不删，且**不据此发补偿**（C-013）。
+**[H] 门禁的落地方式**（W9-A2 补齐读侧）：`acknowledge(playerId, reviewer, note)` 是唯一签署路径，
+`reviewer` 为空即拒绝（没有署名的复核不算复核），通过后把 `reviewer` / `review_note` /
+`reviewed_at` 写在原行上。自动流程只写不签，且**不据此发补偿**（C-013）。
+
+W9-A2 之前，写侧已接线但**读侧零调用点**：接口的三个读/签署方法只有定义与自身实现，
+异常记录只进不出，[H] 门禁在运行期不可达。现在读侧由 `AnomalyReviewCommand`
+（`/rpgadmin anomaly list|ack`）接线，权限沿用 `rpgadmin` 命令级 `rpg.admin`；
+完整闭环图与幂等口径见 `docs/ECONOMY.md` §「[H] 复核闭环」。
 
 
 四张表全部是**能力仍然有效、只是消费者晚于 schema 落地**的「落库先行」。

@@ -9,6 +9,7 @@ import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.AdminTestService;
 import cn.originalrpg.api.service.AdminIncidentCompensationService;
 import cn.originalrpg.api.service.PetRevivalService;
+import cn.originalrpg.api.service.ProgressionAnomalyService;
 import cn.originalrpg.api.service.SeasonSettlementService;
 import cn.originalrpg.api.service.EquipmentLedgerAuditService;
 import cn.originalrpg.api.model.EconomyActivity;
@@ -58,6 +59,7 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
     private PetRevivalService petRevivals;
     private EquipmentLedgerAuditService ledgerAudit;
     private SeasonSettlementCommand seasonSettlements;
+    private AnomalyReviewCommand anomalyReviews;
     private final AtomicBoolean economyCollectionInFlight = new AtomicBoolean();
     private final AtomicBoolean snapshotLifecycleActive = new AtomicBoolean();
     private final AtomicLong snapshotGenerations = new AtomicLong();
@@ -88,6 +90,15 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
                 getConfig().getBoolean("season-settlement.enabled", false)).orElse(null);
         if (seasonSettlements == null) {
             getLogger().warning("SeasonSettlementService is not registered; /rpgadmin season stays unbound.");
+        }
+        // Phase 1 [H] 门禁的运行期出口（G-ANOMALY-ACK）：没有它，rpg_progression_anomalies
+        // 只进不出，异常清单里的记录在运行期没有任何路径能被真人签署。
+        // 服务缺失时子命令不注册，而不是留一个抛错的壳。
+        anomalyReviews = AnomalyReviewCommand.of(
+                getServer().getServicesManager().load(ProgressionAnomalyService.class), messages, this)
+                .orElse(null);
+        if (anomalyReviews == null) {
+            getLogger().warning("ProgressionAnomalyService is not registered; /rpgadmin anomaly stays unbound.");
         }
         PluginCommand command = Objects.requireNonNull(getCommand("rpgadmin"), "rpgadmin command");
         command.setExecutor(this);
@@ -140,6 +151,9 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
         }
         if (args.length >= 1 && args[0].equalsIgnoreCase("equipment")) {
             return handleEquipmentLedger(sender, args);
+        }
+        if (args.length >= 1 && args[0].equalsIgnoreCase("anomaly")) {
+            return handleAnomalyReview(sender, args);
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("economy")) {
             showEconomy(sender);
@@ -202,6 +216,19 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
             return true;
         }
         return seasonSettlements.handle(sender, args);
+    }
+
+    /**
+     * Phase 1 [H] 门禁出口（G-ANOMALY-ACK）：{@code /rpgadmin anomaly <list|ack>}。
+     * 判定口径与签署语义都在 {@link ProgressionAnomalyService} 里，本方法只做转发。
+     */
+    private boolean handleAnomalyReview(CommandSender sender, String[] args) {
+        if (anomalyReviews == null) {
+            sender.sendMessage(Component.text(
+                    messages.text(sender, "admin.anomaly-unavailable"), NamedTextColor.RED));
+            return true;
+        }
+        return anomalyReviews.handle(sender, args);
     }
 
     private boolean handlePetRevival(CommandSender sender, String[] args) {
@@ -699,7 +726,7 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
             CommandSender sender, Command command, String alias, String[] args
     ) {
         if (args.length == 1) return prefix(List.of(
-                "economy", "chapter", "season", "incident", "petrevival", "equipment",
+                "economy", "chapter", "season", "incident", "petrevival", "equipment", "anomaly",
                 "xp", "energy", "test"), args[0]);
         if (args[0].equalsIgnoreCase("season")) {
             return seasonSettlements == null ? List.of() : SeasonSettlementCommand.complete(args);
@@ -730,6 +757,9 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
             }
             if (args.length == 4 && args[1].equalsIgnoreCase("restore")) return prefix(List.of("CONFIRM"), args[3]);
             return List.of();
+        }
+        if (args[0].equalsIgnoreCase("anomaly")) {
+            return AnomalyReviewCommand.complete(args);
         }
         if (!args[0].equalsIgnoreCase("chapter")) return List.of();
         if (args.length == 2) return prefix(List.of("status", "advance"), args[1]);
