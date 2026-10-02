@@ -1,0 +1,122 @@
+{
+  "task_id": "W3-A1-bloodpact-fix",
+  "status": "blocked",
+  "summary": "复核 G-106 后修正上一轮（W2-D3）的判定：错的不是 vanished-horizon.minimum-ascension=3，而是血契路线要求了一个三转技能。vanished-horizon 是刺客的三转汇合节点技能，其 3 转身份有 5 条一致证据（ClassBranchGraph 2/2/1 + unseen=requires-any[void-walker,plague-scholar]；六职业 menu-slot 31 全为三转汇合技；validateCatalog 强制技能门==分支 stage；lang/zh_cn.yml:1666 分支说明「unseen: 虚步与毒理在此汇合；无迹绝杀…」；CONTENT_DEPTH_AUDIT.md:9/23）。同时 5 份文档把血契钉在二转（GAME_DESIGN.md:106 等），rpg-core 的 JdbcServicesTest 也按「二转+已学 vanished-horizon 即 eligible」做行为断言。任务书给的二选一里：①「降技能到 2」会撞 validateCatalog 不变式（技能门必须==分支 stage）；「技能+unseen 同降到 2」会让刺客变 2/3/0，违反 ClassBranchGraph 的 2/2/1（已机械复现）；②「抬 HiddenPathRules 到 3」会让 rpg-core 两条行为测试变红（已实测）且与 5 份文档相反；另发现第三条路「改 requiredSkill 为二转技能」同样会让 rpg-core 行为测试变红（测试种子写死已学 vanished-horizon，已实测）且与 GAME_DESIGN.md:106 相反。三种修法都落在允许路径之外（rpg-classes / rpg-core / lang）或需要设计裁决，故 status=blocked，把裁决点写进 blockers/next_steps。模块内已落地：① 可达性自检判据从「只读技能门」升级为「技能门 + 分支选择门」双读（新增读 branches.<owner>.<branch>.stage，取上界），补上原实现会漏检「技能门调低、分支 stage 仍高」的形态；② 任务要求④的行为级测试：逐条核对血契全部前置（技能门/分支门/隐藏副本门）能否在其 minimumAscension() 那一转取得，并把 shipped 结论具名为 SKILL=vanished-horizon（分支 unseen，stage 3）；③ 新增测试证明分支门真的参与判定；④ config.yml 写全 5 条证据链与反证；⑤ docs/SKILL_MECHANICS_MATRIX.md 新增「G-106 隐藏路线前置可达性（W3-A1 复核）」节，含依据的文档原文与反证表。shipped 玩法数值零变化（vanished-horizon.minimum-ascension 保持 3、HiddenPathRules 保持 2）。",
+  "changed_files": [
+    ".cnb/agent-out/W3-A1-bloodpact-fix.json",
+    "docs/SKILL_MECHANICS_MATRIX.md",
+    "plugins/rpg-skills/src/main/java/cn/originalrpg/skills/HiddenRouteReachability.java",
+    "plugins/rpg-skills/src/main/java/cn/originalrpg/skills/RpgSkillsPlugin.java",
+    "plugins/rpg-skills/src/main/resources/config.yml",
+    "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/HiddenRouteReachabilityTest.java"
+  ],
+  "verdict": {
+    "decision": "G-106 的成因是「隐藏路线前置选错技能」，不是「该技能数值写错」；三种单模块修法均越界或需设计裁决",
+    "docs_saying_bloodpact_is_two_transfers": [
+      "docs/GAME_DESIGN.md:106 「- **血契**：刺客、二转当前等级 20、敏捷 32、耐力 18、已学「消失地平线」并通关风暴秘库隐藏关后可接受。」",
+      "docs/ROADMAP.md:27 「血契/符箓要求二转、指定技能、对应隐藏副本回执、已领悟的隐藏首领技能书和全服名额，只能在二转章节开放后实际激活」",
+      "docs/CORE_GAMEPLAY_COVERAGE_AUDIT.md:29 「血契只允许刺客系满足二转、等级、五维、技能、沉雷隐藏关与 silent-thunder 兑换凭证后激活」",
+      "docs/CONTENT_DEPTH_AUDIT.md:44 「资格事务同时复核职业、二转、等级、五维、指定技能、隐藏副本和已兑换的专属书」"
+    ],
+    "docs_saying_vanished_horizon_is_three_transfers": [
+      "plugins/rpg-classes/src/main/resources/config.yml:43 「unseen: {stage: 3, enabled: true, requires-any: [void-walker, plague-scholar]}」（两条二转路线汇合）",
+      "plugins/rpg-core/src/main/resources/lang/zh_cn.yml:1666 「unseen: [\"虚步与毒理在此汇合；无迹绝杀打击三个近敌并隐匿撤离\"]」",
+      "docs/CONTENT_DEPTH_AUDIT.md:9 「三转已有一条允许两条二转路线汇合的终局节点」",
+      "docs/CONTENT_DEPTH_AUDIT.md:23 「单个角色沿互斥路线正常学习\"起手 + 进阶 + 一转 + 对应二转 + 三转汇合\"五项」",
+      "六职业 menu-slot 31 全为三转汇合技（vanished-horizon / soul-resonance / unbroken-line / axiomatic-break / horison-arrow / open-form）"
+    ],
+    "asymmetry_vs_talisman": "符箓（同为二转）的前置 rune-reversal 挂在 rune-scholar（stage 2）= 二转技能；血契的前置 vanished-horizon 挂在 unseen（stage 3）= 三转技能。两条路线文档同段同规则，只有血契侧异常。",
+    "conclusion": "文档一致支持血契=二转（所以 HiddenPathRules.minimumAscension 保持 2 不改），且一致支持 vanished-horizon=三转技能（所以该技能数值 3 是对的）。矛盾在二者组合，修法只能跨模块。"
+  },
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -n -A6 '^  vanished-horizon:' plugins/rpg-skills/src/main/resources/config.yml",
+        "hit": "408:  vanished-horizon:\n409-    menu-slot: 31\n410-    class: ASSASSIN\n411-    branch: unseen\n412-    minimum-ascension: 3   ← 保持 3（与分支 stage 一致，本模块内自洽）\n413-    minimum-level: 20"
+      },
+      {
+        "cmd": "grep -n 'unseen:\\|void-walker:\\|plague-scholar:' plugins/rpg-classes/src/main/resources/config.yml",
+        "hit": "41:    void-walker: {stage: 2, enabled: true, requires-any: [nightblade]}\n42:    plague-scholar: {stage: 2, enabled: true, requires-any: [venomist]}\n43:    unseen: {stage: 3, enabled: true, requires-any: [void-walker, plague-scholar]}  ← 技能门 3 的根因，在 allowed_paths 之外"
+      },
+      {
+        "cmd": "grep -n 'return 2;\\|BLOODPACT -> \\|TALISMAN -> ' plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/HiddenPathRules.java",
+        "hit": "19:        return 2;                 ← minimumAscension 保持 2（与 5 份文档一致）\n28:            case BLOODPACT -> \"vanished-horizon\";  ← 矛盾点：路线二转、前置技能三转\n29:            case TALISMAN -> \"rune-reversal\";       ← 对照：符箓二转、前置技能也是二转"
+      },
+      {
+        "cmd": "grep -n 'stage:' plugins/rpg-classes/src/main/resources/config.yml（每职业统计启用分支 1/2/3 计数）",
+        "hit": "healer 2/2/1 OK；warrior 2/2/1 OK；assassin 2/2/1 OK；mage 2/2/1 OK；ranger 2/2/1 OK；freeform 2/2/1 OK —— ClassBranchGraph 强制 2/2/1，unseen 是刺客唯一 stage-3 分支"
+      },
+      {
+        "cmd": "grep -n 'branch:' plugins/rpg-skills/src/main/resources/config.yml（六职业 slot/branch/ascension 全表）",
+        "hit": "slot 31：soul-resonance/unbroken-line(assc=3)/vanished-horizon/unbroken… 全部 asc=3 且为 stage-3 汇合分支；slot 29/33 为二转（asc=2）。vanished-horizon slot=31、asc=3，与其余五职业三转位对称。"
+      },
+      {
+        "cmd": "grep -rn 'hiddenPathRequiresTheMatchingRedeemedHiddenBossBook' -A40 plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java（seedBloodpactFacts）",
+        "hit": "seedBloodpactFacts 写 rpg_profiles(ascension=2, level=20) + rpg_skills(skill_id='vanished-horizon')；测试断言「二转 + 已学 vanished-horizon + 已兑换 silent-thunder ⇒ eligible」。即 rpg-core 行为测试要求 vanished-horizon 是二转技能。"
+      },
+      {
+        "cmd": "grep -n 'vanished-horizon' plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/HiddenPathRules.java",
+        "hit": "28:            case BLOODPACT -> \"vanished-horizon\";（未改）"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "chmod +x gradlew && ./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-api:compileJava :plugins:rpg-skills:compileJava --rerun-tasks",
+        "result": "> Task :plugins:rpg-api:compileJava\n> Task :plugins:rpg-skills:compileJava\nBUILD SUCCESSFUL in 1m 37s"
+      },
+      {
+        "cmd": "chmod +x gradlew && ./gradlew --no-daemon :plugins:rpg-api:test :plugins:rpg-skills:test --rerun-tasks",
+        "result": "> Task :plugins:rpg-api:test\n> Task :plugins:rpg-skills:test\nBUILD SUCCESSFUL in 2m 2s"
+      },
+      {
+        "cmd": "汇总 plugins/*/build/test-results/test/TEST-*.xml（junit XML 逐类统计）",
+        "result": "rpg-api total=85 fail=0；cn.originalrpg.api.rules.HiddenPathReachabilityTest tests=9 fail=0；HiddenPathPreconditionPlanTest tests=4 fail=0。rpg-skills total=69 fail=0；cn.originalrpg.skills.HiddenRouteReachabilityTest tests=14 fail=0（较 main 的 12 例 +2：bloodpactPreconditionsAreAllAuditedAtItsDocumentedAscension + branchSelectionGateIsPartOfTheAuditAndNamesTheStageThreeBranch）。"
+      },
+      {
+        "cmd": "机械复现 validateCatalog「minimum-ascension == 分支 stage」+ ClassBranchGraph「2/2/1」（读真实两份 config.yml 的自写校验器）",
+        "result": "unseen stage=3 enabled=1；void-walker stage=2；plague-scholar stage=2；每职业 2/2/1 OK；① validateCatalog 不变式冲突: [] ⇒ shipped 配置自洽，把技能门单降到 2 才会产生冲突，把 unseen 降到 2 会让刺客变 2/3/0、违反 2/2/1。"
+      },
+      {
+        "cmd": "反证 A：临时把 HiddenPathRules.minimumAscension 改成 3 后 ./gradlew --no-daemon :plugins:rpg-core:test --tests '*JdbcServicesTest.hiddenPathRequiresTheMatchingRedeemedHiddenBossBook' --tests '*JdbcServicesTest.hiddenPathRequiresTheWholeRouteAndSerializesTheFinalSeat'（改动已还原）",
+        "result": "2 tests completed, 2 failed —— Assertions.assertTrue at JdbcServicesTest.java:569 等；证实「抬路线门到 3」会让 rpg-core 既有行为测试变红（rpg-core 不在 allowed_paths，无法同步改测试）。"
+      },
+      {
+        "cmd": "反证 B：临时把 requiredSkill(BLOODPACT) 改成 void-cut 后跑同一 rpg-core 测试（改动已还原）",
+        "result": "BUILD FAILED（hiddenPathRequiresTheMatchingRedeemedHiddenBossBook 失败）—— 测试种子写死已学 vanished-horizon，证实「换前置技能」同样越界（需改 rpg-core 测试 + GAME_DESIGN.md:106）。"
+      },
+      {
+        "cmd": "新增测试改前/改后对照（branchSelectionGateIsPartOfTheAuditAndNamesTheStageThreeBranch）",
+        "result": "把 vanished-horizon.minimum-ascension 临时设为 2：只读技能门（2 参 inspect）判 reachable()=true（误判）；带分支门（3 参 inspect）判 reachable()=false 且具名到 SKILL=vanished-horizon ⇒ 证明新增的分支选择门真的参与判定、补上了原实现的漏检。"
+      },
+      {
+        "cmd": "chmod +x gradlew && ./gradlew --no-daemon :plugins:rpg-skills:test --tests '*HiddenRouteReachabilityTest*'（改前基线）",
+        "result": "BUILD SUCCESSFUL；shipped 配置下 everyHiddenPathPreconditionIsAuditedAtThePathsOwnAscension 断言唯一不可达项 = 「BLOODPACT 要求 2 转（有效等级上限 90），但其 SKILL 前置 vanished-horizon 到有效等级 110 才开放」，即自检仍在报这条矛盾（未被掩盖）。"
+      }
+    ]
+  },
+  "unproven": [
+    "[R] Runtime：未在真实 Paper 26.2 + PostgreSQL 上验证 RpgSkills 启动自检的三参 inspect（技能门+分支门+副本门）告警/失败路径与 /class hidden 全流程；本容器只有 JDK + 单元测试环境。",
+    "[H] Human：G-106 采用哪种跨模块修法属设计裁决（改 rpg-classes 分支图 / 改 requiredSkill 并同步 rpg-core 与文档 / 接受血契改三转并同步 5 份文档），需人类拍板。",
+    "rpg-skills 的可达性测试通过读取 ../rpg-classes 与 ../rpg-dungeons 的 config.yml 路径取证；若 CI 只检出单模块目录，这两个跨模块断言会因文件缺失而报「必须存在于」失败。"
+  ],
+  "blockers": [
+    "修法①「vanished-horizon.minimum-ascension 3→2」不可行：RpgSkillsPlugin.validateCatalog() 强制「minimum-ascension == 分支 stage」，而 unseen 的 stage=3 在 plugins/rpg-classes（allowed_paths 之外），单改会让插件启动抛 IllegalStateException。机械复现：shipped 配置不变式冲突=[]，把技能门降到 2 后冲突项为 ('vanished-horizon','unseen',skill=2,branchStage=3)。",
+    "修法②「技能门与 unseen 一起降到 2」不可行：ClassBranchGraph 强制每职业 2/2/1 个 stage 1/2/3 启用分支，unseen 是刺客唯一 stage-3 分支，降到 2 会变成 2/3/0（已机械复现全部六职业计数）。且 rpg-classes config 与 lang/zh_cn.yml:1666 的分支说明都记载 unseen=三转汇合，两处都在 allowed_paths 之外。",
+    "修法③「抬 HiddenPathRules.minimumAscension(BLOODPACT) 2→3」不可行：rpg-core 的 JdbcServicesTest.hiddenPathRequiresTheMatchingRedeemedHiddenBossBook / hiddenPathRequiresTheWholeRouteAndSerializesTheFinalSeat 按「二转 + 已学 vanished-horizon ⇒ eligible」断言，实测 2 例变红；rpg-core 不在 allowed_paths，无法同步改测试。且与 4 份文档的「二转」相反。",
+    "修法④（本轮新发现）「改 HiddenPathRules.requiredSkill(BLOODPACT) 为二转技能」不可行：rpg-core 测试种子写死已学 vanished-horizon，实测变红；且与 docs/GAME_DESIGN.md:106「已学「消失地平线」」相反，属设计改动。",
+    "因此任务书给的二选一在 allowed_paths（plugins/rpg-skills、plugins/rpg-api、docs、.cnb/agent-out）内无解：任一侧单独改都要动 plugins/rpg-classes（分支图）、plugins/rpg-core（行为测试）或 plugins/rpg-core/src/main/resources/lang（分支说明）。"
+  ],
+  "risks": [
+    "shipped 玩法数值零变化：vanished-horizon.minimum-ascension 保持 3、HiddenPathRules.minimumAscension 保持 2、requiredSkill 保持 vanished-horizon；config.yml 除注释外无 YAML 语义变化（已用 grep 回读第 412 行确认仍为 3）。",
+    "hidden-route-reachability.fail-on-contradiction 保持 false：修法落地前置 true 会让 RpgSkills 启动失败。已由 shippedFailFastSwitchAgreesWithTheRealConfigVerdict() 把开关与真实配置结论钉在一起，修法落地后忘记置 true 会被该测试抓住。",
+    "自检新增分支门后，判据取 max(技能门, 分支 stage)；若将来 validateCatalog 不变式被放松（允许技能门 < 分支 stage），本判据仍会正确报不可达。",
+    "本 PR 改的是 rpg-skills 的两个 main 文件 + 一个测试文件 + config.yml 注释 + 一份 docs，不触碰 rpg-api 源码（HiddenPathReachability/Precondition 语义未变），rpg-api 测试 85 例全绿。",
+    "「可达性自检从告警变为通过」这一条未达成：矛盾仍在 shipped 配置里（根因在允许路径之外），自检保持告警并具名；这是如实交付，不是掩盖。"
+  ],
+  "next_steps": [
+    "人类裁决修法（推荐按文档意图，三选一）：(a) 把 plugins/rpg-classes/config.yml:43 的 unseen stage 3→2，并同步调整该职业分支图以满足 ClassBranchGraph 的 2/2/1（例如另立一个 stage-3 分支承接三转汇合技），同时把 vanished-horizon.minimum-ascension 3→2、并把 rpg-api HiddenPathReachabilityTest 与 rpg-skills 逐路径断言改为空集；(b) 让血契改为要求刺客二转技能（如 void-cut 或 plague-bloom），并同步改 rpg-core 的 seedBloodpactFacts、HiddenPathRules.requiredSkill 与 docs/GAME_DESIGN.md:106 的「已学「消失地平线」」；(c) 把 HiddenPathRules.minimumAscension(BLOODPACT) 抬到 3 并同步改 4 份「二转」文档与 rpg-core 两条测试（与现有文档相反，不推荐）。",
+    "修法落地后：把 hidden-route-reachability.fail-on-contradiction 置 true，并把 rpg-skills 的 everyHiddenPathPreconditionIsAuditedAtThePathsOwnAscension() 与 bloodpactPreconditionsAreAllAuditedAtItsDocumentedAscension() 的期望值改为空集（测试注释里已写明该提示）。",
+    "同一「技能门 + 分支选择门」双读判据可推广到 gap-matrix 其他「机制声明了门但门晚于机制」的位置。"
+  ],
+  "pr_url": ""
+}
