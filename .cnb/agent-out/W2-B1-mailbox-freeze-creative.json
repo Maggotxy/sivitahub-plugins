@@ -1,0 +1,59 @@
+{
+  "task_id": "W2-B1-mailbox-freeze-creative",
+  "status": "success",
+  "summary": "G-104 修复：① 把 InventoryCreativeEvent 纳入交付冻结事件集合（新增 onCreativeClick 处理器）；② 游标槽纳入标记扫描范围（DeliveryFreezeRules.CURSOR_SLOT=-1 贯通 findSlotByMarker/clearInventoryMarkerAt/recoverDeliveryReceipts）；③ 新增行为级测试：领取中→断线→重连不重复领取（MailboxClaimReconcilerTest），创造模式容器事件被冻结（DeliveryFreezeRulesTest + DeliveryFreezeWiringTest 反射断言处理器已注册）。",
+  "changed_files": [
+    "plugins/rpg-market/src/main/java/cn/originalrpg/market/MarketCommand.java",
+    "plugins/rpg-market/src/main/java/cn/originalrpg/market/DeliveryReceiptRules.java",
+    "plugins/rpg-market/src/main/java/cn/originalrpg/market/DeliveryFreezeRules.java",
+    "plugins/rpg-market/src/main/java/cn/originalrpg/market/MailboxClaimReconciler.java",
+    "plugins/rpg-market/src/test/java/cn/originalrpg/market/DeliveryFreezeRulesTest.java",
+    "plugins/rpg-market/src/test/java/cn/originalrpg/market/DeliveryFreezeWiringTest.java",
+    "plugins/rpg-market/src/test/java/cn/originalrpg/market/MailboxClaimReconcilerTest.java",
+    "plugins/rpg-market/build.gradle.kts",
+    ".cnb/agent-out/W2-B1-mailbox-freeze-creative.json"
+  ],
+  "evidence": {
+    "grep": [
+      {
+        "cmd": "grep -rn --include=*.java 'InventoryCreativeEvent' plugins",
+        "hit": "plugins/rpg-market/src/main/java/cn/originalrpg/market/MarketCommand.java:41:import org.bukkit.event.inventory.InventoryCreativeEvent; | :761:public void onCreativeClick(InventoryCreativeEvent event) {"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'DeliveryFreezeRules\\.|MailboxClaimReconciler\\.' plugins/rpg-market/src/main",
+        "hit": "MarketCommand.java:746 decide(...), :767 blocksCreativeContainer(...), :780 decide(...), :1109/:1119 CURSOR_SLOT, :1166 collectMarkers(...), :1174 quarantinesDuplicates(...), :1181 plan(...)"
+      },
+      {
+        "cmd": "grep -rn --include=*.java 'getItemOnCursor' plugins/rpg-market/src/main",
+        "hit": "MarketCommand.java:1109,1115,1137,1161（查找/清理/重连扫描三条路径都覆盖游标）"
+      }
+    ],
+    "test": [
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:rpg-market:compileJava",
+        "result": "BUILD SUCCESSFUL"
+      },
+      {
+        "cmd": "./gradlew --no-daemon --rerun-tasks :plugins:rpg-market:compileJava :plugins:rpg-market:test",
+        "result": "BUILD SUCCESSFUL；50 tests, 0 failures, 0 skipped（新增 DeliveryFreezeRulesTest 12 / DeliveryFreezeWiringTest 3 / MailboxClaimReconcilerTest 5）"
+      },
+      {
+        "cmd": "反证：临时删掉 @EventHandler 注解后 ./gradlew :plugins:rpg-market:test --tests '*DeliveryFreezeWiringTest*'",
+        "result": "FAILED，2 of 3 失败（证明接线测试真会红）"
+      },
+      {
+        "cmd": "反证：临时把 DeliveryReceiptRules.slot 改回直接返回 index 后 ./gradlew :plugins:rpg-market:test",
+        "result": "FAILED，5 of 50 失败（证明游标槽测试真会红）"
+      },
+      {
+        "cmd": "./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 compileJava",
+        "result": "BUILD SUCCESSFUL（26 子工程全量，先跑 sh scripts/fetch-deps.sh 补齐预存在的缺失依赖）"
+      }
+    ]
+  },
+  "unproven": [
+    "未在真实 Paper 服务器上跑 [R] Runtime 验证：仅做到编译 + 单元/行为级测试 [T]",
+    "InventoryCreativeEvent 的真实客户端触发（创造模式物品栏拖拽）未做端到端人工复现 [H]"
+  ],
+  "blockers": []
+}
