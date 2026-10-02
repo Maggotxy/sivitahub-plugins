@@ -1,0 +1,71 @@
+{
+  "_comment": "第三波：收口。W2 编译门 GREEN（sn=cnb-l7u-1k3tn45sp，BUILD_EXIT=0 / 28 tasks / DDL_GATE=GREEN）后派发。",
+  "_merged_gaps": "G-001,G-002,G-003,G-004,G-301,G-303,G-401,G-402,G-403,G-104,G-105,G-107,G-110,G-111,G-112,G-113,G-114,G-101,G-102,G-103,G-108",
+  "tasks": [
+    {
+      "id": "W3-A1-bloodpact-fix",
+      "mode": "implement",
+      "goal": "落地 G-106 的修复。上一轮（W2-D3）已**判定为「配置错」**并交付了通用可达性自检，但它当时的 allowed_paths 太窄，改不了配置，所以只做到「报出矛盾」而没「消除矛盾」。本轮放开路径，把它真正修掉。\n\n现状（读 `plugins/rpg-skills/` 下 W2-D3 新增的可达性自检与 `plan/gap-matrix.md` 确认）：\n- `HiddenPathRules.minimumAscension()` 返回 2（与 5 份文档的「二转」一致）⇒ **规则不改**\n- `rpg-skills/src/main/resources/config.yml` 里前置技能 `vanished-horizon` 的 `minimum-ascension: 3` ⇒ **改这里**\n\n要求：① 把 `vanished-horizon` 的 `minimum-ascension` 从 3 降到 2（或按文档意图的等价改法），让血契（BLOODPACT）在二转可达 ② 让 W2-D3 加的可达性自检**从告警变为通过**（如果它现在报这条矛盾）③ 把该自检的开关在配置里默认设为「启动即校验」（或说明为什么保持告警）④ 行为级测试：断言血契的全部前置条件在 `minimumAscension()` 要求的转数下可达⑤ 在 `docs/SKILL_MECHANICS_MATRIX.md` 或相关文档里同步这条改动，写明「原为 3 是配置错」的依据。\n⚠️ 如果查下来文档其实支持「三转」，那就反过来改 `HiddenPathRules` 到 3 并同步所有文档 —— **二选一，并在 PR 里给出你依据的文档原文**。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 编译：./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:<mod>:compileJava\n- 测试：./gradlew --no-daemon :plugins:<mod>:test\n- 编译期第三方 jar 已在 libs/（公开源，fetch-deps.sh）与 libs/vendor/（同版本入库）；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 是最高约束；AGENTS.md 是执行边界\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。evidence 必须是实际跑过的命令原文。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-skills/**",
+        "plugins/rpg-api/**",
+        "docs/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。改完自己跑 compileJava + test 并把命令与输出写进证据文件。"
+    },
+    {
+      "id": "W3-A2-full-test-gate",
+      "mode": "implement",
+      "goal": "把编译门升级为**全量测试门 + 打包门**，并修掉既有的测试失败。这是「整套完成」的最后一道机械判据。\n\n现状：`.cnb.yml` 的编译门只跑 `compileJava`（`BUILD_EXIT=0` / 28 tasks / 26 子工程），**没有跑测试**。实测已知 rpg-core 有 **2 个既有失败**（W2-B6 的证据里记录为 `LanguageBundle...` 相关，`214 tests completed, 2 failed`）。\n\n要求：\n① 先在 CNB 上跑一次 `./gradlew --no-daemon test` 摸清**全量真实失败清单**（26 个子工程、734 个 @Test）\n② 逐条修掉失败。**判据**：修复必须是行为/资源层面的真修，不许把测试删掉、跳过（`@Disabled`）或改成恒真；如果某个失败是**环境缺口**（例如测试依赖真实 PostgreSQL / 某个第三方 jar 的运行时行为），把它明确标注为「环境依赖测试」并加 `@Tag(\"env\")` 之类的分类，**在门禁里显式排除这一类**（而不是静默跳过）\n③ 改 `.cnb.yml`：编译门之后加 `test` 阶段（`./gradlew --no-daemon test`），再之后加 `assemble` 阶段（产出各插件 jar，并 `ls -la` 列出产物清单与大小）。三个阶段的判据都必须是退出码，且 `SECONDS>0`\n④ 在 PR 里给出：失败清单（改前/改后）、你排除的环境依赖测试及理由、jar 产物清单\n⑤ 保持 `push` 与 `api_trigger_gate` 共用同一套阶段（用 YAML 锚点，注意 `docker:` 必须写在 job 级）。\n⚠️ 全量 test 可能超过 45 分钟：必要时用 `--continue` 并让每个模块单独报告结果，但**不要**用 `-x test` 绕过。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 编译：./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:<mod>:compileJava\n- 测试：./gradlew --no-daemon :plugins:<mod>:test\n- 编译期第三方 jar 已在 libs/（公开源，fetch-deps.sh）与 libs/vendor/（同版本入库）；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 是最高约束；AGENTS.md 是执行边界\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。evidence 必须是实际跑过的命令原文。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        ".cnb.yml",
+        "plugins/rpg-core/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 .cnb.yml 与 rpg-core 下的测试/资源（若失败根源在别的模块，在 blockers 里写清楚并给出建议任务）。不要删测试、不要 @Disabled、不要 -x test。"
+    },
+    {
+      "id": "W3-A3-exit-path-remaining",
+      "mode": "implement",
+      "goal": "补 G-110 的遗留：W2-B3 已把 `EquipmentLifecycle` 的退出路径判定接到了 `/salvage`（分解）等路径，但它自己在 `unproven` 里写明**还有两条退出路径没有 src/main 生产入口**：\n\n$ grep -rn --include=*.java 'SEASON_ATTUNED' plugins/*/src/main   → 只命中 `EquipmentLifecycle.java` 自身\n$ grep -rn --include=*.java 'DESTROYED' plugins/*/src/main        → 只命中 `EquipmentLifecycle.java` 与 `JdbcEquipment...`\n\n要求：① 读 C-008 / C-009 与 `docs/ECONOMY.md`、`docs/SEASON_ENDGAME.md`，搞清「调谐（SEASON_ATTUNED）」与「明确销毁（DESTROYED）」这两条退出路径**应该由谁触发**② 在 `rpg-items` 侧接上真实入口（例如调谐：赛季调谐指令/物品；销毁：献祭/分解到底的终态）③ 如果某一条在当前 Phase 下确实还没有触发者（例如调谐属赛季终局内容），**不要硬造指令**：在 PR 里写明理由，并把它登记为「待 Phase 7 内容管线接入」，同时在 `EquipmentLifecycle` 上留一条明确的 TODO 注释指向该任务 id\n④ 行为级测试：已接线的路径要能跑通，且未接线的路径被明确断言为「当前无入口」。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 编译：./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:<mod>:compileJava\n- 测试：./gradlew --no-daemon :plugins:<mod>:test\n- 编译期第三方 jar 已在 libs/（公开源，fetch-deps.sh）与 libs/vendor/（同版本入库）；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 是最高约束；AGENTS.md 是执行边界\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。evidence 必须是实际跑过的命令原文。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-items/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。改完自己跑 compileJava + test 并把命令与输出写进证据文件。"
+    },
+    {
+      "id": "W3-A4-exempt-tables-judgement",
+      "mode": "implement",
+      "goal": "给 DDL 消费者门禁的 8 张豁免表做**逐条判定**，把「豁免」从模糊状态变成可审计事实。\n\n现状：`scripts/check-ddl-consumers.sh` 首跑 GREEN，75 张表 / 67 已接线 / **8 张已登记豁免**。豁免清单在脚本里，理由较简略。\n\n要求（**本任务以判定与登记为主，不要求接线上线**）：\n① 对 8 张豁免表逐条给出：表名 / 它属于哪个 Phase / 设计意图（引文档原文）/ 当前无消费者的**真实原因**（是「落库先行」还是「能力已废弃」）/ 建议处置（接线 / 保留待接线 / 删表）\n② 结论写进 `docs/DATABASE_MIGRATION.md`（或新建 `docs/planning/deferred-tables.md`），并同步更新 `scripts/check-ddl-consumers.sh` 里豁免条目的注释，使每条理由可追溯\n③ **判定为「能力已废弃」的表**：不要在脚本里静默删掉豁免，而是新增一个显式分类（例如 `ABANDONED`），让门禁输出里能区分「待接线」与「已废弃」\n④ 对判定为「需要接线」的表，产出一份可直接派发的任务清单 `plan/deferred-tables-tasks.json`（格式与 `doc/cnb/tasks-w2.json` 一致），但**不要在本任务里执行**\n⑤ 证据文件里给出每张表的 grep 命令与命中结果（证明「当前确实无消费者」）。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 编译：./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:<mod>:compileJava\n- 测试：./gradlew --no-daemon :plugins:<mod>:test\n- 编译期第三方 jar 已在 libs/（公开源，fetch-deps.sh）与 libs/vendor/（同版本入库）；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 是最高约束；AGENTS.md 是执行边界\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。evidence 必须是实际跑过的命令原文。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "scripts/**",
+        "docs/**",
+        "plan/deferred-tables-tasks.json",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "不要改任何 plugins/ 下的源码。不要删表、不要改 DDL。"
+    },
+    {
+      "id": "W3-A5-gapmatrix-v2",
+      "mode": "implement",
+      "goal": "你是本项目的规划器。W1/W2 两波已经把下面这些 gap **全部合入 main 并通过编译门**，**不得再为它们产出任务**：\n\nG-001,G-002,G-003,G-004,G-301,G-303,G-401,G-402,G-403,G-104,G-105,G-107,G-110,G-111,G-112,G-113,G-114,G-101,G-102,G-103,G-108\n\n另外 W3 已同时派发（不要重复）：G-106 血契落地、全量测试门+打包、SEASON_ATTUNED/DESTROYED 两条退出路径、8 张豁免表的判定。\n\n你的工作：\n① 读 `doc/cnb/GOAL.md`、`doc/cnb/agent-protocol.md`、`doc/cnb/decisions-locked.md`（注意 L-009 人类已授权跨 Phase 并行）、`doc/cnb/gap-registry.md`、`state/world-state.json`、以及上一轮的 `plan/gap-matrix.md`\n② **基于当前 main 重跑一遍全量差集矩阵**，产出 `plan/gap-matrix-v2.md`：\n   列：机制/模块 | 声明的载体（类/表/枚举/配置键）| src/main 里的真实调用点（文件:行号，没有写「无」）| 行为级测试 | 判定（已接线 / 声明未接线 / 存疑 / 已废弃）| 对应 gap id\n   **必须机械执行**：对每个名字在 plugins/ 下 grep，只命中定义与自身引用的就是「声明未接线」；每条判定都要给出 grep 命令原文\n③ 产出 `plan/tasks-w4.json`：只包含**尚未合入、且 W3 未派**的真实缺口，格式直接是 orchestrator 能吃的 `{{\"tasks\":[...]}}`，同波内 allowed_paths 不重叠，重叠处用 deps 串行化\n④ 产出 `plan/verdict-v2.json`：`{{\"done\":bool,\"impossible\":bool,\"reason\":\"...\",\"remaining\":N}}`。**如果差集矩阵里已没有任何「声明未接线」项、且 W1-W3 的缺口全部有主，就写 done=true**\n⑤ 同时产出 `plan/world-state.json`（把本轮新证据并进 `state/world-state.json` 的结构里，含 `merged_gaps`）\n⑥ 不要改任何 src/main 下的源码。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 编译：./gradlew --no-daemon -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 :plugins:<mod>:compileJava\n- 测试：./gradlew --no-daemon :plugins:<mod>:test\n- 编译期第三方 jar 已在 libs/（公开源，fetch-deps.sh）与 libs/vendor/（同版本入库）；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- docs/GAME_ECONOMY_CONSTITUTION.md 是最高约束；AGENTS.md 是执行边界\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。evidence 必须是实际跑过的命令原文。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plan/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "文档用中文。不许出现「推测」「大概」「应该」。找不到调用点就明确写「无」。已合入的 gap id 一律不得再出现在 tasks-w4.json 里。"
+    }
+  ]
+}
