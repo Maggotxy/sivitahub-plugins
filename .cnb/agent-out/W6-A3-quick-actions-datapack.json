@@ -112,5 +112,5 @@
     "真机验证：停服后 `sh scripts/install-datapacks.sh /home/lamb/minecraft/server` → 启动 Paper → 跑 server/bin/verify-installation.sh → 按 G 确认 8 个按钮。同时确认 pack_format 是否需要改成 26.2 的数据格式（85）。",
     "部署成功后把结果作为 [R] 级证据回填 plan/world-state.json，并把 plan/gap-matrix-v3.md:94/101/527 的 G-206 从「声明未接线 / REQUIRES_HUMAN」改成「已接线」，同时清掉 state/world-state.json:218 那条待决项。"
   ],
-  "pr_url": ""
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/38"
 }
