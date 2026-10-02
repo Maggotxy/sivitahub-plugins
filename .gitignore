@@ -41,3 +41,4 @@ diagnostics/
 *.pem
 *.p12
 *.pfx
+.workbuddy-ai/
