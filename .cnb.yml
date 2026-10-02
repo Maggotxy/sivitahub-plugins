@@ -40,6 +40,25 @@
     docker:
       image: eclipse-temurin:25-jdk
     stages:
+      - name: 准备下载器（必须是第一个 stage）
+        script: |
+          # ⚠️ 这个 stage 必须排在最前：实测把它放在「门禁自测」之后，
+          # selftest-gates.sh 会因为 `python3: not found` 全部 exit=127 ⇒ 整门假红
+          # （sn=cnb-l6r-1k3tucifk）。
+          # eclipse-temurin:25-jdk 里 python3 / curl / wget / sha256sum 全缺，
+          # fetch-deps.sh 会因此「没有可用的下载器」而整体失败（实测 sn=cnb-n4t-1k3td2s2k）。
+          # 这里先补齐，缺什么装什么，装不上就明确失败而不是让下游报一个看不懂的错。
+          set -e
+          have() { command -v "$1" >/dev/null 2>&1; }
+          if have curl && have sha256sum && have python3; then echo "DOWNLOADER=curl(ready)"; exit 0; fi
+          echo "缺少 curl/sha256sum/python3，用 apt 安装"
+          apt-get update -qq >/dev/null 2>&1 || true
+          # python3 也要装：scripts/check-file-deps.sh 依赖它（实测只装 curl 会在那里挂在
+          # 「check-file-deps.sh: 19: python3: not found」）
+          apt-get install -y -qq curl ca-certificates coreutils python3 >/dev/null 2>&1 || true
+          echo "curl=$(have curl && echo yes || echo no) python3=$(have python3 && echo yes || echo no) sha256sum=$(have sha256sum && echo yes || echo no)"
+          have curl || have python3 || { echo "DOWNLOADER=NONE"; exit 1; }
+          echo "DOWNLOADER=ready"
       - name: 门禁自测（负向对照）
         script: |
           # 先证明「门禁自己会红」：用最小夹具把汇总脚本 / jar 校验 / env 清单抽取
@@ -58,22 +77,6 @@
           # 这里统一兜底，避免门禁因为一个文件模式位而整段假红。
           chmod +x gradlew scripts/*.sh scripts/*.py
           sh scripts/check-ddl-consumers.sh
-      - name: 准备下载器
-        script: |
-          # eclipse-temurin:25-jdk 里 python3 / curl / wget / sha256sum 全缺，
-          # fetch-deps.sh 会因此「没有可用的下载器」而整体失败（实测 sn=cnb-n4t-1k3td2s2k）。
-          # 这里先补齐，缺什么装什么，装不上就明确失败而不是让下游报一个看不懂的错。
-          set -e
-          have() { command -v "$1" >/dev/null 2>&1; }
-          if have curl && have sha256sum && have python3; then echo "DOWNLOADER=curl(ready)"; exit 0; fi
-          echo "缺少 curl/sha256sum/python3，用 apt 安装"
-          apt-get update -qq >/dev/null 2>&1 || true
-          # python3 也要装：scripts/check-file-deps.sh 依赖它（实测只装 curl 会在那里挂在
-          # 「check-file-deps.sh: 19: python3: not found」）
-          apt-get install -y -qq curl ca-certificates coreutils python3 >/dev/null 2>&1 || true
-          echo "curl=$(have curl && echo yes || echo no) python3=$(have python3 && echo yes || echo no) sha256sum=$(have sha256sum && echo yes || echo no)"
-          have curl || have python3 || { echo "DOWNLOADER=NONE"; exit 1; }
-          echo "DOWNLOADER=ready"
       - name: compile
         script: |
           set -e
