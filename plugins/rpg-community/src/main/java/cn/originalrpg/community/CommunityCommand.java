@@ -209,6 +209,11 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
         for (String line : messages.lines(player, "community.help")) {
             player.sendMessage(Component.text(line, NamedTextColor.GRAY));
         }
+        // Phase 6 治理命令只在真正启用时才出现在帮助里，避免未启用对玩家暗示可用功能。
+        if (!plugin.communityGovernanceEnabled() || !plugin.governanceAvailable()) return;
+        for (String line : messages.lines(player, "community.governance.help")) {
+            player.sendMessage(Component.text(line, NamedTextColor.GRAY));
+        }
     }
 
     private void status(Player player) {
