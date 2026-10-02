@@ -1,0 +1,34 @@
+{
+  "_comment": "第八波（最终验收轮）任务清单：只含 gap-matrix-v4 里判为「存疑」的真实剩余项。已合入 main 的 gap 一律不出现。",
+  "_basis": "main @ c63f446；plan/gap-matrix-v4.md；plan/verdict-v4.json",
+  "tasks": [
+    {
+      "id": "W9-A1-source-string-tests-final2",
+      "mode": "implement",
+      "goal": "把 G-302 最后 2 个**纯源码字符串断言**测试收敛掉。这两个类的每一个 @Test，断言全部是\n`source.contains(\"...\")` / `indexOf(...) < indexOf(...)` 的跨文件源码字符串比较，\n没有任何行为断言，也不执行任何外部脚本 —— 重构即失效，不能算 [T] 证据。\n\n目标类（两个都已核过，命令与命中见 plan/gap-matrix-v4.md 的 V-21）：\n1. `plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobRewardAsyncLifecycleContractTest.java`\n   3 个 @Test / 22 条断言：`experienceBufferKeepsInFlightOwnershipUntilAuthorityIsKnown`、\n   `delayedItemsUseStableMailboxReplayAndDoNotDiscardAtAnAttemptLimit`、\n   `feedbackRequiresTheExactLoginSessionAndDisableDrainsItemsBeforeExperience`。\n   被测的生产类：`ExperienceWriteBuffer`（`waitForInFlight` / `inFlightDeadlineNanos` / `maximum-pending-players` /\n   `retryDelayMillis`）、`DelayedMobRewardQueue`（`activeMailboxWrites` / `drainMailboxDeliveries` / `delivery.deliveryId()`）。\n2. `plugins/rpg-pets/src/test/java/cn/originalrpg/pets/PetRevivalLifecycleContractTest.java`\n   4 个 @Test / 29 条断言：`revivalUsesDurableSagaInsteadOfDebitThenRefund`、\n   `everyFutureToBukkitBridgePassesThroughDisableAwareDispatcher`、\n   `oldQuitAndCallbacksCannotRevokeOrActOnANewerAuthenticatedConnection`、\n   `buildTargetsTheExactRuntimeMyPetArtifact`。\n\n要求（逐条做完，缺一条不算完成）：\n① 先读这两个类与它们读的生产源码，把每条断言归类成三类：\n   (a) 可改成**真行为断言**的（例如 `ExperienceWriteBuffer` 的 `waitForInFlight` 超时/完成语义、\n       `DelayedMobRewardQueue` 的 `drainMailboxDeliveries` 与 `deliveryId` 稳定性、\n       `PetRevivalService` 的「saga 而非先扣后退」结果、`AuthenticatedSession` 的旧连接失效语义）；\n   (b) 属于**构建/接线契约**的（例如 `buildTargetsTheExactRuntimeMyPetArtifact` 读 `build.gradle.kts`\n       断言 `MyPet-4.0.0-Sivita.jar`）→ 迁移到 `scripts/source-contract-specs/all.json` 规格；\n   (c) 依赖本仓不存在的运维侧产物、只能保留的 → 打 `@Tag(\"env\")` 并在类上写中文注释说明理由。\n② 按归类落地。**禁止**：删除测试、`@Disabled`、把断言改成恒真、`-x test`。\n③ **每条改动都要做负向对照**：把对应的生产调用点/常量改坏一次，确认测试或门禁脚本变红，再还原。\n   把「破坏 → 变红 → 还原」的命令与输出写进证据文件。\n④ 改完后跑 `./gradlew --no-daemon test -PexcludeTags=env`，确认 26 个模块全绿，并把\n   `SUM tests=... failed=0 errors=0 skipped=... modules=26` 那行抄进证据。\n⑤ 如果某条断言你判断**无法**在自己的模块里变成行为断言（例如要跑真实 MyPet 才成立），\n   不要硬改：写进 `unproven`，说明它在哪个环境才能验证。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 质量门 `.cnb.yml` 八门：准备下载器 → 门禁自测 → 素材门禁 → DDL 门禁（双向）→ compile → test → assemble，判据全是退出码\n- 编译期第三方 jar 在 libs/（公开源）与 libs/vendor/（同版本入库）；**不要改依赖版本**\n- 玩法数值真相在 plugins/<mod>/src/main/resources/config.yml\n- `scripts/source-contract-specs/all.json` 是源码契约规格的唯一来源，由 `scripts/check-source-contract.sh` 判定，\n  `scripts/selftest-gates.sh` §4b 已覆盖它的负向对照\n- docs/GAME_ECONOMY_CONSTITUTION.md 最高约束；AGENTS.md 执行边界；L-009 已授权跨 Phase 并行\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-mobs/**",
+        "plugins/rpg-pets/**",
+        "scripts/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。不要改 .cnb.yml。**不得删除或跳过任何既有测试**（GOAL.md §2 明确排除）。两个目标类改完后，`grep -rn 'Files.readString' plugins/rpg-mobs plugins/rpg-pets --include=*.java | grep '/src/test/'` 应当只命中「读本测试自产文件」或「执行外部门禁脚本」这两类用法。"
+    },
+    {
+      "id": "W9-A2-progression-anomaly-review-exit",
+      "mode": "implement",
+      "goal": "接上 `ProgressionAnomalyService` 的**读侧**（[H] 复核出口）。\n\n实测事实（命令与命中见 plan/gap-matrix-v4.md 的 V-07）：\n- **写侧已接线**：`plugins/rpg-core/.../JdbcProfileService.java:602`（`UPDATE rpg_progression_anomalies`）与\n  `:608`（`INSERT INTO rpg_progression_anomalies`），由 `:593 recordAnomalyIfUninterpretable(Connection, PlayerProfile)`\n  在每次 `load()` 读到 `ProgressionRules.classifyAnomaly(...) != null` 的档案时触发。\n- **读侧零消费者**：`ProgressionAnomalyService` 的 `inspect(UUID,int,int,long)`、`pending(UUID)`、\n  `pending(int)`、`acknowledge(UUID,String)` 在 `src/main` 里**没有任何调用点** ——\n  `grep -rn 'ProgressionAnomalyService' plugins --include=*.java | grep '/src/main/'` 只命中\n  接口定义（`api/service/ProgressionAnomalyService.java:22`）、实现（`JdbcProgressionAnomalyService.java:37,43`）、\n  一处 javadoc（`JdbcProfileService.java:590`）与装配点（`RpgCorePlugin.java:12,14,212,213,289`）。\n  也就是说：异常被记下来之后，**运行期再也没有任何代码能把它们列出来或核销**。\n\n要求：\n① 先决定出口形态并说明理由。建议（不强制）走**与既有管理面一致的路线**：\n   `plugins/rpg-admin` 已有 `/rpgadmin <economy|chapter|season|incident|...>` 这一类子命令\n   （见 `RpgAdminPlugin.java:705 complete(args)` 与 `plugins/rpg-admin/src/main/resources/plugin.yml`），\n   在它下面加两条子命令最省事：`anomalies [page]`（走 `pending(int limit)`）与\n   `anomaly-ack <player> <reviewer>`（走 `acknowledge(UUID, String)`）。\n   如果 `rpg-admin` 依赖不到 `ProgressionAnomalyService`，就在 `rpg-core` 的 `/rpg` 里加一条\n   仅 OP 可见的子命令；**不要**给普通玩家开任何入口。\n② `acknowledge` 必须**保持有署名的 fail-closed 语义**（现有实现里 `reviewer == null || reviewer.isBlank()` 返回 false\n   且零删除），指令层要把参数校验做在调用之前，并且把结果如实回给操作者。\n③ **不要改判定口径**：`ProgressionRules.classifyAnomaly` 是唯一实现，禁止在别处再写一份 `level % 30` 猜测。\n④ **不要新增表、不要改 DDL**；`rpg_progression_anomalies` 的 schema 不动。\n⑤ 加**行为级测试**（真 H2 + 真 JDBC 事务，照 `JdbcProgressionAnomalyServiceTest` 的夹具写）：\n   - 有异常行时 `pending(limit)` 能列出，且按 `detected_at, player_uuid` 稳定排序；\n   - `acknowledge` 空署名被拒且**零删除**；有署名时删掉恰好一行并返回 true；\n   - 指令层：参数不足 / 玩家名解析失败 / 署名缺失三条路径都不能改库。\n⑥ **负向对照**：把这几个新调用点注释掉一次，确认新测试或 `check-ddl-consumers.sh` 变红，再恢复。\n   把命令与输出写进证据。\n⑦ 跑 `sh scripts/check-ddl-consumers.sh`（要 `DDL_CONSUMER_GATE=GREEN` 且 `DDL_REGISTRATION_GATE=GREEN`）、\n   `sh scripts/selftest-gates.sh`（要 `GATE_SELFTEST=GREEN`）、\n   `./gradlew --no-daemon test -PexcludeTags=env`（要 26 模块全绿），把结果抄进证据。\n\n如果你读完代码后判断**人类该先拍板出口形态**（例如「管理面 vs 人工走 SQL」），\n就把 status 写 `blocked`、在 blockers 里写清要决策什么，**不要**自行猜一个形态实现。\n\n【环境事实】\n- Java 25 toolchain / Gradle wrapper 9.1.0 / paper-api 26.2.build.100-stable\n- 质量门 `.cnb.yml` 八门：准备下载器 → 门禁自测 → 素材门禁 → DDL 门禁（双向）→ compile → test → assemble，判据全是退出码\n- 编译期第三方 jar 在 libs/（公开源）与 libs/vendor/（同版本入库）；**不要改依赖版本**\n- docs/GAME_ECONOMY_CONSTITUTION.md 最高约束；AGENTS.md 执行边界；L-009 已授权跨 Phase 并行\n\n【证据契约】写 .cnb/agent-out/<task-id>.json：task_id/status/summary/changed_files/evidence{grep:[{cmd,hit}],test:[{cmd,result}]}/unproven[]/blockers[]。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；注释用中文。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-admin/**",
+        "plugins/rpg-core/**",
+        "plugins/rpg-api/**",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改 allowed_paths 内的文件。不要改 .cnb.yml、不要改 DDL/schema、不要改 ProgressionRules.classifyAnomaly 的判定口径。**不得删除或跳过任何既有测试**。新入口必须是管理面（有权限门），不得对普通玩家开放。"
+    }
+  ]
+}

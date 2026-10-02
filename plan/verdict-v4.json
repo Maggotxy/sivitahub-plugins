@@ -1,0 +1,63 @@
+{
+  "done": false,
+  "impossible": false,
+  "round": 12,
+  "basis": "main @ c63f446（= 本任务分支基点，与 origin/main 同一 commit）",
+  "reason": "按 done=true 的三条必要条件逐条核验，第 ③ 条不成立，故 done=false。① 差集矩阵 v4 里「声明未接线」项 = 0 条：v3 的 6 项（G-DDL-REG / G-109 的 4 张表 / G-110 的 SEASON_ATTUNED / G-302 / G-206 / G-TEST-GATE）本轮逐条实测已全部接线（见 plan/gap-matrix-v4.md 的「与 v3 的差异」表与 V-01..V-19）。81 张 DDL 表零消费者 = 0（DDL_CONSUMER_GATE=GREEN，豁免 0 条），代码引用但 DDL 无 = 0（DDL_REGISTRATION_GATE=GREEN）。② 八门在当前 main 上全绿：**成立**。采信 `sn=cnb-ihu-1k3ug6u6p`（push 事件，sha=c63f446a4834e126849454e5b17f3cf6076294db，与当前 main HEAD 同一 commit），status=success，11 格全 success：GATE_SELFTEST=GREEN(PASS=67 FAIL=0) / RESOURCE_PACK_GATE=GREEN(RUN=8) / DDL 表数 81 / DDL_CONSUMER_GATE=GREEN / DDL_REGISTRATION_GATE=GREEN / CMD_REFERENCE_GATE=GREEN / COMPILE_GATE=GREEN(BUILD_EXIT=0 SECONDS=105 TASKS_DONE=28) / TEST_GATE=GREEN(SUM tests=1081 failed=0 errors=0 skipped=2 modules=26, NO_XML=0, ENV_ANNOTATIONS=8, EXCLUDED_TAG_SEEN_IN_LOG=26) / PACKAGE_GATE=GREEN(JAR_COUNT=56 JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)。③ 剩余问题只有 REQUIRES_HUMAN：**不成立**。G-302 残留的 2 个测试类（MobRewardAsyncLifecycleContractTest / PetRevivalLifecycleContractTest）的每个 @Test 断言全部是 source.contains(...) / indexOf() 的跨文件源码字符串比较，既无行为断言也不执行任何外部脚本，属可派工的实现工作，不是人类取舍；G-ANOMALY-ACK（ProgressionAnomalyService 读侧零消费者）才是 REQUIRES_HUMAN，但它属「存疑」不属「声明未接线」，因此不能作为剩余问题只有 REQUIRES_HUMAN 的依据。",
+  "condition_1_no_declared_unwired": true,
+  "condition_1_note": "差集矩阵 v4 的判定列里「声明未接线」= 0 条。存疑 2 条：G-ANOMALY-ACK（读侧零消费者）、G-302（2 个纯源码字符串断言测试）。",
+  "condition_2_gates_green_on_current_main": true,
+  "condition_2_evidence": "sn=cnb-ihu-1k3ug6u6p (event=push, sha=c63f446, status=success, 11/11 stage success)",
+  "condition_3_only_requires_human_remains": false,
+  "condition_3_note": "G-302 的 2 个测试类是可由 CNB NPC 独立完成的实现工作（把它们迁移成行为断言或纳入 scripts/source-contract-specs/all.json 规格），不需要人类决策。",
+  "remaining": 2,
+  "remaining_ids": [
+    "G-302-2classes(纯源码字符串断言：plugins/rpg-mobs/.../MobRewardAsyncLifecycleContractTest、plugins/rpg-pets/.../PetRevivalLifecycleContractTest)",
+    "G-ANOMALY-ACK(ProgressionAnomalyService 读侧 pending(UUID)/pending(int)/acknowledge 零 src/main 消费者)"
+  ],
+  "needs_human": [
+    "G-ANOMALY-ACK：rpg_progression_anomalies 的写侧已接线（JdbcProfileService.java:602 UPDATE / :608 INSERT，由 recordAnomalyIfUninterpretable 在每次 load() 读到不可解释档案时触发），但 [H] 复核出口 ProgressionAnomalyService.pending(UUID)/pending(int)/acknowledge(UUID,String) 在 src/main 零调用点，运行期不可达。请人类选一条：(a) 补一个管理面入口（例如 /rpgadmin 的一条子命令，带 reviewers 署名），(b) 认定「Phase 1 的人工复核走 SQL 即可」并把读侧方法标注为预留，(c) 要求把读侧方法一并删除以避免留死代码。",
+    "G-302 的 2 个测试类修法需要确认范围：可选 (a) 迁移到 scripts/source-contract-specs/all.json 规格（断言真脚本退出码），(b) 改写为内存/夹具行为断言（需先把被测类从 Bukkit 静态调用中解耦）。两者工作量差异较大，若人类无所谓走 (a) 即可，若要求 [T] 必须真执行行为则走 (b)。",
+    "H-001 原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/maintain-world-coverage.sh（生产机写操作，L-006）。",
+    "U-003 纯原版客户端能否真握手进服，需真实 Paper + 真实客户端（生产机只读，REQUIRES_HUMAN）。",
+    "W7-A2 遗留的 4 条 unproven（G-207 计数器是内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）都需要真实 Paper 运行环境，属 [R] 级证据，本仓（无 server/）无法自行取得。"
+  ],
+  "gates": {
+    "evidence_sn": "cnb-ihu-1k3ug6u6p",
+    "evidence_sha": "c63f446a4834e126849454e5b17f3cf6076294db",
+    "evidence_event": "push",
+    "evidence_relation": "sha 与当前 main HEAD / 本任务基点 同一 commit；git merge-base HEAD origin/main 成立",
+    "prepare_downloader": "GREEN（stage-0 success）",
+    "gate_selftest": "GREEN（PASS=67 FAIL=0）",
+    "ddl_consumer": "GREEN（DDL 表数 81 / 豁免 0 条 / 零消费者 0 张）",
+    "ddl_registration": "GREEN（反向：代码引用的 81 个 rpg_* 表名全部在 DDL 里）",
+    "cmd_reference": "GREEN（已注册指令 43 条 / 豁免 9 条）",
+    "resource_pack": "GREEN（RUN=8 SKIPPED=0）",
+    "compile": "GREEN（BUILD_EXIT=0 SECONDS=105 TASKS_DONE=28）",
+    "test": "GREEN（SUM tests=1081 failed=0 errors=0 skipped=2 modules=26 / NO_XML modules=0 / SUMMARY_GATE=GREEN / ENV_ANNOTATIONS=8 / EXCLUDED_TAG_SEEN_IN_LOG=26 ENV_TAG_LINE=26）",
+    "assemble": "GREEN（JAR_COUNT=56 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0 / ASSEMBLE_EXIT=0）",
+    "local_rerun_limitation": "本容器无 JDK（command -v java 无输出、/usr/lib/jvm 不存在）；compile/test/assemble 不能本地复跑，只能用 CNB 门运行记录。本地可复跑且已复跑：check-ddl-consumers.sh / check-resource-pack.sh / selftest-gates.sh / check-source-contract.sh / check-config-fallbacks.sh / check-trusted-menu-holders.sh / check-repo-artifacts.sh / install-datapacks.sh --check / check-file-deps.sh，全部 exit=0。"
+  },
+  "closed_since_v3": [
+    "G-DDL-REG — rpg_skill_point_grants 已进 Database.java:398 + SchemaManifest.java:38,130,180，反向门禁 DDL_REGISTRATION_GATE 存在并 GREEN",
+    "G-TEST-GATE — 判据已修，EXCLUDED_TAG_SEEN_IN_LOG 从 0 → 26，TEST_GATE=GREEN",
+    "G-109 — 4 张 PENDING 表全部接线（rpg_market_buy_orders / rpg_progression_anomalies / rpg_support_credit_accounts / rpg_support_credit_ledger），门禁豁免清空，81 张表零消费者 0",
+    "G-110 遗留 — SEASON_ATTUNED 已由换季结算触发（JdbcSeasonSettlementService.java:351）",
+    "G-206 — datapacks/sivita-navigation/ 入仓 + install-datapacks.sh --check + check-repo-artifacts.sh + selftest-gates.sh §4c/§5/§6 接线自证",
+    "G-106 — 血契已改三转（HiddenPathRules.minimumAscension(BLOODPACT)=3），与 vanished-horizon 的 branch stage 3 一致",
+    "G-207/G-208/G-209 — 已按文档承诺值落地为显式行为 + 行为级测试",
+    "G-201/G-202/G-203 — 行为与文档已一致（W2-C1 订正 + W7-A2 落地）",
+    "G-115 — isGovernance() 已接线（CommunityRolePower.java:50,53）"
+  ],
+  "not_a_gap": [
+    "SACRIFICED — C-008 十二条状态机里的预留态；三份文档已把「献祭」落成 /legacy 的语义（EquipmentOperationKind.LEGACY 有 3 处 src/main 消费者：LegacyCommand.java:77,117,132），SACRIFICED 由 EquipmentExitPathReachabilityTest.java:103 的 assertEquals(List.of(LIFECYCLE_ONLY), productionReferences(\"SACRIFICED\")) 显式承认为预留态。把枚举预留态当缺口属造假缺口。",
+    "EquipmentOperationKind.SEASON_ATTUNEMENT 零消费者 — 刻意设计：W6-A2 明确调谐不经玩家操作 outbox（EquipmentLifecycle.afterOperation 的 case SEASON_ATTUNEMENT -> null），触发者是换季结算；EquipmentExitPathReachabilityTest.java:121-127 显式断言。",
+    "isAuthoritativeNamespace 字面量零命中 — 间接接线：实际消费点在 AuthoritativeItemPolicy.isAuthoritativeKey 内部（:86），EquipmentSecurity.java:104,114 与 ForgeListener.java:950,967 是上游消费者。"
+  ],
+  "artifacts": [
+    "plan/gap-matrix-v4.md",
+    "plan/verdict-v4.json",
+    "plan/tasks-w8.json",
+    "plan/world-state.json"
+  ]
+}
