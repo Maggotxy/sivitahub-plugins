@@ -28,7 +28,8 @@ public final class LegacyBlueprintService {
     private static final String HMAC = "HmacSHA256";
     private static final java.util.Set<String> EQUIPMENT_TYPES = java.util.Set.of("WEAPON", "ARMOR");
 
-    private final SecretKeySpec secret;
+    private final SecretKeySpec signingKey;
+    private final java.util.List<SecretKeySpec> verificationKeys;
     private final NamespacedKey marker = key("rpgitems:legacy_blueprint");
     private final NamespacedKey blueprintId = key("rpgitems:blueprint_id");
     private final NamespacedKey owner = key("rpgitems:material_owner");
@@ -39,10 +40,24 @@ public final class LegacyBlueprintService {
     private final NamespacedKey signature = key("rpgitems:blueprint_signature");
 
     public LegacyBlueprintService(byte[] signingKey) {
+        this(signingKey, java.util.List.of());
+    }
+
+    /** G-003 轮换支持：校验时接受当前密钥与被替换下来的旧密钥（新→旧）。 */
+    public LegacyBlueprintService(byte[] signingKey, java.util.List<byte[]> retiredSigningKeys) {
         if (signingKey == null || signingKey.length < 32) {
             throw new IllegalArgumentException("Blueprint signing key must contain at least 32 bytes");
         }
-        secret = new SecretKeySpec(signingKey.clone(), HMAC);
+        this.signingKey = new SecretKeySpec(signingKey.clone(), HMAC);
+        java.util.ArrayList<SecretKeySpec> accepted = new java.util.ArrayList<>(1 + retiredSigningKeys.size());
+        accepted.add(this.signingKey);
+        for (byte[] retired : retiredSigningKeys) {
+            if (retired == null || retired.length < 32) {
+                throw new IllegalArgumentException("Blueprint retired signing key must contain at least 32 bytes");
+            }
+            accepted.add(new SecretKeySpec(retired.clone(), HMAC));
+        }
+        verificationKeys = java.util.List.copyOf(accepted);
     }
 
     ItemStack create(Player player, EquipmentSnapshot source, MessageService messages, UUID blueprintIdentity) {
@@ -95,7 +110,7 @@ public final class LegacyBlueprintService {
                 return Optional.empty();
             }
             byte[] actual = Base64.getDecoder().decode(stored);
-            if (!MessageDigest.isEqual(actual, digest(canonical(data)))) return Optional.empty();
+            if (!matchesAnyKey(canonical(data), actual)) return Optional.empty();
             return Optional.of(new LegacyBlueprint(id, ownerId, sourceId, rareTrait, type, direction));
         } catch (IllegalArgumentException | NullPointerException exception) {
             return Optional.empty();
@@ -113,7 +128,20 @@ public final class LegacyBlueprintService {
                 "archetype=" + data.getOrDefault(archetype, PersistentDataType.STRING, ""));
     }
 
+    /** 新签名：只用当前密钥。 */
     private byte[] digest(String value) {
+        return digest(value, signingKey);
+    }
+
+    /** 校验：轮换集合里任意一把密钥匹配即通过。 */
+    private boolean matchesAnyKey(String value, byte[] expected) {
+        for (SecretKeySpec candidate : verificationKeys) {
+            if (MessageDigest.isEqual(digest(value, candidate), expected)) return true;
+        }
+        return false;
+    }
+
+    private static byte[] digest(String value, SecretKeySpec secret) {
         try {
             Mac mac = Mac.getInstance(HMAC);
             mac.init(secret);
