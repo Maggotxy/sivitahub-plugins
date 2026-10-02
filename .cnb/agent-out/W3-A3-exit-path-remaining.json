@@ -12,6 +12,7 @@
     "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/TerminalDropGuardTest.java",
     "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java"
   ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/25",
   "evidence": {
     "grep": [
       {
