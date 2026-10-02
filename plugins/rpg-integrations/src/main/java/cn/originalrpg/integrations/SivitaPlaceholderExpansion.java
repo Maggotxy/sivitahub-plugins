@@ -142,8 +142,10 @@ final class SivitaPlaceholderExpansion extends PlaceholderExpansion {
             SkillHudService skillHud, UUID playerId, java.util.List<SkillCooldownSnapshot> slots,
             String parameter, long now
     ) {
+        // 槽位号上限来自唯一来源 docs/reference/hud-layout.json（见 HudRailSpec），
+        // 不在这里写死 4：资源包的槽位数变了，占位符必须同步跟上。
         java.util.regex.Matcher matcher = java.util.regex.Pattern
-                .compile("skill_([1-4])_(id|name|cooldown|timer|status|glyph|selected)")
+                .compile("skill_(1-" + HudRailSpec.slotCount() + ")_(id|name|cooldown|timer|status|glyph|selected)")
                 .matcher(parameter);
         if (!matcher.matches()) return null;
         int index = Integer.parseInt(matcher.group(1)) - 1;
