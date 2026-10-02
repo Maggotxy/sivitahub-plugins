@@ -88,11 +88,11 @@
         "output_tail": "REPO_ARTIFACT_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / install-datapacks --check OK / SOURCE_CONTRACT_CHECKS=185 SPECS=25 GREEN / CONFIG_FALLBACK_GATE=GREEN"
       },
       {
-        "cmd": "./gradlew --no-daemon compileJava",
+        "cmd": "CNB 质量门（push 触发 cnb-7on-1k3u57jfa，sha=018a48a）",
         "expected": 0,
-        "exit": null,
-        "result": "BLOCKED_ENV",
-        "output_tail": "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH. —— 本沙箱无 JDK（apt 也没有 openjdk 包），Java 编译/单测必须在 CNB 编译门与测试门复验"
+        "exit": 0,
+        "result": "PASS_IN_CI",
+        "output_tail": "status=success；门禁自测 PASS=29 FAIL=0 GATE_SELFTEST=GREEN；COMPILE_GATE=GREEN（BUILD SUCCESSFUL in 2m16s，含 :plugins:rpg-integrations:compileJava）；TEST_GATE=GREEN（SUM tests=1026 failed=0 errors=0 skipped=2 modules=26，含 plugins/rpg-integrations tests=7 failed=0 —— 新增的 HudRailSpecTest 2 个用例通过）；PACKAGE_GATE=GREEN。本沙箱无 JDK（JAVA_HOME 未设置、apt 无 openjdk 包），编译与单测因此只在 CNB 侧自证。"
       },
       {
         "cmd": "python3 复核 生成器输出 vs 入库的大幅图标/选中框",
@@ -106,8 +106,7 @@
   "unproven": [
     "[R] Runtime：右侧轨与计分板/ActionBar/聊天不遮挡，只在 generate_betterhud_panels.py 的 safe_area_review() 里按 GUI 缩放 2/3/4 与 1408x792、1280x720、960x540 做几何断言（不越界、离边缘 >=8px），没有 Paper + BetterHud 真机截图。",
     "[R] Runtime：BetterHud 是仓外运行时（server/config-templates/BetterHud/ 与 plugins/BetterHud/build.zip 均在 .gitignore 外），布局 YAML 不在本仓，因此本任务无法直接改 BetterHud 布局 YAML；新增的图标指纹判据会在打包时拒绝「pack 图标与 reviewed 源不一致」，但「BetterHud YAML 是否引用了这些图标」需在维护窗口按 docs/RESOURCE_PACK_QA.md 的流程复验。",
-    "[H] Human：18x18 图标 + 18x18 选中框 + 22px 影格在玩家实际分辨率下的可读性与层级，需要两名玩家在 GUI 缩放 2/3/4 下目视确认。",
-    "Java 侧新增文件（HudRailSpec / HudRailSpecTest）与 SivitaPlaceholderExpansion 的一行改动未在本沙箱编译（无 JDK）。正则语义已用 Python 与 Node 的等价实现（DOTALL + 非贪婪）逐用例验证一致，但真正的编译绿必须由 CNB 编译门给出。"
+    "[H] Human：18x18 图标 + 18x18 选中框 + 22px 影格在玩家实际分辨率下的可读性与层级，需要两名玩家在 GUI 缩放 2/3/4 下目视确认。"
   ],
   "blockers": [],
   "risks": [
@@ -117,7 +116,7 @@
     "HudRailSpec 在运行时读 docs/reference/hud-layout.json；发布包若不携带 docs/ 目录，它会回落到 reviewed 常量 4（行为安全，但\"唯一来源\"在运行时失效）。当前部署流程不删除仓库 docs/，暂不构成问题。"
   ],
   "next_steps": [
-    "在 CNB 触发 compile + test 门，确认 rpg-integrations 的 HudRailSpec/HudRailSpecTest 编译与单测通过（本沙箱无 JDK 无法自证）。",
+    "CNB 质量门已绿（cnb-7on-1k3u57jfa，status=success，COMPILE/TEST/PACKAGE 三绿）。仍需在维护窗口做 [R]/[H] 证据（见下）。",
     "维护窗口内按 docs/RESOURCE_PACK_QA.md：停服 -> 跑 generate_betterhud_panels.py 刷新 server/config-templates/BetterHud/assets -> 启动 Paper 让 BetterHud 重新生成 build.zip/pack 字体 -> sync-betterhud-pack.sh -> resource-pack/build.sh（含新门禁）-> verify-installation.sh。",
     "两名玩家在 GUI 缩放 2/3/4 下复验右侧轨与计分板/ActionBar/聊天不遮挡（[R] + [H] 证据），并在 docs/COMPLETION_AUDIT.md 的对应行更新。"
   ]
