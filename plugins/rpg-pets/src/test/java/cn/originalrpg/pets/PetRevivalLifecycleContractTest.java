@@ -5,74 +5,66 @@ import org.junit.jupiter.api.Test;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-final class PetRevivalLifecycleContractTest {
+/**
+ * G-302 第二批：本类原用 {@code Files.readString} 读生产源码做字符串断言，
+ * 现改为「构建/接线契约测试」。
+ *
+ * <p><b>为什么不是行为测试</b>：被断言的不是运行期行为，而是生产代码里某段调用序列的先后、
+ * 某个片段必须/不得出现，以及构建文件绑定到哪个运行时制品。生产类 {@code RpgPetsPlugin}
+ * 是 Bukkit 插件门面（{@code JavaPlugin} / 需要真实 Paper 服务器与 MyPet 运行时），
+ * 本仓既无 {@code MockBukkit} 也无 {@code Mockito}，且复苏只在本服运行时触发；其中
+ * 「构建必须指向本机 vendor 的 MyPet-4.0.0-Sivita.jar」是构建期约束，运行期不可观测。</p>
+ *
+ * <p><b>落地方式</b>（G-302 要求②「移到 scripts/ 下的静态检查」）：断言逐条迁移到声明式规格
+ * {@code scripts/source-contract-specs/all.json}，由 {@code scripts/check-source-contract.sh}
+ * 执行；每个测试方法真实执行门禁并绑定到同名契约条目，覆盖不降级。门禁自身有负向自测
+ * （{@code scripts/selftest-gates.sh} §4b），改坏生产代码或构建文件同样会让本类变红。</p>
+ */
+class PetRevivalLifecycleContractTest {
+
+    private static final String SPEC_KEY = "plugins/rpg-pets/src/test/java/cn/originalrpg/pets/PetRevivalLifecycleContractTest.java";
+
     @Test
     void revivalUsesDurableSagaInsteadOfDebitThenRefund() throws Exception {
-        String source = source();
-
-        assertTrue(source.contains("petRevivals.begin(new PetRevivalRequest"));
-        assertTrue(source.contains("getRepository().updatePet(snapshot)"));
-        assertTrue(source.contains("petRevivals.complete(intent.operationId()"));
-        assertTrue(source.contains("recoverRevivals(playerId, true)"));
-        assertTrue(source.contains("recoverRevivals(pet.getOwner().getUniqueId(), false)"));
-        assertFalse(source.contains("economy.burn(playerId, cost"));
-        assertFalse(source.contains("refundRevive("));
+        assertContractHolds("revivalUsesDurableSagaInsteadOfDebitThenRefund");
     }
 
     @Test
     void everyFutureToBukkitBridgePassesThroughDisableAwareDispatcher() throws Exception {
-        String source = source();
-
-        assertFalse(source.contains("whenComplete((result, error) -> getServer().getScheduler().runTask"));
-        assertFalse(source.contains("whenComplete((progress, error) -> getServer().getScheduler().runTask"));
-        assertTrue(source.contains("private void runMain(Runnable action)"));
-        assertTrue(source.contains("if (!isEnabled()) return;"));
-        assertTrue(source.contains("if (isEnabled()) action.run();"));
-        assertTrue(source.contains("sessionTokens.put(playerId, token)"));
-        assertTrue(source.contains("session.token().equals(sessionTokens.get(session.playerId()))"));
-        assertTrue(source.contains("private final Set<UUID> revivalPlayerQueries"));
-        assertTrue(source.contains("private final Set<UUID> revivalWrites"));
-        assertFalse(source.contains("private final Set<UUID> pendingRevives"));
-        assertTrue(source.contains("maximumPersistedHealth(stored)"));
-        assertTrue(source.contains("if (!isEnabled()) {\n                        revivalWrites.remove(intent.operationId());"));
+        assertContractHolds("everyFutureToBukkitBridgePassesThroughDisableAwareDispatcher");
     }
 
     @Test
     void oldQuitAndCallbacksCannotRevokeOrActOnANewerAuthenticatedConnection() throws Exception {
-        String source = source();
-
-        assertTrue(source.contains("private final Map<UUID, AuthenticatedSession> authenticatedPlayers"));
-        assertTrue(source.contains("new AuthenticatedSession(event.player(), token)"));
-        assertTrue(source.contains("session.player() != player"));
-        assertTrue(source.contains("authenticatedPlayers.remove(playerId, session)"));
-        assertTrue(source.contains("sessionTokens.remove(playerId, session.token())"));
-        assertTrue(source.contains("Bukkit.getPlayer(player.getUniqueId()) == player"));
-        assertFalse(source.contains("authenticatedPlayers.remove(playerId);"));
-        assertFalse(source.contains("sessionTokens.remove(playerId);"));
-        assertTrue(source.contains("catch (IllegalStateException ignored)"));
+        assertContractHolds("oldQuitAndCallbacksCannotRevokeOrActOnANewerAuthenticatedConnection");
     }
 
     @Test
     void buildTargetsTheExactRuntimeMyPetArtifact() throws Exception {
-        Path root = repositoryRoot();
-        String build = Files.readString(root.resolve("plugins/rpg-pets/build.gradle.kts"), StandardCharsets.UTF_8);
-
-        assertTrue(build.contains("MyPet-4.0.0-Sivita.jar"));
-        assertFalse(build.contains("MyPet-4.0.0.jar\""));
+        assertContractHolds("buildTargetsTheExactRuntimeMyPetArtifact");
     }
 
-    private static String source() throws Exception {
-        return Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-pets/src/main/java/cn/originalrpg/pets/RpgPetsPlugin.java"),
-                StandardCharsets.UTF_8);
+    /** 真实执行源码契约门禁；退出码非 0 即失败，并打印门禁给出的具体违例。 */
+    private static void assertContractHolds(String method) throws Exception {
+        Path root = repositoryRoot();
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(), SPEC_KEY, method)
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(), "源码契约门禁失败（" + method + "）：\n" + output);
     }
 
     private static Path repositoryRoot() {
-        Path current = Path.of("").toAbsolutePath();
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null && !Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
             current = current.getParent();
         }

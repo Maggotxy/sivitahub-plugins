@@ -479,13 +479,12 @@
       "plugins/rpg-items/.../ForgeOperationIntegrationContractTest（含段内 substring + getItemInMainHand 排除）",
       "plugins/rpg-items/.../EquipmentExitPathReachabilityTest（部分是真实行为断言，部分是全仓结构扫描）",
       "plugins/rpg-market/.../MailboxDeliveryIntegrationContractTest（顺序链跨方法体）",
-      "plugins/rpg-mobs/.../MobRewardAsyncLifecycleContractTest（含多行 forbidden 字面量）",
-      "plugins/rpg-pets/.../PetRevivalLifecycleContractTest（含 build.gradle.kts 构建契约断言）",
       "plugins/rpg-skills/.../SkillAsyncLifecycleContractTest（含 || 备选断言）",
       "plugins/rpg-world/.../SurvivalPerformanceConfigurationContractTest（已 @Tag(env)，读 server/ 部署产物）",
       "plugins/rpg-guide/.../GuidePlayerActionContractTest（部分是真实 plugin.yml 解析，已保留在规格中）",
       "plugins/rpg-performance/.../PerformanceStatusStoreTest（本就是真实 IO 行为测试，只是用 Files.readString 读自己写的文件，非伪测试）",
       "plugins/rpg-items/.../EquipmentSigningMaterialTest（W1-A3 已是行为测试）"
-    ]
+    ],
+    "_w9a1_note": "W9-A1（本任务）完成最后 2 个纯源码字符串测试类：plugins/rpg-mobs/.../MobRewardAsyncLifecycleContractTest（含多行 forbidden 字面量与 indexOf 顺序链）与 plugins/rpg-pets/.../PetRevivalLifecycleContractTest（含 build.gradle.kts 构建契约断言）逐条迁移到 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh，测试类改为真实执行门禁的包装器；indexOf 顺序链映射为 ordered 契约，build.gradle.kts 作为被断言文件登记进规格。两个分支均无 MockBukkit/Mockito 且生产类依赖真实 Plugin/Bukkit.getScheduler()，无法行为化。"
   }
 }
