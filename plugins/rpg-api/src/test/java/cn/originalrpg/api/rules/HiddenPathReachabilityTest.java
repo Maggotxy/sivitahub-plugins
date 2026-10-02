@@ -42,20 +42,18 @@ class HiddenPathReachabilityTest {
     }
 
     @Test
-    void shippedBloodpactSkillGateIsSeenAsUnreachable() {
-        // 真实配置形态：技能门 3 > 路线门 2 ⇒ 「配置错」被规则层判为 SKILL 矛盾。
-        List<HiddenPathReachability.Precondition> preconditions = List.of(
-                skill("vanished-horizon", 3, 20),
-                dungeon("storm-vault-hidden", 28, HiddenPathReachability.Requirement.HIDDEN_DUNGEON),
-                dungeon("storm-vault", 22, HiddenPathReachability.Requirement.TICKET_SOURCE),
-                dungeon("silent-thunder", 28, HiddenPathReachability.Requirement.SKILL_BOOK));
+    void aStageThreePrerequisiteIsSeenAsUnreachableForATwoAscensionRoute() {
+        // G-106 的判据：前置技能要到 3 转 → 该前置永远晚于 2 转路线开放。
+        int gate = ProgressionRules.effectiveLevel(3, 20);
+        assertTrue(gate > HiddenPathReachability.routeCeiling(HiddenPath.BLOODPACT));
         assertEquals(Set.of(HiddenPathReachability.Requirement.SKILL),
-                HiddenPathReachability.unattainable(HiddenPath.BLOODPACT, preconditions));
+                HiddenPathReachability.unattainable(HiddenPath.BLOODPACT,
+                        List.of(skill("vanished-horizon", 3, 20))));
     }
 
     @Test
-    void loweringTheSkillGateToTwoMakesBloodpactReachable() {
-        // 判定的「配置错」修法：把技能门降到 2，血契全部前置即可达。
+    void aTwoAscensionPrerequisiteMakesBloodpactReachable() {
+        // 判定的「配置错」修法（已落地在 config.yml）：技能门降到与路线一致。
         List<HiddenPathReachability.Precondition> preconditions = List.of(
                 skill("vanished-horizon", 2, 20),
                 dungeon("storm-vault-hidden", 28, HiddenPathReachability.Requirement.HIDDEN_DUNGEON),
@@ -76,18 +74,23 @@ class HiddenPathReachabilityTest {
     }
 
     @Test
-    void g106ShapeIsRejected() {
+    void g106ShapeIsRejectedByBothRoutes() {
         // G-106 原始形态：路线门 2 转，但前置技能要到 3 转才能学。
-        assertEquals(2, HiddenPathRules.minimumAscension(HiddenPath.TALISMAN));
-        List<HiddenPathReachability.Precondition> stageThreeSkill = List.of(skill("vanished-horizon", 3, 20));
-        Set<HiddenPathReachability.Requirement> blockers =
-                HiddenPathReachability.unattainable(HiddenPath.TALISMAN, stageThreeSkill);
-        assertEquals(Set.of(HiddenPathReachability.Requirement.SKILL), blockers);
+        // 同一形态对两条路线都必须成立 —— 判据不认具体路线，只认「前置晚于路线」。
+        for (HiddenPath path : HiddenPath.values()) {
+            assertEquals(2, HiddenPathRules.minimumAscension(path));
+            List<HiddenPathReachability.Precondition> stageThreeSkill =
+                    List.of(skill("vanished-horizon", 3, 20));
+            Set<HiddenPathReachability.Requirement> blockers =
+                    HiddenPathReachability.unattainable(path, stageThreeSkill);
+            assertEquals(Set.of(HiddenPathReachability.Requirement.SKILL), blockers, path.name());
 
-        Map<HiddenPathReachability.Requirement, Set<String>> details =
-                HiddenPathReachability.unattainableDetails(HiddenPath.TALISMAN, stageThreeSkill);
-        assertEquals(Set.of("vanished-horizon"), details.get(HiddenPathReachability.Requirement.SKILL));
-        assertFalse(details.isEmpty());
+            Map<HiddenPathReachability.Requirement, Set<String>> details =
+                    HiddenPathReachability.unattainableDetails(path, stageThreeSkill);
+            assertEquals(Set.of("vanished-horizon"),
+                    details.get(HiddenPathReachability.Requirement.SKILL), path.name());
+            assertFalse(details.isEmpty());
+        }
     }
 
     @Test
