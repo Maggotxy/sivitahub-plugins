@@ -3,11 +3,13 @@ package cn.originalrpg.core.persistence;
 import cn.originalrpg.api.model.EquipmentOperationKind;
 import cn.originalrpg.api.rules.EquipmentLifecycle;
 import cn.originalrpg.api.rules.EquipmentLifecycle.State;
+import cn.originalrpg.api.rules.SeasonAttunementRules;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -80,6 +82,77 @@ final class EquipmentStateLedger {
         if (current != State.LISTED) return false;
         update(connection, itemId, State.UNBOUND, seller, "MARKET_RETURN");
         return true;
+    }
+
+    /**
+     * C-008 第五条退出路径：赛季调谐。
+     *
+     * <p>与前四条一样，唯一权威是 {@link EquipmentLifecycle}：这里只做
+     * 「读当前态 -> 问状态机合不合法 -> 写回 SEASON_ATTUNED」，不自己判迁移。
+     * 调谐不改持有者，身份收口后仍属于原玩家，交还走唯一市场邮箱（C-009）。</p>
+     *
+     * <p>返回 {@code null} 表示拒绝：终态（已分解/传承/销毁）、已隔离（C-013 冻结）
+     * 或状态机不认可该迁移时一律不写库，失败关闭。</p>
+     */
+    State attune(Connection connection, UUID itemId, UUID owner, String seasonId) throws SQLException {
+        State current = select(connection, itemId);
+        if (current == null) {
+            // 未登记的历史身份：按「首次拥有即绑定」的既有口径补一行，再走同一判定。
+            if (!EquipmentLifecycle.isValidTransition(State.BOUND, State.SEASON_ATTUNED)) return null;
+            upsert(connection, itemId, State.SEASON_ATTUNED, owner, attuneOperation(seasonId));
+            return State.SEASON_ATTUNED;
+        }
+        if (!SeasonAttunementRules.attunable(current)) return null;
+        update(connection, itemId, State.SEASON_ATTUNED, owner, attuneOperation(seasonId));
+        return State.SEASON_ATTUNED;
+    }
+
+    /**
+     * 已调谐装备在赛季结算中的处置记录（C-010）：原持有者保留。
+     *
+     * <p>返回空表示这件身份当前不是「可交还的调谐态」——例如已经被分解/销毁，
+     * 或从未调谐。调用方据此决定是否投递，而不是凭状态猜测。</p>
+     */
+    Optional<UUID> attunedOwner(Connection connection, UUID itemId) throws SQLException {
+        State current = select(connection, itemId);
+        if (current != State.SEASON_ATTUNED) return Optional.empty();
+        try (PreparedStatement query = connection.prepareStatement(
+                "SELECT owner_uuid FROM rpg_equipment_states WHERE item_id = ?")) {
+            query.setString(1, itemId.toString());
+            try (ResultSet result = query.executeQuery()) {
+                if (!result.next()) return Optional.empty();
+                String owner = result.getString(1);
+                return owner == null ? Optional.empty() : Optional.of(UUID.fromString(owner));
+            }
+        }
+    }
+
+    /** 调谐行的操作令牌：{@code last_operation} 列宽 24，因此只留赛季标识的稳定截断。 */
+    private static String attuneOperation(String seasonId) {
+        String normalized = seasonId == null ? "" : seasonId.strip().toUpperCase(java.util.Locale.ROOT);
+        String token = "SEASON_ATTUNE:" + normalized;
+        return token.length() <= 24 ? token : token.substring(0, 24);
+    }
+
+    /** 赛季结算：调谐态的装备交还给原持有者（不换主，只重新进入持有）。 */
+    State releaseAttuned(Connection connection, UUID itemId) throws SQLException {
+        State current = select(connection, itemId);
+        if (current == null) return null;
+        if (current != State.SEASON_ATTUNED) return current;
+        if (EquipmentLifecycle.isValidTransition(current, State.BOUND)) {
+            try (PreparedStatement update = connection.prepareStatement("""
+                    UPDATE rpg_equipment_states SET state = ?, last_operation = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE item_id = ?
+                    """)) {
+                update.setString(1, State.BOUND.name());
+                update.setString(2, "SEASON_RELEASE");
+                update.setString(3, itemId.toString());
+                update.executeUpdate();
+                return State.BOUND;
+            }
+        }
+        return current;
     }
 
     /**

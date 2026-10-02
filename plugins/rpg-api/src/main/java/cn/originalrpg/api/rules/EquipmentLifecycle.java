@@ -89,6 +89,9 @@ public final class EquipmentLifecycle {
             // /destroy 需要再确认一次，落成终态 DESTROYED。
             case SALVAGE -> State.SALVAGED;
             case DESTROY -> State.DESTROYED;
+            // W6-A2：赛季调谐不经由玩家操作 outbox 产出。它的写入方是换季结算
+            // （EquipmentStateLedger#attune），那里直接读当前态并问 isValidTransition。
+            case SEASON_ATTUNEMENT -> null;
             case FORGE -> throw new IllegalStateException("handled above");
         };
         return current == next || isValidTransition(current, next) ? next : null;
@@ -107,6 +110,9 @@ public final class EquipmentLifecycle {
         return switch (kind) {
             case REFINEMENT, LIMIT_BREAK, FORGE -> State.CREATED;
             case UNBIND, SALVAGE, LEGACY, DESTROY -> State.BOUND;
+            // W6-A2：赛季调谐不是玩家在持有物上发起的操作，没有可推断的种子态；
+            // 它的起点由换季结算从账本读出（EquipmentStateLedger#attune）。
+            case SEASON_ATTUNEMENT -> null;
         };
     }
 
@@ -137,29 +143,19 @@ public final class EquipmentLifecycle {
 
     public static boolean requiresExitPath() {
         // C-008: every persistently farmable high-value item type must declare at least one exit
-        // TODO(Phase 7 / codex/endgame-pipeline)：C-008 列出的第五条退出路径
-        // 「赛季调谐」（SEASON_ATTUNED）在当前 Phase 下没有触发者。判定依据
-        // （全部可复现，见 EquipmentExitPathReachabilityTest 的「当前无入口」断言）：
-        //   - plugins/*/src/main 里 grep 'SEASON_ATTUNED' 只命中本文件；
-        //   - EquipmentOperationKind 里没有任何 kind 会产出 SEASON_ATTUNED 结果态；
-        //   - rpg-items 的 plugin.yml / config.yml / 插件启动路径都没有占位入口。
-        // 依赖顺序（docs/planning/long-term-game-economy-v1.yaml 的 phases）：
-        //   Phase 3 仿真器给出装备 创建/退出 比值结论
-        //     -> Phase 4 codex/equipment-exit-market-v2 定调谐的产物语义
-        //     -> Phase 7 codex/endgame-pipeline 提供内容触发者（换季调谐事件）。
-        // 因此本任务（W3-A3-exit-path-remaining）不硬造指令，登记为待接入。
-        //
-        // 接入合同（Phase 7 必须逐条满足，否则不要删本 TODO）：
-        //   1. 复用本状态机：给 EquipmentOperationKind 追加调谐 kind，或新增一个
-        //      调用 afterOperation 的调谐服务；禁止新造第二套装备状态机。
-        //   2. 结果态必须是 SEASON_ATTUNED，且 afterOperation 要能真的返回它
-        //      （SEASON_ATTUNED 当前只出现在 isValidTransition 的目标位）。
-        //   3. 调谐的换季结算必须走 SeasonSettlementService（C-010），不得只改
-        //      season-id；调谐产物不得成为 support_credit 的兑换出口（C-012：
-        //      season_attunement 在 forbidden_sinks 里）。
-        //   4. 交付必须经唯一托管市场邮箱（C-009），与 /salvage、/destroy 同一通道。
-        //   5. 接线同时删除本 TODO，并同步更新 EquipmentExitPathReachabilityTest
-        //      的「当前无入口」断言与 plugin.yml / config.yml 的占位面断言。
+        // W6-A2 已接上第五条「赛季调谐」：触发者是换季结算，不是玩家指令。
+        // 文档依据 —— docs/LONG_TERM_GAME_ECONOMY_PLAN.md 第 3 节把调谐列为装备
+        // 「退出四层」的第③层；docs/CODEX_LONG_TERM_EXECUTION_PLAN.md Phase 4 把它归入
+        // 装备退出工作。装备插件的 plugin.yml / config.yml 保持零入口（见
+        // EquipmentExitPathReachabilityTest 的玩家可见面断言）。
+        // 接线点（consumer）：
+        //   - cn.originalrpg.core.persistence.EquipmentStateLedger#attune
+        //     （唯一权威状态机消费者，走 isValidTransition + SEASON_ATTUNED 结果态）
+        //   - cn.originalrpg.core.persistence.JdbcSeasonAttunementService
+        //     （换季结算调用，Kill Switch season.settlement.enabled，配置
+        //       season-attunement.enabled 默认关，L-009）
+        // 约束不变：产物不得成为 support_credit 的兑换出口（C-012 的
+        // forbidden_sinks 含 season_attunement）；交付经唯一托管市场邮箱（C-009）。
         return true;
     }
 }

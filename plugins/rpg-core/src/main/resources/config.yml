@@ -112,6 +112,12 @@ season-expedition:
   # merit, Starlight, items or combat power. It is a collection/ranking score.
   weekly-honor: 100
   server-first-bonus: 50
+season-attunement:
+  # C-008 第五条退出路径：赛季调谐。触发者是换季结算（C-010），不是玩家指令
+  # （docs/LONG_TERM_GAME_ECONOMY_PLAN.md 第 3 节把调谐列为装备「退出四层」的第③层）。
+  # L-009：能力接线但不启用 —— 默认关。关闭时结算一次查询都不做，旧行为零变化。
+  # 启用前需先通过换季事务门禁（season.settlement.enabled 与 20 人以上真实运营 [H] 门）。
+  enabled: false
 chapters:
   # Chapter changes are manual and monotonic. Dates never open power by themselves;
   # operators advance only after economy, balance and stability gates pass.
