@@ -14,6 +14,19 @@ HUD_GLYPH_COUNT=11
 HUD_GLYPH_SIZE=9
 CLASS_SKILL_GLYPH_COUNT=48
 JOURNEY_GLYPH_COUNT=8
+# 右侧战斗轨尺寸契约。唯一的真相源是 docs/reference/hud-layout.json，
+# 下面这些常量由 resource-pack/tools/hud-layout.mjs 在打包时逐条比对；
+# 改尺寸必须同时改唯一来源，单边改动会让打包直接失败。
+HUD_LAYOUT_JSON="$PROJECT_DIR/docs/reference/hud-layout.json"
+HUD_PANEL_WIDTH=26
+HUD_PANEL_HEIGHT=91
+HUD_ICON_SIZE=18
+HUD_ICON_COUNT=49
+HUD_BADGE_WIDTH=29
+HUD_BADGE_HEIGHT=26
+HUD_MANA_WIDTH=1
+HUD_MANA_HEIGHT=87
+HUD_SLOT_COUNT=4
 MOB_MODEL="$PROJECT_DIR/server/config-templates/BetterModel/models/blood_moon_resonant_husk.bbmodel"
 MOB_REVIEW="$SCRIPT_DIR/ai/output/review/mobs/blood_moon_resonant_husk-turnaround.png"
 DUNGEON_MODEL_IDS=(
@@ -338,6 +351,13 @@ jq -e '.model
     exit 1
 }
 
+# HUD 尺寸契约门禁（唯一来源 docs/reference/hud-layout.json）：
+#   ① Python 侧核 PNG 头 + BetterHud 字体定义的覆盖；
+#   ② Node 侧核上面的 shell 常量与原始图集常量。
+# 这两条必须在「素材已生成」之后、打包之前跑，否则断言的是上一轮的产物。
+python3 "$SCRIPT_DIR/tools/verify_hud_layout.py"
+node "$SCRIPT_DIR/tools/hud-layout.mjs" "$SCRIPT_DIR/build.sh"
+
 jq -e '.pack.pack_format == 88
         and .pack.supported_formats == [88, 88]
         and .pack.min_format == 88
@@ -346,10 +366,16 @@ jq -e '.pack.pack_format == 88
     echo "pack.mcmeta must declare an exact, self-contained 26.2 resource pack" >&2
     exit 1
 }
+# PNG IHDR 里的宽高：从唯一来源读出十六进制，避免把 26x91 写死在两个地方。
+HUD_PANEL_SIZE_HEX=$(python3 -c '
+import json, struct, pathlib, sys
+layout = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))["rail"]
+sys.stdout.write(struct.pack(">II", layout["width"], layout["height"]).hex())
+' "$HUD_LAYOUT_JSON")
 [[ -s "$HUD_PANEL_SOURCE" && -s "$HUD_PANEL_PACK" \
-    && "$(od -An -tx1 -j16 -N8 "$HUD_PANEL_SOURCE" | tr -d ' \n')" == "0000001a0000005b" \
-    && "$(od -An -tx1 -j16 -N8 "$HUD_PANEL_PACK" | tr -d ' \n')" == "0000001a0000005b" ]] || {
-    echo "Sivita BetterHud rail must be an exact 26x91 RGBA PNG in source and generated pack" >&2
+    && "$(od -An -tx1 -j16 -N8 "$HUD_PANEL_SOURCE" | tr -d ' \n')" == "$HUD_PANEL_SIZE_HEX" \
+    && "$(od -An -tx1 -j16 -N8 "$HUD_PANEL_PACK" | tr -d ' \n')" == "$HUD_PANEL_SIZE_HEX" ]] || {
+    echo "Sivita BetterHud rail must be an exact ${HUD_PANEL_WIDTH}x${HUD_PANEL_HEIGHT} RGBA PNG in source and generated pack" >&2
     exit 1
 }
 for hud_asset in \
@@ -385,6 +411,27 @@ for hud_control_asset in cast_zh cycle_zh cast_en cycle_en; do
         echo "BetterHud control glyph is stale relative to its reviewed source: $hud_control_asset" >&2
         exit 1
     }
+done
+# 语义图标同样从 reviewed 源生成。W7-A4 之前这一段缺失：pack 里的
+# glyph_skill_*/glyph_class_* 只被「文件存在」检查过，与生成器的输出
+# 可以静默漂移（实测确实有 7 张是生成器输出的 1px 裁剪版）。
+# 这里复用已验证过的指纹机制，把「图标是否是 reviewed 源」变成打包期判据。
+for hud_icon_kind in skill class; do
+    compgen -G "$PROJECT_DIR/server/config-templates/BetterHud/assets/sivita_icon_${hud_icon_kind}_*.png" >/dev/null || {
+        echo "reviewed BetterHud ${hud_icon_kind} icons are missing from the config template" >&2
+        exit 1
+    }
+    for source_icon in "$PROJECT_DIR"/server/config-templates/BetterHud/assets/sivita_icon_${hud_icon_kind}_*.png; do
+        icon_id=$(basename "$source_icon" .png)
+        icon_id=${icon_id#sivita_icon_}
+        source_icon_fingerprint=$("$JAVA_BIN" "$SCRIPT_DIR/tools/PngFingerprint.java" "$source_icon")
+        generated_icon_fingerprint=$("$JAVA_BIN" "$SCRIPT_DIR/tools/PngFingerprint.java" \
+            "$SCRIPT_DIR/assets/betterhud/textures/glyph_${icon_id}.png")
+        [[ "$source_icon_fingerprint" == "$generated_icon_fingerprint" ]] || {
+            echo "BetterHud semantic icon is stale relative to its reviewed source: $icon_id" >&2
+            exit 1
+        }
+    done
 done
 if rg -l 'test_hud|entity_health_popup|default_compass' "$SCRIPT_DIR/assets/betterhud" >/dev/null; then
     echo "BetterHud default demo assets must not enter the production resource pack" >&2

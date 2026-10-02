@@ -1,0 +1,98 @@
+{
+  "$comment": [
+    "战斗 HUD 的唯一尺寸真相源（single source of truth）。",
+    "docs/hud-imagegen-prompt-v2.md 的 implementation note 是设计基准的文字版本；",
+    "本文件是它的机器可读版本，被两处门禁同时读取：",
+    "  1) resource-pack/tools/verify_hud_layout.py —— 断言 PNG 与 BetterHud font JSON；",
+    "  2) resource-pack/tools/hud-layout.mjs —— 断言 build.sh 里的打包期常量。",
+    "改尺寸必须同时改：本文件 + 实际 PNG + BetterHud font height，门禁会拒绝单边改动。",
+    "baseline 是设计基准值；effective 是当前客户端 / 原版 HUD 约束下可行的实现值。",
+    "两者不等时以 effective 为准，理由写在 notes 里，并同步到 implementation note。"
+  ],
+  "generatedBy": "W7-A4-hud-implementation-alignment",
+  "rail": {
+    "path": "resource-pack/assets/betterhud/textures/image_sivita_skill_panel.png",
+    "width": 26,
+    "height": 91,
+    "baseline": [
+      26,
+      91
+    ],
+    "glyphHeight": 91,
+    "notes": "槽位方块按 22px 影格排布：1/23/45/67，第 4 槽内容区底边 85，面板余 6px 收边。基准按 4x22=88 排列时末槽底边会到 87 并压掉右下收边角，故取可行值 85，已在 implementation note 记录。"
+  },
+  "slot": {
+    "count": 4,
+    "baseline": [
+      18,
+      18
+    ],
+    "iconBox": [
+      18,
+      18
+    ],
+    "iconContent": [
+      16,
+      18
+    ],
+    "pitch": 22,
+    "firstTop": 1,
+    "lastBottom": 85,
+    "notes": "槽位内容区 18x18，按 22px 影格排布：1、23、45、67，第 4 槽内容区底边 85，面板余 6px 收边。基线按 4x22=88 排列时第 4 槽底边会到 87 并压掉右下收边角，故按可行值 85 落地，已在 implementation note 记录。",
+    "baselineLastBottom": 87
+  },
+  "icon": {
+    "pathGlob": "resource-pack/assets/betterhud/textures/glyph_skill_*.png",
+    "pathGlobs": [
+      "resource-pack/assets/betterhud/textures/glyph_skill_*.png",
+      "resource-pack/assets/betterhud/textures/glyph_class_*.png"
+    ],
+    "skillCount": 42,
+    "classCount": 7,
+    "count": 49,
+    "width": 18,
+    "height": 18,
+    "baseline": [
+      18,
+      18
+    ],
+    "notes": "49 张语义图标 = 42 个技能 + 7 个职业（含 unchosen），全部 18x18 画布（左右各 1px 透明留白，与原 29x26 徽章同规则），可见内容 16x18；旧素材是 16x18 裸图，已在 W7-A4 补齐留白。"
+  },
+  "badge": {
+    "path": "resource-pack/assets/betterhud/textures/image_sivita_class_badge.png",
+    "width": 29,
+    "height": 26,
+    "baseline": [
+      29,
+      26
+    ],
+    "classIconInset": [
+      2,
+      6
+    ],
+    "hardRightInsetMin": 1,
+    "rightInset": 1,
+    "notes": "29 宽贴在有 1px 右留白的位置；基线的 2px 右留白在 1px 梯度上做不到（26 与 29 奇偶不同），故取 1 并在 implementation note 记录。徽章自身只有一帧（不随职业切换换图），职业识别靠叠加在上面的 glyph_class_* 图标；本任务的尺寸门禁只覆盖徽章尺寸，不覆盖叠加层级（那是 BetterHud 布局 YAML 的职责，见 unproven）。"
+  },
+  "mana": {
+    "pathGlob": "resource-pack/assets/betterhud/textures/image_image_sivita_mana_fill_up_20_*.png",
+    "width": 1,
+    "height": 87,
+    "baseline": [
+      1,
+      87
+    ],
+    "frames": 20,
+    "notes": "在轨道内离面板左边缘 2px（面板 x=1，两侧各 1px 内衬），贴图自身 1x87 纵向填充。"
+  },
+  "selected": {
+    "path": "resource-pack/assets/betterhud/textures/image_sivita_skill_selected.png",
+    "width": 18,
+    "height": 18,
+    "baseline": [
+      18,
+      18
+    ],
+    "notes": "四角金框 18x18，对齐单格槽位内容区；旧的 21x21 比槽位宽 3px，会压到相邻槽间隙。"
+  }
+}

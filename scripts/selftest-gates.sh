@@ -263,6 +263,70 @@ check "把 datapacks/ 藏起来 → 1" 1 "$artifact_red"
 
 cd "$ROOT"
 
+echo "== 5b. HUD 尺寸门禁（W7-A4）必须能真的变红（负向对照） =="
+# HUD 尺寸契约最危险的失效是「唯一来源与素材双漂移后仍然全绿」：
+# 设计基准写 26x91、实际素材却是别的尺寸，门禁却因为只读了一边而不报。
+# 这里用**临时副本**做负向对照（不改仓库：见 §4b 的教训）：
+#   ① 真实仓库必须绿；
+#   ② 把唯一来源里的轨道宽度改掉（素材不动）必须红；
+#   ③ 把一张 18x18 图标改成 17 宽必须红；
+#   ④ 把 build.sh 里的 HUD_PANEL_WIDTH 改掉（唯一来源不动）必须红。
+HUD_FIXTURE="$TMP/hud-ws"
+mkdir -p "$HUD_FIXTURE/docs/reference" "$HUD_FIXTURE/resource-pack/tools"
+cp -R "$ROOT/resource-pack/assets" "$HUD_FIXTURE/resource-pack/assets"
+cp "$ROOT/docs/reference/hud-layout.json" "$HUD_FIXTURE/docs/reference/"
+cp "$ROOT/resource-pack/tools/verify_hud_layout.py" "$HUD_FIXTURE/resource-pack/tools/"
+cp "$ROOT/resource-pack/tools/hud-layout.mjs" "$HUD_FIXTURE/resource-pack/tools/"
+cp -R "$ROOT/resource-pack/assets/originalrpg" "$HUD_FIXTURE/resource-pack/assets/"
+cp "$ROOT/resource-pack/build.sh" "$HUD_FIXTURE/resource-pack/"
+
+run_hud_py() {
+  set +e
+  python3 "$HUD_FIXTURE/resource-pack/tools/verify_hud_layout.py" >/dev/null 2>&1
+  echo $?
+}
+run_hud_node() {
+  set +e
+  node "$HUD_FIXTURE/resource-pack/tools/hud-layout.mjs" \
+    "$HUD_FIXTURE/resource-pack/build.sh" >/dev/null 2>&1
+  echo $?
+}
+
+check "真实素材 + 唯一来源 → 0" 0 "$(run_hud_py)"
+check "真实素材 + build.sh 常量 → 0" 0 "$(run_hud_node)"
+
+python3 - "$HUD_FIXTURE/docs/reference/hud-layout.json" <<'PYJSON'
+import json, sys
+path = sys.argv[1]
+layout = json.load(open(path, encoding='utf-8'))
+layout["rail"]["width"] = 27
+json.dump(layout, open(path, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+PYJSON
+check "唯一来源轨道宽 27（素材仍 26）→ 1" 1 "$(run_hud_py)"
+
+# 复原唯一来源，改一张图标的真实像素宽（PNG IHDR）
+python3 - "$HUD_FIXTURE/docs/reference/hud-layout.json" "$ROOT/docs/reference/hud-layout.json" <<'PYJSON'
+import shutil, sys
+shutil.copyfile(sys.argv[2], sys.argv[1])
+PYJSON
+python3 - "$HUD_FIXTURE/resource-pack/assets/betterhud/textures/glyph_skill_heal.png" <<'PYJSON'
+import struct, sys
+data = bytearray(open(sys.argv[1], 'rb').read())
+struct.pack_into('>I', data, 16, 17)
+open(sys.argv[1], 'wb').write(bytes(data))
+PYJSON
+check "图标真实宽度 17（唯一来源 18）→ 1" 1 "$(run_hud_py)"
+
+# build.sh 常量与唯一来源不一致 → Node 侧必须红
+python3 - "$HUD_FIXTURE/resource-pack/build.sh" <<'PYJSON'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text(encoding='utf-8')
+path.write_text(text.replace('HUD_PANEL_WIDTH=26', 'HUD_PANEL_WIDTH=27', 1), encoding='utf-8')
+PYJSON
+check "build.sh HUD_PANEL_WIDTH=27（唯一来源 26）→ 1" 1 "$(run_hud_node)"
+cd "$ROOT"
+
 echo "== 6. G-206 接线自证：两条门禁必须被本脚本真实覆盖 =="
 # 「写了门禁但 CI 里没跑」是比「门禁有 bug」更隐蔽的失败：脚本存在、文档写着，
 # 但没有任何 CI stage 调用它。本段把「谁在跑」变成可 grep 的事实：
@@ -270,7 +334,8 @@ echo "== 6. G-206 接线自证：两条门禁必须被本脚本真实覆盖 =="
 #      （否则 §4b/§5 被删掉后上面仍然全绿，门禁回到「静默没人跑」状态）
 #   b) 质量门 .cnb.yml 必须包含 `sh scripts/selftest-gates.sh`
 #      —— 这就是 §4b/§5 进入 CI 的接线点，且本次改动无需修改 .cnb.yml
-for wired in "scripts/check-repo-artifacts.sh" "scripts/install-datapacks.sh"; do
+for wired in "scripts/check-repo-artifacts.sh" "scripts/install-datapacks.sh" \
+        "resource-pack/tools/verify_hud_layout.py" "resource-pack/tools/hud-layout.mjs"; do
   set +e
   hits=$(grep -c -F "$wired" "$ROOT/scripts/selftest-gates.sh")
   set -e
