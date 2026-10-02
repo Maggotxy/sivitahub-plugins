@@ -741,5 +741,134 @@
   "files": [
    "plugins/rpg-world/src/main/java/cn/originalrpg/world/WorldEventListener.java"
   ]
+ },
+ "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobRewardAsyncLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "experienceBufferKeepsInFlightOwnershipUntilAuthorityIsKnown",
+    "ordered": [],
+    "required": [
+     "private final Map<UUID, InFlightWrite> inFlight",
+     "private final ConcurrentLinkedQueue<CompletedWrite> completedWrites",
+     "waitForInFlight(inFlightDeadlineNanos);",
+     "if (!future.isDone())",
+     "uncertain state at shutdown",
+     "drainKnownFailures(retry, deadlineNanos);",
+     "maximum-pending-players",
+     "retryDelayMillis(attempts, retryBaseMillis, retryMaximumMillis)"
+    ],
+    "forbidden": [
+     "Bukkit.getScheduler().runTask(plugin, () -> {\n                    inFlight.remove"
+    ]
+   },
+   {
+    "method": "delayedItemsUseStableMailboxReplayAndDoNotDiscardAtAnAttemptLimit",
+    "ordered": [],
+    "required": [
+     "activeMailboxWrites",
+     "waitForInFlightMailboxWrites(inFlightDeadlineNanos);",
+     "drainMailboxDeliveries(deadlineNanos);",
+     "delivery.deliveryId()",
+     "retryMaximumMillis",
+     "if (closed || !plugin.isEnabled()) return;",
+     "catch (IllegalStateException ignored)",
+     "if (!closed && plugin.isEnabled()) action.run();"
+    ],
+    "forbidden": [
+     "maximumAttempts",
+     "retry limit reached",
+     "expired before durable settlement"
+    ]
+   },
+   {
+    "method": "feedbackRequiresTheExactLoginSessionAndDisableDrainsItemsBeforeExperience",
+    "ordered": [
+     "delayedRewards.close()",
+     "experienceBuffer.shutdown()"
+    ],
+    "required": [
+     "current == expected && online",
+     "current == session && current.isOnline()"
+    ],
+    "forbidden": []
+   }
+  ],
+  "files": [
+   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/ExperienceWriteBuffer.java",
+   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/DelayedMobRewardQueue.java",
+   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/RpgMobsPlugin.java"
+  ]
+ },
+ "plugins/rpg-pets/src/test/java/cn/originalrpg/pets/PetRevivalLifecycleContractTest.java": {
+  "pathFragments": [],
+  "checks": [
+   {
+    "method": "revivalUsesDurableSagaInsteadOfDebitThenRefund",
+    "ordered": [],
+    "required": [
+     "petRevivals.begin(new PetRevivalRequest",
+     "getRepository().updatePet(snapshot)",
+     "petRevivals.complete(intent.operationId()",
+     "recoverRevivals(playerId, true)",
+     "recoverRevivals(pet.getOwner().getUniqueId(), false)"
+    ],
+    "forbidden": [
+     "economy.burn(playerId, cost",
+     "refundRevive("
+    ]
+   },
+   {
+    "method": "everyFutureToBukkitBridgePassesThroughDisableAwareDispatcher",
+    "ordered": [],
+    "required": [
+     "private void runMain(Runnable action)",
+     "if (!isEnabled()) return;",
+     "if (isEnabled()) action.run();",
+     "sessionTokens.put(playerId, token)",
+     "session.token().equals(sessionTokens.get(session.playerId()))",
+     "private final Set<UUID> revivalPlayerQueries",
+     "private final Set<UUID> revivalWrites",
+     "maximumPersistedHealth(stored)",
+     "if (!isEnabled()) {\n                        revivalWrites.remove(intent.operationId());"
+    ],
+    "forbidden": [
+     "whenComplete((result, error) -> getServer().getScheduler().runTask",
+     "whenComplete((progress, error) -> getServer().getScheduler().runTask",
+     "private final Set<UUID> pendingRevives"
+    ]
+   },
+   {
+    "method": "oldQuitAndCallbacksCannotRevokeOrActOnANewerAuthenticatedConnection",
+    "ordered": [],
+    "required": [
+     "private final Map<UUID, AuthenticatedSession> authenticatedPlayers",
+     "new AuthenticatedSession(event.player(), token)",
+     "session.player() != player",
+     "authenticatedPlayers.remove(playerId, session)",
+     "sessionTokens.remove(playerId, session.token())",
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "catch (IllegalStateException ignored)"
+    ],
+    "forbidden": [
+     "authenticatedPlayers.remove(playerId);",
+     "sessionTokens.remove(playerId);"
+    ]
+   },
+   {
+    "method": "buildTargetsTheExactRuntimeMyPetArtifact",
+    "ordered": [],
+    "required": [
+     "MyPet-4.0.0-Sivita.jar"
+    ],
+    "forbidden": [
+     "MyPet-4.0.0.jar\""
+    ]
+   }
+  ],
+  "files": [
+   "plugins/rpg-pets/src/main/java/cn/originalrpg/pets/RpgPetsPlugin.java",
+   "plugins/rpg-pets/build.gradle.kts"
+  ]
  }
 }
