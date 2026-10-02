@@ -46,17 +46,35 @@
           sh scripts/check-file-deps.sh
           export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
           export GRADLE_USER_HOME=/root/.gradle
+          # CNB 出网到 repo.papermc.io 会间歇性 connect timeout（实测 sn=cnb-lk2-1k3tdomfr：
+          # gradle 发行包从 services.gradle.org 下得下来，但 papermc 的 pom 连接超时）。
+          # 对策：放宽 HTTP 超时 + 最多重试 3 次（GRADLE_USER_HOME 在重试间复用，
+          # 已下载的发行包与已解析的依赖不会重来）。
           start=$(date +%s)
-          set +e
-          ./gradlew --no-daemon --continue \
-            -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 \
-            compileJava > /tmp/gradle.log 2>&1
-          rc=$?
-          set -e
+          rc=1
+          attempt=0
+          while [ "$attempt" -lt 3 ]; do
+            attempt=$((attempt + 1))
+            echo "===== compileJava 尝试 $attempt/3 ====="
+            set +e
+            ./gradlew --no-daemon --continue \
+              -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 \
+              -Dorg.gradle.internal.http.connectionTimeout=60000 \
+              -Dorg.gradle.internal.http.socketTimeout=60000 \
+              compileJava > /tmp/gradle.log 2>&1
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then break; fi
+            echo "--- 第 $attempt 次失败，尾部 40 行 ---"
+            tail -n 40 /tmp/gradle.log
+            if [ "$attempt" -lt 3 ]; then echo "10s 后重试"; sleep 10; fi
+          done
           end=$(date +%s)
+          echo "===== 最终一次构建日志尾部 ====="
           tail -n 150 /tmp/gradle.log
           echo "-----"
           echo "TASKS_DONE=$(grep -c '^> Task' /tmp/gradle.log || true)"
+          echo "ATTEMPTS=$attempt"
           echo "BUILD_EXIT=$rc SECONDS=$((end-start))"
           if [ "$rc" -ne 0 ]; then echo "COMPILE_GATE=RED"; exit 1; fi
           if [ $((end-start)) -le 0 ]; then echo "COMPILE_GATE=SUSPECT(0s)"; exit 1; fi
