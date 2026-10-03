@@ -1,8 +1,8 @@
 {
   "_comment": "G-302 分批替换清单：除 rpg-core（已由 W4-A4 处理）外，其余用 Files.readString 读源码/源码字符串顺序的测试类。orchestrator 可按 tasks[] 逐任务派发（建议按模块聚合，rpg-dungeons 单独一批）。",
-  "_basis": "grep -rl --include=*.java 'Files.readString' plugins --exclude-dir=build | grep '/src/test/'",
-  "_count": 48,
-  "_indexOf_count": 20,
+  "_basis": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/'（W16-A1 实测 _count=46；含 indexOf 的类 2 个）",
+  "_count": 46,
+  "_indexOf_count": 2,
   "_by_module": {
     "rpg-admin": 1,
     "rpg-ai-npc": 1,
@@ -469,22 +469,68 @@
   "_remaining_after_batch2": {
     "_comment": "第二批未处理的类：它们的断言混有『跨多文件作用域』『|| 备选』『构建文件』等语义，自动迁移会失真，留待下一波逐条人工迁移到 source-contract 规格或行为化。",
     "classes": [
-      "plugins/rpg-api/.../OptionalServiceLifecycleContractTest（4 条断言跨 19 个文件，需按文件归属逐条迁移）",
-      "plugins/rpg-dungeons/.../DungeonEntryCommitAmbiguityContractTest（含段内 substring 断言，需改写规格语义）",
-      "plugins/rpg-dungeons/.../DungeonRewardWorldHoldContractTest（顺序链跨多个方法体，需按方法切分）",
-      "plugins/rpg-dungeons/.../DungeonTimeoutLifecycleContractTest（同上）",
-      "plugins/rpg-enhancement/.../EquipmentOperationIntegrationContractTest（顺序链含多文件 + 段内断言）",
-      "plugins/rpg-hub/.../WorldTravelConfigurationContractTest（已 @Tag(env)，读 server/ 部署产物，本仓不含）",
-      "plugins/rpg-items/.../ForgeInputBoundaryContractTest（含重复锚点计数语义）",
-      "plugins/rpg-items/.../ForgeOperationIntegrationContractTest（含段内 substring + getItemInMainHand 排除）",
-      "plugins/rpg-items/.../EquipmentExitPathReachabilityTest（部分是真实行为断言，部分是全仓结构扫描）",
-      "plugins/rpg-market/.../MailboxDeliveryIntegrationContractTest（顺序链跨方法体）",
-      "plugins/rpg-skills/.../SkillAsyncLifecycleContractTest（含 || 备选断言）",
-      "plugins/rpg-world/.../SurvivalPerformanceConfigurationContractTest（已 @Tag(env)，读 server/ 部署产物）",
-      "plugins/rpg-guide/.../GuidePlayerActionContractTest（部分是真实 plugin.yml 解析，已保留在规格中）",
-      "plugins/rpg-performance/.../PerformanceStatusStoreTest（本就是真实 IO 行为测试，只是用 Files.readString 读自己写的文件，非伪测试）",
-      "plugins/rpg-items/.../EquipmentSigningMaterialTest（W1-A3 已是行为测试）"
+      "（W16-A1 已全部处理；见 _w16a1_disposition 逐条处置）"
     ],
-    "_w9a1_note": "W9-A1（本任务）完成最后 2 个纯源码字符串测试类：plugins/rpg-mobs/.../MobRewardAsyncLifecycleContractTest（含多行 forbidden 字面量与 indexOf 顺序链）与 plugins/rpg-pets/.../PetRevivalLifecycleContractTest（含 build.gradle.kts 构建契约断言）逐条迁移到 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh，测试类改为真实执行门禁的包装器；indexOf 顺序链映射为 ordered 契约，build.gradle.kts 作为被断言文件登记进规格。两个分支均无 MockBukkit/Mockito 且生产类依赖真实 Plugin/Bukkit.getScheduler()，无法行为化。"
+    "_w9a1_note": "W9-A1（本任务）完成最后 2 个纯源码字符串测试类：plugins/rpg-mobs/.../MobRewardAsyncLifecycleContractTest（含多行 forbidden 字面量与 indexOf 顺序链）与 plugins/rpg-pets/.../PetRevivalLifecycleContractTest（含 build.gradle.kts 构建契约断言）逐条迁移到 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh，测试类改为真实执行门禁的包装器；indexOf 顺序链映射为 ordered 契约，build.gradle.kts 作为被断言文件登记进规格。两个分支均无 MockBukkit/Mockito 且生产类依赖真实 Plugin/Bukkit.getScheduler()，无法行为化。\nW16-A1 追加：_remaining_after_batch2 里剩余的 10 个类已全部逐条迁移，并额外处理同判据下的 4 个类（见 _w16a1_disposition）。"
+  },
+  "_expected_after_w16a1": 46,
+  "_w16a1_note": "W16-A1（本任务）：GOAL.md §2 排除口径的**收口门禁**改了判据 —— 不再是「有没有 Files.readString」，而是「同一 @Test 方法体内同时读本仓生产源码（plugins/ 或 tools/ 前缀）+ contains()/indexOf() 断言」。新门禁 scripts/check-source-string-tests.sh 判据行 SOURCE_STRING_GATE=GREEN|RED，已接入 scripts/selftest-gates.sh §4d（CI 的「门禁自测」stage 每推送都跑）。W16-A1 把派单的 10 个类 + 实测同判据下的另外 4 个类（SeasonAttunementSettlementWiringTest / EquipmentExitPathReachabilityTest / EquipmentSigningMaterialTest / MigrationAdvisoryLockTest）共 14 个类逐条处理完：能行为化的行为化（真跑纯规则 / 反射签名 / 真构造 Bukkit 注册表），只能静态保证的迁进 scripts/source-contract-specs/all.json（新增 49 个 spec 键：跨文件按文件归属拆键、|| 备选展开成多条 required、ordered 链保证同文件成立）。",
+  "_w16a1_disposition": {
+    "_criterion": "同一 @Test 方法体内既有 Files.readString/readAllBytes 读 plugins|tools 生产文件、又有 .contains()/.indexOf() 断言",
+    "_counts_before": {
+      "classes": 14,
+      "methods": 34,
+      "_note": "其中派单 10 个类 + 实测同判据下另外 4 个类（season/exit-path/signing/migration-lock）"
+    },
+    "_counts_after": {
+      "classes": 3,
+      "methods": 3,
+      "_note": "3 个剩余全部只读 server/ 与 resource-pack/ 部署产物，不是本仓生产源码"
+    },
+    "行为化（真跑）：": [
+      "rpg-skills/SkillAsyncLifecycleContractTest：会话判定（在线+服务端同一句柄+已鉴权）与「新连接共享缓存不得被旧句柄驱逐」改成真跑布尔判定；「进行中的学习/技能书操作按 UUID->Player 身份键控」改成反射断言字段泛型（旧回调盲删会让它红）",
+      "rpg-items/EquipmentExitPathReachabilityTest：销毁退出路径改真跑 DestroyRules / EquipmentExitPathRules / DestroyDeliveryRules / DestroyGate 四条纯规则（终态、交付通道一致、已解绑装备必须拒绝销毁）",
+      "rpg-world/SurvivalPerformanceConfigurationContractTest：怪物生成上限按生产同口径 （缺键 56 + Math.clamp(16,70)）真跑三组输入",
+      "rpg-core/LanguageBundleContractTest：/tasks 指令改为真解析 plugin.yml 的命令表（并断言不得有别名）",
+      "rpg-api/OptionalServiceLifecycleContractTest：OptionalServices.enabled 用真构造的 Bukkit RegisteredServiceProvider + 动态代理 Server/ServicesManager 真跑「未注册/未启用/已启用」三分支"
+    ],
+    "规格化（迁进 scripts/source-contract-specs/all.json）：": [
+      "rpg-dungeons #dungeon-command / #dungeon-manager（跨文件拆键）+ DungeonRewardWorldHoldContractTest",
+      "rpg-enhancement EquipmentOperationIntegrationContractTest#refine / #limit-break（跨两文件拆键）",
+      "rpg-items ForgeOperationIntegrationContractTest（主键 + #coordinator + #security + #unbind-legacy + #unbind-legacy-chain + #legacy-chain + #legacy-blueprint，按文件归属拆 7 键）、ForgeInputBoundaryContractTest、EquipmentExitPathReachabilityTest#season-attunement / #destroy-command",
+      "rpg-market MailboxDeliveryIntegrationContractTest#market-command / #market-plugin（原 indexOf 链跨方法体，按方法切分）",
+      "rpg-skills SkillAsyncLifecycleContractTest#skills-command / #skill-book-listener（|| 备选展开）",
+      "rpg-api OptionalServiceLifecycleContractTest#<Service>|<消费方文件>（19 个消费方逐文件 23 键）",
+      "rpg-core SeasonAttunementSettlementWiringTest#command-surface / #command-dispatch、LanguageBundleContractTest#resource-pack",
+      "rpg-items EquipmentSigningMaterialTest#no-key-sink",
+      "tools/db-migration MigrationAdvisoryLockTest#rpg-core",
+      "rpg-world SurvivalPerformanceConfigurationContractTest（插件侧默认值口径）",
+      "rpg-performance？→ 并入 rpg-world 的 performance-sampler 契约（#performance-plugin）",
+      "rpg-world SurvivalPerformanceConfigurationContractTest#performance-plugin（采样器不得分配已加载区块数组）"
+    ],
+    "剩余项及理由（逐条，不含模糊）：": [
+      "rpg-core/LanguageBundleContractTest::quickActionTaskButtonUsesTheUnifiedTaskCenter（@Tag(env)）：读 server/datapacks/**/navigation.json（BetonQuest 数据包）与 resource-pack 语言文件。本仓按设计不含 server/（.cnb.yml 的 env 排除口径），断言对象是运维侧数据包内容，不是本仓源码。其中资源包语言文件那一半已迁进 all.json#resource-pack 并由同类的 quickActionsRouteToTheTrustedTaskRouterAndBothBundlesCarryTheirLabels 真执行门禁。",
+      "rpg-hub/WorldTravelConfigurationContractTest::controlledGenerationCoversTheCompleteBorderAndItsChunkMargin（@Tag(env)）：读 server/bin/maintain-world-coverage.sh。本仓不含 server/，同上。同类的 wildernessAndAuthoritativeOverworldBoundaryCannotDriftApart 已改为真加载两侧 config.yml + 真跑 WildernessTravelRules。",
+      "rpg-story/StoryJourneyOrderContractTest::qizhiConversationUsesTheExecutableFirstForgeOrder（@Tag(env)）：读 server/config-templates/BetonQuest/.../qizhi.yml。本仓不含 server/，同上。"
+    ]
+  },
+  "_hits_after_w16a1": {
+    "_cmd": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/' | wc -l",
+    "_count": 46,
+    "_nature_breakdown": {
+      "① 已迁进声明式规格的门禁包装器（*ContractTest 里 Files.readString 只用于读 scripts/check-source-contract.sh 是否存在，不再读生产源码做断言）": 37,
+      "② 读的不是生产源码（读测试自身 / 运行期 IO / 无路径字面量）": [
+        "rpg-core/MechanismKillSwitchContractTest（反射 + 真 H2，无源码读）",
+        "rpg-core/ProgressionAnomalySchemaUpgradeTest（读 DDL 文本做结构断言，DDL 不是生产 Java 源码）",
+        "rpg-integrations/HudRailSpecTest（无 plugins/* 路径字面量）",
+        "rpg-performance/PerformanceStatusStoreTest（@TempDir 下真实读写 status.json，真实 IO 行为测试）"
+      ],
+      "③ 只读 server/ 或 resource-pack/ 部署产物（本仓按设计不含 server/，已 @Tag(env) 显式分类）": [
+        "rpg-core/LanguageBundleContractTest（数据包部分）",
+        "rpg-hub/WorldTravelConfigurationContractTest（运维维护脚本）",
+        "rpg-story/StoryJourneyOrderContractTest（BetonQuest 对话包）"
+      ]
+    },
+    "_note": "三类都不是 GOAL.md §2 排除的「读本仓生产源码 + 源码字符串断言」；判据由 scripts/check-source-string-tests.sh 机械复核（SOURCE_STRING_GATE=GREEN）。"
   }
 }

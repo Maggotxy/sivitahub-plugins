@@ -57,23 +57,26 @@ class MigrationAdvisoryLockTest {
 
     @Test
     void rpgCoreSourceStillDeclaresTheSameLockKey() throws Exception {
-        Path source = Path.of(System.getProperty("sivita.projectRoot")).resolve(
-                "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java"
-        );
-        assumeTrue(Files.isRegularFile(source), "RpgCore source is required for the lock contract");
-        String text = Files.readString(source);
-        assertTrue(
-                text.contains("MIGRATION_LOCK_NAMESPACE = 0x53495649"),
-                "RpgCore namespace constant changed; re-sync MigrationAdvisoryLock"
-        );
-        assertTrue(
-                text.contains("MIGRATION_LOCK_RESOURCE = 0x52504731"),
-                "RpgCore resource constant changed; re-sync MigrationAdvisoryLock"
-        );
-        assertTrue(
-                RPGCORE_TWO_ARGUMENT_LOCK.matcher(text).find(),
-                "RpgCore must keep using the two-argument advisory lock form"
-        );
+        // G-302：原实现读 Database.java 源码做 contains 断言；两个常量与「两参数形式」
+        // 这三条都只能对源码结构做静态保证，因此逐条迁进声明式源码契约
+        // （scripts/source-contract-specs/all.json#rpg-core），由本方法真实执行门禁。
+        Path root = Path.of(System.getProperty("sivita.projectRoot"));
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assumeTrue(Files.isRegularFile(gate), "契约门禁脚本是这条路由契约的前提");
+        Process process = new ProcessBuilder("sh", gate.toString(),
+                "tools/db-migration/src/test/java/cn/originalrpg/tools/dbmigration/"
+                        + "MigrationAdvisoryLockTest.java#rpg-core",
+                "rpgCoreSourceStillDeclaresTheSameLockKey")
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(),
+                "RpgCore 迁移锁常量与 MigrationAdvisoryLock 不再同步：\n" + output
+                        + "\n（RpgCore namespace/resource 常量或两参数形式被改动；"
+                        + "改则必须重新同步 MigrationAdvisoryLock）");
     }
 
     @Test

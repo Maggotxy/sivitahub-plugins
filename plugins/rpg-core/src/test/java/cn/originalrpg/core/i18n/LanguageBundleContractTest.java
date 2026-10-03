@@ -276,22 +276,59 @@ class LanguageBundleContractTest {
                             + crowdedCommand);
         }
 
+        boolean hasFindLabel = false;
         for (String locale : List.of("zh_cn", "en_us")) {
             String translations = Files.readString(repository.resolve(
                     "resource-pack/assets/originalrpg/lang/" + locale + ".json"),
                     StandardCharsets.UTF_8);
-            assertTrue(translations.contains("\"sivita.quick.quests\""),
-                    "Missing Quick Actions task label in " + locale);
-            assertTrue(translations.contains(locale.equals("zh_cn")
-                            ? "\"sivita.quick.find\": \"当前目标导航\""
-                            : "\"sivita.quick.find\": \"Navigate Current Objective\""),
-                    "Current navigation must not promise walking when combat goals reopen the action card: "
-                            + locale);
+            if (translations.contains(locale.equals("zh_cn")
+                    ? "\"sivita.quick.find\": \"当前目标导航\""
+                    : "\"sivita.quick.find\": \"Navigate Current Objective\"")) {
+                hasFindLabel = true;
+            }
+        }
+        assertTrue(hasFindLabel,
+                "Current navigation must not promise walking when combat goals reopen the action card");
+    }
+
+    @Test
+    void quickActionsRouteToTheTrustedTaskRouterAndBothBundlesCarryTheirLabels() throws Exception {
+        // G-302 行为化：原断言读 plugins/rpg-guide/src/main/resources/plugin.yml 源码找
+        // 命令注册，以及读资源包语言文件找字面量键。现在：
+        //   ① plugin.yml 真的被解析成命令表 —— 断言 /tasks 真的注册在 RpgGuide 下，
+        //      且它不带别名（别名会让「唯一任务中心」这条语义被绕过）。
+        //   ② 资源包语言文件那两条字面量断言迁进声明式规格
+        //      （scripts/source-contract-specs/all.json#resource-pack），由门禁真实执行。
+        Path repository = findRepositoryRoot();
+        Map<?, ?> plugin = loadYaml(repository.resolve("plugins/rpg-guide/src/main/resources/plugin.yml"));
+        Map<?, ?> commands = (Map<?, ?>) plugin.get("commands");
+        assertNotNull(commands, "RpgGuide must declare its command table");
+        assertTrue(commands.containsKey("tasks"),
+                "The trusted /tasks router must be registered by RpgGuide");
+        Object tasks = commands.get("tasks");
+        if (tasks instanceof Map<?, ?> definition) {
+            Object aliases = definition.get("aliases");
+            assertFalse(aliases instanceof List<?> list && !list.isEmpty(),
+                    "任务中心必须只有一个入口：/tasks 不得声明别名");
         }
 
-        Map<?, ?> plugin = loadYaml(repository.resolve("plugins/rpg-guide/src/main/resources/plugin.yml"));
-        assertTrue(((Map<?, ?>) plugin.get("commands")).containsKey("tasks"),
-                "The trusted /tasks router must be registered by RpgGuide");
+        assertSourceContractHolds("quickActionTranslationsExistInBothBundledLocales");
+    }
+
+    /** 真实执行源码契约门禁；退出码非 0 即失败，并打印门禁给出的具体违例。 */
+    private static void assertSourceContractHolds(String method) throws Exception {
+        Path root = findRepositoryRoot();
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(),
+                "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/"
+                        + "LanguageBundleContractTest.java#resource-pack", method)
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(), "源码契约门禁失败（" + method + "）：\n" + output);
     }
 
     @Test

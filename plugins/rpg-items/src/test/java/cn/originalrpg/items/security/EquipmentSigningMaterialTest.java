@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.List;
@@ -60,14 +61,23 @@ final class EquipmentSigningMaterialTest {
 
     @Test
     void missingKeyNeverWritesAKeyBackToAnySink() throws Exception {
-        // fail-closed 路径只读 System.getenv，禁止任何写盘行为。
-        String source = java.nio.file.Files.readString(findRepositoryRoot()
-                        .resolve("plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java"),
-                StandardCharsets.UTF_8);
-        assertFalse(source.contains("SecureRandom"), "密钥生成路径必须被删除");
-        assertFalse(source.contains("security.signing-key\", encoded"),
-                "禁止把生成的密钥写回 config.yml");
-        assertFalse(source.contains("getConfig().set(\"security"), "插件不得写 security.* 配置");
+        // G-302：原实现读 RpgItemsPlugin 源码做三条 contains 否定断言。这三条只能对源码
+        // 结构做静态保证（「密钥生成路径已被删除 / 不得写回 config」），逐条迁进声明式
+        // 源码契约规格，由本方法真实执行门禁；失败时不再需要读源码做字符串扫描。
+        Path root = findRepositoryRoot();
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(java.nio.file.Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(),
+                "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/"
+                        + "EquipmentSigningMaterialTest.java#no-key-sink",
+                "missingKeyNeverWritesAKeyBackToAnySink")
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(),
+                "插件不得携带密钥生成/写回路径（fail-closed 只读环境变量）：\n" + output);
 
         assertThrows(IllegalStateException.class, EquipmentSigningMaterial::fromEnvironment);
     }

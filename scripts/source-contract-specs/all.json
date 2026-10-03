@@ -870,5 +870,1268 @@
    "plugins/rpg-pets/src/main/java/cn/originalrpg/pets/RpgPetsPlugin.java",
    "plugins/rpg-pets/build.gradle.kts"
   ]
+ },
+ "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonEntryCommitAmbiguityContractTest.java#dungeon-command": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "ambiguousCommitQueriesDurableStateBeforeRefundingOrConsumingTickets",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "entries.commitAll(reservations).whenComplete",
+     "resolveAmbiguousCommit(",
+     "entries.partyCommitStatus(reservations)",
+     "PartyCommitStatus.COMMITTED",
+     "PartyCommitStatus.RESERVED",
+     "rollbackEntry(reservations"
+    ]
+   },
+   {
+    "method": "instanceIsHeldAcrossTeleportAndCommitDisambiguation",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "manager.holdEntrySettlement(world)",
+     "member.teleportAsync(destination)",
+     "entries.commitAll(reservations)",
+     "manager.releaseEntrySettlement(world, entryHold)"
+    ]
+   },
+   {
+    "method": "hiddenTicketIsDurablyEscrowedBeforeInventoryRemovalAndTeleport",
+    "required": [
+     "entries.ticketEscrow(",
+     "ticket_entry_escrow",
+     "onEscrowedTicketDeath",
+     "onEscrowedTicketOffhandSwap",
+     "onEscrowedTicketInventoryMove",
+     "onEscrowedTicketInventoryPickup",
+     "payloadWithoutEscrowMarker",
+     "MAXIMUM_TICKET_ESCROW_ATTEMPTS"
+    ],
+    "forbidden": [],
+    "ordered": [
+     "prepareTicketEscrows(members, reservations, requiredTicket)",
+     "consumeEscrowedTickets(",
+     "beginPartyTeleport(",
+     "entries.commitAll(reservations)",
+     "entries.escrowTicket(",
+     "entries.refund(reservationId, playerId)"
+    ]
+   },
+   {
+    "method": "partialPartyEscrowFailureKeepsCandidatesAvailableForImmediateReconciliation",
+    "required": [
+     "reconcileFailedTicketEscrows(result)"
+    ],
+    "forbidden": [
+     "CompletionException"
+    ],
+    "ordered": [
+     "private CompletionStage<TicketEscrowPreparation> prepareTicketEscrows",
+     "return stage.handle((allHeld, error)",
+     "new TicketEscrowPreparation(List.copyOf(candidates)"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonEntryCommitAmbiguityContractTest.java#dungeon-manager": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java"
+  ],
+  "checks": [
+   {
+    "method": "entrySettlementHoldSurvivesUntilTeleportAndCommitFinish",
+    "required": [
+     "entrySettlementHolds.containsKey(worldName) || hasPendingRewardIntent(worldName)"
+    ],
+    "forbidden": [],
+    "ordered": []
+   },
+   {
+    "method": "recyclingAnInstanceFailsClosedOnAnyRemainingHold",
+    "required": [
+     "if (!hasInstanceHold(instance)) releaseInstance(previousWorld)"
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonRewardWorldHoldContractTest.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java"
+  ],
+  "checks": [
+   {
+    "method": "emptyInstanceCannotRecycleBeforeItsRewardIntentIsDurableAndClosed",
+    "required": [
+     "if (!hasInstanceHold(instance)) releaseInstance(previousWorld)"
+    ],
+    "forbidden": [],
+    "ordered": [
+     "void releasePlayer(UUID playerId, World previousWorld)",
+     "if (!hasInstanceHold(instance)) releaseInstance(previousWorld)"
+    ]
+   },
+   {
+    "method": "sessionTimeoutObeysTheSameRewardRecycleHold",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "private void timeoutSession(String worldName, UUID sessionId)",
+     "if (world != null && !hasInstanceHold(worldName)) releaseInstance(world)"
+    ]
+   },
+   {
+    "method": "durableIntentIsCompletedBeforeTheRecycleHoldIsRemoved",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "rewardIo.persist(intent.batch).whenComplete",
+     "completeDungeonAfterDurableIntent(intent)",
+     "pendingRewardIntents.remove(intent.batch.runId(), intent)",
+     "releaseRewardHeldInstanceIfVacant(intent.worldName)"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/EquipmentOperationIntegrationContractTest.java#refine": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/RefineCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "refinementUsesDurableOutboxInsteadOfSplitBurnRefund",
+    "required": [
+     "EquipmentOperationRequest",
+     "operations.stage(player, request)",
+     "player.saveData()",
+     "operations.submit(player, request"
+    ],
+    "forbidden": [
+     "economy.burn(",
+     "economy.refund("
+    ],
+    "ordered": []
+   },
+   {
+    "method": "submittedGateSurvivesAuthenticationRevocation",
+    "required": [
+     "AuthenticatedPlayerRevokedEvent"
+    ],
+    "forbidden": [
+     "InstanceHolder) player.closeInventory();\n        active.remove"
+    ],
+    "ordered": []
+   },
+   {
+    "method": "refinedEquipmentIsSignedInsideTheSharedCommitPath",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "data.set(statKey, PersistentDataType.STRING",
+     "commitAndRefresh(player, item, meta)",
+     "equipment.sign(item)"
+    ]
+   },
+   {
+    "method": "refinedResultIsBuiltBeforeTheLiveItemIsEscrowed",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "outcome = applyRoll(player, resultItem",
+     "operations.itemPayload(resultItem)",
+     "current.item().setAmount(0)"
+    ]
+   },
+   {
+    "method": "durableEnvelopePrecedesEveryEnhancementLocalGate",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "operations.hasPending(player)",
+     "active.add(player.getUniqueId())"
+    ]
+   },
+   {
+    "method": "completionFeedbackCannotTargetAReplacedLoginSession",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "operations.submit(player, request",
+     "if (!currentSession(player)",
+     "Bukkit.getPlayer(player.getUniqueId()) == player"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/EquipmentOperationIntegrationContractTest.java#limit-break": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/LimitBreakCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "limitBreakUsesDurableOutboxInsteadOfSplitBurnRefund",
+    "required": [
+     "EquipmentOperationRequest",
+     "operations.stage(player, request)",
+     "player.saveData()",
+     "operations.submit(player, request"
+    ],
+    "forbidden": [
+     "economy.burn(",
+     "economy.refund("
+    ],
+    "ordered": []
+   },
+   {
+    "method": "limitBreakSubmittedGateSurvivesAuthenticationRevocation",
+    "required": [
+     "AuthenticatedPlayerRevokedEvent"
+    ],
+    "forbidden": [
+     "Submitted durable operations deliberately remain active.\n        active.remove"
+    ],
+    "ordered": []
+   },
+   {
+    "method": "limitBreakDurableEnvelopePrecedesEveryLocalGate",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "operations.hasPending(player)",
+     "active.add(player.getUniqueId())"
+    ]
+   },
+   {
+    "method": "limitBreakCompletionFeedbackCannotTargetAReplacedLoginSession",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "operations.submit(player, request",
+     "if (!currentSession(player)",
+     "Bukkit.getPlayer(player.getUniqueId()) == player"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeListener.java"
+  ],
+  "checks": [
+   {
+    "method": "forgePersistsEscrowBeforeConsumingInputsAndUsesDeterministicOutbox",
+    "required": [
+     "EquipmentOperationEnvelope.deterministicSeed",
+     "player.saveData()"
+    ],
+    "forbidden": [
+     "economy.burn("
+    ],
+    "ordered": [
+     "operations.stage(player, request)",
+     "consume(core, coreCost)",
+     "operations.submit(player, request"
+    ]
+   },
+   {
+    "method": "projectileKillsUseTheLaunchWeaponInsteadOfTheCurrentMainHand",
+    "required": [
+     "getDamageSource().getDirectEntity() instanceof AbstractArrow",
+     "grantProjectileKillExperience(player, arrow, gained)",
+     "arrow.getWeapon()",
+     "player.getInventory().getContents()",
+     "security.itemId(candidate).equals(launchedId)",
+     "trident.setItem(thrown.clone())"
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java#coordinator": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentOperationCoordinator.java"
+  ],
+  "checks": [
+   {
+    "method": "unresolvedDatabaseOutcomeKeepsTheEnvelopeButReleasesOnlyTheLocalGate",
+    "required": [
+     "RECOVERY_PENDING",
+     "completion.accept"
+    ],
+    "forbidden": [
+     "completion.accept(new EquipmentOperationResult(\n                        EquipmentOperationResult.Status.RECOVERY_PENDING,\n                        request.operationId(), false, 0, BigDecimal.ZERO));\n                clearIfMatching"
+    ],
+    "ordered": []
+   },
+   {
+    "method": "onlyTheCurrentLoginSessionMayClearAndPersistTheEquipmentEnvelope",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "stage.whenComplete",
+     "if (currentSession(player))",
+     "clearIfMatching(player, request.operationId())",
+     "player.saveData()",
+     "private static boolean currentSession",
+     "Bukkit.getPlayer(player.getUniqueId()) == player"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java#security": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentSecurity.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/security/AuthoritativeItemProcessingListener.java"
+  ],
+  "checks": [
+   {
+    "method": "operationMarkerMakesEscrowCopiesUnauthenticAndUnusable",
+    "required": [
+     "EquipmentOperationMarker.isMarked",
+     "onMarkedOperationItemClick"
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java#unbind-legacy": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/UnbindCommand.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "unbindAndLegacyUseTheSameDurableEscrowProtocolAsForge",
+    "required": [
+     "operations.hasPending(player)",
+     "EquipmentOperationEnvelope.fingerprint"
+    ],
+    "forbidden": [
+     "economy.burn(",
+     "economy.refund("
+    ],
+    "ordered": [
+     "operations.stage(player, request)",
+     "item.setAmount(0)",
+     "player.saveData()",
+     "operations.submit(player, request"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java#unbind-legacy-chain": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/UnbindCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "unbindCommandPersistsEnvelopeBeforeEscrowAndSubmitsAfterSave",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "operations.stage(player, request)",
+     "item.setAmount(0)",
+     "player.saveData()",
+     "operations.submit(player, request"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java#legacy-chain": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "legacyCommandPersistsEnvelopeBeforeEscrowAndSubmitsAfterSave",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "operations.stage(player, request)",
+     "item.setAmount(0)",
+     "player.saveData()",
+     "operations.submit(player, request"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java#legacy-blueprint": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyCommand.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyBlueprintService.java"
+  ],
+  "checks": [
+   {
+    "method": "legacyBlueprintIdentityIsDeterministicInsideThePersistedResult",
+    "required": [
+     "blueprints.create(player, current, messages, operationId)",
+     "blueprintIdentity.toString()"
+    ],
+    "forbidden": [
+     "data.set(blueprintId, PersistentDataType.STRING, UUID.randomUUID()"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeInputBoundaryContractTest.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeListener.java"
+  ],
+  "checks": [
+   {
+    "method": "previewAndBothCommitChecksRejectAlreadySignedEquipment",
+    "required": [
+     "private boolean validForgeBase",
+     "!security.isCustomEquipment(base)"
+    ],
+    "forbidden": [],
+    "ordered": [
+     "if (!validForgeBase(base)",
+     "if (!validForgeBase(base)",
+     "if (!validForgeBase(base)"
+    ]
+   },
+   {
+    "method": "everyForgeInventoryMutationChecksTheMenuOwner",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "public void onClick",
+     "!menu.ownerId().equals(player.getUniqueId())",
+     "public void onDrag",
+     "!menu.ownerId().equals(event.getWhoClicked().getUniqueId())",
+     "public void onClose",
+     "!menu.ownerId().equals(player.getUniqueId())"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-market/src/test/java/cn/originalrpg/market/MailboxDeliveryIntegrationContractTest.java#market-command": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-market/src/main/java/cn/originalrpg/market/MarketCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "trustedMailboxBoundaryClearsLegacyEquipmentEscrowLockBeforeDeliveryReceipt",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "private void deliverNext",
+     "ItemStack.deserializeBytes",
+     "EquipmentOperationMarker.clear(item)",
+     "meta.getPersistentDataContainer().set(deliveryMarker",
+     "player.getInventory().addItem(item)"
+    ]
+   },
+   {
+    "method": "staleListingCallbackCannotSaveOverANewerLoginAndOrphanMarkersAreRecovered",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "private void completePreparation",
+     "Player current = Bukkit.getPlayer(player.getUniqueId())",
+     "if (!ready(current)) return",
+     "clearListingMarker(current, listingId)",
+     "current.saveData()"
+    ]
+   },
+   {
+    "method": "loginReconciliationWaitsForAnUncommittedPreparationThenClearsOrphans",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "private void recoverPreparedListings",
+     "if (preparingListings.containsKey(playerId))",
+     "market.preparedListings(playerId)",
+     "clearOrphanListingMarkers(player, preparedIds, inFlight)"
+    ]
+   },
+   {
+    "method": "readyRequiresTheExactAuthenticatedHandle",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "Bukkit.getPlayer(player.getUniqueId()) == player",
+     "authenticatedPlayers.get(player.getUniqueId()) == player"
+    ]
+   },
+   {
+    "method": "staleDisconnectMustNotRevokeANewerAuthenticatedHandle",
+    "required": [
+     "authenticatedPlayers.remove(player.getUniqueId(), player)"
+    ],
+    "forbidden": [],
+    "ordered": [
+     "clearOrphanListingMarkers(player, preparedIds, inFlight)",
+     "Bukkit.getPlayer(player.getUniqueId()) == player"
+    ]
+   },
+   {
+    "method": "pluginDisableClosesEveryProcessLocalMarketGate",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "void close()",
+     "authenticatedPlayers.clear()",
+     "listingPlayers.clear()",
+     "preparingListings.clear()",
+     "mailboxClaimSessions.clear()",
+     "mailboxClaims.clear()"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-market/src/test/java/cn/originalrpg/market/MailboxDeliveryIntegrationContractTest.java#market-plugin": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-market/src/main/java/cn/originalrpg/market/RpgMarketPlugin.java"
+  ],
+  "checks": [
+   {
+    "method": "pluginDisableClosesTheMarketCommandGate",
+    "required": [
+     "if (marketCommand != null) marketCommand.close()"
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/SkillAsyncLifecycleContractTest.java#skills-command": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-skills/src/main/java/cn/originalrpg/skills/SkillsCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "skillCallbacksAndPendingOperationsAreConnectionAndShutdownScoped",
+    "required": [
+     "Bukkit.getPlayer(player.getUniqueId()) != player",
+     "authenticatedPlayers.get(player.getUniqueId()) != player",
+     "authenticatedPlayers.remove(playerId, player)",
+     "!authenticatedPlayers.containsKey(playerId)) skills.evict(playerId)",
+     "Map<UUID, Player> learningPlayers",
+     "operations.replace(playerId, active, player)",
+     "learningPlayers.remove(playerId, player)",
+     "if (!plugin.isEnabled()) return;",
+     "if (plugin.isEnabled()) action.run();",
+     "catch (IllegalPluginAccessException | IllegalStateException ignored)"
+    ],
+    "forbidden": [
+     "learningPlayers.remove(playerId);",
+     "castingPlayers.remove(playerId);",
+     "treeLoadingPlayers.remove(playerId);"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/SkillAsyncLifecycleContractTest.java#skill-book-listener": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-skills/src/main/java/cn/originalrpg/skills/SkillBookListener.java"
+  ],
+  "checks": [
+   {
+    "method": "skillBookCallbacksAreConnectionScopedAndShutdownSafe",
+    "required": [
+     "Map<UUID, PendingBookUse> pendingPlayers",
+     "Bukkit.getPlayer(player.getUniqueId()) != player",
+     "pendingPlayers.remove(player.getUniqueId(), pending)",
+     "AuthenticatedPlayerRevokedEvent",
+     "if (!plugin.isEnabled()) return;",
+     "if (plugin.isEnabled()) action.run();",
+     "catch (IllegalPluginAccessException | IllegalStateException ignored)"
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-world/src/test/java/cn/originalrpg/world/SurvivalPerformanceConfigurationContractTest.java#performance-plugin": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-performance/src/main/java/cn/originalrpg/performance/RpgPerformancePlugin.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceSamplerDoesNotAllocateLoadedChunkArrays",
+    "required": [
+     "chunks += world.getChunkCount();"
+    ],
+    "forbidden": [
+     "world.getLoadedChunks().length"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-combat/src/main/java/cn/originalrpg/combat/CombatVisuals.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-combat/src/main/java/cn/originalrpg/combat/CombatVisuals.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-cosmetics/src/main/java/cn/originalrpg/cosmetics/RpgCosmeticsPlugin.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-cosmetics/src/main/java/cn/originalrpg/cosmetics/RpgCosmeticsPlugin.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonVisuals.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonVisuals.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/EnhancementVisuals.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/EnhancementVisuals.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-integrations/src/main/java/cn/originalrpg/integrations/RpgIntegrationsPlugin.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-integrations/src/main/java/cn/originalrpg/integrations/RpgIntegrationsPlugin.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeVisuals.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeVisuals.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/BetterModelMobAppearanceService.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/BetterModelMobAppearanceService.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/MobVisuals.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/MobVisuals.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/ability/MobAbilityVisuals.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/ability/MobAbilityVisuals.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-skills/src/main/java/cn/originalrpg/skills/SkillVisuals.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-skills/src/main/java/cn/originalrpg/skills/SkillVisuals.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-story/src/main/java/cn/originalrpg/story/EscortManager.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-story/src/main/java/cn/originalrpg/story/EscortManager.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-sulfur/src/main/java/cn/originalrpg/sulfur/SulfurVisuals.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-sulfur/src/main/java/cn/originalrpg/sulfur/SulfurVisuals.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#PerformanceService|plugins/rpg-world/src/main/java/cn/originalrpg/world/WorldEventListener.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-world/src/main/java/cn/originalrpg/world/WorldEventListener.java"
+  ],
+  "checks": [
+   {
+    "method": "performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final PerformanceService",
+     "private PerformanceService",
+     "getServicesManager().load(PerformanceService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#SkillHudService|plugins/rpg-ai-npc/src/main/java/cn/originalrpg/ainpc/AiNpcController.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-ai-npc/src/main/java/cn/originalrpg/ainpc/AiNpcController.java"
+  ],
+  "checks": [
+   {
+    "method": "skillHudServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final SkillHudService",
+     "private SkillHudService",
+     "getServicesManager().load(SkillHudService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#SkillHudService|plugins/rpg-guide/src/main/java/cn/originalrpg/guide/GuideCommand.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-guide/src/main/java/cn/originalrpg/guide/GuideCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "skillHudServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final SkillHudService",
+     "private SkillHudService",
+     "getServicesManager().load(SkillHudService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#SkillHudService|plugins/rpg-guide/src/main/java/cn/originalrpg/guide/GuideTracker.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-guide/src/main/java/cn/originalrpg/guide/GuideTracker.java"
+  ],
+  "checks": [
+   {
+    "method": "skillHudServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final SkillHudService",
+     "private SkillHudService",
+     "getServicesManager().load(SkillHudService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#SkillHudService|plugins/rpg-guide/src/main/java/cn/originalrpg/guide/PlayerListHud.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-guide/src/main/java/cn/originalrpg/guide/PlayerListHud.java"
+  ],
+  "checks": [
+   {
+    "method": "skillHudServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final SkillHudService",
+     "private SkillHudService",
+     "getServicesManager().load(SkillHudService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#SkillHudService|plugins/rpg-integrations/src/main/java/cn/originalrpg/integrations/SivitaPlaceholderExpansion.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-integrations/src/main/java/cn/originalrpg/integrations/SivitaPlaceholderExpansion.java"
+  ],
+  "checks": [
+   {
+    "method": "skillHudServiceConsumerResolvesOnlyEnabledProvidersAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final SkillHudService",
+     "private SkillHudService",
+     "getServicesManager().load(SkillHudService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#JourneyService|plugins/rpg-ai-npc/src/main/java/cn/originalrpg/ainpc/AiNpcController.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-ai-npc/src/main/java/cn/originalrpg/ainpc/AiNpcController.java"
+  ],
+  "checks": [
+   {
+    "method": "journeyserviceIsResolvedReloadablyAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final JourneyService",
+     "private JourneyService",
+     "getServicesManager().load(JourneyService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#SkillService|plugins/rpg-ai-npc/src/main/java/cn/originalrpg/ainpc/AiNpcController.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-ai-npc/src/main/java/cn/originalrpg/ainpc/AiNpcController.java"
+  ],
+  "checks": [
+   {
+    "method": "skillserviceIsResolvedReloadablyAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final SkillService",
+     "private SkillService",
+     "getServicesManager().load(SkillService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#EquipmentService|plugins/rpg-ai-npc/src/main/java/cn/originalrpg/ainpc/AiNpcController.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-ai-npc/src/main/java/cn/originalrpg/ainpc/AiNpcController.java"
+  ],
+  "checks": [
+   {
+    "method": "equipmentserviceIsResolvedReloadablyAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final EquipmentService",
+     "private EquipmentService",
+     "getServicesManager().load(EquipmentService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java#CombatStateService|plugins/rpg-ai-npc/src/main/java/cn/originalrpg/ainpc/AiNpcController.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-ai-npc/src/main/java/cn/originalrpg/ainpc/AiNpcController.java"
+  ],
+  "checks": [
+   {
+    "method": "combatstateserviceIsResolvedReloadablyAtUseTime",
+    "required": [
+     "OptionalServices.enabled("
+    ],
+    "forbidden": [
+     "private final CombatStateService",
+     "private CombatStateService",
+     "getServicesManager().load(CombatStateService.class)"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-world/src/test/java/cn/originalrpg/world/SurvivalPerformanceConfigurationContractTest.java": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-world/src/main/java/cn/originalrpg/world/RpgWorldPlugin.java"
+  ],
+  "checks": [
+   {
+    "method": "legacyPluginConfigWithoutTheKeyUsesTheReviewedCap",
+    "required": [
+     "getInt(\"survival-rules.monster-spawn-limit\", 56)",
+     "SpawnCategory.MONSTER"
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java#resource-pack": {
+  "pathFragments": [],
+  "files": [
+   "resource-pack/assets/originalrpg/lang/zh_cn.json",
+   "resource-pack/assets/originalrpg/lang/en_us.json"
+  ],
+  "checks": [
+   {
+    "method": "quickActionTranslationsExistInBothBundledLocales",
+    "required": [
+     "\"sivita.quick.quests\"",
+     "\"sivita.quick.find\""
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ]
+ },
+ "tools/db-migration/src/test/java/cn/originalrpg/tools/dbmigration/MigrationAdvisoryLockTest.java#rpg-core": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java"
+  ],
+  "checks": [
+   {
+    "method": "rpgCoreSourceStillDeclaresTheSameLockKey",
+    "required": [
+     "MIGRATION_LOCK_NAMESPACE = 0x53495649",
+     "MIGRATION_LOCK_RESOURCE = 0x52504731",
+     "\"SELECT pg_advisory_xact_lock(\" + MIGRATION_LOCK_NAMESPACE + \", \"",
+     "+ MIGRATION_LOCK_RESOURCE + \")\""
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/SeasonAttunementSettlementWiringTest.java#command-surface": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/resources/plugin.yml",
+   "plugins/rpg-core/src/main/resources/plugin.yml"
+  ],
+  "checks": [
+   {
+    "method": "seasonAttunementRegistersNoPlayerCommandInAnyPluginManifest",
+    "required": [],
+    "forbidden": [
+     "attune",
+     "attunement",
+     "赛季调谐"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/SeasonAttunementSettlementWiringTest.java#command-dispatch": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-core/src/main/java/cn/originalrpg/core/command/RpgCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "seasonAttunementHasNoSubcommandInThePlayerDispatchChain",
+    "required": [],
+    "forbidden": [
+     "ttun"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/EquipmentSigningMaterialTest.java#no-key-sink": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java"
+  ],
+  "checks": [
+   {
+    "method": "missingKeyNeverWritesAKeyBackToAnySink",
+    "required": [],
+    "forbidden": [
+     "SecureRandom",
+     "security.signing-key\", encoded",
+     "getConfig().set(\"security"
+    ],
+    "ordered": []
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java#destroy-command": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "destroyEntryPointPersistsEscrowBeforeSubmitting",
+    "required": [
+     "EquipmentOperationKind.DESTROY"
+    ],
+    "forbidden": [
+     "economy.burn("
+    ],
+    "ordered": [
+     "operations.stage(player, request)",
+     "held.setAmount(0)",
+     "player.saveData()",
+     "operations.submit(player, request"
+    ]
+   },
+   {
+    "method": "destroyCommandUsesAUniqueAuditableIdempotencyKey",
+    "required": [
+     "\"destroy:\" + operationId",
+     "BigDecimal.ZERO.setScale(2)"
+    ],
+    "forbidden": [],
+    "ordered": []
+   },
+   {
+    "method": "mailboxLaneGateFailsClosedBeforeAnyStateIsMutated",
+    "required": [
+     "DestroyRules.deliveryLane(EquipmentOperationKind.DESTROY)",
+     "!= DestroyDeliveryRules.Lane.ESCROW_MAILBOX"
+    ],
+    "forbidden": [
+     "ESCROW_MAILBOX) {\n            throw new IllegalStateException"
+    ],
+    "ordered": [
+     "DestroyRules.deliveryLane(EquipmentOperationKind.DESTROY)",
+     "operations.stage(player, request)",
+     "held.setAmount(0)",
+     "player.saveData()"
+    ]
+   }
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java#season-attunement": {
+  "pathFragments": [],
+  "files": [
+   "plugins/rpg-items/src/main/resources/plugin.yml",
+   "plugins/rpg-items/src/main/resources/config.yml",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java"
+  ],
+  "checks": [
+   {
+    "method": "seasonAttunementHasNeitherCommandNorConfigurationSurface",
+    "required": [],
+    "forbidden": [
+     "attune",
+     "attunement",
+     "赛季调谐",
+     "attun",
+     "Attun"
+    ],
+    "ordered": []
+   },
+   {
+    "method": "seasonAttunementHasNoPersistedProducerInTheEquipmentPlugin",
+    "required": [],
+    "forbidden": [
+     "SEASON_ATTUNED"
+    ],
+    "ordered": []
+   }
+  ]
  }
 }

@@ -10,6 +10,7 @@
 #   4) scripts/check-ddl-consumers.sh 的第 7 节（DDL 注册门禁/反向检查）在四种形态下
 #      给出预期退出码：正常 → 0；代码引用不存在的表 → 1；前缀误报 → 1；显式豁免 → 0
 #   4b) scripts/check-source-contract.sh 在不可能满足的顺序契约上必须红、真实顺序必须绿
+#   4d) W16-A1：scripts/check-source-string-tests.sh 的判据必须能真的变红（G-302-RESIDUAL 结项门禁）
 #   4c) scripts/install-datapacks.sh --check 在真实数据包上必须绿，函数调用未注册命令后必须红
 #   5) scripts/check-repo-artifacts.sh 在真实文档上必须绿，且把数据包目录藏起来后必须红
 #   5b) resource-pack 的 HUD 尺寸门禁（W7-A4）必须能真的变红，且 build.sh 常量与唯一来源一致
@@ -283,6 +284,41 @@ check "禁止片段命中 → 1" 1 "$(run_contract)"
 write_spec '[]' '["never-in-this-file"]'
 check "禁止片段未命中 → 0" 0 "$(run_contract)"
 cd "$ROOT"
+
+echo "== 4d. G-302-RESIDUAL 结项门禁：本仓生产源码里不得再有源码字符串断言 =="
+# 判据：sh scripts/check-source-string-tests.sh
+#   GREEN = 没有任何 *Test 方法体同时「读 plugins|tools 下的生产文件」+「contains/indexOf 断言」。
+#   它最危险的失效是「永远绿」：判据一旦被写错（例如路径前缀过滤失效），
+#   这批伪测试会静默回来。这里用最小夹具证明它真的会红。
+SST_FIXTURE="$TMP/source-string-fixture"
+mkdir -p "$SST_FIXTURE/plugins/fake/src/test/java" "$SST_FIXTURE/plugins/fake/src/main/java" \
+    "$SST_FIXTURE/scripts"
+# 脚本从自身位置解析 ROOT 并 cd 过去，因此夹具根必须有 settings.gradle.kts 才不会被
+# 解析到真实仓库（否则负向对照会「看起来通过」，实际跑的是真实仓）。
+: > "$SST_FIXTURE/settings.gradle.kts"
+cat > "$SST_FIXTURE/plugins/fake/src/main/java/Target.java" <<'JAVA'
+class Target { void a() {} }
+JAVA
+cat > "$SST_FIXTURE/plugins/fake/src/test/java/FakeTest.java" <<'JAVA'
+class FakeTest {
+    @Test
+    void fake() throws Exception {
+        String s = java.nio.file.Files.readString(java.nio.file.Path.of("plugins/fake/src/main/java/Target.java"));
+        org.junit.jupiter.api.Assertions.assertTrue(s.contains("void a()"));
+    }
+}
+JAVA
+cp scripts/check-source-string-tests.sh "$SST_FIXTURE/scripts/"
+set +e
+( cd "$SST_FIXTURE" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
+fixture_rc=$?
+set -e
+check "夹具里存在「读生产源码 + contains」的测试 → 1" 1 "$fixture_rc"
+set +e
+( cd "$ROOT" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
+real_rc=$?
+set -e
+check "真实仓库已无此类断言 → 0" 0 "$real_rc"
 
 echo "== 4c. install-datapacks 门禁（G-206）必须能真的变红（负向对照） =="
 # 数据包校验门禁最危险的失效同样是「永远绿」：tag 只声明不引用真实函数、
