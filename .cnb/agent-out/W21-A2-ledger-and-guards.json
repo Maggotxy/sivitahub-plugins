@@ -141,7 +141,9 @@
       "head_sha_after_push": "3a918338a594c0295b79601c0e3fe76eb69ff09b",
       "state": "open",
       "base": "refs/heads/main",
-      "mergeable_state": "mergeable"
+      "mergeable_state": "mergeable",
+      "comment_id": "2106431005065609216",
+      "comment_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70#comment-2106431005065609216"
     }
   },
   "risks": [
