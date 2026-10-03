@@ -65,15 +65,23 @@
   },
   "no_pipe_exitcode": {
    "note": "退出码均用 `cmd > 文件 2>&1; echo $?` 或子 shell 取，未走管道。"
+  },
+  "push_and_pr": {
+   "push_cmd": "git push origin agent/W12-A2-asset-provenance",
+   "push_out": "6a01efb..96ac9f7  agent/W12-A2-asset-provenance -> agent/W12-A2-asset-provenance（exit=0）",
+   "pr_cmd": "cnb pulls post-pull --repo xzqkjmnbvc2026/sivitahub --base main --head agent/W12-A2-asset-provenance --title '[agent/W12-A2-asset-provenance] …' --body-file /tmp/pr-body.md",
+   "pr_out": "PR #58 created; cnb pulls get-pull --number 58 => state=open / mergeable_state=mergeable / head.sha=96ac9f7 / title 以 [agent/W12-A2-asset-provenance] 开头",
+   "exit": 0
   }
  },
- "pr_url": "",
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/58",
  "risks": [
   "重试轮纠正上一轮的两处问题：① 误删被授权的 resource-pack/tools/generate-provenance.py（编排器 0.13 波裁决必须入库，且列入 W13-A2 allowed_paths）—— 已恢复；② 文档判据 1 的键基写错（find resource-pack/assets vs 实际键 assets/…）—— 已改为 `cd resource-pack && find assets`。",
   "本分支是『merge main』而非 rebase（不能 force push），故分支含一个 merge commit；相对 main 的实际文件差异仅 ASSET-PROVENANCE.md / README.md / agent-out 三处。",
   "asset-provenance.json 的 6 条 $needsHumanDecision 已由编排器在 W13 逐条裁决，由 W13-A1 / W13-A2 落地；本任务不改 JSON schema，避免与 W13-A2 的 allowed_paths 冲突。",
   "本任务与 W13-A2 都会碰 ASSET-PROVENANCE.md；本分支只改了 §0/§8 的键口径措辞，若 W13-A2 也改该文件需做文本合并。",
-  "若已有下游门禁按错误原文实现判据 1，需同步改为 `cd resource-pack && find assets -name '*.png'`。"
+  "若已有下游门禁按错误原文实现判据 1，需同步改为 `cd resource-pack && find assets -name '*.png'`。",
+  "提交信息瑕疵：commit 3a4709d 的正文里含反引号包裹的 `assets/...`，被 shell 当命令替换展开，把 252 条资产路径串进了提交正文（已 push，不能 force push 修正）。文件内容与 PR 描述不受影响；后续提交已改用引号避免该问题。"
  ],
  "next_steps": [
   "W13-A2 落地 6 条裁决时保留本轮的键口径说明（键 = 相对仓库根的 `assets/...`），避免判据再写错。",
