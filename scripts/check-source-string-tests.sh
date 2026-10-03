@@ -29,6 +29,22 @@
 #      "直接落在读出来的字符串上"是排除误报的关键：对**解析后的 Map/集合**做 contains
 #      （配置契约测试）不算。
 #
+#   ── 形态 ④：遍历式源码扫描（W19-A1 补）─────────────────────────────────────────
+#   还有一类间接形态过去被当成「对解析后的集合断言」而豁免，实际是同一性质：
+#     `Files.walk(<plugins/*&#47;src/main>) / Files.list(...)` 逐个 readString 出生产源码正文，
+#     用 `.contains(identifier)` **筛出「哪些文件提到了某标识符」**，再对筛出来的文件列表
+#     做 anyMatch / assertEquals 断言。
+#   它的断言对象看着是「文件列表」，但列表的**每一项都来自「这段源码文本含不含 identifier」**
+#   —— 生产代码里删掉这个词（哪怕只改注释）就会变红，因此它就是「读生产源码 + 源码字符串
+#   断言」，只是把 contains 的结果聚合了一层。
+#   ⚠️ W18-A1 第二轮以「解析后的集合」为由把这种形态整体豁免（注释里点名了两个类），
+#   使**原形态的源码扫描 helper 在真实仓库里判 GREEN** —— 判据的负向对照（把类改回原形态
+#   必须变红）因此失效。W19-A1 撤掉该豁免：只要遍历根指向 plugins|tools 下的 src/main
+#   且 readString 的正文被 `.contains(` 判断，就计缺口（例：rpg-items&#47;EquipmentExitPathReachabilityTest
+#   与 rpg-core&#47;SeasonAttunementSettlementWiringTest 的 productionReferences(identifier)）。
+#   反例（仍不算，避免误报）：LanguageBundleContractTest 遍历 plugins/ 后用
+#   Files.newInputStream + SnakeYAML 真解析（不是 readString、不对正文做 contains）⇒ 不算。
+#
 # ── 什么不算缺口（避免误报，逐条说明为什么）────────────────────────────────────
 #   · 读 src/test/resources 夹具、或读测试**自己**的文件：断言对象是"测试数据"，
 #     生产代码改了它也不会漂移 ⇒ 不算（前缀同为 plugins/，但没有 /src/main/）。
@@ -44,16 +60,6 @@
 #     （YAML/JSON/二进制）。算进来会把一批配置契约测试误判成缺口（W18-A1 实测多报 4 个）
 #     ⇒ 不算。
 #   · 断言只用 .contains( 等字符串方法但类里根本没有读生产源码的调用点 ⇒ 不算。
-#   · 用读取结果做**过滤谓词**（`if (Files.readString(f).contains(x)) { hits.add(f); }`），
-#     再对**筛出来的文件列表**做 contains/anyMatch/assertEquals：断言对象是「哪些文件提到
-#     某标识符」这一仓库布局事实，不是源码字符串本身。按上一条口径（对解析后的集合断言）
-#     ⇒ 不算。例：rpg-items/EquipmentExitPathReachabilityTest 与
-#     rpg-core/SeasonAttunementSettlementWiringTest 的 productionReferences(identifier)。
-#     ⚠️ W18-A1 第二轮修正：旧实现只看「`).contains(` 紧邻读取调用」就把这种谓词当断言，
-#     会误报上面两个类。现在要求 contains 结果真的处在 assert 调用里才计。
-#   · `Files.walk(生产目录)` 遍历出文件后只断言「文件名列表」：路径不是 plugins/ 开头的
-#     字面量（是 ROOT.resolve("plugins") 拼出来的），按上上条口径宁可漏判不误报 ⇒ 不算。
-#     它的**子形态**（对读出来的正文做 contains/顺序断言）仍然会被判为缺口，见上面的判据。
 #
 # 用法：sh scripts/check-source-string-tests.sh [--json]
 # 退出码：0 = 本仓生产源码里已无此类断言；1 = 仍有命中（打印文件:行:类名）
@@ -208,6 +214,50 @@ def reads_production_source(src):
     return None
 
 
+def reads_production_source_via_traversal(src):
+    """形态 ④：经 Files.walk/Files.list 遍历 plugins|tools 下 src/main，再 readString 正文。
+
+    返回 (偏移, 命中路径片段) 或 None。命中条件（三条同时满足）：
+      1) 遍历调用的根表达式指向生产源码树：根文本里带 `plugins`/`tools` 且带 `src/main`
+         （既覆盖 `Files.walk(root.resolve("plugins/rpg-core/src/main"))` 这种内联写法，
+          也覆盖 `Files.list(ROOT.resolve("plugins"))` + `module.resolve("src/main")`
+          这种拼接写法 —— 后者在类里同时出现 `"plugins"` 与 `"src/main"` 字面量）；
+      2) 类里对该遍历出来的文件调用了 readString/readAllBytes（读的是正文）；
+      3) 读过正文后对它做 `.contains(` 判断（无论判定结果是被当场 assert，还是
+         聚合成「哪些文件提到了某标识符」的列表后再 assert）。
+
+    这一条把「遍历 + 正文 contains」还原成它本来的性质：断言依赖「生产源码文本含不含
+    某标识符」，不是运行期行为。反例（不算）见脚本头部注释的 LanguageBundleContractTest。
+    """
+    walk = re.search(r'Files\s*\.\s*(?:walk|list)\s*\(', src)
+    if walk is None or not READ_CALL.search(src):
+        return None
+    inline = re.compile(r'"[^"]*(?:plugins|tools)[^"]*src/main')
+    root_start = walk.start()
+    # 1a) 遍历根是内联字面量（walk 调用括号内的实参里直接带 plugins|tools .../src/main）。
+    if inline.search(_balanced_arguments(src, walk.end() - 1)):
+        return root_start, sorted(set(re.findall(r'"([^"]*src/main[^"]*)"', src)))[:3]
+    # 1b) 拼接写法：类里同时出现 `"plugins"|"tools"` 与 `"src/main"`（根分两段 resolve）。
+    if (re.search(r'"(?:plugins|tools)"', src)
+            and re.search(r'"(?:src/main)"', src)):
+        return root_start, ['(traversal root: plugins|tools -> src/main)']
+    return None
+
+
+def _balanced_arguments(text, open_paren_index):
+    """取出从 `(` 开始到配对 `)` 的实参文本（用于判断遍历根是不是内联生产路径）。"""
+    depth = 0
+    for index in range(open_paren_index, len(text)):
+        char = text[index]
+        if char == '(':
+            depth += 1
+        elif char == ')':
+            depth -= 1
+            if depth == 0:
+                return text[open_paren_index + 1:index]
+    return text[open_paren_index + 1:]
+
+
 def inside_assert_arguments(src, offset):
     """offset 处的表达式是否落在某次 assert 调用的实参里。
 
@@ -296,6 +346,19 @@ def asserts_source_string(src, read_offset):
     return bool(ORDER_COMPARISON.search(src))
 
 
+def traversal_reads_assert_source(src):
+    """形态 ④ 的断言侧：readString 读到的正文被 `.contains(` 判断（就地或聚合成列表）。
+
+    与 asserts_source_string 的区别：这里**允许** contains 的结果先被收集成「哪些文件提到了
+    某标识符」的列表、再对列表断言 —— 列表每一项的真伪仍取决于源码正文含不含 identifier。
+    """
+    for match in READ_CALL.finditer(src):
+        tail = src[match.end():match.end() + 800]
+        if re.search(r'\bcontains\s*\(', tail):
+            return True
+    return False
+
+
 hits = []
 for path in sorted(glob.glob('plugins/**/src/test/**/*.java', recursive=True)
                    + glob.glob('tools/**/src/test/**/*.java', recursive=True)):
@@ -303,11 +366,14 @@ for path in sorted(glob.glob('plugins/**/src/test/**/*.java', recursive=True)
     if not READ_CALL.search(source):
         continue
     reading = reads_production_source(source)
-    if reading is None:
-        continue
-    if not asserts_source_string(source, reading[0]):
-        continue
-    offset, targets = reading
+    if reading is not None and asserts_source_string(source, reading[0]):
+        offset, targets = reading
+    else:
+        # 形态 ④：遍历 plugins|tools/src/main + readString + contains（聚合成文件列表也算）。
+        traversal = reads_production_source_via_traversal(source)
+        if traversal is None or not traversal_reads_assert_source(source):
+            continue
+        offset, targets = traversal
     hits.append({
         'file': path,
         'line': source.count('\n', 0, offset) + 1,

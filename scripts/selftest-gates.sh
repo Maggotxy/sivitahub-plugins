@@ -542,20 +542,28 @@ fixture_ok_rc=$?
 set -e
 check "夹具③豁免：读 src/test/resources 夹具 → 0（证明不误报）" 0 "$fixture_ok_rc"
 
-# ---- W18-A1 第二轮：过滤谓词 + 对「解析后的文件列表」断言不算缺口（否则同样会误报）----
-# `if (Files.readString(f).contains(x)) hits.add(f);` 是用读取结果**筛文件**，
-# 断言对象是「哪些文件提到某标识符」这一仓库布局事实（解析后的集合），
-# 不是源码正文。旧判据只看「`).contains(` 紧邻读取调用」⇒ 误报 rpg-items 与 rpg-core 的
-# productionReferences(identifier)。这里锁住收紧后的行为：必须 → 0。
+# ---- W19-A1：遍历式源码扫描（walk src/main + readString + contains 聚合成文件列表）→ 必须 RED ----
+# 这正是 rpg-items/EquipmentExitPathReachabilityTest 与
+# rpg-core/SeasonAttunementSettlementWiringTest 的 productionReferences(identifier) 原形态：
+#   Files.walk(<根指向 plugins/.../src/main>) → 逐个 readString → .contains(identifier)
+#   → 把「哪些文件提到了某标识符」收集成列表 → 对列表 anyMatch 断言。
+# 断言对象看着是文件列表，但每个元素的真伪都取决于**生产源码正文里含不含那个词**
+# （改注释就会变红），因此它就是源码字符串断言。W18 第二轮曾以「解析后的集合」为由
+# 整体豁免它（注释里点名了两个类），导致「把类改回原形态必须变红」这条负向对照失效。
+# W19 撤掉该豁免：此夹具必须 → 1。
 rm -f "$SST_FIXTURE/plugins/fake/src/test/java/FixtureTest.java"
 cat > "$SST_FIXTURE/plugins/fake/src/test/java/PredicateTest.java" <<'JAVA'
 class PredicateTest {
     @Test
     void listed() throws Exception {
         java.util.List<String> hits = new java.util.ArrayList<>();
-        java.nio.file.Path file = java.nio.file.Path.of("plugins/fake/src/main/java/Target.java");
-        if (java.nio.file.Files.readString(file).contains("void a()")) {
-            hits.add(file.getFileName().toString());
+        try (var files = java.nio.file.Files.walk(
+                java.nio.file.Path.of("plugins/fake/src/main/java"))) {
+            for (java.nio.file.Path file : files.filter(p -> p.toString().endsWith(".java")).toList()) {
+                if (java.nio.file.Files.readString(file).contains("void a()")) {
+                    hits.add(file.getFileName().toString());
+                }
+            }
         }
         org.junit.jupiter.api.Assertions.assertTrue(hits.stream().anyMatch(p -> p.startsWith("Target")));
     }
@@ -565,8 +573,32 @@ set +e
 ( cd "$SST_FIXTURE" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
 predicate_rc=$?
 set -e
-check "夹具④豁免：读取结果做过滤谓词 + 断言文件列表 → 0（证明不误报）" 0 "$predicate_rc"
+check "夹具④遍历式源码扫描（walk src/main + readString + contains 聚合成列表）→ 1" 1 "$predicate_rc"
 rm -f "$SST_FIXTURE/plugins/fake/src/test/java/PredicateTest.java"
+
+# 同族的**真豁免**对照（避免上述收紧把正当用法误报）：遍历目录后只**解析**文件
+# （SnakeYAML，不 readString、不对正文 contains）⇒ 0。
+# 对应真实仓 LanguageBundleContractTest#projectYamlFilesParseWithoutDuplicateKeys。
+cat > "$SST_FIXTURE/plugins/fake/src/test/java/YamlParseTest.java" <<'JAVA'
+class YamlParseTest {
+    @Test
+    void strict() throws Exception {
+        try (var files = java.nio.file.Files.walk(java.nio.file.Path.of("plugins/fake"))) {
+            for (java.nio.file.Path file : files.filter(p -> p.toString().endsWith(".yml")).toList()) {
+                try (var in = java.nio.file.Files.newInputStream(file)) {
+                    new org.yaml.snakeyaml.Yaml().load(in);
+                }
+            }
+        }
+    }
+}
+JAVA
+set +e
+( cd "$SST_FIXTURE" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
+yaml_rc=$?
+set -e
+check "夹具④b豁免：遍历目录 + 真解析 YAML（不 readString/不 contains）→ 0" 0 "$yaml_rc"
+rm -f "$SST_FIXTURE/plugins/fake/src/test/java/YamlParseTest.java"
 
 # ---- W19-A1：收紧过捕时**不得把真实断言一起放过**（过捕收紧的反向失效）----
 # W18 第二轮为了不误报过滤谓词，把一行式判据收成「assert 文本紧邻读取调用」。

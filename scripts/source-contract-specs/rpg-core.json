@@ -1,0 +1,30 @@
+{
+ "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/SeasonAttunementSettlementWiringTest.java#attunement-consumer": {
+  "_why": [
+   "原断言：productionReferences(\"attune\") 里必须存在 EquipmentStateLedger.java —— 即「换季调谐的唯一权威写入者真的存在」。",
+   "这条断言要证明的是「接线存在性」这一静态事实：唯一权威状态机之外必须有真实消费者，",
+   "运行期没有「哪个生产文件提到了某标识符」的对应形态（行为化的那一半 —— 玩家操作产不出 SEASON_ATTUNED ——",
+   "已在同类 theLifecycleIsTheOnlyProducerOfSeasonAttuned 里真跑状态机），故迁进声明式契约由门禁执行。",
+   "required 用生产文件里真实存在的可鉴别字面量（写入方法与规则判据），避免退化成「只要出现这个词就算」。"
+  ],
+  "files": [
+   "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/EquipmentStateLedger.java"
+  ],
+  "checks": [
+   {
+    "method": "theLifecycleIsTheOnlyProducerOfSeasonAttuned",
+    "required": [
+     "State attune(Connection connection",
+     "SeasonAttunementRules.attunable(",
+     "State.SEASON_ATTUNED"
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ],
+  "_key_layout": [
+   "键 = <测试类全路径>#<规格键>，与 all.json / rpg-items.json 同口径，可被门禁 --all 点名或单键复跑。",
+   "跨多文件作用域按文件归属拆键：required 只落在被断言的那个文件上。"
+  ]
+ }
+}
