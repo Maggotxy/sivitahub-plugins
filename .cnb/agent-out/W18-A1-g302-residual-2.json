@@ -8,7 +8,7 @@
   "plan/source-string-tests-remaining.json",
   ".cnb/agent-out/W18-A1-g302-residual-2.json"
  ],
- "pr_url": "",
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/66",
  "risks": [
   "本轮相对上一轮的差异（针对退回意见）：上一轮在真实仓库上留下 SOURCE_STRING_GATE=RED 与 selftest FAIL=1，并把 rpg-items/EquipmentExitPathReachabilityTest 判为「同类残留、需交接他任务」。复核查明那是**本判据自己的过捕**，不是残留：（a）constant_paths() 只要实参文本里出现某个大写常量名就回溯其声明里的生产路径，`anyMatch(path -> path.equals(LIFECYCLE_ONLY))` 因此被当成「读取 LIFECYCLE_ONLY 路径」；（b）branch1 只看 `).contains(` 紧邻读取调用，把 `if (readString(f).contains(x)) hits.add(f)` 的**过滤谓词**当断言。两处都违反脚本头部已写明的口径（「断言必须直接落在读出来的字符串上」「对解析后的集合做 contains 不算」），属实现与口径不一致。已收紧（实参必须以常量名开头；contains 结果必须位于 assert 调用内）。收紧后真实仓库 GREEN，且原有/间接形态仍能变红（夹具①②与改回原样均 RED），检测力未下降。",
   "rpg-items/EquipmentExitPathReachabilityTest 与 rpg-core/SeasonAttunementSettlementWiringTest 的 productionReferences(identifier) （Files.walk(src/main) + readString(f).contains(identifier) → 断言文件列表）现在判为**不算缺口**，理由写进脚本头部：断言对象是「哪些文件提到某标识符」这一仓库布局事实（对解析后的集合断言），不是源码正文。这是「宁可漏判不误报」的既定口径，与脚本原有对 Map/Set 断言的排除一致。若后续判定这类「遍历生产目录再断言文件列表」也要纳入门禁，需新增判据条目而非复用本条（属新决策，需人拍板）。",
