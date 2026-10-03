@@ -12,7 +12,7 @@
     ".cnb/agent-out/evidence/full-graph-test.log",
     ".cnb/agent-out/W21-A1-fix-flaky-test-gate.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70",
   "evidence": {
     "failing_assertion": {
       "test": "cn.originalrpg.admin.AnomalyReviewCommandTest#acknowledgeWithoutConfirmOrSignatureIsRefusedAndWritesNothing",
