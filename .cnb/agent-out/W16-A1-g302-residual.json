@@ -24,7 +24,7 @@
     "tools/db-migration/src/test/java/cn/originalrpg/tools/dbmigration/MigrationAdvisoryLockTest.java",
     ".cnb/agent-out/W16-A1-g302-residual.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/63",
   "evidence": {
     "list_before": {
       "cmd": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/' | wc -l",
@@ -62,6 +62,10 @@
     "no_production_source_change": {
       "cmd": "git status --short plugins/*/src/main tools/*/src/main",
       "out": "（空）—— 本轮零生产代码/构建文件改动；负向对照的临时改坏全部还原"
+    },
+    "pr": {
+      "cmd": "cnb pulls list-pulls --repo xzqkjmnbvc2026/sivitahub",
+      "out": "#63 open / base=refs/heads/main / head=refs/heads/agent/W16-A1-g302-residual / mergeable_state=mergeable"
     }
   },
   "negative_controls": "== A. 行为化（真跑规则）：改写方式 = 临时改坏生产规则常量 ==\n[A1 DestroyRules.descendsToTerminal 去掉 DESTROY] gradle exit=1 :: > Task :plugins:rpg-items:test FAILED\n[A1 还原] DestroyRules.java 与备份一致\n[A1 还原后] gradle exit=0\n== B. ordered（同文件顺序链）==\n[B1 交换奖励持有移除顺序] exit=1 :: SOURCE_CONTRACT_GATE=RED DungeonRewardWorldHoldContractTest.java::durableIntentIsCompletedBeforeTheRecycleHoldIsRemoved: 顺序契约不成立（必须按序出现在同一个文件）-> ['rewardIo.persist(intent.batch).whenComplete', 'completeDungeonAfterDurableIntent(intent)', 'pendingRewardIntents.remove(intent.batch.runId(), intent)', 'releaseRewardHeldInstanceIfVacant(intent.worldName)']\n== C. required（必须出现）==\n[C1 改坏 required 字面量] exit=1 :: SOURCE_CONTRACT_GATE=RED MobRewardAsyncLifecycleContractTest.java::experienceBufferKeepsInFlightOwnershipUntilAuthorityIsKnown: 必须出现但缺失 -> 'maximum-pending-players'\n== D. forbidden（不得出现，含跨文件作用域）==\n[D1 消费方不再用调用点解析] exit=1 :: SOURCE_CONTRACT_GATE=RED SkillVisuals.java::performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime: 必须出现但缺失 -> 'OptionalServices.enabled('\n== E. 跨文件 forbidden（三清单同时约束）==\n[E1 plugin.yml 注册 attune 指令] exit=1 :: SOURCE_CONTRACT_GATE=RED EquipmentExitPathReachabilityTest.java#season-attunement::seasonAttunementHasNeitherCommandNorConfigurationSurface: 不得出现但命中 plugins/rpg-items/src/main/resources/plugin.yml -> 'attune'\n== F. || 备选展开（两条 required 都必须为真）==\n[F1 备选分支其一被改坏] exit=1 :: SOURCE_CONTRACT_GATE=RED SkillAsyncLifecycleContractTest.java#skills-command::skillCallbacksAndPendingOperationsAreConnectionAndShutdownScoped: 必须出现但缺失 -> 'operations.replace(playerId, active, player)'\n== G. 反射行为断言（构造器/字段签名）==\n[G1 学习操作表改成 UUID->UUID 键控] gradle exit=1 :: > Task :plugins:rpg-skills:compileJava FAILED\n== H. 迁移锁常量同步（tools 侧）==\n[H1 RpgCore 锁常量漂移] exit=1 :: SOURCE_CONTRACT_GATE=RED MigrationAdvisoryLockTest.java#rpg-core::rpgCoreSourceStillDeclaresTheSameLockKey: 必须出现但缺失 -> 'MIGRATION_LOCK_NAMESPACE = 0x53495649'\n== 全部还原后 git 与生产代码 ===\n",
