@@ -17,6 +17,8 @@
 #       路径来自常量、indexOf 先后比较），并证明读 src/test/resources 的夹具不会误报
 #       W18-A1 第二轮：再收紧两处过捕（lambda/比较里**提及**的常量不算读取路径；
 #       读取结果做**过滤谓词**不算断言），新增夹具④豁免对照，并让「真实仓库 → 0」真的变绿
+#       W19-A1：补夹具⑤⑥，锁住 W18 收紧过捕时引入的反向失效（assert 块包住读取调用 /
+#       Files.readString(Path.of(常量)) 曾被漏判为 GREEN）
 #   4c) scripts/install-datapacks.sh --check 在真实数据包上必须绿，函数调用未注册命令后必须红
 #   5) scripts/check-repo-artifacts.sh 在真实文档上必须绿，且把数据包目录藏起来后必须红
 #   5b) resource-pack 的 HUD 尺寸门禁（W7-A4）必须能真的变红，且 build.sh 常量与唯一来源一致
@@ -565,6 +567,47 @@ predicate_rc=$?
 set -e
 check "夹具④豁免：读取结果做过滤谓词 + 断言文件列表 → 0（证明不误报）" 0 "$predicate_rc"
 rm -f "$SST_FIXTURE/plugins/fake/src/test/java/PredicateTest.java"
+
+# ---- W19-A1：收紧过捕时**不得把真实断言一起放过**（过捕收紧的反向失效）----
+# W18 第二轮为了不误报过滤谓词，把一行式判据收成「assert 文本紧邻读取调用」。
+# 该口径过窄：`assertTrue(Files.readString(...).contains(x))` 里 assert 与读取之间
+# 隔着实参，于是**最直白的那种源码字符串断言**反被判 GREEN（实测漏判）。
+# 这两组夹具把这个反向失效锁住：断言块包住读取调用 → 必须 RED。
+cat > "$SST_FIXTURE/plugins/fake/src/test/java/WrappedAssertTest.java" <<'JAVA'
+class WrappedAssertTest {
+    @Test
+    void wrapped() throws Exception {
+        org.junit.jupiter.api.Assertions.assertTrue(java.nio.file.Files.readString(
+                java.nio.file.Path.of("plugins/fake/src/main/java/Target.java")).contains("void a()"));
+    }
+}
+JAVA
+set +e
+( cd "$SST_FIXTURE" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
+wrapped_rc=$?
+set -e
+check "夹具⑤：assert 块包住读取调用（assertTrue(readString(...).contains(x))）→ 1" 1 "$wrapped_rc"
+
+# 同族的第二形态：`Files.readString(Path.of(常量))` —— 路径来自常量且被 Path.of 包了一层。
+# W18 只认「实参以常量名开头」，`Path.of(TARGET)` 因此解析不出生产路径 → 漏判。
+cat > "$SST_FIXTURE/plugins/fake/src/test/java/ConstPathTest.java" <<'JAVA'
+class ConstPathTest {
+    private static final String TARGET = "plugins/fake/src/main/java/Target.java";
+
+    @Test
+    void constantPath() throws Exception {
+        String body = java.nio.file.Files.readString(java.nio.file.Path.of(TARGET));
+        org.junit.jupiter.api.Assertions.assertTrue(body.contains("void a()"));
+    }
+}
+JAVA
+rm -f "$SST_FIXTURE/plugins/fake/src/test/java/WrappedAssertTest.java"
+set +e
+( cd "$SST_FIXTURE" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
+constpath_rc=$?
+set -e
+check "夹具⑥：Files.readString(Path.of(常量)) + contains → 1" 1 "$constpath_rc"
+rm -f "$SST_FIXTURE/plugins/fake/src/test/java/ConstPathTest.java"
 
 set +e
 ( cd "$ROOT" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
