@@ -48,6 +48,11 @@
         ".cnb/agent-out/evidence/post-fix-30runs.txt"
       ],
       "note": "这两个文件由同分支更早一次尝试（commit 04117d4）产出，记录了「可跟踪 executor 归零」判据的 30/30 复跑与负向对照原始输出；本次实现保留它们并追加了慢 executor 的确定性复现与回归测试。"
+    },
+    "pr": {
+      "url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70",
+      "note": "分支已有同任务更早一次尝试创建的 PR #70；本次合并后统一实现并已在该 PR 追加补充评论（含慢 executor 确定性复现 XML 原文、5/5、负向对照、tests=35 原文）。",
+      "comment_id": "2106422414237630464"
     }
   },
   "risks": [
