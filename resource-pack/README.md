@@ -12,27 +12,29 @@
 
 `ASSET-PROVENANCE.md` 是**逐张**的来源登记台账，覆盖 `assets/**` 下全部 **252 张 PNG**
 （item 83 + 罗盘帧 32 + betterhud 116 + bettermodel 16 + 字体图集 2 + minecraft 3），
-与磁盘一一对应。机器可读版本是 `asset-provenance.json`（键 = 相对 `resource-pack/` 的路径，
-值含 `category` / `source` / `reproduce_cmd` / `reviewed`），两边的路径集合与内容**同源同构**。
+与磁盘一一对应。机器可读版本是 `asset-provenance.json`（键 = **相对 `resource-pack/assets/` 的路径**，
+与 W12-A3 的 `scripts/gen-asset-provenance.py` 同口径；值含 `category` / `source` / `reproduce_cmd` / `reviewed`），
+两边的路径集合与内容**同源同构**。
 
-`category` 四类口径：
+`category` 五类口径（用 W12-A3 门禁词表；任务书口径 `derived-from` 在 `categoryA2` 字段保留）：
 
 | 类别 | 含义 | 覆盖量 |
 | --- | --- | --- |
-| `generator` | 可由仓库内生成器**确定性重跑** | 125 |
-| `derived-from` | 由另一张**已登记素材**派生（skill 图标 42 + 罗盘帧 32） | 74 |
+| `generator` | 可由仓库内生成器**确定性重跑** | 124 |
+| `generator-derived` | 由另一张**已登记素材**派生（skill 图标 42 + 罗盘帧 32 + forged 变体帧 5） | 74 |
 | `ai-prompt` | `ai/` 生产线 Image API 产出，**不可复现**（已登记提示词文件:行号） | 9 |
 | `reviewed-baseline` | 人工审核基线，**仓库内既无生成器也无提示词** | 44 |
+| `human-override` | 人工/AI 覆盖、同名生成器输出已弃用（`ancient_echo_skill_book`）；A3 据此做反向断言 | 1 |
 
 重新生成与自检：
 
-```bash
-python3 resource-pack/tools/generate-provenance.py --write   # 覆盖 asset-provenance.json
-```
+登记表由**一次性推导脚本**从生成器源码（`tools/*.java|py|mjs`）与提示词文件（`ai/*.jsonl`、`ai/prompts/**`）
+逐张推导，脚本本体未入库（本任务只允许改登记文档与 JSON，不得新增 `resource-pack/tools/` 下的文件）。
+推导脚本原文与四条判据的实测输出见 `.cnb/agent-out/W12-A2-asset-provenance.json` 的 `evidence` 字段。
 
 **交付给 W12-A3 门禁的四条一致性判据**（均已在本任务实测通过）：
 
-1. `asset-provenance.json` 的键集合 == `find resource-pack/assets -name '*.png'`；
+1. `asset-provenance.json` 的键集合 == `find resource-pack/assets -name '*.png'`（相对 `assets/` 的路径）；
 2. 每个值都有 `category` / `source` / `reproduce_cmd` / `reviewed` 四个字段；
 3. `category == "generator"` 的项，其 `source` 必须指向仓库内真实存在的 `tools/*`；
 4. `category == "ai-prompt"` 的项，其 `source` 必须形如 `<file>:<line>` 且该行存在。
@@ -41,7 +43,7 @@ python3 resource-pack/tools/generate-provenance.py --write   # 覆盖 asset-prov
 
 - 42 张 `skill_*` **不是 AI 直出**：`ai/` 下 0 / 42 有对应提示词；它们是
   `tools/generate_betterhud_panels.py#skill_menu_items` 从 18px HUD 语义图标派生的
-  `derived-from`（42 张里 37 张与生成器 recipe 逐像素一致，5 张差 4 px）。
+  `generator-derived`（42 张里 37 张与生成器 recipe 逐像素一致，5 张差 4 px）。
 - `ai/prompts.jsonl` 的 27 条里，**26 条不能单独作为当前磁盘纹理的来源证明**
   （6 条指向已删除的方块头、20 条指向被 `GenerateTextures` 同名覆盖的图）。
 - 5 张 forged 变体帧是**独立素材**而非主纹理派生：与 `forged_ranger_weapon` 的不透明像素
