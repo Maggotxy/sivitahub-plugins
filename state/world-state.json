@@ -5,7 +5,7 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 24,
+  "round": 25,
   "max_round": 12,
   "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
   "gate": {
@@ -418,6 +418,60 @@
       "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-066，原事实一字未删）G-302-RESIDUAL 本轮**基本清零**但未完全清零，两件事必须分开说：(1) 46 个 `Files.readString` 命中**一个都没减少**（v7 也是 46）⇒ 「计数下降」这条上不发生，清零只能看方法体；按方法体逐条分类 46/46：35 个已迁进声明式源码契约（readString 只剩注释，@Test 断言 exitValue）、1 个已行为化（MechanismKillSwitchContractTest）、9 个读的不是生产源码/不是源码字符串占位断言、**1 个仍是纯源码字符串断言**。(2) 我独立复核了 W16 判据脚本本身：它不会把读夹具误判成缺口（实测 3 个读非生产源码的类均未报出），它的负向对照真能变红（我另插 ZzSstNegativeControlTest → SOURCE_STRING_TESTS=1 / RED / EXIT=1，删除后 GREEN，git status 干净）。**但它的判据有形态边界**：readString 藏在同文件 helper（helper 实参不是 Files.readString 的直接参数行）时它报 0，而 DungeonTimeoutLifecycleContractTest 正是这一类 → G-302-RESIDUAL-2。",
       "source": "plan/gap-matrix-v8.md §6；本地实测命令原文",
       "level": "[S]"
+    },
+    {
+      "id": "E-067",
+      "fact": "★ W23 最终复验（verdict-v10，basis=1ace5ab 实测 == origin/main == 1ace5ab89faf563b70af78cee4926330f7906187，两者相等）：**done=true / remaining=0**。四条件全部成立：① 差集矩阵「声明未接线」=0 且无「可派工的实现缺口」；② 十门在 M5=1ace5ab 上两次同 sha 连续全绿；③ 素材层四条成立；④ 剩余问题只有 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）。与 verdict-v8（done=false / remaining=1）的差别：v8 的唯一 remaining G-302-RESIDUAL-2 已在 #66（W18+W19）真跑行为化清零。",
+      "source": "plan/verdict-v10.json / plan/gap-matrix-v10.md / plan/tasks-w23.json",
+      "level": "[S]"
+    },
+    {
+      "id": "E-068",
+      "fact": "G-302-RESIDUAL 系列**全部清零**：① 残留 2（DungeonTimeoutLifecycleContractTest 8 处 indexOf）已行为化 —— 该类 grep 'readString|readAllBytes|Files\\.' 只命中 :19（注释），3 个 @Test 真跑 DungeonManager + 记录型 BukkitScheduler，断言 scheduler.callbacks/cancelled/instanceSessions 等可观察状态。② 判据反向失效①（assert 包住读取 / Files.readString(Path.of(常量)) 曾被漏判 GREEN）由 #67 修复。③ 判据反向失效②（W18 第二轮把遍历式源码扫描**整体豁免** ⇒ 原形态在真实仓判 GREEN、负向对照失效）由 #69 撤销：reads_production_source_via_traversal() 在 check-source-string-tests.sh:217，productionReferences helper 已删除（全仓只剩 3 处注释）。",
+      "source": "plan/gap-matrix-v10.md §6.2 / grep -n 'reads_production_source_via_traversal' scripts/check-source-string-tests.sh / grep -rn productionReferences plugins/",
+      "level": "[S]"
+    },
+    {
+      "id": "E-069",
+      "fact": "★ 判据本身没被放宽（不给「门禁 GREEN」当结论）：判据行 SOURCE_STRING_TESTS=0 / SOURCE_STRING_GATE=GREEN / EXIT=0（重定向到文件再取 $?，未走管道）；独立抽样复核 4 个类（DungeonTimeoutLifecycleContractTest / EquipmentExitPathReachabilityTest / SeasonAttunementSettlementWiringTest / DungeonEntryCommitAmbiguityContractTest）逐个读 @Test 方法体，确认读的是**测试夹具 / 源规格 JSON / 进程 stdout / 配置解析**而非生产源码正文；反向验证 4 组夹具（⑤ assertTrue(readString(Path.of(\"plugins/...\")).contains(x)) / ⑥ Files.readString(Path.of(常量)) / ⑦ Files.walk(root.resolve(\"plugins/rpg-core/src/main\"))+readString(f).contains(id) 聚合成列表 anyMatch / ⑧ resolve 拼接变体）各自 EXIT=1 变红，删除后 GREEN，收尾 git status --porcelain 为空；反例 LanguageBundleContractTest（Files.newInputStream + SnakeYAML 真解析）**未**被判红 —— 没有用「把反例也判红」换 GREEN。",
+      "source": "本地实测命令原文（夹具造在真 plugins/rpg-core/src/test/java/_gatefixture/ 下，跑完删除）；plan/gap-matrix-v10.md §6.1-§6.4",
+      "level": "[S]"
+    },
+    {
+      "id": "E-070",
+      "fact": "规格规模未缩水且 SPEC_FILES 按预期上升：sh scripts/check-source-contract.sh --all → SOURCE_CONTRACT_CHECKS=469 SPECS=79 SOURCE_CONTRACT_SPEC_FILES=3 / SOURCE_CONTRACT_GATE=GREEN / EXIT=0（v8 基线 462/78/2）。SPEC_FILES 2→3 正是 #69 新建 scripts/source-contract-specs/rpg-core.json（1 键 #attunement-consumer）。单个新增 spec 键真跑：CHECKS=3 SPECS=1 GREEN。",
+      "source": "plan/gap-matrix-v10.md §6.5",
+      "level": "[S]"
+    },
+    {
+      "id": "E-071",
+      "fact": "十门在 M5=1ace5ab 上两次同 sha 连续全绿（回读核对 GET /{repo}/-/build/status/{sn} + stage 日志）：权威 sn=cnb-785-1k41j43k2（event=api_trigger_gate，targetRef=main，sha=1ace5ab，status=success，pipelineSuccessCount=1/pipelineFailCount=0，13 stage 全 success）；复核 sn=cnb-q65-1k41k0gtr（同 sha 同 event，success，13 stage 全 success）。判据行：DOWNLOADER=ready / GATE_SELFTEST=GREEN(PASS=132 FAIL=0) / DDL_CONSUMER_GATE=GREEN(81 表 豁免 0) / DDL_REGISTRATION_GATE=GREEN(549 文件 反向豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令 豁免 9) / RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0) / ASSET_BASELINE_GATE=GREEN(UNREGISTERED=0 MISSING=0 MODIFIED=0) / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / COMPILE_GATE=GREEN(TASKS_DONE=28 BUILD_EXIT=0 SECONDS=122) / TEST_GATE=GREEN(SUM tests=1102 failed=0 errors=0 skipped=2 modules=26) / SUMMARY_GATE=GREEN(NO_XML modules=0 期望 26) / PACKAGE_GATE=GREEN(JAR_COUNT=56 JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0) / SINGLE_SOURCE_OF_TRUTH_GATE=GREEN(WORLD_STATE_FILES=1) / VERDICT_MATRIX_CONSISTENCY_GATE=GREEN。basis 自身就是 M5 ⇒ 十门输入 = 判定 basis，无需跨 commit 等价性论证。",
+      "source": "cnb build get-build-status/get-build-stage --sn cnb-785-1k41j43k2 与 cnb-q65-1k41k0gtr",
+      "level": "[S]"
+    },
+    {
+      "id": "E-072",
+      "fact": "★ 门禁假红（G-FLAKY-GATE）闭环：plugins/rpg-admin/.../AnomalyReviewCommandTest.java 里 grep awaitQuiet 只剩 :283 注释；:239 awaitChainSettled()（onIdle().await 在飞归零 + :246 isBusy 复位静默计数 + :264 硬超时 throw AssertionError「异步链未收尾」）；:294 永久回归测试 slowAsyncHopStillYieldsTheExpectedBroadcast（每跳 LockSupport.parkNanos(100ms)），:322 断言仍是 admin.anomaly-not-pending（未删断言、未放宽期望、未把异步改同步）。W21-A1 json：post_fix_30_runs=6 hog 下 30/30 rc=0（落盘 .cnb/agent-out/evidence/post-fix-30runs.txt 收尾 FAILS=0 TOTAL=30）；negative_control sabotage_rc=1 且实际值非空 ⇒ 断言没被『等没了』。改前同 sha 先红后绿（b6d38bf：cnb-tn4-1k4141s0e stage-7 error，AnomalyReviewCommandTest …WritesNothing FAILED / SUM tests=1101 failed=1；vs cnb-h3n-1k414popl success；334fb54：cnb-d93-1k41bqhbe error vs cnb-esl-1k41cpau5 success）⇒ 改后同 sha 连续两次全绿 = 缓解的直接证据。",
+      "source": "plan/gap-matrix-v10.md §7.1 / .cnb/agent-out/W21-A1-fix-flaky-test-gate.json",
+      "level": "[S]"
+    },
+    {
+      "id": "E-073",
+      "fact": "G-DUP-WORLDSTATE 闭环（复核）：test ! -e plan/world-state.json 成立；git ls-files | grep world-state 只有 state/world-state.json；CI stage-1 判据行 SINGLE_SOURCE_OF_TRUTH_GATE=GREEN / WORLD_STATE_FILES=1，负向夹具 RED（两份账本内容不一致：state=48679B plan=45B），state 缺失亦 RED。",
+      "source": "plan/gap-matrix-v10.md §7.2 / cnb-785-1k41j43k2 stage-1 日志",
+      "level": "[S]"
+    },
+    {
+      "id": "E-074",
+      "fact": "G-VERDICT-MATRIX-SPLIT 闭环（本轮自身即判据对象）：plan/gap-matrix-v10.md 前 20 行内 `> verdict: done=true remaining=0` 与 `> basis: 1ace5ab`，与 plan/verdict-v10.json 的 done=true / remaining=0 / basis=1ace5ab **逐字一致**（按 selftest-gates.sh §11 vmc_gate 的同一 sed/grep/python 口径自查通过）。CI stage-1 判据行 VERDICT_MATRIX_CONSISTENCY_GATE=GREEN（改前打印 N=8 done=false remaining=1 basis=77112113，证明门禁真的在数版本而不是恒绿）。",
+      "source": "plan/gap-matrix-v10.md §7.3 / 本地按 vmc_gate 口径自查",
+      "level": "[S]"
+    },
+    {
+      "id": "E-075",
+      "fact": "素材层四条复核：零消费者=0（scripts/ 下 21 个 .sh/.py 逐个给调用点原文，13 个有 .cnb.yml stage 入口，8 个由 selftest-gates.sh 或插件 *ContractTest 经 ProcessBuilder 真跑）；python3 scripts/check-asset-baseline.py → 252↔252 UNREGISTERED=0 MISSING=0 MODIFIED=0 GREEN；provenance 与 manifest 归一 assets/ 前缀后同集合（manifest-only=0 prov-only=0）、$needsHumanDecision=[]、六类合计 252；items 定义 81 == runtime-item-models 去注释键 81（diff IDENTICAL）且 resource-pack-asset-check.py 七项（closure/compass/hud/journey/lang/packmeta/textures）全 exit=0。素材可复现性未本地复跑（本容器无 JDK），以 M5 stage-5 为证据。",
+      "source": "plan/gap-matrix-v10.md §1-§5 / 本地实测命令原文",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -457,9 +511,9 @@
     "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
     "W7-A2 遗留的 4 条 [R] 级 unproven（G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）。"
   ],
-  "next_action": "派 W17-A1（G-302-RESIDUAL-2）：把 DungeonTimeoutLifecycleContractTest 的 8 处 indexOf 断言行为化或迁进声明式规格，并顺手让 check-source-string-tests.sh 覆盖「readString 藏在 helper」的形态（加夹具负向对照）。完成后再派一次复验轮（verdict-v9，basis 必须等于届时 main HEAD）。",
-  "updated_by": "CNB CodeBuddy NPC（W17-A1-verdict-v8）",
-  "updated_at": "2026-10-03T07:30:00Z",
+  "next_action": "无剩余可派工任务（plan/tasks-w23.json = {\"tasks\":[]}）。收口：等人类处理 3 条 REQUIRES_HUMAN（H-001 生产机区块补齐 / U-003 纯原版客户端握手 / W7-A2 的 4 条 [R] 级 unproven）。若 main 之后有新提交，复验轮 basis 必须等于届时 main HEAD 且十门须在新 basis 上全绿。",
+  "updated_by": "CNB CodeBuddy NPC（W23-A1-verdict-v10）",
+  "updated_at": "2026-10-04T04:30:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
@@ -479,10 +533,16 @@
     "G-114",
     "G-301",
     "G-302-RESIDUAL",
+    "G-302-RESIDUAL-2",
+    "G-302-RESIDUAL-3",
+    "G-302-RESIDUAL-4",
     "G-303",
     "G-401",
     "G-402",
-    "G-403"
+    "G-403",
+    "G-DUP-WORLDSTATE",
+    "G-FLAKY-GATE",
+    "G-VERDICT-MATRIX-SPLIT"
   ],
   "authorization": {
     "L-009": "人类授权跨 Phase 并行推进（2026-10-02 用户原话见 decisions-locked.md）"
@@ -505,23 +565,34 @@
     "W14": "DONE：把 W13 两个分支合并成并集（#61）—— 六类 252 张、NEEDS_HUMAN 为空、十门全绿",
     "W15": "DONE：在当前 main（basis=3947000）上复验，产出 gap-matrix-v7 + verdict-v7 + tasks-w15；十门在十门形态构建 sn=cnb-og3-1k401sol0 上全绿；素材层四条全成立；发现并定性 G-302-RESIDUAL（10 个类）",
     "W16": "DONE：G-302-RESIDUAL 的 10 个派单类逐条处置（14 个类 / 34 个方法），all.json 27→76 键，新增 check-source-string-tests.sh 接入 selftest §4d（PR#63 / f580ab6）",
-    "W17": "DONE：当前 main 复验（gap-matrix-v8 + verdict-v8，判 done=false / remaining=1 = G-302-RESIDUAL-2）"
+    "W17": "DONE：当前 main 复验（gap-matrix-v8 + verdict-v8，判 done=false / remaining=1 = G-302-RESIDUAL-2）",
+    "W18": "DONE：G-302-RESIDUAL-2 行为化（DungeonTimeoutLifecycleContractTest 真跑 DungeonManager + 自建 DungeonBukkitTestHarness）+ EquipmentExitPathReachabilityTest 5/6 行为化、1 条迁进 rpg-items.json",
+    "W19": "DONE：两处判据反向失效修复（#67 assert 包住读取 / Path.of(常量)；#69 撤掉遍历式源码扫描豁免 + 新建 rpg-core.json）",
+    "W21": "DONE：门禁假红修复（awaitChainSettled 确定性收尾屏障 + 慢 executor 永久回归测试）+ 账本收敛为唯一真相源（plan/world-state.json 删除）+ 两条交付物级门禁（selftest §11）（#70 / 334fb54 / 1ace5ab）",
+    "W23": "DONE：最终复验轮 v10（gap-matrix-v10 + verdict-v10，判 **done=true / remaining=0**）"
   },
   "gates": {
-    "evidence_sn": "cnb-152-1k4081ljq",
-    "evidence_sha": "f580ab69f6316c55502de277da482c37352fd01b",
-    "gate_selftest": "GREEN (PASS=101 FAIL=0)",
-    "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
-    "asset_baseline": "GREEN (252 张 PNG 逐像素对账)",
-    "asset_repro": "GREEN (REPRODUCIBLE=70 MISMATCH=0)",
+    "evidence_sn": "cnb-785-1k41j43k2",
+    "review_sn": "cnb-q65-1k41k0gtr",
+    "evidence_sha": "1ace5ab",
+    "event": "api_trigger_gate",
+    "same_sha_green_twice": true,
+    "gate_selftest": "GREEN (PASS=132 FAIL=0)",
+    "downloader": "GREEN (DOWNLOADER=ready)",
     "ddl_consumer": "GREEN (81 张表，豁免 0)",
     "ddl_registration": "GREEN (549 文件扫描，反向豁免 0)",
     "cmd_reference": "GREEN (43 指令，豁免 9)",
-    "compile": "GREEN (TASKS_DONE=28 BUILD_EXIT=0 SECONDS=120)",
-    "test": "GREEN (1099 tests / 0 failed / 2 skipped / 26 modules)",
-    "summary": "GREEN",
-    "package": "GREEN (56 jars / 25 plugin jars 全含 plugin.yml)",
-    "source_string": "GREEN (SOURCE_STRING_TESTS=0；在门禁自测 stage 经 selftest §4d 真实执行)"
+    "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
+    "asset_baseline": "GREEN (252 张 PNG 逐像素对账)",
+    "asset_repro": "GREEN (REPRODUCIBLE=70 MISMATCH=0)",
+    "compile": "GREEN (TASKS_DONE=28 BUILD_EXIT=0 SECONDS=122)",
+    "test": "GREEN (SUM tests=1102 failed=0 errors=0 skipped=2 modules=26)",
+    "summary": "GREEN (NO_XML modules=0 期望 26)",
+    "package": "GREEN (JAR_COUNT=56 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)",
+    "source_string": "GREEN (SOURCE_STRING_TESTS=0；stage-1 经 selftest §4d 真实执行)",
+    "source_contract": "GREEN (CHECKS=469 SPECS=79 SPEC_FILES=3)",
+    "single_source_of_truth": "GREEN (WORLD_STATE_FILES=1)",
+    "verdict_matrix_consistency": "GREEN"
   },
   "decisions_by_agent": [
     {
@@ -544,16 +615,15 @@
       "by": "WorkBuddy AI"
     }
   ],
-  "status": "REMAINING —— verdict-v8 判 done=false / remaining=1（G-302-RESIDUAL-2：1 个类 / 1 个方法逃过新门禁的行内形态判据）",
+  "status": "DONE —— verdict-v10 判 done=true / remaining=0（G-302-RESIDUAL 系列清零、判据未放宽、十门在 1ace5ab 两次连续全绿、素材层四条成立、仅剩 REQUIRES_HUMAN）",
   "verdict": {
-    "done": false,
+    "done": true,
     "impossible": false,
-    "remaining": 1,
-    "remaining_ids": [
-      "G-302-RESIDUAL-2"
-    ],
-    "basis": "77112113",
-    "decided_at": "2026-10-03"
+    "remaining": 0,
+    "remaining_ids": [],
+    "basis": "1ace5ab",
+    "decided_at": "2026-10-04",
+    "reason": "G-302-RESIDUAL 系列全部清零（残留 2 已行为化；反向失效①②已闭环），判据未被放宽（4 类方法体复核 + 4 组负向夹具 + 1 个不误伤的反例 + 规格规模 469/79/3 未缩水）；十门在 M5=1ace5ab 上两次同 sha 连续全绿；素材层四条成立；剩余问题只有 REQUIRES_HUMAN。"
   },
   "assets": {
     "png_total": 252,
@@ -577,7 +647,7 @@
     "needs_human_decision": [],
     "audio": "0（代码只用原版 Sound.*，不是缺口）"
   },
-  "basis": "77112113",
+  "basis": "1ace5ab",
   "_ledger": {
     "single_source_of_truth": "state/world-state.json",
     "deprecated": "plan/world-state.json（本任务已删除；禁止再建）",
