@@ -1,0 +1,171 @@
+{
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java#destroy-command": {
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java"
+  ],
+  "checks": [
+   {
+    "method": "destroyEntryPointPersistsEscrowBeforeSubmitting",
+    "required": [
+     "EquipmentOperationKind.DESTROY"
+    ],
+    "forbidden": [
+     "economy.burn("
+    ],
+    "ordered": [
+     "operations.stage(player, request)",
+     "held.setAmount(0)",
+     "player.saveData()",
+     "operations.submit(player, request"
+    ]
+   },
+   {
+    "method": "destroyCommandUsesAUniqueAuditableIdempotencyKey",
+    "required": [
+     "\"destroy:\" + operationId",
+     "BigDecimal.ZERO.setScale(2)"
+    ],
+    "forbidden": [],
+    "ordered": []
+   },
+   {
+    "method": "mailboxLaneGateFailsClosedBeforeAnyStateIsMutated",
+    "required": [
+     "DestroyRules.deliveryLane(EquipmentOperationKind.DESTROY)",
+     "!= DestroyDeliveryRules.Lane.ESCROW_MAILBOX"
+    ],
+    "forbidden": [
+     "ESCROW_MAILBOX) {\n            throw new IllegalStateException"
+    ],
+    "ordered": [
+     "DestroyRules.deliveryLane(EquipmentOperationKind.DESTROY)",
+     "operations.stage(player, request)",
+     "held.setAmount(0)",
+     "player.saveData()"
+    ]
+   }
+  ],
+  "_migration": [
+   "原实现 EquipmentExitPathReachabilityTest#productionReferences(identifier) 用 Files.walk(plugins/*/src/main) + Files.readString(...).contains(identifier) 统计「哪些文件提到了某标识符」；本条目是它对应断言的静态形态。",
+   "本文件只放「只能静态保证」的条目：能行为化的断言已经在测试类里真跑规则（见该类 javadoc 的逐条处置）。"
+  ],
+  "_key_layout": [
+   "键 = <测试类全路径>#<方法名>，让「某个方法的断言」可被门禁 --all 点名（也便于单键复跑）。",
+   "跨多文件作用域按文件归属拆键：required 只落在被断言的那个文件上，不用一个键覆盖一批文件。"
+  ],
+  "_why_static": [
+   "这一条断言的不是运行期行为，而是「某个标识符出现在哪些 src/main 文件里」的形态本身：",
+   "唯一权威状态机之外还必须有真实消费者 / 装备插件玩家可见面里「零出现」（跨插件「不存在」断言）/ 调用点顺序。",
+   "本仓既无 MockBukkit 也无 Mockito，且这些断言的运行期对应物并不存在，故由 scripts/check-source-contract.sh 执行。"
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java#season-attunement": {
+  "files": [
+   "plugins/rpg-items/src/main/resources/plugin.yml",
+   "plugins/rpg-items/src/main/resources/config.yml",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java"
+  ],
+  "checks": [
+   {
+    "method": "seasonAttunementHasNeitherCommandNorConfigurationSurface",
+    "required": [],
+    "forbidden": [
+     "attune",
+     "attunement",
+     "赛季调谐",
+     "attun",
+     "Attun"
+    ],
+    "ordered": []
+   },
+   {
+    "method": "seasonAttunementHasNoPersistedProducerInTheEquipmentPlugin",
+    "required": [],
+    "forbidden": [
+     "SEASON_ATTUNED"
+    ],
+    "ordered": []
+   }
+  ],
+  "_migration": [
+   "原实现 EquipmentExitPathReachabilityTest#productionReferences(identifier) 用 Files.walk(plugins/*/src/main) + Files.readString(...).contains(identifier) 统计「哪些文件提到了某标识符」；本条目是它对应断言的静态形态。",
+   "本文件只放「只能静态保证」的条目：能行为化的断言已经在测试类里真跑规则（见该类 javadoc 的逐条处置）。"
+  ],
+  "_key_layout": [
+   "键 = <测试类全路径>#<方法名>，让「某个方法的断言」可被门禁 --all 点名（也便于单键复跑）。",
+   "跨多文件作用域按文件归属拆键：required 只落在被断言的那个文件上，不用一个键覆盖一批文件。"
+  ],
+  "_why_static": [
+   "这一条断言的不是运行期行为，而是「某个标识符出现在哪些 src/main 文件里」的形态本身：",
+   "唯一权威状态机之外还必须有真实消费者 / 装备插件玩家可见面里「零出现」（跨插件「不存在」断言）/ 调用点顺序。",
+   "本仓既无 MockBukkit 也无 Mockito，且这些断言的运行期对应物并不存在，故由 scripts/check-source-contract.sh 执行。"
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java#season-attunement-consumers": {
+  "_why": [
+   "原断言：productionReferences(\"SEASON_ATTUNED\") 里必须存在一个非 EquipmentLifecycle 自身的消费者。",
+   "这条断言的作用是「第五条退出路径不能只声明不接线」：只有状态机自己提到 SEASON_ATTUNED 时它必须变红。",
+   "运行期没有「哪些文件提到了这个标识符」这一形态，因此按文件归属拆成三键，逐个点名真实消费者文件。"
+  ],
+  "files": [
+   "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/EquipmentStateLedger.java",
+   "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcSeasonAttunementService.java",
+   "plugins/rpg-api/src/main/java/cn/originalrpg/api/model/SeasonAttunementRecord.java"
+  ],
+  "checks": [
+   {
+    "method": "seasonAttunementStaysOutOfTheEquipmentPlugin",
+    "required": [
+     "State.SEASON_ATTUNED"
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ],
+  "_key_layout": [
+   "键 = <测试类全路径>#<方法名>，让「某个方法的断言」可被门禁 --all 点名（也便于单键复跑）。",
+   "跨多文件作用域按文件归属拆键：required 只落在被断言的那个文件上，不用一个键覆盖一批文件。"
+  ],
+  "_why_static": [
+   "这一条断言的不是运行期行为，而是「某个标识符出现在哪些 src/main 文件里」的形态本身：",
+   "唯一权威状态机之外还必须有真实消费者 / 装备插件玩家可见面里「零出现」（跨插件「不存在」断言）/ 调用点顺序。",
+   "本仓既无 MockBukkit 也无 Mockito，且这些断言的运行期对应物并不存在，故由 scripts/check-source-contract.sh 执行。"
+  ]
+ },
+ "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java#exit-path-producers": {
+  "_why": [
+   "原断言：逐条问「这个标识符出现在哪些 src/main 文件」来判定「已接线 / 当前无入口」。",
+   "行为化的那一半（状态机可达性、玩家操作面产出）已经搬到测试类里真跑；",
+   "这里保留「谁引用了它」的结构事实：每条退出路径的写入者必须存在（required，按文件归属拆键），",
+   "而 SACRIFICED 必须只在唯一权威状态机里出现（per-file forbidden：任何消费者文件里都不得出现）。"
+  ],
+  "files": [
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/SalvageCommand.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyCommand.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java",
+   "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcEquipmentLedgerAuditService.java",
+   "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentExitPathRules.java"
+  ],
+  "checks": [
+   {
+    "method": "everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired",
+    "required": [
+     "SALVAGED",
+     "LEGACY_EXTRACTED",
+     "DESTROYED"
+    ],
+    "forbidden": [],
+    "ordered": []
+   }
+  ],
+  "_key_layout": [
+   "键 = <测试类全路径>#<方法名>，让「某个方法的断言」可被门禁 --all 点名（也便于单键复跑）。",
+   "跨多文件作用域按文件归属拆键：required 只落在被断言的那个文件上，不用一个键覆盖一批文件。"
+  ],
+  "_why_static": [
+   "这一条断言的不是运行期行为，而是「某个标识符出现在哪些 src/main 文件里」的形态本身：",
+   "唯一权威状态机之外还必须有真实消费者 / 装备插件玩家可见面里「零出现」（跨插件「不存在」断言）/ 调用点顺序。",
+   "本仓既无 MockBukkit 也无 Mockito，且这些断言的运行期对应物并不存在，故由 scripts/check-source-contract.sh 执行。"
+  ]
+ }
+}

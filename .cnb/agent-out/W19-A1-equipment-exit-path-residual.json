@@ -1,0 +1,109 @@
+{
+ "task_id": "W19-A1-equipment-exit-path-residual",
+ "status": "success",
+ "summary": "① 复跑门禁时残留清单为空：W18 第二轮（在远端分支上）已查明上一轮的 1 个命中是**判据过捕**（过滤谓词被当断言、lambda 里提及的常量被当成读取路径），并收紧判据 —— 收紧后 SOURCE_STRING_TESTS=0。本任务仍按批单处置该类：它的根因性质（读本仓生产源码 + 源码字符串断言）不因判据是否点名而改变。② 处置 plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java 的 6 个 @Test，逐条判定（不批量替换）：5 条行为化 —— 真跑 EquipmentLifecycle 状态机（8 kind × 12 State = 96 组合）、DestroyRules/DestroyDeliveryRules/DestroyGate/EquipmentExitPathRules/SeasonAttunementRules 纯规则，并把「玩家可见面为零」从「读源码行找字符串」改成正解析打包后的 plugin.yml / config.yml（同一份 SnakeYAML、allowDuplicateKeys=false，断言落在命令名/别名/全部子键上，并保留 destroy 命令与 destroy.confirmation-window-seconds 作非恒真对照）；1 条只能静态保证的形态（「某标识符出现在哪些 src/main 文件里」+ 跨插件「零出现」）迁进新建 scripts/source-contract-specs/rpg-items.json 的 4 个键（season-attunement / season-attunement-consumers / destroy-command / exit-path-producers），类改成真实执行门禁的包装器；根因 helper productionReferences(identifier)（Files.walk(plugins/*/src/main) + Files.readString(...).contains()）已删除 —— 本类不再读生产源码。③ 负向对照 2 组（命令与输出原文见 evidence）：① 把同形原形态放回同目录（Path.of(\"plugins/rpg-api/.../EquipmentLifecycle.java\") + readString(...).contains(...) 且 contains 位于 assert 内）→ SOURCE_STRING_GATE=RED（ROW: 夹具文件:16 -> [plugins/rpg-api/.../EquipmentLifecycle.java]）；删除夹具 → GREEN/SOURCE_STRING_TESTS=0。② 改坏生产代码 DestroyCommand（把 held.setAmount(0)+player.saveData() 挪到 operations.submit 之后）→ rpg-items#destroy-command 键 RED（destroyEntryPointPersistsEscrowBeforeSubmitting 顺序契约不成立）；git 还原 → contract GREEN + source-string GREEN。④ 判据行：SOURCE_STRING_GATE=GREEN，SOURCE_STRING_TESTS=0（残留清单为空）；SOURCE_CONTRACT_GATE=GREEN，SOURCE_CONTRACT_CHECKS=466（=W18 文档基线 466）SPECS=78（> W18 基线 77）SPEC_FILES=2。⑤ ./gradlew --no-daemon test -PexcludeTags=env --rerun-tasks → BUILD SUCCESSFUL，26 模块 / 1101 用例 / 0 失败 / 2 skipped（均为条件跳过的真 PG 集成用例）。⑥ scripts/selftest-gates.sh → GATE_SELFTEST=GREEN PASS=115 FAIL=0；§4b「真实规格目录未缩水（CHECKS=466≥466 SPECS=78≥2）」OK（W18 曾下调为 462/1，本任务恢复为 466/2）；§4d 五条对照全 OK，含「真实仓库已无此类断言 → 0」。⑦ plan/source-string-tests-remaining.json：EquipmentExitPathReachabilityTest 标记 done（done_by=W19-A1），新增 _w19a1_note（逐条处置）与 _hits_after_w19a1（_count=0，剩余项逐条写明性质）。【协作说明】任务起点之后远端又推进了 3 个提交（W18 真跑行为化 DungeonTimeout、收紧判据过捕、回填链接）。已两次 merge 远端并解决唯一冲突（plan/source-string-tests-remaining.json，按两侧并入），且把 W18 下调的 selftest 规格基线恢复为 466/2。这 3 个提交的内容属 W18 成果，不是本任务的越界改动。未改 src/main（负向对照期间临时改坏的 DestroyCommand 已按 git 还原）；未删测试、未 @Disabled、未弱化判据、未加豁免。",
+ "changed_files": [
+  "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
+  "scripts/source-contract-specs/rpg-items.json",
+  "scripts/source-contract-specs/all.json",
+  "scripts/selftest-gates.sh",
+  "plan/source-string-tests-remaining.json",
+  ".cnb/agent-out/W19-A1-equipment-exit-path-residual.json"
+ ],
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/66",
+ "risks": [
+  "任务起点之后远端分支又推进了 3 个提交（W18：DungeonTimeout 真跑行为化、判据过捕收紧、agent-out 回填）。已 merge，因此本 PR 会一并带上 W18 那 3 个提交的内容（不是本任务写的）。若要严格分离需人工决定是否拆 PR。",
+  "W18 在远端把 selftest §4b 的规格基线从 CHECKS≥466/SPECS≥2 下调到 ≥462/≥1；本任务已恢复为 ≥466/≥2（只恢复，不上调、不降低）。若 W18 有意降低，需要人工确认是否保留我的恢复。",
+  "W18 第二轮判定 rpg-items/EquipmentExitPathReachabilityTest 的 productionReferences 属「判据过捕、不算缺口」，因此不再需要修改。本任务仍按批单把它行为化/规格化并删除该 helper —— 这是「超出最低必要」的加强，风险是：该类改动量较大（整文件重写），若评审认为不必改，需要回退我这一个文件的改动（其它门禁/规约改动可独立保留）。",
+  "跨插件「SEASON_ATTUNED 在 rpg-items 里零出现」是按文件归属写成 forbidden（plugin.yml/config.yml/RpgItemsPlugin.java 三文件），不是全仓扫描：新增第 4 个 rpg-items 生产文件且其中出现该标识符时不会自动变红（要显式加进规格 files 列表）。已写进 rpg-items.json 每条目的 _why_static。",
+  "「真解析打包 YAML」依赖 SnakeYAML 的宽松解析：对注入的子键也能覆盖，但若命令面改成非 YAML 来源（例如代码内建命令），这条断言会失去覆盖，需要同步改造。"
+ ],
+ "next_steps": [
+  "W17 的 verdict（G-302-RESIDUAL-2）需要重跑：当前 SOURCE_STRING_GATE 在真实仓库为 GREEN 且残留清单为空，verdict 可把 G-302 这条链的残留计数更新为 0。",
+  "需要人拍板两件事：（甲）PR #66 是否把 W18 的 3 个提交与本任务拆开；（乙）W18 下调的 selftest 规格基线（462/1）是否保留我恢复的（466/2）。",
+  "后续若再新增「读本仓生产源码 + 源码字符串断言」的测试类，.cnb.yml 的「门禁自测」stage（每推送执行 selftest-gates.sh §4d）会直接 RED。"
+ ],
+ "evidence": {
+  "base": "f9dfb5a (agent/W18-A1-g302-residual-2 起点：含 W18 的判据补强 + DungeonTimeout 修复；本任务在同一分支继续提交，PR #66 一并带上两处修复)",
+  "hits_before": {
+   "cmd": "sh scripts/check-source-string-tests.sh（本任务开始时，重定向取 $?）",
+   "exit": 1,
+   "output": "{\n \"hits\": [\n  {\n   \"file\": \"plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java\",\n   \"line\": 103,\n   \"tests\": [\n    \"destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin\",\n    \"seasonAttunementHasNeitherCommandNorConfigurationSurface\",\n    \"everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired\",\n    \"seasonAttunementHasNoPersistedProducerInTheEquipmentPlugin\",\n    \"destroyEntryPointFollowsTheSalvageOutboxContract\",\n    \"theMailboxLaneGateFailsClosedBeforeAnyStateIsMutated\"\n   ],\n   \"production_paths\": [\n    \"plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java\"\n   ]\n  }\n ],\n \"count\": 1\n}\nSOURCE_STRING_TESTS=1\n  plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java:103 -> ['plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java'] tests=['destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin', 'seasonAttunementHasNeitherCommandNorConfigurationSurface']\nSOURCE_STRING_GATE=RED 仍有测试在「读本仓生产源码 + 源码字符串断言」",
+   "note": "任务起点（W18 第一轮）命中 1 个类：EquipmentExitPathReachabilityTest:103，test_methods 列出全部 6 个。"
+  },
+  "class_assertion_ledger": [
+   "destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin → (a) 行为化：DestroyRules.outcomeIsTerminal/isExitPath/persistedStateIsTerminal + DestroyDeliveryRules lane + 8×12 状态机枚举 + SeasonAttunementRules 结果态/触发者；(b) 规格键 season-attunement-consumers（唯一状态机之外必须有真实消费者）。",
+   "seasonAttunementHasNeitherCommandNorConfigurationSurface → (a) 行为化：真解析打包 plugin.yml/config.yml，断言命令名/别名与全部子键无调谐词根（并断言 destroy 命令与 destroy.confirmation-window-seconds 仍存在，防恒真）；(b) 规格键 season-attunement（RpgItemsPlugin.java 里的 forbidden）。",
+   "everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired → (a) 行为化：真跑状态机判定每条退出路径是否有经状态机认可的生产者；SACRIFICED 无玩家操作生产者、SEASON_ATTUNED 可达但只能由换季结算写入；(b) 规格键 exit-path-producers（三条退出路径的消费者文件存在性）。",
+   "seasonAttunementHasNoPersistedProducerInTheEquipmentPlugin → (a) 行为化：全部 kind × 全部 State 枚举 afterOperation（8×12）都不产出 SEASON_ATTUNED；(b) 规格键 season-attunement 的 forbidden=SEASON_ATTUNED。",
+   "destroyEntryPointFollowsTheSalvageOutboxContract → (a) 行为化：真跑 DestroyRules/DestroyDeliveryRules/DestroyGate；(b) 规格键 destroy-command 的 ordered + required + forbidden。",
+   "theMailboxLaneGateFailsClosedBeforeAnyStateIsMutated → (a) 行为化：真跑通道判定（含 REFINEMENT → MESSAGE_ONLY 的反向对照，防恒真）；(b) 规格键 destroy-command 的 ordered 链。",
+   "productionReferences(identifier) helper → 删除（根因：Files.walk(plugins/*/src/main) + readString().contains()）。"
+  ],
+  "negative_controls": {
+   "cmd": "见各组 cmd 字段；退出码一律「重定向到文件后 echo $?」，不走管道",
+   "A_restore_original_shape": {
+    "cmd": "把同形原形态放回同目录（Path.of(\"plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java\") + Files.readString(...).contains(...) 且 contains 在 assertTrue 内）；sh scripts/check-source-string-tests.sh; echo $?",
+    "exit": 1,
+    "output": "SOURCE_STRING_TESTS=1\n  plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ProductionReferenceFixture.java:16 -> ['plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java'] tests=[]\nSOURCE_STRING_GATE=RED 仍有测试在「读本仓生产源码 + 源码字符串断言」"
+   },
+   "A_restored": {
+    "cmd": "rm 夹具；sh scripts/check-source-string-tests.sh; echo $?",
+    "exit": 0,
+    "output": "SOURCE_STRING_TESTS=0\nSOURCE_STRING_GATE=GREEN 本仓生产源码已无源码字符串断言（豁免口径见脚本头部注释）"
+   },
+   "B_break_production_order": {
+    "cmd": "把 DestroyCommand 的 held.setAmount(0)+player.saveData() 移到 operations.submit(...) 之后；sh scripts/check-source-contract.sh <class>#destroy-command; echo $?",
+    "exit": 1,
+    "output": "SOURCE_CONTRACT_CHECKS=9 SPECS=1\nSOURCE_CONTRACT_SPEC_FILES=2\nSOURCE_CONTRACT_GATE=RED EquipmentExitPathReachabilityTest.java#destroy-command::destroyEntryPointPersistsEscrowBeforeSubmitting: 顺序契约不成立（必须按序出现在同一个文件）-> ['operations.stage(player, request)', 'held.setAmount(0)', 'player.saveData()', 'operations.submit(player, request']"
+   },
+   "B_restored": {
+    "cmd": "git 还原 DestroyCommand.java；sh scripts/check-source-contract.sh --all; echo $?",
+    "exit": 0,
+    "output": "SOURCE_CONTRACT_SPEC_FILES=2\nSOURCE_CONTRACT_CHECKS=466 SPECS=78\nSOURCE_CONTRACT_GATE=GREEN\n---\nSOURCE_STRING_TESTS=0\nSOURCE_STRING_GATE=GREEN 本仓生产源码已无源码字符串断言（豁免口径见脚本头部注释）"
+   }
+  },
+  "real_repo_gates": {
+   "source_string": {
+    "cmd": "sh scripts/check-source-string-tests.sh; echo $?",
+    "exit": 0,
+    "output": "SOURCE_STRING_TESTS=0\nSOURCE_STRING_GATE=GREEN 本仓生产源码已无源码字符串断言（豁免口径见脚本头部注释）"
+   },
+   "source_contract": {
+    "cmd": "sh scripts/check-source-contract.sh --all; echo $?",
+    "exit": 0,
+    "output": "SOURCE_CONTRACT_SPEC_FILES=2\nSOURCE_CONTRACT_CHECKS=466 SPECS=78\nSOURCE_CONTRACT_GATE=GREEN"
+   },
+   "spec_keys_detail": "new scripts/source-contract-specs/rpg-items.json keys: EquipmentExitPathReachabilityTest.java#season-attunement / #season-attunement-consumers / #destroy-command / #exit-path-producers；all.json 仅移除同文件的两个键（#destroy-command / #season-attunement），搬到 rpg-items.json（避免键冲突；SPECS 77→79 未减少）",
+   "selftest_gates": {
+    "cmd": "sh scripts/selftest-gates.sh; echo $?",
+    "exit": 0,
+    "output": "===== 门禁自测汇总：PASS=115 FAIL=0 =====\nGATE_SELFTEST=GREEN\n  [OK  ] 真实规格目录已加载且未缩水（CHECKS=466≥466 SPECS=78≥2 GREEN）\n  [OK  ] 夹具④豁免：读取结果做过滤谓词 + 断言文件列表 → 0（证明不误报） (exit=0)\n  [OK  ] 真实仓库已无此类断言 → 0 (exit=0)"
+   }
+  },
+  "full_test": {
+   "cmd": "JAVA_HOME=<temurin25> ./gradlew --no-daemon test -PexcludeTags=env --rerun-tasks; echo $?",
+   "exit": 0,
+   "output": "BUILD SUCCESSFUL in 51s",
+   "modules_tests": "plugins/rpg-admin: tests=34 failures=0 errors=0 skipped=0\nplugins/rpg-ai-npc: tests=14 failures=0 errors=0 skipped=0\nplugins/rpg-api: tests=94 failures=0 errors=0 skipped=0\nplugins/rpg-classes: tests=10 failures=0 errors=0 skipped=0\nplugins/rpg-combat: tests=12 failures=0 errors=0 skipped=0\nplugins/rpg-commerce: tests=8 failures=0 errors=0 skipped=0\nplugins/rpg-community: tests=26 failures=0 errors=0 skipped=0\nplugins/rpg-core: tests=318 failures=0 errors=0 skipped=0\nplugins/rpg-cosmetics: tests=15 failures=0 errors=0 skipped=0\nplugins/rpg-dungeons: tests=72 failures=0 errors=0 skipped=0\nplugins/rpg-economy: tests=31 failures=0 errors=0 skipped=0\nplugins/rpg-enhancement: tests=13 failures=0 errors=0 skipped=0\nplugins/rpg-essentials: tests=3 failures=0 errors=0 skipped=0\nplugins/rpg-guide: tests=56 failures=0 errors=0 skipped=0\nplugins/rpg-hub: tests=40 failures=0 errors=0 skipped=0\nplugins/rpg-integrations: tests=7 failures=0 errors=0 skipped=0\nplugins/rpg-items: tests=103 failures=0 errors=0 skipped=0\nplugins/rpg-market: tests=50 failures=0 errors=0 skipped=0\nplugins/rpg-mobs: tests=31 failures=0 errors=0 skipped=0\nplugins/rpg-performance: tests=16 failures=0 errors=0 skipped=0\nplugins/rpg-pets: tests=17 failures=0 errors=0 skipped=0\nplugins/rpg-skills: tests=72 failures=0 errors=0 skipped=0\nplugins/rpg-story: tests=18 failures=0 errors=0 skipped=0\nplugins/rpg-sulfur: tests=3 failures=0 errors=0 skipped=0\nplugins/rpg-world: tests=12 failures=0 errors=0 skipped=0\ntools/db-migration: tests=26 failures=0 errors=0 skipped=2\nTOTAL modules=26 tests=1101 failures=0 errors=0 skipped=2",
+   "note": "覆盖 :plugins:rpg-items:test（103 用例 0 失败）与全部下游模块 + tools:db-migration；2 skipped 为条件跳过的真实 PG 集成用例（excludeTags=env 口径下的既定行为）。"
+  },
+  "env": {
+   "jdk": "本仓无 JDK，自取 Temurin 25（清华 Adoptium 镜像）：OpenJDK 25.0.4.1 LTS（https://mirrors.tuna.tsinghua.edu.cn/Adoptium/25/jdk/x64/linux/OpenJDK25U-jdk_x64_linux_hotspot_25.0.4.1_1.tar.gz）",
+   "deps": "sh scripts/fetch-deps.sh → 全部就绪（libs/ 5 个公开源 artifact + vendor 4 个本地取回）"
+  },
+  "merge_state": {
+   "remote_tip_before_merge": "67d88f7 chore(agent-out): 回填 PR #66 链接与提交号（= W18 真跑行为化版）",
+   "merge_cmd": "git merge --no-edit origin/agent/W18-A1-g302-residual-2",
+   "conflict": "plan/source-string-tests-remaining.json（按两侧并入解决：保留 W18 的 _w18a1_note/_hits_after_w18a1，追加 W19 的 _w19a1_note/_hits_after_w19a1）",
+   "selftest_baseline": "W18 在远端把 §4b 规格基线从 CHECKS≥466 SPECS≥2 下调为 ≥462 ≥1；W19 恢复为 ≥466 ≥2（未上调、未降低）"
+  },
+  "final_base": "origin/agent/W18-A1-g302-residual-2 @ aaef95e（含 W18 第二轮判据收紧）+ 本任务 merge 提交",
+  "merge_chain": [
+   "git fetch origin agent/W18-A1-g302-residual-2 → 远端在任务起点后推进 3 个提交（bae1d63/67d88f7 之前 → e8fd105 判据过捕收紧 → aaef95e 回填链接）",
+   "merge #1（commit 9f8a073）：合入 DungeonTimeout 真跑行为化 + 删除 rpg-dungeons.json；冲突只有 plan/source-string-tests-remaining.json（按两侧并入）",
+   "merge #2（commit 6a3a43a）：合入判据过捕收紧（scripts/check-source-string-tests.sh + selftest §4d 新增第 4 组豁免对照）；同一文件冲突按两侧并入",
+   "W18 在远端把 selftest §4b 基线 466/2 下调为 462/1；本任务恢复为 466/2（scripts/selftest-gates.sh，2 行）"
+  ]
+ }
+}

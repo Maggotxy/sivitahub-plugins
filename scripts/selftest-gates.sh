@@ -13,6 +13,10 @@
 #        W16b-A1 还证明规格目录（多份 *.json）会被真的执行、键冲突会点名两个文件、
 #        SOURCE_CONTRACT_SPEC 单文件模式保持向后兼容
 #   4d) W16-A1：scripts/check-source-string-tests.sh 的判据必须能真的变红（G-302-RESIDUAL 结项门禁）
+#       W18-A1：补强判据从「同一方法体内直接出现」扩到间接形态（readString 藏 helper、
+#       路径来自常量、indexOf 先后比较），并证明读 src/test/resources 的夹具不会误报
+#       W18-A1 第二轮：再收紧两处过捕（lambda/比较里**提及**的常量不算读取路径；
+#       读取结果做**过滤谓词**不算断言），新增夹具④豁免对照，并让「真实仓库 → 0」真的变绿
 #   4c) scripts/install-datapacks.sh --check 在真实数据包上必须绿，函数调用未注册命令后必须红
 #   5) scripts/check-repo-artifacts.sh 在真实文档上必须绿，且把数据包目录藏起来后必须红
 #   5b) resource-pack 的 HUD 尺寸门禁（W7-A4）必须能真的变红，且 build.sh 常量与唯一来源一致
@@ -438,11 +442,21 @@ sh scripts/check-source-contract.sh --all >"$TMP/specs-real.txt" 2>&1
 real_rc=$?
 set -e
 check "负向对照后真实规格目录仍为绿（工作区未被污染）" 0 "$real_rc"
-if grep -q 'SOURCE_CONTRACT_CHECKS=238 SPECS=27' "$TMP/specs-real.txt"; then
-  echo "  [OK  ] 真实规格仍是 CHECKS=238 SPECS=27"
+# 判据不是「检查数等于某个常数」—— 每个模块都会往规格里加条目（W16b-A1 的目录合并
+# 就是为这件事服务的），写死常数只会让后来者被迫改这个数字，反而稀释了这条自证的意义。
+# 这里断言的是「真实规格目录真的被加载、且规模没有缩水」：条数与文件数都必须 ≥ 已知基线，
+# 且必须出现 GREEN 判据行。缩水（有人把规格删了）会立刻变红。
+real_checks=$(sed -n 's/.*SOURCE_CONTRACT_CHECKS=\([0-9]\+\) SPECS=\([0-9]\+\).*/\1 \2/p' \
+  "$TMP/specs-real.txt")
+real_spec_checks=${real_checks%% *}
+real_spec_files=${real_checks##* }
+if [ -n "$real_checks" ] \
+  && [ "$real_spec_checks" -ge 466 ] && [ "$real_spec_files" -ge 2 ] \
+  && grep -q 'SOURCE_CONTRACT_GATE=GREEN' "$TMP/specs-real.txt"; then
+  echo "  [OK  ] 真实规格目录已加载且未缩水（CHECKS=$real_spec_checks≥466 SPECS=$real_spec_files≥2 GREEN）"
   PASS=$((PASS + 1))
 else
-  echo "  [FAIL] 真实规格的检查数/规格数发生变化" >&2
+  echo "  [FAIL] 真实规格目录缩水或加载失败（CHECKS=$real_spec_checks SPECS=$real_spec_files）" >&2
   sed 's/^/    /' "$TMP/specs-real.txt" >&2
   FAIL=$((FAIL + 1))
 fi
@@ -477,7 +491,81 @@ set +e
 ( cd "$SST_FIXTURE" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
 fixture_rc=$?
 set -e
-check "夹具里存在「读生产源码 + contains」的测试 → 1" 1 "$fixture_rc"
+check "夹具①内联：存在「读生产源码 + contains」的测试 → 1" 1 "$fixture_rc"
+
+# ---- W18-A1：间接形态必须同样被抓到（否则同类还会再漏）----
+# 形态②：readString 藏在 helper（read(...)）里、路径来自类常量、断言用 indexOf 做先后比较。
+# 这正是 W17 实测漏掉 DungeonTimeoutLifecycleContractTest 的形状。
+cat > "$SST_FIXTURE/plugins/fake/src/test/java/IndirectTest.java" <<'JAVA'
+class IndirectTest {
+    private static final String PRODUCTION =
+            "plugins/fake/src/main/java/Target.java";
+
+    @Test
+    void ordering() throws Exception {
+        String body = read(PRODUCTION);
+        org.junit.jupiter.api.Assertions.assertTrue(
+                body.indexOf("void a()") >= 0 && body.indexOf("void b()") < body.indexOf("void a()"));
+    }
+
+    private static String read(String relative) throws Exception {
+        return java.nio.file.Files.readString(java.nio.file.Path.of(relative));
+    }
+}
+JAVA
+set +e
+( cd "$SST_FIXTURE" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
+indirect_rc=$?
+set -e
+check "夹具②间接：readString 藏 helper + 常量路径 + indexOf 先后比较 → 1" 1 "$indirect_rc"
+
+# 形态③豁免对照：读 src/test/resources 夹具不算缺口（否则门禁会误报，没人再信它）。
+rm -f "$SST_FIXTURE/plugins/fake/src/test/java/FakeTest.java" \
+      "$SST_FIXTURE/plugins/fake/src/test/java/IndirectTest.java"
+mkdir -p "$SST_FIXTURE/plugins/fake/src/test/resources"
+printf 'expected\n' > "$SST_FIXTURE/plugins/fake/src/test/resources/fixture.txt"
+cat > "$SST_FIXTURE/plugins/fake/src/test/java/FixtureTest.java" <<'JAVA'
+class FixtureTest {
+    @Test
+    void fixture() throws Exception {
+        String data = java.nio.file.Files.readString(java.nio.file.Path.of(
+                "plugins/fake/src/test/resources/fixture.txt"));
+        org.junit.jupiter.api.Assertions.assertTrue(data.contains("expected"));
+    }
+}
+JAVA
+set +e
+( cd "$SST_FIXTURE" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
+fixture_ok_rc=$?
+set -e
+check "夹具③豁免：读 src/test/resources 夹具 → 0（证明不误报）" 0 "$fixture_ok_rc"
+
+# ---- W18-A1 第二轮：过滤谓词 + 对「解析后的文件列表」断言不算缺口（否则同样会误报）----
+# `if (Files.readString(f).contains(x)) hits.add(f);` 是用读取结果**筛文件**，
+# 断言对象是「哪些文件提到某标识符」这一仓库布局事实（解析后的集合），
+# 不是源码正文。旧判据只看「`).contains(` 紧邻读取调用」⇒ 误报 rpg-items 与 rpg-core 的
+# productionReferences(identifier)。这里锁住收紧后的行为：必须 → 0。
+rm -f "$SST_FIXTURE/plugins/fake/src/test/java/FixtureTest.java"
+cat > "$SST_FIXTURE/plugins/fake/src/test/java/PredicateTest.java" <<'JAVA'
+class PredicateTest {
+    @Test
+    void listed() throws Exception {
+        java.util.List<String> hits = new java.util.ArrayList<>();
+        java.nio.file.Path file = java.nio.file.Path.of("plugins/fake/src/main/java/Target.java");
+        if (java.nio.file.Files.readString(file).contains("void a()")) {
+            hits.add(file.getFileName().toString());
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(hits.stream().anyMatch(p -> p.startsWith("Target")));
+    }
+}
+JAVA
+set +e
+( cd "$SST_FIXTURE" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
+predicate_rc=$?
+set -e
+check "夹具④豁免：读取结果做过滤谓词 + 断言文件列表 → 0（证明不误报）" 0 "$predicate_rc"
+rm -f "$SST_FIXTURE/plugins/fake/src/test/java/PredicateTest.java"
+
 set +e
 ( cd "$ROOT" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
 real_rc=$?
