@@ -2,91 +2,84 @@ package cn.originalrpg.enhancement;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * G-302 批次：本类原用 {@code Files.readString} 读生产源码做字符串/{@code indexOf} 断言，
+ * 现改为「构建/接线契约测试」。
+ *
+ * <p><b>为什么不是行为测试</b>：被断言的不是运行期行为，而是生产代码里「先落恢复信封、
+ * 再消费输入、再落 playerdata、最后提交出站」这段调用序列的先后，以及「撤回事件不得
+ * 解除已提交操作的本地闸门」。生产类 {@code RefineCommand} / {@code LimitBreakCommand}
+ * 是 Bukkit 指令门面（真实 {@code Player}、{@code ItemStack} PDC、{@code EquipmentService}
+ * 与数据库出站），本仓既无 {@code MockBukkit} 也无 {@code Mockito}，无法在 JUnit 进程里
+ * 构造对象去触发这些路径。</p>
+ *
+ * <p><b>落地方式</b>：断言逐条迁移到声明式规格 {@code scripts/source-contract-specs/all.json}。
+ * 原断言跨两个文件（Refine / LimitBreak），已按文件归属拆成 {@code #refine} 与
+ * {@code #limit-break} 两个 spec 键；{@code ordered} 链保证序列在<b>同一个文件</b>里成立
+ * （等价原 {@code indexOf} 链）。判据覆盖不降级。</p>
+ */
 class EquipmentOperationIntegrationContractTest {
+
+    private static final String REFINE_SPEC_KEY = "plugins/rpg-enhancement/src/test/java/"
+            + "cn/originalrpg/enhancement/EquipmentOperationIntegrationContractTest.java#refine";
+    private static final String LIMIT_BREAK_SPEC_KEY = "plugins/rpg-enhancement/src/test/java/"
+            + "cn/originalrpg/enhancement/EquipmentOperationIntegrationContractTest.java#limit-break";
+
     @Test
-    void refinementAndLimitBreakUseDurableOutboxInsteadOfSplitBurnRefund() throws IOException {
+    void refinementAndLimitBreakUseDurableOutboxInsteadOfSplitBurnRefund() throws Exception {
+        assertContractHolds(REFINE_SPEC_KEY, "refinementUsesDurableOutboxInsteadOfSplitBurnRefund");
+        assertContractHolds(LIMIT_BREAK_SPEC_KEY, "limitBreakUsesDurableOutboxInsteadOfSplitBurnRefund");
+    }
+
+    @Test
+    void submittedGateSurvivesAuthenticationRevocation() throws Exception {
+        assertContractHolds(REFINE_SPEC_KEY, "submittedGateSurvivesAuthenticationRevocation");
+        assertContractHolds(LIMIT_BREAK_SPEC_KEY, "limitBreakSubmittedGateSurvivesAuthenticationRevocation");
+    }
+
+    @Test
+    void refinedEquipmentIsSerializedAfterSigningAndLoreRefresh() throws Exception {
+        assertContractHolds(REFINE_SPEC_KEY, "refinedEquipmentIsSignedInsideTheSharedCommitPath");
+        assertContractHolds(REFINE_SPEC_KEY, "refinedResultIsBuiltBeforeTheLiveItemIsEscrowed");
+    }
+
+    @Test
+    void durableEnvelopePrecedesEveryEnhancementLocalGate() throws Exception {
+        assertContractHolds(REFINE_SPEC_KEY, "durableEnvelopePrecedesEveryEnhancementLocalGate");
+        assertContractHolds(LIMIT_BREAK_SPEC_KEY, "limitBreakDurableEnvelopePrecedesEveryLocalGate");
+    }
+
+    @Test
+    void completionFeedbackCannotTargetAReplacedLoginSession() throws Exception {
+        assertContractHolds(REFINE_SPEC_KEY, "completionFeedbackCannotTargetAReplacedLoginSession");
+        assertContractHolds(LIMIT_BREAK_SPEC_KEY, "limitBreakCompletionFeedbackCannotTargetAReplacedLoginSession");
+    }
+
+    /** 真实执行源码契约门禁；退出码非 0 即失败，并打印门禁给出的具体违例。 */
+    private static void assertContractHolds(String specKey, String method) throws Exception {
         Path root = repositoryRoot();
-        for (String file : new String[]{"RefineCommand.java", "LimitBreakCommand.java"}) {
-            String code = Files.readString(root.resolve(
-                    "plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/" + file),
-                    StandardCharsets.UTF_8);
-            assertTrue(code.contains("EquipmentOperationRequest"), file + " must create a replayable request");
-            assertTrue(code.contains("operations.stage(player, request)"), file + " must persist before removal");
-            assertTrue(code.contains("player.saveData()"), file + " must flush the staged escrow envelope");
-            assertTrue(code.contains("operations.submit(player, request"), file + " must use the atomic outbox");
-            assertFalse(code.contains("economy.burn("), file + " must not debit separately from item delivery");
-            assertFalse(code.contains("economy.refund("), file + " must not need a split refund path");
-        }
-    }
-
-    @Test
-    void submittedGateSurvivesAuthenticationRevocation() throws IOException {
-        Path root = repositoryRoot();
-        String refine = Files.readString(root.resolve(
-                "plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/RefineCommand.java"));
-        String limit = Files.readString(root.resolve(
-                "plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/LimitBreakCommand.java"));
-        assertTrue(refine.contains("AuthenticatedPlayerRevokedEvent"));
-        assertFalse(revocationMethod(refine).contains("active.remove"));
-        assertTrue(limit.contains("AuthenticatedPlayerRevokedEvent"));
-        assertFalse(revocationMethod(limit).contains("active.remove"));
-    }
-
-    @Test
-    void refinedEquipmentIsSerializedAfterSigningAndLoreRefresh() throws IOException {
-        String code = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/RefineCommand.java"));
-        int mutateCopy = code.indexOf("applyRoll(player, resultItem");
-        int sign = code.indexOf("equipment.sign(item)");
-        int payload = code.indexOf("operations.itemPayload(resultItem)", mutateCopy);
-        int removeOriginal = code.indexOf("current.item().setAmount(0)", payload);
-        assertTrue(mutateCopy > 0 && sign > 0 && payload > mutateCopy && removeOriginal > payload,
-                "signed PDC/lore result must exist before the live equipment is escrowed");
-    }
-
-    @Test
-    void durableEnvelopePrecedesEveryEnhancementLocalGate() throws IOException {
-        Path root = repositoryRoot();
-        for (String file : new String[]{"RefineCommand.java", "LimitBreakCommand.java"}) {
-            String code = Files.readString(root.resolve(
-                    "plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/" + file));
-            int persistentGate = code.indexOf("operations.hasPending(player)");
-            int localGate = code.indexOf("active.add(player.getUniqueId())", persistentGate);
-            assertTrue(persistentGate > 0 && localGate > persistentGate,
-                    file + " must recover the durable envelope before admitting another operation");
-        }
-    }
-
-    @Test
-    void completionFeedbackCannotTargetAReplacedLoginSession() throws IOException {
-        Path root = repositoryRoot();
-        for (String file : new String[]{"RefineCommand.java", "LimitBreakCommand.java"}) {
-            String code = Files.readString(root.resolve(
-                    "plugins/rpg-enhancement/src/main/java/cn/originalrpg/enhancement/" + file));
-            int callback = code.indexOf("operations.submit(player, request");
-            int guard = code.indexOf("if (!currentSession(player)", callback);
-            int identity = code.indexOf("Bukkit.getPlayer(player.getUniqueId()) == player", guard);
-            assertTrue(callback > 0 && guard > callback && identity > guard,
-                    file + " must reject completion feedback from an obsolete Player handle");
-        }
-    }
-
-    private static String revocationMethod(String source) {
-        int start = source.indexOf("onAuthenticationRevoked");
-        int end = source.indexOf("\n    }", start);
-        return source.substring(start, end);
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(), specKey, method)
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(),
+                "源码契约门禁失败（" + specKey + " :: " + method + "）：\n" + output);
     }
 
     private static Path repositoryRoot() {
-        Path current = Path.of("").toAbsolutePath();
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null && !Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
             current = current.getParent();
         }

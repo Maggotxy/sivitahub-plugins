@@ -225,18 +225,30 @@ final class SeasonAttunementSettlementWiringTest {
         assertEquals(Boolean.FALSE, ((Map<?, ?>) section).get("enabled"),
                 "赛季调谐必须默认关闭（L-009：能力接线但不启用）");
 
-        // 没有玩家指令：装备插件与核心插件的 plugin.yml 都不得注册调谐命令。
-        for (String module : List.of("rpg-items", "rpg-core")) {
-            String pluginYml = Files.readString(repositoryRoot().resolve(
-                    "plugins/" + module + "/src/main/resources/plugin.yml"), StandardCharsets.UTF_8);
-            String lowered = pluginYml.toLowerCase(java.util.Locale.ROOT);
-            assertFalse(lowered.contains("attune"),
-                    module + "/plugin.yml 不得为赛季调谐注册玩家指令（触发者是换季结算）");
-        }
-        // 指令分发链里也不得有调谐分支。
-        String core = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-core/src/main/java/cn/originalrpg/core/command/RpgCommand.java"), StandardCharsets.UTF_8);
-        assertFalse(core.contains("ttun"), "玩家命令分发链里不得有调谐子命令");
+        // 没有玩家指令：装备插件与核心插件的 plugin.yml 都不得注册调谐命令
+        // （跨两个清单文件的作用域 → 迁进声明式规格，由门禁执行；门禁的 forbidden
+        //  语义是「不得出现在本键声明的任何文件里」，与原逐文件断言等价）。
+        assertSourceContractHolds("#command-surface",
+                "seasonAttunementRegistersNoPlayerCommandInAnyPluginManifest");
+        assertSourceContractHolds("#command-dispatch",
+                "seasonAttunementHasNoSubcommandInThePlayerDispatchChain");
+    }
+
+    /** 真实执行源码契约门禁；退出码非 0 即失败，并打印门禁给出的具体违例。 */
+    private static void assertSourceContractHolds(String fragment, String method) throws Exception {
+        Path root = repositoryRoot();
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(),
+                "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/"
+                        + "SeasonAttunementSettlementWiringTest.java" + fragment, method)
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(),
+                "源码契约门禁失败（" + fragment + " :: " + method + "）：\n" + output);
     }
 
     @Test

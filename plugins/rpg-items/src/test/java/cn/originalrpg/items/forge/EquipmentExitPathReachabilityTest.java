@@ -59,24 +59,13 @@ class EquipmentExitPathReachabilityTest {
     }
 
     @Test
-    void seasonAttunementHasNeitherCommandNorConfigurationSurface() throws IOException {
+    void seasonAttunementHasNeitherCommandNorConfigurationSurface() throws Exception {
         // 「没有玩家入口」必须在玩家可见面上也成立：没有指令、没有 config 键、
         // 没有插件注册。只断言 Java 标识符会漏掉「顺手加个 /attune 占位指令」。
-        String pluginYml = Files.readString(ROOT.resolve("plugins/rpg-items/src/main/resources/plugin.yml"),
-                StandardCharsets.UTF_8);
-        for (String forbidden : List.of("attune", "attunement", "赛季调谐")) {
-            assertFalse(pluginYml.toLowerCase(java.util.Locale.ROOT).contains(forbidden.toLowerCase(
-                            java.util.Locale.ROOT)),
-                    "赛季调谐的触发者是换季结算，不得为它注册玩家指令：" + forbidden);
-        }
-        String config = Files.readString(ROOT.resolve("plugins/rpg-items/src/main/resources/config.yml"),
-                StandardCharsets.UTF_8);
-        assertFalse(config.contains("attun"),
-                "rpg-items/config.yml 不得为赛季调谐预留配置键（开关在 rpg-core）");
-        String bootstrap = Files.readString(ROOT.resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java"), StandardCharsets.UTF_8);
-        assertFalse(bootstrap.contains("Attun"),
-                "赛季调谐的触发者在 rpg-core，装备插件启动路径不得注册任何消费者");
+        // G-302：跨三个文件（plugin.yml / config.yml / RpgItemsPlugin）的否定断言
+        // 只能对源码与清单结构做静态保证 → 迁进声明式规格，由门禁执行
+        // （forbidden 的语义 = 不得出现在本键声明的任何文件里，与原逐文件断言等价）。
+        assertSourceContractHolds(SEASON_SPEC, "seasonAttunementHasNeitherCommandNorConfigurationSurface");
     }
 
     @Test
@@ -115,9 +104,10 @@ class EquipmentExitPathReachabilityTest {
     }
 
     @Test
-    void seasonAttunementHasNoPersistedProducerInTheEquipmentPlugin() throws IOException {
+    void seasonAttunementHasNoPersistedProducerInTheEquipmentPlugin() throws Exception {
         // 没有任何 EquipmentOperationKind 会把装备推进 SEASON_ATTUNED：调谐由换季
         // 结算侧直接消费状态机写入，不经过玩家操作的 outbox，也没有持有态种子。
+        // 这一半是**真实行为断言**（跑状态机本身，与源码文本无关）—— 保留：
         for (EquipmentOperationKind kind : EquipmentOperationKind.values()) {
             EquipmentLifecycle.State seed = EquipmentLifecycle.seedForOperation(kind);
             if (kind == EquipmentOperationKind.SEASON_ATTUNEMENT) {
@@ -129,26 +119,60 @@ class EquipmentExitPathReachabilityTest {
                             == EquipmentLifecycle.State.SEASON_ATTUNED,
                     kind + " 不应把装备直接推进赛季调谐：触发者只能是换季结算");
         }
-        String source = Files.readString(ROOT.resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/RpgItemsPlugin.java"), StandardCharsets.UTF_8);
-        assertFalse(source.contains("SEASON_ATTUNED"),
-                "rpg-items 里不得出现赛季调谐分支（触发者在 rpg-core）");
+        // 另一半（「rpg-items 启动路径里不得出现 SEASON_ATTUNED 分支」）只能对源码
+        // 结构做静态保证 → 同一个规格键的 forbidden，由门禁执行。
+        assertSourceContractHolds(SEASON_SPEC, "seasonAttunementHasNoPersistedProducerInTheEquipmentPlugin");
     }
 
     @Test
-    void destroyEntryPointFollowsTheSalvageOutboxContract() throws IOException {
-        String code = Files.readString(ROOT.resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java"), StandardCharsets.UTF_8);
-        int stage = code.indexOf("operations.stage(player, request)");
-        int consume = code.indexOf("held.setAmount(0)", stage);
-        int save = code.indexOf("player.saveData()", consume);
-        int submit = code.indexOf("operations.submit(player, request", save);
-        assertTrue(stage > 0 && consume > stage && save > consume && submit > save,
-                "销毁必须先落 PDC 恢复信封，再移除输入，再保存玩家，最后提交出站");
-        assertTrue(code.contains("EquipmentOperationKind.DESTROY"));
-        assertTrue(code.contains("BigDecimal.ZERO.setScale(2)"), "首次输入只确认意图，不能收费");
-        assertTrue(code.contains("\"destroy:\" + operationId"), "幂等键必须唯一且可审计");
-        assertFalse(code.contains("economy.burn("), "销毁不得绕过账本直接铸币或扣币");
+    void destroyEntryPointFollowsTheSalvageOutboxContract() throws Exception {
+        // G-302 行为化：原实现读 DestroyCommand 源码做 indexOf 链 + 三条 contains。
+        // 现在改为真跑这条退出路径的**纯规则**（它们就是「销毁到底是不是一条合法退出路径」
+        // 的全部判据），并把「调用顺序」与「不得绕过账本」这两点交给声明式门禁。
+        assertTrue(EquipmentExitPathRules.isExitPath(EquipmentOperationKind.DESTROY),
+                "销毁必须是状态机认可的退出路径，否则 C-008 的第四条退出路径是纸面条款");
+        assertTrue(DestroyRules.descendsToTerminal(EquipmentOperationKind.DESTROY),
+                "销毁必须被算作「分解到底」");
+        assertTrue(DestroyRules.outcomeIsTerminal(EquipmentOperationKind.DESTROY),
+                "销毁的结果态必须真的是终态（不是 no-op 操作）");
+        assertTrue(DestroyDeliveryRules.lanesAgree(EquipmentOperationKind.DESTROY),
+                "销毁产物的交付通道与退回通道必须一致（否则拒绝时原物会被寄走）");
+        assertEquals(DestroyDeliveryRules.Lane.ESCROW_MAILBOX,
+                DestroyRules.deliveryLane(EquipmentOperationKind.DESTROY),
+                "销毁产物只能经唯一市场邮箱通道交付（C-009）");
+        assertFalse(DestroyGate.allowsTerminalExit(true, true, EquipmentOperationKind.DESTROY),
+                "已付费解绑的装备不得直接销毁，必须先重新绑定（否则绕过唯一市场通道）");
+        assertTrue(DestroyGate.allowsTerminalExit(true, false, EquipmentOperationKind.DESTROY),
+                "已绑定（未解绑）的自制装备可以走销毁");
+        assertFalse(DestroyRules.persistedStateIsTerminal(null),
+                "账本没有行时不得当成终态，否则预登记行竞争下会重复扣币");
+
+        // 结构约束（调用顺序 + 不得绕过账本）仍然只能对源码做静态保证 → 门禁执行。
+        assertSourceContractHolds(DESTROY_COMMAND_SPEC, "destroyEntryPointPersistsEscrowBeforeSubmitting");
+        assertSourceContractHolds(DESTROY_COMMAND_SPEC, "destroyCommandUsesAUniqueAuditableIdempotencyKey");
+    }
+
+    private static final String SEASON_SPEC =
+            "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/"
+                    + "EquipmentExitPathReachabilityTest.java#season-attunement";
+
+    private static final String DESTROY_COMMAND_SPEC =
+            "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/"
+                    + "EquipmentExitPathReachabilityTest.java#destroy-command";
+
+    /** 真实执行源码契约门禁；退出码非 0 即失败，并打印门禁给出的具体违例。 */
+    private static void assertSourceContractHolds(String specKey, String method) throws Exception {
+        Path root = repositoryRoot();
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(), specKey, method)
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(),
+                "源码契约门禁失败（" + specKey + " :: " + method + "）：\n" + output);
     }
 
     /**
@@ -160,22 +184,22 @@ class EquipmentExitPathReachabilityTest {
      * 托管编排（{@code operations.stage}）之前，才能在任何状态变更前拒绝。</p>
      */
     @Test
-    void theMailboxLaneGateFailsClosedBeforeAnyStateIsMutated() throws IOException {
-        String code = Files.readString(ROOT.resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/DestroyCommand.java"), StandardCharsets.UTF_8);
-        int gate = code.indexOf("DestroyRules.deliveryLane(");
-        int stage = code.indexOf("operations.stage(player, request)");
-        int consume = code.indexOf("held.setAmount(0)", stage);
-        int save = code.indexOf("player.saveData()", consume);
-        assertTrue(gate > 0, "销毁必须显式判定交付通道，不能隐式依赖默认值");
-        assertTrue(gate < stage,
-                "交付通道判据必须在托管编排之前：否则异常会在装备被清空、恢复信封落盘之后才抛出");
-        assertTrue(stage < consume && consume < save, "编排 -> 消费输入 -> 保存玩家的顺序不得颠倒");
-        // 失败关闭必须是「拒绝并返回」，不能只打日志继续往下走。
-        String gateBlock = code.substring(gate, stage);
-        assertTrue(gateBlock.contains("return;"), "交付通道不合法时必须直接拒绝本次操作");
-        assertFalse(gateBlock.contains("throw new IllegalStateException"),
-                "不得用异常终止一个已经暂停了玩家装备的操作，必须走可读的失败关闭分支");
+    void theMailboxLaneGateFailsClosedBeforeAnyStateIsMutated() throws Exception {
+        // G-302 行为化：原实现读 DestroyCommand 源码比对交付通道判据与托管编排的先后。
+        // 判据本身（哪条通道、是否必须在状态变更前拒绝）是纯规则，真跑一遍：
+        assertEquals(DestroyDeliveryRules.Lane.ESCROW_MAILBOX,
+                DestroyRules.deliveryLane(EquipmentOperationKind.DESTROY),
+                "销毁必须显式判定交付通道，不能隐式依赖默认值");
+        assertEquals(DestroyDeliveryRules.Lane.ESCROW_MAILBOX,
+                DestroyRules.refundLane(EquipmentOperationKind.DESTROY),
+                "退回通道必须与结果通道走同一条托管面");
+        // 非终态操作不产出物品 ⇒ 不进邮箱（判据必须真的区分两种通道，不是恒真）。
+        assertEquals(DestroyDeliveryRules.Lane.MESSAGE_ONLY,
+                DestroyDeliveryRules.laneFor(cn.originalrpg.api.model.EquipmentOperationKind.REFINEMENT));
+
+        // 「判据必须排在 operations.stage 之前，且拒绝必须 return 而不是 throw」这两条
+        // 只能对源码结构做静态保证 → 门禁执行。
+        assertSourceContractHolds(DESTROY_COMMAND_SPEC, "mailboxLaneGateFailsClosedBeforeAnyStateIsMutated");
     }
 
     /** src/main 里出现该标识符的文件（相对仓根的 / 分隔路径）。 */

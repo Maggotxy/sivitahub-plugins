@@ -2,79 +2,76 @@ package cn.originalrpg.market;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * G-302 批次：本类原用 {@code Files.readString} 读生产源码做 {@code indexOf} 断言，
+ * 现改为「构建/接线契约测试」。
+ *
+ * <p><b>为什么不是行为测试</b>：被断言的是生产代码里几段调用序列的先后 —— 受信邮箱
+ * 反序列化必须先清掉旧的装备托管标记再给玩家、失败清单标记只能用当前登录句柄清除、
+ * 登录对账必须等未提交的挂牌准备完成、插件关闭必须清掉全部进程内闸门。生产类是
+ * Bukkit 指令/事件监听器（真实 {@code Player}、{@code ItemStack} PDC、异步市场服务），
+ * 本仓既无 {@code MockBukkit} 也无 {@code Mockito}，无法在 JUnit 进程里构造对象去
+ * 触发这些路径。</p>
+ *
+ * <p><b>落地方式</b>：断言逐条迁移到声明式规格 {@code scripts/source-contract-specs/all.json}。
+ * 原来把 {@code completePreparation} 与 {@code recoverPreparedListings} 两个方法体的锚点
+ * 混在一条 {@code indexOf} 链里（跨方法体的链在语义上就不成立），现按方法拆成多条
+ * {@code ordered} 契约，覆盖不降级。</p>
+ */
 class MailboxDeliveryIntegrationContractTest {
-    @Test
-    void trustedMailboxBoundaryClearsLegacyEquipmentEscrowLockBeforeDeliveryReceipt() throws IOException {
-        String source = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-market/src/main/java/cn/originalrpg/market/MarketCommand.java"),
-                StandardCharsets.UTF_8);
-        int method = source.indexOf("private void deliverNext");
-        int deserialize = source.indexOf("ItemStack.deserializeBytes", method);
-        int clearLegacyLock = source.indexOf("EquipmentOperationMarker.clear(item)", deserialize);
-        int setReceipt = source.indexOf(
-                "meta.getPersistentDataContainer().set(deliveryMarker", clearLegacyLock);
-        int addToInventory = source.indexOf("player.getInventory().addItem(item)", setReceipt);
 
-        assertTrue(method >= 0 && deserialize > method && clearLegacyLock > deserialize
-                        && setReceipt > clearLegacyLock && addToInventory > setReceipt,
-                "a legacy equipment escrow marker must be removed only after trusted mailbox "
-                        + "deserialization and before the item enters player inventory");
+    private static final String COMMAND =
+            "plugins/rpg-market/src/test/java/cn/originalrpg/market/MailboxDeliveryIntegrationContractTest.java#market-command";
+    private static final String PLUGIN =
+            "plugins/rpg-market/src/test/java/cn/originalrpg/market/MailboxDeliveryIntegrationContractTest.java#market-plugin";
+
+    @Test
+    void trustedMailboxBoundaryClearsLegacyEquipmentEscrowLockBeforeDeliveryReceipt() throws Exception {
+        assertContractHolds(COMMAND,
+                "trustedMailboxBoundaryClearsLegacyEquipmentEscrowLockBeforeDeliveryReceipt");
     }
 
     @Test
-    void staleListingCallbackCannotSaveOverANewerLoginAndOrphanMarkersAreRecovered() throws IOException {
-        String source = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-market/src/main/java/cn/originalrpg/market/MarketCommand.java"),
-                StandardCharsets.UTF_8);
-        int callback = source.indexOf("private void completePreparation");
-        int liveHandle = source.indexOf("Player current = Bukkit.getPlayer(player.getUniqueId())", callback);
-        int readyGuard = source.indexOf("if (!ready(current)) return", liveHandle);
-        int clear = source.indexOf("clearListingMarker(current, listingId)", readyGuard);
-        int save = source.indexOf("current.saveData()", clear);
-        int recovery = source.indexOf("clearOrphanListingMarkers(player, preparedIds, inFlight)");
-        int sessionIdentity = source.indexOf("Bukkit.getPlayer(player.getUniqueId()) == player");
-        int exactAuthRemoval = source.indexOf("authenticatedPlayers.remove(player.getUniqueId(), player)");
-        int recoveryMethod = source.indexOf("private void recoverPreparedListings");
-        int inflightGuard = source.indexOf("if (preparingListings.containsKey(playerId))", recoveryMethod);
-        int query = source.indexOf("market.preparedListings(playerId)", inflightGuard);
-
-        assertTrue(callback >= 0 && liveHandle > callback && readyGuard > liveHandle
-                        && clear > readyGuard && save > clear,
-                "a failed preparation must mutate only the current authenticated Player handle");
-        assertTrue(recovery > save && sessionIdentity > recovery,
-                "offline failure markers need authoritative login reconciliation without stale saves");
-        assertTrue(exactAuthRemoval >= 0,
-                "an old disconnect must not revoke a newer authenticated Player handle");
-        assertTrue(recoveryMethod >= 0 && inflightGuard > recoveryMethod && query > inflightGuard,
-                "login reconciliation must not race an uncommitted listing preparation");
+    void staleListingCallbackCannotSaveOverANewerLoginAndOrphanMarkersAreRecovered() throws Exception {
+        assertContractHolds(COMMAND,
+                "staleListingCallbackCannotSaveOverANewerLoginAndOrphanMarkersAreRecovered");
+        assertContractHolds(COMMAND,
+                "loginReconciliationWaitsForAnUncommittedPreparationThenClearsOrphans");
+        assertContractHolds(COMMAND, "readyRequiresTheExactAuthenticatedHandle");
+        assertContractHolds(COMMAND, "staleDisconnectMustNotRevokeANewerAuthenticatedHandle");
     }
 
     @Test
-    void pluginDisableClosesEveryProcessLocalMarketGate() throws IOException {
-        String command = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-market/src/main/java/cn/originalrpg/market/MarketCommand.java"),
-                StandardCharsets.UTF_8);
-        String plugin = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-market/src/main/java/cn/originalrpg/market/RpgMarketPlugin.java"),
-                StandardCharsets.UTF_8);
-        int close = command.indexOf("void close()");
-        assertTrue(close >= 0
-                && command.indexOf("authenticatedPlayers.clear()", close) > close
-                && command.indexOf("preparingListings.clear()", close) > close
-                && command.indexOf("mailboxClaimSessions.clear()", close) > close
-                && command.indexOf("mailboxClaims.clear()", close) > close);
-        assertTrue(plugin.contains("if (marketCommand != null) marketCommand.close()"));
+    void pluginDisableClosesEveryProcessLocalMarketGate() throws Exception {
+        assertContractHolds(COMMAND, "pluginDisableClosesEveryProcessLocalMarketGate");
+        assertContractHolds(PLUGIN, "pluginDisableClosesTheMarketCommandGate");
+    }
+
+    /** 真实执行源码契约门禁；退出码非 0 即失败，并打印门禁给出的具体违例。 */
+    private static void assertContractHolds(String specKey, String method) throws Exception {
+        Path root = repositoryRoot();
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(), specKey, method)
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(),
+                "源码契约门禁失败（" + specKey + " :: " + method + "）：\n" + output);
     }
 
     private static Path repositoryRoot() {
-        Path current = Path.of("").toAbsolutePath();
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null && !Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
             current = current.getParent();
         }
