@@ -1,0 +1,97 @@
+{
+  "done": false,
+  "impossible": false,
+  "basis": "3947000",
+  "basis_full": "3947000d3e33189f2d293d828780155c3e28c3b7",
+  "reason": "按 done=true 的四条必要条件逐条核验，**第 ① 条不成立**，故 done=false。①差集矩阵无「声明未接线」项：**成立，0 条**。②十门在当前 main 全绿：**成立**（采样到的十门形态构建 sn=cnb-og3-1k401sol0，sha=2184f15，status=success，13 stage 全 success 且耗时全非零，10 条判据行齐全，见下 gates）。③素材层四条（本轮新增复查项 (a)(b)(c)(d)）：**全部成立** —— (a) 6 个新脚本/数据文件零消费者=0，每个都有真实调用点原文；(b) ASSET_BASELINE_GATE=GREEN，252 条 ↔ 磁盘 252 张，UNREGISTERED=0 MISSING=0 MODIFIED=0；(c) provenance 252 条与 manifest 252 条归一后同集合，$needsHumanDecision=[]，六类 $counts 合计 252 且与逐条重算一致；(d) items 81 == runtime-item-models 81（diff 为空），插件侧 12 个字面量 item_model 键全部 ⊆ manifest（0 条未声明）；24 个 config.yml 的 143 个顶层键中4 个在本插件 src/main 无字面量，逐条复核后全部有真实读方（3 个是通用 config-version 键、1 个是 lang 键镜像），无任何一个声明机制行为却无读方。④剩余问题只有 REQUIRES_HUMAN：**不成立** —— 存在可派工的实现缺口 **G-302-RESIDUAL**：`Files.readString + indexOf/contains` 的源码字符串伪测试仍有残留。判据来源：GOAL.md §2 第 2 条要求「至少一条事件级/行为级测试，不是 Files.readString + indexOf 的源码字符串断言」。实测：`plan/source-string-tests-remaining.json` 的 `_remaining_after_batch2` 登记 15 个类，本轮按「同一 @Test 方法体内既有 Files.readString 读生产源码、又有 .contains()/.indexOf() 断言」的口径重数，其中 **10 个类仍含纯源码字符串断言**（OptionalServiceLifecycleContractTest 1 个方法 / LanguageBundleContractTest 1 / DungeonEntryCommitAmbiguityContractTest 3 / EquipmentOperationIntegrationContractTest 2 / WorldTravelConfigurationContractTest 1 / ForgeOperationIntegrationContractTest 6 / MailboxDeliveryIntegrationContractTest 1 / SkillAsyncLifecycleContractTest 1 / StoryJourneyOrderContractTest 1 / SurvivalPerformanceConfigurationContractTest 2）。W5-A2 自己的 unproven 第 4 条原文即承认「第二批剩余 15 个读生产源码的类未处理」。**这是 v6 的覆盖盲区**：v6 只复查了 W9 迁移的最后 2 个类（MobRewardAsyncLifecycleContractTest / PetRevivalLifecycleContractTest，确已接线），未回看 G-302 的这 15 个残留，却把矩阵里 G-302 判成「已接线」、并在 verdict-v6 判 done=true/remaining=0。本轮按 GOAL.md §2 与 [T] 证据等级口径判其为真实缺口。已合入的 gap 不再计入：本轮 G-001..G-004 / G-101..G-114（除 G-302 残留）/ G-206 / G-301 / G-303 / G-401..G-403 / G-ANOMALY-ACK 全部复跑确认有真实调用点，判「已接线」。",
+  "condition_1_no_declared_unwired": true,
+  "condition_1_note": "差集矩阵 v7 判定列里「声明未接线」= 0 条（plugins/** 与脚本层全部有真实消费者）；但「可派工的实现缺口」= 1 类（G-302-RESIDUAL）。",
+  "condition_2_gates_green_on_current_main": true,
+  "condition_2_evidence": "sn=cnb-og3-1k401sol0（event=api_trigger_gate，sha=2184f15995e05c370a7a1922bb451d35aafd1990，status=success，13 stage 全 success 且耗时非零）+ 同 sha 的 push 构建 sn=cnb-kcs-1k401sf5q（success）；basis 3947000 与 2184f15 之间 `git diff --name-only` 只含 .workbuddy/**、doc/cnb/tasks-w15.json、state/world-state.json —— 无一个文件进入构建输入",
+  "condition_3_asset_layer_four": true,
+  "condition_3_evidence": "(a) 6 脚本/数据文件零消费者=0；(b) check-asset-baseline.py EXIT=0 / 252==252；(c) 同集合 + needsHumanDecision=[] + 六类合计 252；(d) items 81==81 + 12 键全 ⊆ manifest + 24 个 config.yml 143 键全部有读方",
+  "condition_4_only_requires_human": false,
+  "condition_4_note": "不成立：存在可派工的实现缺口 G-302-RESIDUAL（10 个类的纯源码字符串断言）。",
+  "remaining": 1,
+  "remaining_ids": [
+    "G-302-RESIDUAL"
+  ],
+  "remaining_detail": {
+    "G-302-RESIDUAL": {
+      "summary": "源码字符串伪测试残留：10 个 *ContractTest 类的 @Test 方法仍用 Files.readString 读生产源码 + contains()/indexOf() 断言，不执行行为、不执行外部门禁脚本",
+      "classes": [
+        "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java",
+        "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java",
+        "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonEntryCommitAmbiguityContractTest.java",
+        "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/EquipmentOperationIntegrationContractTest.java",
+        "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/WorldTravelConfigurationContractTest.java",
+        "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java",
+        "plugins/rpg-market/src/test/java/cn/originalrpg/market/MailboxDeliveryIntegrationContractTest.java",
+        "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/SkillAsyncLifecycleContractTest.java",
+        "plugins/rpg-story/src/test/java/cn/originalrpg/story/StoryJourneyOrderContractTest.java",
+        "plugins/rpg-world/src/test/java/cn/originalrpg/world/SurvivalPerformanceConfigurationContractTest.java"
+      ],
+      "registration": "plan/source-string-tests-remaining.json 的 _remaining_after_batch2（登记 15 条，本轮实测其中 10 条仍含纯源码断言；另 5 条已判为非缺口：GuidePlayerActionContractTest 已在规格中、PerformanceStatusStoreTest 是真实 IO 行为测试、EquipmentSigningMaterialTest 是 W1-A3 行为测试）",
+      "self_admitted": ".cnb/agent-out/W5-A2-source-string-tests-batch2.json 的 unproven[3]：「第二批剩余 15 个读生产源码的类未处理……需逐条人工迁移」",
+      "dispatcher_note": "W5-A2 已给出处置模式：可行为化的改行为断言；无法在测试进程内行为化的迁进 scripts/source-contract-specs/all.json 并让测试类逐方法真执行门禁并断言 exitValue()==0。剩余 10 类的共同难点是断言含跨多文件作用域 / 「|| 备选」/ 段内 substring / 重复锚点，自动迁移会失真，需逐条人工迁移。",
+      "negative_control_required": "替换后必须做负向对照（删掉生产调用点 → 测试变红 → 恢复），并把命令与输出写进证据",
+      "forbidden": "不得删除测试、不得 @Disabled、不得改成恒真断言"
+    }
+  },
+  "gates": {
+    "evidence_sn": "cnb-og3-1k401sol0",
+    "evidence_sha": "2184f15995e05c370a7a1922bb451d35aafd1990",
+    "evidence_event": "api_trigger_gate",
+    "evidence_relation": "同 sha 的 push 构建 cnb-kcs-1k401sf5q 亦 success；basis 3947000 与 2184f15 的 git diff --name-only 只含 .workbuddy/**、doc/cnb/tasks-w15.json、state/world-state.json（无构建输入）",
+    "prepare_downloader": "GREEN（stage-0，23546ms）",
+    "gate_selftest": "GREEN（PASS=99 FAIL=0，576080ms）",
+    "resource_pack": "GREEN（RUN=8 SKIPPED=0，513ms）",
+    "asset_baseline": "GREEN（校验 252 张 PNG / 清单 252 条 / UNREGISTERED=0 MISSING=0 MODIFIED=0，337ms）",
+    "asset_repro": "GREEN（比对 70 张 / 4 个生成器 / 逐像素一致 70 / REPRODUCIBLE=70 MISMATCH=0 MISSING=0 UNREGISTERED=0，1438ms）",
+    "ddl_consumer": "GREEN（DDL 表数 81 / 豁免 0 条，含在 stage-2 的 110736ms 内）",
+    "ddl_registration": "GREEN（扫描 549 文件 / 代码引用 rpg_* 表 81 个 / 反向豁免 0 条，含在 stage-2 内）",
+    "cmd_reference": "GREEN（已注册指令 43 条 / 豁免 9 条，含在 stage-2 内）",
+    "compile": "GREEN（TASKS_DONE=28 ATTEMPTS=1 BUILD_EXIT=0 SECONDS=124，134143ms）",
+    "test": "GREEN（SUM tests=1091 failed=0 errors=0 skipped=2 modules=26 / NO_XML modules=0 / SUMMARY_GATE=GREEN / ENV_ANNOTATIONS=8 / TEST_EXIT=0 SECONDS=41，41032ms）",
+    "assemble": "GREEN（JAR_COUNT=56 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0 / ASSEMBLE_EXIT=0 JARCHECK_EXIT=0 SECONDS=7，8486ms）",
+    "pending_sn_note": "basis 自身 3947000 的构建 sn=cnb-f7n-1k402tgr8 与 927ce1d 的 sn=cnb-8tm-1k402ppbb 本轮查询时 status=pending（stage-1「门禁自测」运行中，stage-2..8 pending，均为 13 stage 十门形态）。查得到构建，但采样时都还在跑，故判据行取自同构建输入的 sn=cnb-og3-1k401sol0。",
+    "local_rerun": "本容器无 JDK ⇒ compile/test/assemble 不能本地复跑。本地已复跑且 exit=0：check-ddl-consumers.sh / check-config-fallbacks.sh / check-trusted-menu-holders.sh / check-repo-artifacts.sh / check-file-deps.sh / check-source-contract.sh（238 checks / 27 specs）/ check-resource-pack.sh（RUN=8）/ check-asset-baseline.py（252/252）/ install-datapacks.sh --check / selftest-gates.sh（PASS=99 FAIL=0）。check-asset-reproducible.sh 本地未复跑（需现场编译 Java 生成器，无 JDK），其判据行取自 CI 记录。"
+  },
+  "asset_layer_recheck": {
+    "(a)_six_new_artifacts_consumers": {
+      "generate-provenance.py --write-doc": "已接线 —— README.md:34,196 / ASSET-PROVENANCE.md:12,234 / W14-A1 实测（.cnb/agent-out/W14-A1-merge-two-branches.json 的 cmd）；它是 asset-provenance.json 与 ASSET-PROVENANCE.md 的唯一生成路径。如实说明：无 CI stage 直接调用（它是人工重新生成路径，进门禁的是它的产物）。",
+      "check-asset-reproducible.sh": "已接线 —— .cnb.yml:171（stage「素材可复现性门禁（W13-A1）」）+ selftest-gates.sh:923,1013（§10 负向对照）+ 1023-1027（接线自证）",
+      "check-asset-reproducible.py": "已接线 —— check-asset-reproducible.sh:128 `exec python3 scripts/check-asset-reproducible.py --root \"$ROOT\" --generated \"$GEN\"`",
+      "asset-reproducible.json": "已接线 —— check-asset-reproducible.py:34 `SPEC_REL = os.path.join(\"resource-pack\", \"asset-reproducible.json\")`；CI 判据行「ASSET_REPRO: 比对 70 张（4 个生成器）」证明真被解析",
+      "asset_fingerprint.py": "已接线 —— check-asset-baseline.py:33 / gen-asset-manifest.py:25 / check-asset-reproducible.py:32 三处 `from asset_fingerprint import fingerprint_png`；selftest-gates.sh:736,898 复制进两套 fixture",
+      "gen-asset-manifest.py": "已接线 —— selftest-gates.sh:856 `python3 scripts/gen-asset-manifest.py --check` + :859 断言 exit=0",
+      "check-asset-baseline.py": "已接线 —— .cnb.yml:143 + selftest-gates.sh:742,784,806,826,849（三组负向对照）+ :864 接线自证",
+      "zero_consumer_count": 0
+    },
+    "(b)_manifest_vs_disk": "ASSET_BASELINE_GATE=GREEN；manifest 252 条 == 磁盘 PNG 252 张；集合相等（disk-only=[] manifest-only=[]）；UNREGISTERED=0 MISSING=0 MODIFIED=0",
+    "(c)_provenance_vs_manifest": "归一 assets/ 前缀后同集合（manifest-only=[] prov-only=[]）；$needsHumanDecision=[]（空数组）；$counts 六类 ai-prompt 10 / derived-from 69 / generator 129 / human-override 1 / upstream-betterhud 38 / upstream-vanilla 5，合计 252；与逐条重算的 Counter 完全一致",
+    "(d)_items_three_way": "items 定义 81 == runtime-item-models 去注释键 81（diff 为空，IDENTICAL）；插件 src/main 按 build.sh:472-484 口径抽出的 12 个字面量 item_model 键全部 ⊆ manifest（comm -23 为空）；行为级消费者 HelpTopicTest.everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack（带 @Tag(env)，测试门内显式排除并报告）",
+    "(d)_config_yml_readers": "24 个 config.yml / 143 个顶层键；4 个键在本插件 src/main 无字面量：rpg-commerce store-title（lang 键镜像，读点 RpgCommercePlugin.java:423 + lang/*.yml:219）、rpg-community/rpg-essentials/rpg-market 各 1 个 config-version（通用版本号键，同形态在 rpg-commerce:73 / rpg-cosmetics:836 / rpg-pets:157 / rpg-story:46 被读）。无任何一个声明机制行为却无读方。"
+  },
+  "not_a_gap": [
+    "W6-A1/W9-A2 之后 81 张 DDL 表零消费者 = 0；代码引用但 DDL 无的表 = 0。",
+    "G-303-SCSTALE（check-source-contract.sh here-doc 假绿）—— v6 已用 7 种输入形态反证为假缺口，本轮未推翻。",
+    "G-ENV-PENDING（stage 卡在 start,0）—— v6 已证为时序假象，本轮实测 basis 与 927ce1d 的门同样是「在跑中」的 start,0。",
+    "门禁对「不存在的 method」空跑打印 GREEN —— 现状安全（27 个包装器 method 全存在），记为观察项。",
+    "3 个无读方的 config-version 键（rpg-community / rpg-essentials / rpg-market）—— 不声明任何机制行为，无门禁/文档声称被读，记为观察项。",
+    "SACRIFICED / EquipmentOperationKind.SEASON_ATTUNEMENT 零消费者 / isAuthoritativeNamespace 字面量零命中 —— 与 v4/v6 一致，刻意设计或间接接线。",
+    "WorldTravelConfigurationContractTest / SurvivalPerformanceConfigurationContractTest 读 server/ 部署产物 —— 但本轮仍把它们计入 G-302-RESIDUAL，因为其断言对象是本仓源码字面量。"
+  ],
+  "needs_human": [
+    "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/maintain-world-coverage.sh（生产机写操作，L-006）。",
+    "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
+    "W7-A2 遗留的 4 条 [R] 级 unproven（G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）——需真实 Paper 运行环境。",
+    "G-302-RESIDUAL 判定口径是否需要人类确认：GOAL.md §2 明确排除「Files.readString + indexOf 的源码字符串断言」，但 W5-A2 已把 25 个类「迁进声明式规格 + 测试逐方法真执行门禁并断言 exitValue()」作为可接受处置。本轮对剩余 10 类沿用同一口径判为**可派工实现缺口**；若人类认为「迁进规格」即算接线，则应为 0 而不是 10 —— 这属口径拍板。"
+  ],
+  "artifacts": [
+    "plan/gap-matrix-v7.md",
+    "plan/verdict-v7.json",
+    "plan/tasks-w15.json",
+    "plan/world-state.json"
+  ]
+}
