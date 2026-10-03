@@ -117,3 +117,27 @@
 | W2 | 15 个任务：G-107上/下、G-104、G-105、G-110..G-114、G-101、G-102、G-103、G-106、G-108、P2 文档订正 | **DONE** 2026-10-02：15/15 合入（3 个经冲突消解），**编译门 GREEN**（sn=`cnb-l7u-1k3tn45sp`）。G-106 只交付自检未落地 ⇒ 转 W3-A1 |
 
 | W3 | G-106 落地 / 全量测试门+打包 / SEASON_ATTUNED+DESTROYED 两条退出路径 / 8 张豁免表判定 / 差集矩阵 v2 | **DISPATCHED** 2026-10-02，清单 `doc/cnb/tasks-w3.json` |
+
+## I. W21 —— 两个「不是代码写错，而是流程约束没有机械判据守着」的交付物缺陷
+
+> 语境：`G-302-RESIDUAL` 链最后一段（W18/W19/W20/W21-A1）实际收敛的是**交付物质量**，不是玩法接线。
+> 本节登记的缺陷属同一类：**没有机械判据守着，就会复发**。
+
+| id | 缺口 | 证据（命令 / sn / 文件:行号） | 状态 |
+|---|---|---|---|
+| G-DUP-WORLDSTATE | **两份账本不一致**：`state/world-state.json` 与 `plan/world-state.json` 在**同一个 commit `6500a21`** 里被同一个 NPC 写成不同内容 ⇒ 两个 agent 分别读两份会得出不同结论，交接协议直接失效 | **同轮同作者**：两份的 `round` 都是 24、`updated_by` 都是 `CNB CodeBuddy NPC（W17-A1-verdict-v8）`。**字节数**：plan 40076B / md5 `fbf8a434cacd8693947a5f55f2012e62`；state 35064B / md5 `ace966486ed360318aaa4939ec43e130`（`git show 6500a21:plan/world-state.json \| wc -c` / `md5sum`）。**差异字段 7 个**：`assets` / `gates` / `status` / `next_action` / `open_questions_for_human` / `wave_plan` / `evidence`（`python3` 逐键比对，命令见 `.cnb/agent-out/W21-A2-ledger-and-guards.json` 的 evidence.merge_field_diff）。**根因原文**：`.cnb/agent-out/W10-A1-final-verdict-v5.json:153`——「`state/world-state.json` 不在本任务 allowed_paths（`plan/**` 与 `.cnb/agent-out/**`）内，本轮**未改**它：跨 agent 交接账本的更新以 `plan/world-state.json` 为准，需要落到 `state/` 的动作交回调度器。」⇒ 派单白名单与 `doc/cnb/agent-protocol.md` 声明的账本路径不一致，NPC 只能就地造第二份。 | **DONE** W21-A2：`plan/world-state.json` 已删除；漂移内容按并集并入 `state/world-state.json`（`_ledger` 字段记录合并字段与被替换旧值；plan 侧独有的 6 条 evidence 顺延为 E-057..E-062，一条未丢）；协议加硬规则（`doc/cnb/agent-protocol.md` §4.1）；`plan/README.md` 写明并入；门禁 `SINGLE_SOURCE_OF_TRUTH_GATE`（`scripts/selftest-gates.sh` §11 判据 1，正负夹具各带退出码断言） |
+| G-VERDICT-MATRIX-SPLIT | **verdict 与矩阵结论自相矛盾**：`plan/gap-matrix-v8.md` §0 写「G-302-RESIDUAL 清零（0 个类 / 0 个方法）/ done=true / remaining=0」，同轮 `plan/verdict-v8.json` 写 `done=false` / `remaining=1`（`remaining_ids=["G-302-RESIDUAL-2"]`） | `plan/gap-matrix-v8.md` §0 结论表（原文行保留）vs `plan/verdict-v8.json` 的 `done`/`remaining`/`remaining_ids`；两文件同属 W17-A1 交付。危害：审阅者只读矩阵会得出「已清零」的相反结论。 | **DONE** W21-A2：**不改历史结论原文**，只补 `> verdict: done=false remaining=1` 机器行 + `> basis-substring: 77112113` + §0 旁勘误（以 JSON 为准）；门禁 `VERDICT_MATRIX_CONSISTENCY_GATE`（`scripts/selftest-gates.sh` §11 判据 2，三态夹具：缺结论行 RED / 数值不一致 RED / basis 不在头部 RED / 一致 GREEN） |
+| G-FLAKY-GATE | **门禁假红（flaky）**：同一 sha `b6d38bff562ed59268ff5381847154a5e6976982` 上两次 `api_trigger_gate` 先红后绿 —— sn=`cnb-tn4-1k4141s0e`（stage test=error，`rpg-admin` `failed=1`）vs sn=`cnb-h3n-1k414popl`（全绿） | 失败用例 `cn.originalrpg.admin.AnomalyReviewCommandTest#acknowledgeWithoutConfirmOrSignatureIsRefusedAndWritesNothing`，断言消息 `[] ==> expected: <true> but was: <false>`；根因 = `awaitQuiet()` 用「连续 15 轮 × 2ms = 30ms 无新消息」当异步链收尾判据（时间启发式），CI 高负载下两跳异步链某一跳 >30ms 才落地即提前返回。 | **DONE** W21-A1（本分支前序任务）：`awaitChainSettled()` 确定性等待「在飞任务归零」+ 硬超时，仅改 `plugins/rpg-admin/src/test/**`；证据 `.cnb/agent-out/W21-A1-fix-flaky-test-gate.json`（含 6× CPU hog 下 30/30 绿、负向对照真变红、`tests=1101 failed=0 modules=26`） |
+
+### I.1 两条新门禁的负向对照（现场造、现场删、断言退出码）
+
+| 判据 | 夹具 | 命令与退出码 |
+|---|---|---|
+| `SINGLE_SOURCE_OF_TRUTH_GATE` | ①`state` 缺失 ②假 `plan/world-state.json`（内容不同）③删除后还原 | 见 `.cnb/agent-out/W21-A2-ledger-and-guards.json` 的 `evidence.negative_controls.gate1`：`exit=1 / exit=1 / exit=0`；夹具在 `mktemp -d` 下，跑完真实仓库无残留 |
+| `VERDICT_MATRIX_CONSISTENCY_GATE` | ①矩阵缺结论行 ②`remaining` 与 JSON 不一致 ③`basis` 不在前 20 行 ④改成一致 | 见同一 JSON 的 `evidence.negative_controls.gate2`：`exit=1 / exit=1 / exit=1 / exit=0` |
+
+### I.2 接线证明（「脚本存在」不等于「脚本被调用」）
+
+- `scripts/selftest-gates.sh` §11 在 `.cnb.yml` 的「门禁自测（负向对照）」stage 里被执行：`.cnb.yml:71` 原文 `sh scripts/selftest-gates.sh`（stage 声明在 `:63`，**本任务未改 `.cnb.yml`**）。
+- 判据行原文：`SINGLE_SOURCE_OF_TRUTH_GATE=GREEN` / `WORLD_STATE_FILES=1`；`VERDICT_MATRIX_CONSISTENCY_GATE=GREEN` / `N=8 done=false remaining=1 basis=77112113`。
+- 完整自测：`sh scripts/selftest-gates.sh` → `===== 门禁自测汇总：PASS=132 FAIL=0 =====` / `GATE_SELFTEST=GREEN`。

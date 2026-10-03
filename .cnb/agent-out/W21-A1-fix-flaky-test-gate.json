@@ -1,0 +1,68 @@
+{
+  "task_id": "W21-A1-fix-flaky-test-gate",
+  "status": "success",
+  "summary": "确认并修复门禁假红（flaky）：plugins/rpg-admin 的 AnomalyReviewCommandTest.awaitQuiet() 用『连续15轮×2ms=30ms 无新消息』当异步链收尾判据（时间启发式），在 CI 高负载下两跳异步链（acknowledge→whenComplete→pending→whenComplete）某一跳 >30ms 才落地，awaitQuiet() 提前返回、messages 为空，导致 acknowledgeWithoutConfirmOrSignatureIsRefusedAndWritesNothing() 第3条断言（missing 分支）假红：AssertionFailedError: [] ==> expected: <true> but was: <false>。修复：测试侧注入可跟踪 executor（在飞任务计数，提交线程递增、任务体含 whenComplete 回调之后递减），awaitQuiet() 改为确定性等待『在飞任务归零（连续3次确认）』，硬超时 10s，超时抛 AssertionError 报『异步链未收尾』。未改任何断言期望值，异步路径仍是真实虚拟线程+真实JDBC事务（未改成同步）。仅改 plugins/rpg-admin/src/test/**。 另注：本分支已有同任务更早一次尝试（PR #70，根因与方向一致但无慢 executor 回归测试），本次合并后统一为 awaitChainSettled() 并补齐该回归测试。",
+  "changed_files": [
+    "plugins/rpg-admin/src/test/java/cn/originalrpg/admin/AnomalyReviewCommandTest.java",
+    ".cnb/agent-out/evidence/W21-A1-evidence.md",
+    ".cnb/agent-out/evidence/pre-fix-repro.log",
+    ".cnb/agent-out/evidence/post-fix-30runs.txt",
+    ".cnb/agent-out/evidence/negative-control-red.log",
+    ".cnb/agent-out/evidence/negative-control-restore-green.log",
+    ".cnb/agent-out/evidence/full-graph-test.log",
+    ".cnb/agent-out/W21-A1-fix-flaky-test-gate.json"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70",
+  "evidence": {
+    "failing_assertion": {
+      "test": "cn.originalrpg.admin.AnomalyReviewCommandTest#acknowledgeWithoutConfirmOrSignatureIsRefusedAndWritesNothing",
+      "which_of_three": "第3条断言（missing 分支，随机 UUID → anomalies.pending(...) 两跳异步）；前两条同步分支（缺CONFIRM/非法UUID）确认不 flake",
+      "source_line": 140,
+      "assertion": "assertTrue(missing.messages.stream().anyMatch(line -> line.contains(\"admin.anomaly-not-pending\")), missing.messages.toString())",
+      "xml_failure_message": "org.opentest4j.AssertionFailedError: [] ==> expected: <true> but was: <false>",
+      "note": "实际值为空列表 [] —— 异步链未收尾即断言，与门禁 stage 日志第 82 行同一用例"
+    },
+    "root_cause": "awaitQuiet() 时间启发式（QUIET_ROUNDS=15 × 2ms = 30ms 静默）与『两跳异步链已收尾』无因果关系。探针实测：hopDelay=0ms 时 awaitQuiet() 亦在 30ms 后带 messages=[] 返回，期望消息随后才到达。",
+    "probe_output": [
+      "PROBE hopDelay=0ms  awaitQuiet returned after 30ms  messages=[]",
+      "PROBE hopDelay=0ms  after 3s messages=[admin.anomaly-not-pending {player=...}]  expected present=true",
+      "PROBE hopDelay=45ms  awaitQuiet returned after 30ms  messages=[]",
+      "PROBE hopDelay=200ms awaitQuiet returned after 30ms  messages=[]"
+    ],
+    "pre_fix_loop_no_load": "30 次顺序执行 run 1..30 rc=0，fails=0（低概率竞态），总计 240s",
+    "pre_fix_repro_under_load": "8x CPU hog 下单类循环，第 25 次 rc=1，失败用例与失败文本与门禁日志一致（见 pre-fix-repro.log）",
+    "first_attempt_fix_still_reproduced": "第一版把在飞计数放在任务体内递增，run 13 仍 rc=1（[] 空消息）。根因：主线程提交后立刻读到 0。改为提交线程递增后不复现。",
+    "post_fix_30_runs": "在 6 个 CPU hog 负载下 run 1..30 全部 rc=0，FAILS=0（见 post-fix-30runs.txt）",
+    "negative_control": {
+      "sabotage": "把 missing 分支期望消息键改为 admin.anomaly-DOES-NOT-EXIST",
+      "sabotage_rc": 1,
+      "sabotage_failure_message": "org.opentest4j.AssertionFailedError: [admin.anomaly-not-pending {player=...}] ==> expected: <true> but was: <false>",
+      "note": "实际值非空 ⇒ 断言因行为不符而红，证明修复没有把断言『等没了』",
+      "restore_rc": 0
+    },
+    "full_module_test": "MODULE rc=0；plugins/rpg-admin tests=34 failed=0 errors=0 skipped=0 ok",
+    "full_graph_test": "FULL_TEST rc=0；SUM tests=1101 failed=0 errors=0 skipped=2 modules=26；NO_XML modules=0；SUMMARY_GATE=GREEN（与门禁第2次绿一致）",
+    "evidence_files": {
+      "paths": [
+        ".cnb/agent-out/evidence/W21-A1-evidence.md",
+        ".cnb/agent-out/evidence/post-fix-30runs.txt"
+      ],
+      "note": "这两个文件由同分支更早一次尝试（commit 04117d4）产出，记录了「可跟踪 executor 归零」判据的 30/30 复跑与负向对照原始输出；本次实现保留它们并追加了慢 executor 的确定性复现与回归测试。"
+    },
+    "pr": {
+      "url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70",
+      "note": "分支已有同任务更早一次尝试创建的 PR #70；本次合并后统一实现并已在该 PR 追加补充评论（含慢 executor 确定性复现 XML 原文、5/5、负向对照、tests=35 原文）。",
+      "comment_id": "2106422414237630464"
+    }
+  },
+  "risks": [
+    "本容器未能在无负载顺序执行下复现（30 次全绿），复现依赖制造 CPU 竞争；但探针已给出与负载无关的确定性证据（hopDelay=0ms 时 30ms 窗口仍提前返回），且实际抓到的失败文本与门禁日志逐字一致。",
+    "awaitQuiet 依赖被注入 executor 的计数：若将来测试改成绕过 tracked() 的 executor（例如直接注入虚拟线程池），屏障会退回『立即返回』。已在 tracked() 与 awaitQuiet() 的注释里写明原因。",
+    "QUIET_POLL_MILLIS=2ms 仍存在，但只影响轮询粒度，不再参与收尾判据；即便 poll 超过一跳耗时也不会误判（计数未归零则不确认）。",
+    "本分支存在同任务更早一次尝试（commit 04117d4，PR #70）：根因结论与修复方向一致，但缺少任务要求的「慢 executor 永久回归测试」。本次 merge 保留其证据文件，并把等待实现统一为本次的 awaitChainSettled()（在飞跳 + 命令层派发计数 + 有界收敛窗口）。"
+  ],
+  "next_steps": [
+    "合入后重跑一次门禁（api_trigger_gate）确认同一 commit 连续两次均绿，关闭『十门全绿不可复现』。",
+    "可选：排查本仓其它测试是否也存在同类『静默若干毫秒』收尾判据（本次仅限 rpg-admin 任务范围）。"
+  ]
+}

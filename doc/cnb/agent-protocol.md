@@ -32,9 +32,9 @@
 | 4 | **逐个验收** | 用 `GET /-/git/compare/{base}...{head}` 的 **`path`** 字段查越界；读 evidence 的 grep 命令自己复核一遍 |
 | 5 | 逐个合 PR | 编排器不会自动合；合了下一阶段才看得到上一阶段的代码 |
 | 6 | **每波合完显式触发一次全量编译门** | 每工程 `BUILD_EXIT=0` 且 `SECONDS>0`；门不绿不派下波 |
-| 7 | 把新事实写回 `state/world-state.json` | 新增 `evidence[]` 条目 |
+| 7 | 把新事实写回 `state/world-state.json` | 新增 `evidence[]` 条目。**`allowed_paths` 必须含 `state/**`**，否则先改派单再派工（§4.1） |
 
-## 4. 交接的载体：`state/world-state.json`
+## 4. 交接的载体：`state/world-state.json`（唯一真相源）
 
 字段语义（**Planner 与本地 agent 都必须按此读写**）：
 
@@ -63,6 +63,32 @@
 - `evidence[]` 只放**实测**（grep 命中、测试输出、构建退出码）。推算写进 `unverified[]`。
 - NPC 自称完成的一律先进 `author_claimed_pending_verification`，本地复核通过才升到 `evidence[]`。
 - 每个 agent 写完必须更新 `updated_by` / `updated_at`，否则下一个 agent 无法判断新鲜度。
+
+
+### 4.1 硬规则：账本路径与 `allowed_paths` 必须对齐（W21-A2 起）
+
+> **任何会更新账本的任务，`allowed_paths` 必须包含 `state/**`；`plan/world-state.json` 已废弃，禁止再建。**
+
+**根因（派单白名单与协议声明不一致，NPC 只能就地造第二份）**：
+`.cnb/agent-out/W10-A1-final-verdict-v5.json` 的 `next_steps` 第 5 条原文 ——
+
+> 「`state/world-state.json` 不在本任务 allowed_paths（`plan/**` 与 `.cnb/agent-out/**`）内，本轮**未改**它：跨 agent 交接账本的更新以 `plan/world-state.json` 为准，需要落到 `state/` 的动作交回调度器。」
+
+后果：同一个 commit `6500a21`（W17-A1）把两份账本写成了**不同内容** ——
+`round` 都是 24、`updated_by` 都是 `CNB CodeBuddy NPC（W17-A1-verdict-v8）`，
+但 `assets` / `gates` / `status` / `next_action` / `open_questions_for_human` / `wave_plan` / `evidence` 共 7 个字段不同
+（plan 40076B / md5 `fbf8a434cacd8693947a5f55f2012e62`；state 35064B / md5 `ace966486ed360318aaa4939ec43e130`）。
+两个 agent 分别读两份就会得出不同结论 ⇒ 交接协议直接失效。登记为 `G-DUP-WORLDSTATE`。
+
+**机械判据**（`scripts/selftest-gates.sh` §11，`SINGLE_SOURCE_OF_TRUTH_GATE`）：
+- `state/world-state.json` 必须存在；
+- `plan/world-state.json` 必须**不存在**（存在且与 `state/` 那份不一致即 RED，并打印两份字节数）;
+- GREEN 时打印 `WORLD_STATE_FILES=<n>`，期望 1。
+
+**同一节的第二条硬规则**：矩阵与判定的结论必须机器可读且一致 ——
+`plan/gap-matrix-vN.md` 前 20 行内必须有 `> verdict: done=<bool> remaining=<int>`，
+其取值与 `plan/verdict-vN.json` 严格一致，且 `verdict-vN.json` 的 `basis` 值必须出现在同前 20 行内。
+登记为 `G-VERDICT-MATRIX-SPLIT`（`VERDICT_MATRIX_CONSISTENCY_GATE`）。
 
 ## 5. 反模式（实测踩过，别再犯）
 

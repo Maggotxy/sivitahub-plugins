@@ -27,6 +27,12 @@
 #   8) W7-A1 接线自证：素材门禁必须真的在 CI 里跑
 #   9) W12-A1 素材逐像素基线门禁的四组负向对照（改 1 像素 / 删图 / 加未登记图 / 还原）
 #  10) W13-A1 素材可复现性门禁的负向对照（改生成器常量 / 人工覆盖被盖回去 / 登记被改）
+#  11) W21-A2 两条交付物级门禁：
+#      a. SINGLE_SOURCE_OF_TRUTH_GATE —— 唯一真相源（state/world-state.json 必须存在、
+#         plan/world-state.json 必须不存在；曾因派单白名单与协议声明不一致而被同一 NPC
+#         在同一 commit 写成两份不同内容，见 G-DUP-WORLDSTATE）
+#      b. VERDICT_MATRIX_CONSISTENCY_GATE —— 矩阵的机器可读结论行必须存在、且与
+#         同版 verdict-vN.json 的 done/remaining 严格一致、basis 必须出现在矩阵头（见 G-VERDICT-MATRIX-SPLIT）
 #
 # 用法：sh scripts/selftest-gates.sh     （退出码 0 = 全部通过）
 #
@@ -1407,6 +1413,265 @@ fi
 cd "$ROOT"
 
 echo ""
+
+echo "== 11. W21-A2 交付物级门禁：账本唯一真相源 + verdict↔矩阵一致 =="
+# 两条判据都在本段内实现（不新增脚本文件）：这样「判据存在」与「判据被跑」是同一条事实。
+#
+# 判据 1（G-DUP-WORLDSTATE）：同一 commit 6500a21 里 state/world-state.json 与 plan/world-state.json
+#   被同一个 NPC 写成不同内容（7 个字段不同：assets/gates/status/next_action/
+#   open_questions_for_human/wave_plan/evidence；40076B vs 35064B），两个 agent 分别读两份
+#   会得出不同结论 ⇒ 交接协议失效。根因是派单 allowed_paths 与协议声明的账本路径不一致
+#   （.cnb/agent-out/W10-A1-final-verdict-v5.json 的 next_steps 第 5 条原文）。
+# 判据 2（G-VERDICT-MATRIX-SPLIT）：gap-matrix-v8.md §0 写「清零/done=true/remaining=0」，
+#   同轮 verdict-v8.json 写 done=false/remaining=1 ⇒ 交付物自相矛盾。
+
+sst_gate() {
+  # $1 = 仓库根。只用 POSIX sh 与 grep/sed，不用数组、不用进程替换。
+  root=$1
+  red=0
+  total=0
+  if [ -f "$root/state/world-state.json" ]; then
+    total=$((total + 1))
+  else
+    echo "  缺少 state/world-state.json（唯一真相源不存在）" >&2
+    red=1
+  fi
+  if [ -f "$root/plan/world-state.json" ]; then
+    total=$((total + 1))
+    b_state=$(wc -c < "$root/state/world-state.json" | tr -d ' ')
+    b_plan=$(wc -c < "$root/plan/world-state.json" | tr -d ' ')
+    if cmp -s "$root/state/world-state.json" "$root/plan/world-state.json"; then
+      echo "  plan/world-state.json 仍存在（与 state 那份恰好一致，但已废弃，仍判 RED）：state=${b_state}B plan=${b_plan}B" >&2
+      red=1
+    else
+      echo "  两份账本内容不一致：state=${b_state}B plan=${b_plan}B" >&2
+      red=1
+    fi
+  fi
+  if [ "$red" -eq 0 ]; then
+    echo "SINGLE_SOURCE_OF_TRUTH_GATE=GREEN"
+    echo "WORLD_STATE_FILES=$total"
+    return 0
+  fi
+  echo "SINGLE_SOURCE_OF_TRUTH_GATE=RED"
+  echo "WORLD_STATE_FILES=$total"
+  return 1
+}
+
+vmc_gate() {
+  # $1 = 仓库根（plan/ 与 verdict-vN.json 都在其下）
+  root=$1
+  # 取 N 最大的一对 verdict-vN.json + gap-matrix-vN.md（N 用文件名正则取整数）
+  vbest=""
+  vn=-1
+  for f in "$root"/plan/verdict-v*.json; do
+    [ -f "$f" ] || continue
+    base=$(basename "$f")
+    n=$(printf '%s' "$base" | sed -n 's/^verdict-v\([0-9][0-9]*\)\.json$/\1/p')
+    [ -n "$n" ] || continue
+    if [ "$n" -gt "$vn" ]; then vn=$n; vbest=$f; fi
+  done
+  if [ -z "$vbest" ]; then
+    echo "  找不到 plan/verdict-vN.json（N 最大的一版）" >&2
+    echo "VERDICT_MATRIX_CONSISTENCY_GATE=RED"
+    return 1
+  fi
+  mat="$root/plan/gap-matrix-v$vn.md"
+  if [ ! -f "$mat" ]; then
+    echo "  找不到与其配对的 plan/gap-matrix-v$vn.md" >&2
+    echo "VERDICT_MATRIX_CONSISTENCY_GATE=RED"
+    return 1
+  fi
+  head20="$root/plan/.vmc-head20.$$"
+  sed -n '1,20p' "$mat" > "$head20"
+  # verdict 行
+  vline=$(grep -m1 -E '^> verdict: done=(true|false) remaining=([0-9]+)$' "$head20" || true)
+  if [ -z "$vline" ]; then
+    echo "  矩阵缺少机器可读结论行（前 20 行内应有 '> verdict: done=<bool> remaining=<int>'）" >&2
+    rm -f "$head20"
+    echo "VERDICT_MATRIX_CONSISTENCY_GATE=RED"
+    return 1
+  fi
+  mdone=$(printf '%s' "$vline" | sed -n 's/^> verdict: done=\(true\|false\) remaining=.*$/\1/p')
+  mrem=$(printf '%s' "$vline" | sed -n 's/^> verdict: done=.* remaining=\([0-9][0-9]*\)$/\1/p')
+  # json 的 done / remaining / basis：用 python3 抽取（与其它门禁同一依赖）
+  jout=$(python3 - "$vbest" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1], encoding='utf-8'))
+print('%s %s %s' % (str(d.get('done')).lower(), d.get('remaining'), d.get('basis', '')))
+PYEOF
+) || jout=""
+  if [ -z "$jout" ]; then
+    echo "  无法解析 $vbest 的 done/remaining/basis" >&2
+    rm -f "$head20"
+    echo "VERDICT_MATRIX_CONSISTENCY_GATE=RED"
+    return 1
+  fi
+  jdone=$(printf '%s' "$jout" | cut -d' ' -f1)
+  jrem=$(printf '%s' "$jout" | cut -d' ' -f2)
+  jbasis=$(printf '%s' "$jout" | cut -d' ' -f3)
+  red=0
+  if [ "$mdone" != "$jdone" ]; then
+    echo "  done 不一致：矩阵=$mdone JSON=$jdone（$vbest）" >&2
+    red=1
+  fi
+  if [ "$mrem" != "$jrem" ]; then
+    echo "  remaining 不一致：矩阵=$mrem JSON=$jrem（$vbest）" >&2
+    red=1
+  fi
+  if [ -n "$jbasis" ] && ! grep -q -F "$jbasis" "$head20"; then
+    echo "  basis 未出现在矩阵前 20 行内：basis=$jbasis" >&2
+    red=1
+  fi
+  rm -f "$head20"
+  if [ "$red" -eq 0 ]; then
+    echo "VERDICT_MATRIX_CONSISTENCY_GATE=GREEN"
+    echo "N=$vn done=$mdone remaining=$mrem basis=$jbasis"
+    return 0
+  fi
+  echo "VERDICT_MATRIX_CONSISTENCY_GATE=RED"
+  return 1
+}
+
+# ---- 判据 1：真实仓库必须 GREEN ----
+set +e
+sst_gate "$ROOT" > "$TMP/ssot-real.txt" 2>&1
+ssot_real=$?
+set -e
+check "真实仓库：账本唯一真相源（state 存在 / plan 不存在）→ 0" 0 "$ssot_real"
+sed 's/^/    /' "$TMP/ssot-real.txt"
+
+# ---- 判据 1 负向夹具：造一份内容不同的假 plan/world-state.json → 必须 RED；删除 → GREEN ----
+# 夹具纪律：全程只动 $TMP 的临时目录（mktemp -d），跑完 git status 必须干净。
+SSOT_FIX="$TMP/ssot-fixture"
+mkdir -p "$SSOT_FIX/state" "$SSOT_FIX/plan"
+cp "$ROOT/state/world-state.json" "$SSOT_FIX/state/world-state.json"
+echo '{"round":24,"updated_by":"fake-plan-ledger"}' > "$SSOT_FIX/plan/world-state.json"
+set +e
+sst_gate "$SSOT_FIX" > "$TMP/ssot-neg.txt" 2>&1
+ssot_neg=$?
+set -e
+check "夹具（负向）：plan/world-state.json 存在且与 state 不一致 → 1" 1 "$ssot_neg"
+sed 's/^/    /' "$TMP/ssot-neg.txt"
+grep -q 'SINGLE_SOURCE_OF_TRUTH_GATE=RED' "$TMP/ssot-neg.txt" \
+  && { echo "  [OK  ] 负向夹具打出了 SINGLE_SOURCE_OF_TRUTH_GATE=RED"; PASS=$((PASS+1)); } \
+  || { echo "  [FAIL] 负向夹具没有打出 RED 判据行" >&2; FAIL=$((FAIL+1)); }
+rm -f "$SSOT_FIX/plan/world-state.json"
+set +e
+sst_gate "$SSOT_FIX" > "$TMP/ssot-restore.txt" 2>&1
+ssot_restore=$?
+set -e
+check "夹具（还原）：删除假 plan/world-state.json → 0（判据不是恒红）" 0 "$ssot_restore"
+grep -q 'WORLD_STATE_FILES=1' "$TMP/ssot-restore.txt" \
+  && { echo "  [OK  ] 还原后 WORLD_STATE_FILES=1"; PASS=$((PASS+1)); } \
+  || { echo "  [FAIL] 还原后 WORLD_STATE_FILES 不是 1" >&2; FAIL=$((FAIL+1)); }
+# 另造一份「state 缺失」的形态，证明第一条判据也不是恒绿
+SSOT_FIX2="$TMP/ssot-fixture2"
+mkdir -p "$SSOT_FIX2/plan"
+set +e
+sst_gate "$SSOT_FIX2" > "$TMP/ssot-neg2.txt" 2>&1
+ssot_neg2=$?
+set -e
+check "夹具（负向2）：state/world-state.json 缺失 → 1" 1 "$ssot_neg2"
+
+# ---- 判据 2：真实仓库必须 GREEN ----
+set +e
+vmc_gate "$ROOT" > "$TMP/vmc-real.txt" 2>&1
+vmc_real=$?
+set -e
+check "真实仓库：verdict↔矩阵一致（最高版 v8）→ 0" 0 "$vmc_real"
+sed 's/^/    /' "$TMP/vmc-real.txt"
+
+# ---- 判据 2 负向夹具（三态：缺结论行 RED / 数值不一致 RED / 一致 GREEN）----
+VMC_FIX="$TMP/vmc-fixture"
+mkdir -p "$VMC_FIX/plan"
+cat > "$VMC_FIX/plan/verdict-v99.json" <<'JSONEOF'
+{"done": false, "remaining": 1, "basis": "deadbeef"}
+JSONEOF
+# (i) 矩阵缺结论行 → 必须 RED，且报「矩阵缺少机器可读结论行」
+cat > "$VMC_FIX/plan/gap-matrix-v99.md" <<'MDEOF'
+# 夹具矩阵 v99
+
+> basis: deadbeef
+
+## 0. 结论
+没有机器可读结论行。
+MDEOF
+set +e
+vmc_gate "$VMC_FIX" > "$TMP/vmc-neg-i.txt" 2>&1
+vmc_i=$?
+set -e
+check "夹具2(i)：矩阵缺结论行 → 1" 1 "$vmc_i"
+sed 's/^/    /' "$TMP/vmc-neg-i.txt"
+grep -q '矩阵缺少机器可读结论行' "$TMP/vmc-neg-i.txt" \
+  && { echo "  [OK  ] 报了「矩阵缺少机器可读结论行」"; PASS=$((PASS+1)); } \
+  || { echo "  [FAIL] 没报缺结论行" >&2; FAIL=$((FAIL+1)); }
+# (ii) 有结论行但 remaining 与 JSON 不一致 → 必须 RED
+cat > "$VMC_FIX/plan/gap-matrix-v99.md" <<'MDEOF'
+# 夹具矩阵 v99
+
+> basis: deadbeef
+> verdict: done=false remaining=0
+
+## 0. 结论
+MDEOF
+set +e
+vmc_gate "$VMC_FIX" > "$TMP/vmc-neg-ii.txt" 2>&1
+vmc_ii=$?
+set -e
+check "夹具2(ii)：remaining 与 JSON 不一致（矩阵 0 / JSON 1）→ 1" 1 "$vmc_ii"
+sed 's/^/    /' "$TMP/vmc-neg-ii.txt"
+grep -q 'remaining 不一致：矩阵=0 JSON=1' "$TMP/vmc-neg-ii.txt" \
+  && { echo "  [OK  ] 打出了两边取值"; PASS=$((PASS+1)); } \
+  || { echo "  [FAIL] 没打印 remaining 的取值" >&2; FAIL=$((FAIL+1)); }
+# (ii-b) basis 不在矩阵前 20 行 → 必须 RED（第三个子形态，锁住 basis 判据不是恒绿）
+cat > "$VMC_FIX/plan/gap-matrix-v99.md" <<'MDEOF'
+# 夹具矩阵 v99
+
+> verdict: done=false remaining=1
+
+## 0. 结论
+MDEOF
+set +e
+vmc_gate "$VMC_FIX" > "$TMP/vmc-neg-iib.txt" 2>&1
+vmc_iib=$?
+set -e
+check "夹具2(ii-b)：basis 未出现在矩阵前 20 行 → 1" 1 "$vmc_iib"
+# (iii) 改成一致 → 恢复 GREEN
+cat > "$VMC_FIX/plan/gap-matrix-v99.md" <<'MDEOF'
+# 夹具矩阵 v99
+
+> basis: deadbeef
+> verdict: done=false remaining=1
+
+## 0. 结论
+MDEOF
+set +e
+vmc_gate "$VMC_FIX" > "$TMP/vmc-neg-iii.txt" 2>&1
+vmc_iii=$?
+set -e
+check "夹具2(iii)：结论行与 JSON 一致 + basis 在头部 → 0（判据不是恒红）" 0 "$vmc_iii"
+sed 's/^/    /' "$TMP/vmc-neg-iii.txt"
+# 跑完删掉这对夹具（夹具本来就在 $TMP，会被 trap 清掉；仍显式删一次并断言工作区干净）
+rm -f "$VMC_FIX/plan/verdict-v99.json" "$VMC_FIX/plan/gap-matrix-v99.md" "$SSOT_FIX/plan/world-state.json"
+# 自证：两组夹具没有污染真实仓库。
+# 注意：本任务本身就是要改 plan/ 与 state/ 的（删 plan/world-state.json、合并 state/world-state.json、
+# 补 gap-matrix-v8 机器行、新增 plan/README.md）⇒ 不能用「git status 非空」当判据，
+# 否则任何合法改动都会把这条自证判红（实测已踩一次）。改为断言「夹具路径在真实仓库里不存在」。
+set +e
+fixture_left=$(ls -d "$ROOT/plan/world-state.json" "$ROOT/plan/verdict-v99.json" "$ROOT/plan/gap-matrix-v99.md" 2>/dev/null | wc -l | tr -d ' ')
+set -e
+if [ "$fixture_left" = "0" ]; then
+  echo "  [OK  ] 负向夹具未在真实仓库留下残留（§11 全程只动 \$TMP，跑完显式删除）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 负向夹具在真实仓库留下 $fixture_left 个残留：" >&2
+  ls -d "$ROOT/plan/world-state.json" "$ROOT/plan/verdict-v99.json" "$ROOT/plan/gap-matrix-v99.md" 2>/dev/null >&2 || true
+  FAIL=$((FAIL + 1))
+fi
+
+cd "$ROOT"
+
 echo "===== 门禁自测汇总：PASS=$PASS FAIL=$FAIL ====="
 if [ "$FAIL" -ne 0 ]; then
   echo "GATE_SELFTEST=RED"
