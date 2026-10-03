@@ -1,0 +1,20 @@
+{
+  "_comment": "第十八波：修 G-302-RESIDUAL-2（1 个类 + 补强判据，让门禁能抓到 readString 藏在 helper 的间接形态）。",
+  "_source": "plan/verdict-v8.json（W17-A1，basis=7711213，done=false / remaining=1）",
+  "tasks": [
+    {
+      "id": "W18-A1-g302-residual-2",
+      "mode": "implement",
+      "goal": "修 **G-302-RESIDUAL-2**：W17 独立复核查出 **1 个逃过 W16 新门禁行内判据**的残留。\n\n## 残留（W17 实测）\n`plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonTimeoutLifecycleContractTest.java` 的\n`recycledWorldsCancelOldTimeoutsAndFenceLateCallbacksBySessionId()`：\n读 `DungeonManager.java` 生产源码后，用 **8 处 `indexOf` + 先后比较**断言调用点顺序。\n\n**为什么 W16 的门禁没抓到它**：`scripts/check-source-string-tests.sh` 的判据要求「同一 `@Test` 方法体内**直接**出现 `Files.readString` + `plugins|tools` 路径字面量」，而本类的 `readString` 藏在 helper（`source(...)` 的实参不是 `Files.readString` 的直接参数行）⇒ 门禁不报。\n\n## 要求\n① **修这个类**：逐条判定那 8 处 `indexOf` 顺序断言各自想证明什么，二选一（**不许批量替换**）：\n   (a) **行为化**：能构造真实对象/状态的，改成真跑一次再断言结果（`DungeonManager` 若依赖真实 Bukkit，用动态代理/真实 H2 之类的接缝，参照 W16 在 `EquipmentOperationIntegrationContractTest` 里用「真构造 Bukkit `RegisteredServiceProvider` + 动态代理 `Server`/`ServicesManager` 真跑三分支」的做法）；\n   (b) **迁进声明式源码契约**：只能静态保证的，迁进 `scripts/source-contract-specs/` 下**新建的模块规格文件**（例如 `rpg-dungeons.json`；**不要改 all.json**，避免与别的任务冲突），并把该类改成真实执行门禁的包装器（照抄 `MobRewardAsyncLifecycleContractTest` 的范式；`ordered` 链必须保证在**同一个文件**里成立）。\n② **补强门禁判据（这是本条的重点，否则同类还会再漏）**：把 `scripts/check-source-string-tests.sh` 的判据从「同一方法体内直接出现」扩到能抓到**间接形态**，至少覆盖：\n   · `readString` 藏在 helper / 私有方法里，方法体只调 `source(...)` 这类包装；\n   · 路径字面量来自常量/枚举而不是方法体内联字面量；\n   · 断言用 `indexOf` 做**先后比较**（`a < b` / `a > b` / `assertTrue(... < ...)`）而不是 `contains`。\n   ⚠️ 判据要**避免误报**：读 `src/test/resources` 夹具、读临时文件、读**测试自己**的文件都不算缺口；   必须在脚本注释里写清「什么算缺口、什么不算」以及为什么。\n③ **负向对照（必须做）**：\n   a) 把修好的那个类**改回**原样（或放一个同样形态的夹具）→ `SOURCE_STRING_GATE` 必须 RED；\n   b) 夹具里放一个「readString 藏 helper」的形态 → 必须 RED（证明新判据真的覆盖了间接形态）；\n   c) 夹具里放一个「读 src/test/resources」的形态 → 必须 **GREEN**（证明不误报）；\n   d) 还原后必须 GREEN。把四组命令与输出写进证据。\n④ 把新判据的负向对照加进 `scripts/selftest-gates.sh` 的 §4d（照抄它现有写法），并把 selftest 的 PASS/FAIL 计数写进证据。\n⑤ 跑 `./gradlew --no-daemon test`（至少 `:plugins:rpg-dungeons:test` + 下游）与 `sh scripts/check-source-string-tests.sh`、`sh scripts/check-source-contract.sh --all`，把 modules/tests 汇总与两条判据行写进证据。\n⑥ PR 里给出：8 处断言的逐条判定与改写方式 + 判据补强的 before/after + 4 组负向对照结果。\n\n【环境事实】\n- 质量门十门：准备下载器 → 门禁自测 → 素材门禁(RESOURCE_PACK) → 素材逐像素基线门禁(ASSET_BASELINE) → 素材可复现性门禁(ASSET_REPRO) → DDL 消费者门禁 → DDL 登记反向门禁 → 命令引用门禁 → compile → test → assemble\n- `scripts/selftest-gates.sh` 的 §4d 是「G-302-RESIDUAL 结项门禁」，它跑 `scripts/check-source-string-tests.sh`；§4b 跑 `scripts/check-source-contract.sh`。两者都在质量门的「门禁自测」stage 里每推送真实执行。\n- **W16（f580ab6）已合入**：`scripts/source-contract-specs/all.json` 27→76 键；新增 `check-source-string-tests.sh`（判据行 `SOURCE_STRING_GATE=GREEN|RED`）；规格目录合并能力由 W16b-A1（PR#64）补上（`check-source-contract.sh` 现在默认合并 specs 目录下全部 `*.json`，键冲突报红并点名文件，`SOURCE_CONTRACT_SPEC` 单文件模式向后兼容）。\n- **本仓没有 JDK**：跑 gradle 前先自取 Temurin 25（清华 Adoptium 镜像）\n\n【证据契约】写 .cnb/agent-out/<task-id>.json，evidence 必须是实际跑过的命令原文与输出。\n**取退出码不要走管道**：`sh x | tail; echo $?` 拿到的是 tail 的 0；必须重定向到文件再取 $?。\n\n【禁止】不改宪法；不新增货币/转数；注释用中文。不许删测试、不许 `@Disabled`、不许改成恒真。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-dungeons/src/test/**",
+        "scripts/**",
+        "plan/source-string-tests-remaining.json",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改测试与 scripts/，不要改 src/main 下的生产代码（负向对照时临时改坏要还原）。不要删测试。不要改 all.json（新建模块规格文件）。取退出码不要走管道。"
+    }
+  ]
+}
