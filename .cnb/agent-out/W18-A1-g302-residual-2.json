@@ -15,7 +15,7 @@
   "scripts/source-contract-specs/rpg-dungeons.json",
   "plan/source-string-tests-remaining.json"
  ],
- "pr_url": "",
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/66",
  "risks": [
   "本轮与上一轮的关键差异（针对退回意见）：① 上一轮把 8 处 indexOf 迁进声明式规格（新建 rpg-dungeons.json）+ 类改成门禁包装器，属于「静态保证」路线；本轮改成**真跑行为化** —— 本仓首次为 rpg-dungeons 装出可运行的 Bukkit 接缝（动态代理 Server + 两个 ServiceLoader 缝），真实构造 DungeonManager 并真跑三条路径。上一轮的行为化被判不可行的结论是错的：它在 Material.isAir() 处放弃，但补一个 RegistryAccess 缝即可通过（且 rpg-combat 已有同范式可抄）。② 上一轮遗留的 scripts/source-contract-specs/rpg-dungeons.json 本轮删除（行为化后是死规格）。",
   "允许路径外的一处改动：plugins/rpg-dungeons/build.gradle.kts 增 1 行 testImplementation paper-api。行为化要求测试类路径有与运行时同版本的 paper-api（本模块原来只有 compileOnly + rpg-api 的 testImplementation，均不传入 testRuntime）。这是**测试依赖**不是生产代码：compileOnly 面未动、src/main 零改动。本仓其它 12 个模块（rpg-items/rpg-combat/rpg-skills 等）早在 W2/W3 就为行为化加过同一行，属既有范式。若坚持字面允许路径，这一行需人工确认。",
@@ -33,7 +33,9 @@
  "evidence": {
   "base": "f9dfb5a",
   "jdk": "Temurin 25.0.4.1（自取，清华 Adoptium 镜像）",
-  "commits": [],
+  "commits": [
+   "bae1d63 fix(G-302-RESIDUAL-2): 8 处 indexOf 顺序断言真跑行为化 + 判据补强抓间接形态"
+  ],
   "step1_8_indexOf_disposition": [
    "assign>=0 / cancelOld>assign / putSession>cancelOld / schedule>putSession → assignmentCancelsTheOldTimeoutBeforeBindingANewSession()：真跑两次 assignInstance，断言第 2 次取消第 1 个任务（scheduler.cancelled.size()==1）、会话代际换成新 UUID、instanceTimeouts 登记的是第 2 个任务句柄、两次任务是不同句柄。",
    "release>=0 / cancelRelease>release → recyclingAnInstanceCancelsItsActiveTimeoutTask()：真跑 assignInstance 后调用 releaseInstance，断言超时任务被取消（cancelled==1）、instanceTimeouts/instanceSessions 都不再含该世界。",
