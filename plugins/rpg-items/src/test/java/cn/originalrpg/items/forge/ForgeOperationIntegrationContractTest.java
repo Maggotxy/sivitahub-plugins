@@ -2,129 +2,95 @@ package cn.originalrpg.items.forge;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * G-302 批次：本类原用 {@code Files.readString} 读生产源码做字符串/{@code indexOf} 断言，
+ * 现改为「构建/接线契约测试」。
+ *
+ * <p><b>为什么不是行为测试</b>：被断言的不是运行期行为，而是生产代码里「先落 PDC 恢复
+ * 信封、再消费输入、再落 playerdata、最后提交出站」这段调用序列的先后，以及「标记过的
+ * 托管副本不得被当成权威物品再操作」。生产类是 Bukkit 监听器/指令（真实 {@code Player}、
+ * {@code ItemStack} PDC、{@code Bukkit} 调度器），本仓既无 {@code MockBukkit} 也无
+ * {@code Mockito}，无法在 JUnit 进程里构造对象去触发这些路径。</p>
+ *
+ * <p><b>落地方式</b>：断言逐条迁移到声明式规格 {@code scripts/source-contract-specs/all.json}。
+ * 原断言跨多个文件（ForgeListener / EquipmentOperationCoordinator / EquipmentSecurity /
+ * AuthoritativeItemProcessingListener / UnbindCommand / LegacyCommand / LegacyBlueprintService），
+ * 已按文件归属拆成 {@code 主键 / #coordinator / #security / #unbind-legacy / #unbind-legacy-chain /
+ * #legacy-chain / #legacy-blueprint} 多个 spec 键；{@code ordered} 链保证序列在
+ * <b>同一个文件</b>里成立（等价原 {@code indexOf} 链，包括原来 for 循环逐文件跑的那两条）。</p>
+ */
 class ForgeOperationIntegrationContractTest {
+
+    private static final String BASE =
+            "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java";
+
     @Test
-    void forgePersistsEscrowBeforeConsumingInputsAndUsesDeterministicOutbox() throws IOException {
-        String code = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeListener.java"),
-                StandardCharsets.UTF_8);
-        int stage = code.indexOf("operations.stage(player, request)");
-        int consume = code.indexOf("consume(core, coreCost)", stage);
-        int submit = code.indexOf("operations.submit(player, request", consume);
-        assertTrue(stage > 0 && consume > stage && submit > consume);
-        assertTrue(code.contains("EquipmentOperationEnvelope.deterministicSeed"));
-        assertTrue(code.contains("player.saveData()"));
-        assertFalse(code.contains("economy.burn("));
+    void forgePersistsEscrowBeforeConsumingInputsAndUsesDeterministicOutbox() throws Exception {
+        assertContractHolds(BASE, "forgePersistsEscrowBeforeConsumingInputsAndUsesDeterministicOutbox");
     }
 
     @Test
-    void operationMarkerMakesEscrowCopiesUnauthenticAndUnusable() throws IOException {
+    void operationMarkerMakesEscrowCopiesUnauthenticAndUnusable() throws Exception {
+        assertContractHolds(BASE + "#security", "operationMarkerMakesEscrowCopiesUnauthenticAndUnusable");
+    }
+
+    @Test
+    void projectileKillsUseTheLaunchWeaponInsteadOfTheCurrentMainHand() throws Exception {
+        assertContractHolds(BASE, "projectileKillsUseTheLaunchWeaponInsteadOfTheCurrentMainHand");
+    }
+
+    @Test
+    void unresolvedDatabaseOutcomeKeepsTheEnvelopeButReleasesOnlyTheLocalGate() throws Exception {
+        assertContractHolds(BASE + "#coordinator",
+                "unresolvedDatabaseOutcomeKeepsTheEnvelopeButReleasesOnlyTheLocalGate");
+    }
+
+    @Test
+    void onlyTheCurrentLoginSessionMayClearAndPersistTheEquipmentEnvelope() throws Exception {
+        assertContractHolds(BASE + "#coordinator",
+                "onlyTheCurrentLoginSessionMayClearAndPersistTheEquipmentEnvelope");
+    }
+
+    @Test
+    void unbindAndLegacyUseTheSameDurableEscrowProtocolAsForge() throws Exception {
+        assertContractHolds(BASE + "#unbind-legacy", "unbindAndLegacyUseTheSameDurableEscrowProtocolAsForge");
+        assertContractHolds(BASE + "#unbind-legacy-chain",
+                "unbindCommandPersistsEnvelopeBeforeEscrowAndSubmitsAfterSave");
+        assertContractHolds(BASE + "#legacy-chain",
+                "legacyCommandPersistsEnvelopeBeforeEscrowAndSubmitsAfterSave");
+    }
+
+    @Test
+    void legacyBlueprintIdentityIsDeterministicInsideThePersistedResult() throws Exception {
+        assertContractHolds(BASE + "#legacy-blueprint",
+                "legacyBlueprintIdentityIsDeterministicInsideThePersistedResult");
+    }
+
+    /** 真实执行源码契约门禁；退出码非 0 即失败，并打印门禁给出的具体违例。 */
+    private static void assertContractHolds(String specKey, String method) throws Exception {
         Path root = repositoryRoot();
-        String security = Files.readString(root.resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentSecurity.java"));
-        String boundary = Files.readString(root.resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/security/AuthoritativeItemProcessingListener.java"));
-        assertTrue(security.contains("EquipmentOperationMarker.isMarked"));
-        assertTrue(boundary.contains("onMarkedOperationItemClick"));
-    }
-
-    @Test
-    void projectileKillsUseTheLaunchWeaponInsteadOfTheCurrentMainHand() throws IOException {
-        String code = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeListener.java"),
-                StandardCharsets.UTF_8);
-        int handler = code.indexOf("public void onKill(EntityDeathEvent event)");
-        int helper = code.indexOf("private void grantProjectileKillExperience", handler);
-        String killHandler = code.substring(handler, helper);
-        String projectileHelper = code.substring(helper, code.indexOf("\n    @EventHandler", helper));
-        assertTrue(killHandler.contains("getDamageSource().getDirectEntity() instanceof AbstractArrow"));
-        assertTrue(killHandler.contains("grantProjectileKillExperience(player, arrow, gained)"));
-        assertTrue(projectileHelper.contains("arrow.getWeapon()"));
-        assertTrue(projectileHelper.contains("player.getInventory().getContents()"));
-        assertTrue(projectileHelper.contains("security.itemId(candidate).equals(launchedId)"));
-        assertTrue(projectileHelper.contains("trident.setItem(thrown.clone())"));
-        assertFalse(projectileHelper.contains("getItemInMainHand"));
-    }
-
-    @Test
-    void unresolvedDatabaseOutcomeKeepsTheEnvelopeButReleasesOnlyTheLocalGate() throws IOException {
-        Path root = repositoryRoot();
-        String coordinator = Files.readString(root.resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentOperationCoordinator.java"));
-        int failure = coordinator.indexOf("if (error != null)");
-        int failureEnd = coordinator.indexOf("\n            if (!TERMINAL.contains(result.status()))", failure);
-        String failureBranch = coordinator.substring(failure, failureEnd);
-        assertTrue(failureBranch.contains("RECOVERY_PENDING"));
-        assertTrue(failureBranch.contains("completion.accept"));
-        assertFalse(failureBranch.contains("clearIfMatching"));
-
-        String forge = Files.readString(root.resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeListener.java"));
-        int method = forge.indexOf("private void attemptForge");
-        int persistentGate = forge.indexOf("operations.hasPending(player)", method);
-        int localGate = forge.indexOf("pending.add(player.getUniqueId())", method);
-        assertTrue(persistentGate > method && localGate > persistentGate,
-                "the durable envelope must reject/recover before a new local operation is admitted");
-    }
-
-    @Test
-    void onlyTheCurrentLoginSessionMayClearAndPersistTheEquipmentEnvelope() throws IOException {
-        String coordinator = Files.readString(repositoryRoot().resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/EquipmentOperationCoordinator.java"));
-        int callback = coordinator.indexOf("stage.whenComplete");
-        int sessionGuard = coordinator.indexOf("if (currentSession(player))", callback);
-        int clear = coordinator.indexOf("clearIfMatching(player, request.operationId())", sessionGuard);
-        int save = coordinator.indexOf("player.saveData()", clear);
-        int helper = coordinator.indexOf("private static boolean currentSession", save);
-        int handleMatch = coordinator.indexOf("Bukkit.getPlayer(player.getUniqueId()) == player", helper);
-
-        assertTrue(callback >= 0 && sessionGuard > callback && clear > sessionGuard && save > clear,
-                "an old Player handle must retain the idempotent envelope for the new login to replay");
-        assertTrue(helper > save && handleMatch > helper,
-                "online status alone is insufficient after a fast reconnect");
-    }
-
-    @Test
-    void unbindAndLegacyUseTheSameDurableEscrowProtocolAsForge() throws IOException {
-        Path root = repositoryRoot();
-        for (String command : java.util.List.of("UnbindCommand.java", "LegacyCommand.java")) {
-            String code = Files.readString(root.resolve(
-                    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/" + command));
-            int stage = code.indexOf("operations.stage(player, request)");
-            int consume = code.indexOf("item.setAmount(0)", stage);
-            int save = code.indexOf("player.saveData()", consume);
-            int submit = code.indexOf("operations.submit(player, request", save);
-            assertTrue(stage > 0 && consume > stage && save > consume && submit > save,
-                    command + " must persist an envelope before escrow and submit only after player-data save");
-            assertTrue(code.contains("operations.hasPending(player)"));
-            assertTrue(code.contains("EquipmentOperationEnvelope.fingerprint"));
-            assertFalse(code.contains("economy.burn("));
-            assertFalse(code.contains("economy.refund("));
-        }
-    }
-
-    @Test
-    void legacyBlueprintIdentityIsDeterministicInsideThePersistedResult() throws IOException {
-        Path root = repositoryRoot();
-        String command = Files.readString(root.resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyCommand.java"));
-        String blueprints = Files.readString(root.resolve(
-                "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/LegacyBlueprintService.java"));
-        assertTrue(command.contains("blueprints.create(player, current, messages, operationId)"));
-        assertTrue(blueprints.contains("blueprintIdentity.toString()"));
-        assertFalse(blueprints.contains("data.set(blueprintId, PersistentDataType.STRING, UUID.randomUUID()"));
+        Path gate = root.resolve("scripts/check-source-contract.sh");
+        assertTrue(Files.isRegularFile(gate), "缺少契约门禁脚本: " + gate);
+        Process process = new ProcessBuilder("sh", gate.toString(), specKey, method)
+                .directory(root.toFile())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertTrue(process.waitFor(120, TimeUnit.SECONDS), "契约门禁未在 120 秒内结束");
+        assertEquals(0, process.exitValue(),
+                "源码契约门禁失败（" + specKey + " :: " + method + "）：\n" + output);
     }
 
     private static Path repositoryRoot() {
-        Path current = Path.of("").toAbsolutePath();
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (current != null && !Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
             current = current.getParent();
         }

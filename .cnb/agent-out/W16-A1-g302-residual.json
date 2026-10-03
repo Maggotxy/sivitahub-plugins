@@ -1,0 +1,82 @@
+{
+  "task_id": "W16-A1-g302-residual",
+  "status": "success",
+  "summary": "清掉 G-302-RESIDUAL。① 先按派单给的判据自实测重数：「同一 @Test 方法体内既有 Files.readString/readAllBytes 读 plugins|tools 生产文件、又有 .contains()/.indexOf() 断言」→ **14 个类 / 34 个方法**（派单 10 个类 + 我在同一判据下多出来的 4 个：rpg-core/SeasonAttunementSettlementWiringTest、rpg-items/EquipmentExitPathReachabilityTest、rpg-items/EquipmentSigningMaterialTest、tools/db-migration/MigrationAdvisoryLockTest）。判据脚本已入库：scripts/check-source-string-tests.sh（判据行 SOURCE_STRING_GATE=GREEN|RED），并接入 scripts/selftest-gates.sh §4d —— CI 的「门禁自测」stage 每推送都真实跑它，负向对照（含「脚本自己会红」的夹具）也在自测里常驻。② 逐条判定后二选一：能构造真实对象/状态的**行为化**（真跑纯规则、反射字段泛型断言、真构造 Bukkit RegisteredServiceProvider + 动态代理 Server/ServicesManager 真跑三分支）；只能对源码结构做静态保证的**迁进声明式规格** scripts/source-contract-specs/all.json（新增 49 个 spec 键：跨文件按文件归属拆键、|| 备选展开成多条 required、ordered 链保证在同一个文件里成立）。③ 8 组负向对照全部「改坏 → 变红 → 还原」（覆盖行为化 / ordered / required / forbidden / 跨文件 forbidden / || 备选 / 反射签名 / tools 侧常量同步），生产代码还原后 git diff 为空。④ 全量 ./gradlew --no-daemon clean test -PexcludeTags=env → BUILD SUCCESSFUL，SUM tests=1099 failed=0 errors=0 skipped=2 modules=26 / SUMMARY_GATE=GREEN（基线 1091 → 1099，+8 条真断言，无测试丢失）；sh scripts/check-source-contract.sh --all → 462 checks / 76 specs / GREEN；sh scripts/selftest-gates.sh → PASS=101 FAIL=0 / GATE_SELFTEST=GREEN。⑤ plan/source-string-tests-remaining.json 重数并如实登记残留。",
+  "changed_files": [
+    "scripts/check-source-string-tests.sh",
+    "scripts/source-contract-specs/all.json",
+    "scripts/selftest-gates.sh",
+    "plan/source-string-tests-remaining.json",
+    "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/SeasonAttunementSettlementWiringTest.java",
+    "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonEntryCommitAmbiguityContractTest.java",
+    "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonRewardWorldHoldContractTest.java",
+    "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/EquipmentOperationIntegrationContractTest.java",
+    "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/WorldTravelConfigurationContractTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeInputBoundaryContractTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java",
+    "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/EquipmentSigningMaterialTest.java",
+    "plugins/rpg-market/src/test/java/cn/originalrpg/market/MailboxDeliveryIntegrationContractTest.java",
+    "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/SkillAsyncLifecycleContractTest.java",
+    "plugins/rpg-world/src/test/java/cn/originalrpg/world/SurvivalPerformanceConfigurationContractTest.java",
+    "tools/db-migration/src/test/java/cn/originalrpg/tools/dbmigration/MigrationAdvisoryLockTest.java",
+    ".cnb/agent-out/W16-A1-g302-residual.json"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/63",
+  "evidence": {
+    "list_before": {
+      "cmd": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/' | wc -l",
+      "out": "48（本类判据下的类另计，见 criterion）"
+    },
+    "criterion_before": {
+      "cmd": "python3 /tmp/criterion.py  # 同一 @Test 方法体内 Files.readString 读 plugins|tools + contains/indexOf",
+      "out": "CLASSES=14 METHODS=34；逐条清单见 PR 描述「改前清单」"
+    },
+    "criterion_after": {
+      "cmd": "sh scripts/check-source-string-tests.sh --json",
+      "out": "{\n \"hits\": [],\n \"count\": 0\n}\nSOURCE_STRING_TESTS=0\nSOURCE_STRING_GATE=GREEN 本仓生产源码已无源码字符串断言（部署产物豁免见脚本头部口径）\nEXIT=0\n"
+    },
+    "list_after": {
+      "cmd": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/' | wc -l",
+      "out": "46 —— 逐条性质见 plan/source-string-tests-remaining.json 的 _hits_after_w16a1：① 37 个已是「只读 scripts/check-source-contract.sh 是否存在」的规格门禁包装器；② 4 个读的不是生产源码（MechanismKillSwitchContractTest 反射+H2、ProgressionAnomalySchemaUpgradeTest 读 DDL 文本、HudRailSpecTest 无生产路径字面量、PerformanceStatusStoreTest 是 @TempDir 真实 IO）；③ 3 个只读 server/|resource-pack/ 部署产物（@Tag(env) 显式分类）"
+    },
+    "source_contract": {
+      "cmd": "sh scripts/check-source-contract.sh --all",
+      "out": "SOURCE_CONTRACT_CHECKS=462 SPECS=76\nSOURCE_CONTRACT_GATE=GREEN\nEXIT=0\n"
+    },
+    "selftest_gates": {
+      "cmd": "sh scripts/selftest-gates.sh",
+      "out": [
+        "===== 门禁自测汇总：PASS=101 FAIL=0 =====",
+        "GATE_SELFTEST=GREEN",
+        "EXIT=0"
+      ]
+    },
+    "full_test": {
+      "cmd": "./gradlew --no-daemon clean test -PexcludeTags=env（与 .cnb.yml test stage 同参数）",
+      "out": "BUILD SUCCESSFUL；  SUM                          tests=1099 failed=0 errors=0 skipped=2 modules=26 /   NO_XML                       modules=0  期望模块数=26 / EXIT=0"
+    },
+    "test_summary": "  plugins/rpg-admin            tests=  34 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-ai-npc           tests=  14 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-api              tests=  94 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-classes          tests=  10 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-combat           tests=  12 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-commerce         tests=   8 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-community        tests=  26 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-core             tests= 318 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-cosmetics        tests=  15 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-dungeons         tests=  70 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-economy          tests=  31 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-enhancement      tests=  13 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-essentials       tests=   3 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-guide            tests=  56 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-hub              tests=  40 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-integrations     tests=   7 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-items            tests= 103 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-market           tests=  50 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-mobs             tests=  31 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-performance      tests=  16 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-pets             tests=  17 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-skills           tests=  72 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-story            tests=  18 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-sulfur           tests=   3 failed=0 errors=0 skipped=0 ok\n  plugins/rpg-world            tests=  12 failed=0 errors=0 skipped=0 ok\n  tools/db-migration           tests=  26 failed=0 errors=0 skipped=2 ok\n  SUM                          tests=1099 failed=0 errors=0 skipped=2 modules=26\n  NO_XML                       modules=0  期望模块数=26\nSUMMARY_GATE=GREEN\nEXIT=0\n",
+    "no_production_source_change": {
+      "cmd": "git status --short plugins/*/src/main tools/*/src/main",
+      "out": "（空）—— 本轮零生产代码/构建文件改动；负向对照的临时改坏全部还原"
+    },
+    "pr": {
+      "cmd": "cnb pulls list-pulls --repo xzqkjmnbvc2026/sivitahub",
+      "out": "#63 open / base=refs/heads/main / head=refs/heads/agent/W16-A1-g302-residual / mergeable_state=mergeable"
+    }
+  },
+  "negative_controls": "== A. 行为化（真跑规则）：改写方式 = 临时改坏生产规则常量 ==\n[A1 DestroyRules.descendsToTerminal 去掉 DESTROY] gradle exit=1 :: > Task :plugins:rpg-items:test FAILED\n[A1 还原] DestroyRules.java 与备份一致\n[A1 还原后] gradle exit=0\n== B. ordered（同文件顺序链）==\n[B1 交换奖励持有移除顺序] exit=1 :: SOURCE_CONTRACT_GATE=RED DungeonRewardWorldHoldContractTest.java::durableIntentIsCompletedBeforeTheRecycleHoldIsRemoved: 顺序契约不成立（必须按序出现在同一个文件）-> ['rewardIo.persist(intent.batch).whenComplete', 'completeDungeonAfterDurableIntent(intent)', 'pendingRewardIntents.remove(intent.batch.runId(), intent)', 'releaseRewardHeldInstanceIfVacant(intent.worldName)']\n== C. required（必须出现）==\n[C1 改坏 required 字面量] exit=1 :: SOURCE_CONTRACT_GATE=RED MobRewardAsyncLifecycleContractTest.java::experienceBufferKeepsInFlightOwnershipUntilAuthorityIsKnown: 必须出现但缺失 -> 'maximum-pending-players'\n== D. forbidden（不得出现，含跨文件作用域）==\n[D1 消费方不再用调用点解析] exit=1 :: SOURCE_CONTRACT_GATE=RED SkillVisuals.java::performanceServiceConsumerResolvesOnlyEnabledProvidersAtUseTime: 必须出现但缺失 -> 'OptionalServices.enabled('\n== E. 跨文件 forbidden（三清单同时约束）==\n[E1 plugin.yml 注册 attune 指令] exit=1 :: SOURCE_CONTRACT_GATE=RED EquipmentExitPathReachabilityTest.java#season-attunement::seasonAttunementHasNeitherCommandNorConfigurationSurface: 不得出现但命中 plugins/rpg-items/src/main/resources/plugin.yml -> 'attune'\n== F. || 备选展开（两条 required 都必须为真）==\n[F1 备选分支其一被改坏] exit=1 :: SOURCE_CONTRACT_GATE=RED SkillAsyncLifecycleContractTest.java#skills-command::skillCallbacksAndPendingOperationsAreConnectionAndShutdownScoped: 必须出现但缺失 -> 'operations.replace(playerId, active, player)'\n== G. 反射行为断言（构造器/字段签名）==\n[G1 学习操作表改成 UUID->UUID 键控] gradle exit=1 :: > Task :plugins:rpg-skills:compileJava FAILED\n== H. 迁移锁常量同步（tools 侧）==\n[H1 RpgCore 锁常量漂移] exit=1 :: SOURCE_CONTRACT_GATE=RED MigrationAdvisoryLockTest.java#rpg-core::rpgCoreSourceStillDeclaresTheSameLockKey: 必须出现但缺失 -> 'MIGRATION_LOCK_NAMESPACE = 0x53495649'\n== 全部还原后 git 与生产代码 ===\n",
+  "risks": [
+    "本轮把断言分成「行为化」与「规格化」两类：规格化那部分（占多数）仍是静态源码结构契约，不是 [R] Runtime 证据 —— 与 W5-A2 / W9-A1 同口径，属 [T] 测试级保证。跨文件作用域已按文件归属拆成不同 spec 键（不再有「一个 required 在任一文件出现即算」的模糊），但 spec 键的「哪些文件必须同时成立」这件事本身靠键名表达，读规格的人需要按键名理解。",
+    "OptionalServiceLifecycleContractTest 的 19 个消费方分布在 13 个模块：rpg-api 的测试类路径只含 rpg-api 自己的类，无法在 JUnit 进程里反射引入它们，因此「消费方只用调用点解析」这部分仍是门禁断言；但 OptionalServices.enabled 本身的判据（未注册/未启用/已启用）已真行为化。",
+    "rpg-dungeons / rpg-enhancement / rpg-items 的 escrow 顺序链（stage -> 消费输入 -> saveData -> submit）仍是 ordered 规格：本仓无 MockBukkit/Mockito，生产类要真实 Player/ItemStack PDC/数据库出站，无法在 JUnit 进程里跑通整条异步提交。",
+    "新增 scripts/check-source-string-tests.sh 是**增量**门禁：它只判「同一 @Test 方法体内读生产源码 + 字符串断言」，不覆盖「读生产源码但用正则/JSON 解析」这类形态（那是另一条判据，不在本任务范围）。"
+  ],
+  "next_steps": [
+    "若要进一步收口：把 rpg-dungeons / rpg-enhancement / rpg-items 的 escrow 顺序链搬进「可注入协作者的纯规则」（例如把 stage->consume->save->submit 抽成受测编排器），把它从 ordered 规格升级成运行期行为断言 —— 这需要动 src/main，得单独派工。",
+    "spec 键数已到 76：建议后续给 check-source-contract.sh 加一条「spec 键必须被至少一个 *Test 真实执行」的反向门禁（现在没有这条，规格键可以只靠 --all 兜住而没有任何 JUnit 绑定）。"
+  ]
+}
