@@ -12,7 +12,7 @@
     "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcAdminIncidentCompensationService.java",
     "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/73",
   "evidence": {
     "environmentsetup": {
       "note": "本容器无 JDK；自取 Temurin 25.0.4.1+1（清华 Adoptium 镜像）到 /opt/jdk，Gradle wrapper 9.1.0；sh scripts/fetch-deps.sh 全部就绪。",
