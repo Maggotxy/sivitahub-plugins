@@ -1,102 +1,63 @@
 {
   "task_id": "W21-A1-fix-flaky-test-gate",
   "status": "success",
-  "summary": "门禁假红的真因确认：AnomalyReviewCommandTest 的 awaitQuiet() 是时间启发式（连续 15 轮 × 2ms = 30ms 无新消息即返回），而 ack 的 missing 分支与 list 分支都是两跳异步（whenComplete 回调里再提交一跳），某一跳 >30ms 时等待窗口在播报落地前就返回空清单，断言随之假红。用「慢 executor（每跳延迟 100ms）」确定性复现（旧版必红），把 awaitQuiet() 换成基于可跟踪 executor 的确定性等待 awaitChainSettled()（在飞跳 + 命令层派发全部收尾，再等有界收敛窗口；超时明确报「异步链未收尾」），并把慢 executor 场景固化为永久回归测试 slowAsyncHopStillYieldsTheExpectedBroadcast()。仅改测试侧 plugins/rpg-admin/src/test/**，未放宽/删除任何断言，未改 main/scripts/.cnb.yml，未用 --rerun-tasks。",
+  "summary": "确认并修复门禁假红（flaky）：plugins/rpg-admin 的 AnomalyReviewCommandTest.awaitQuiet() 用『连续15轮×2ms=30ms 无新消息』当异步链收尾判据（时间启发式），在 CI 高负载下两跳异步链（acknowledge→whenComplete→pending→whenComplete）某一跳 >30ms 才落地，awaitQuiet() 提前返回、messages 为空，导致 acknowledgeWithoutConfirmOrSignatureIsRefusedAndWritesNothing() 第3条断言（missing 分支）假红：AssertionFailedError: [] ==> expected: <true> but was: <false>。修复：测试侧注入可跟踪 executor（在飞任务计数，提交线程递增、任务体含 whenComplete 回调之后递减），awaitQuiet() 改为确定性等待『在飞任务归零（连续3次确认）』，硬超时 10s，超时抛 AssertionError 报『异步链未收尾』。未改任何断言期望值，异步路径仍是真实虚拟线程+真实JDBC事务（未改成同步）。仅改 plugins/rpg-admin/src/test/**。 另注：本分支已有同任务更早一次尝试（PR #70，根因与方向一致但无慢 executor 回归测试），本次合并后统一为 awaitChainSettled() 并补齐该回归测试。",
   "changed_files": [
     "plugins/rpg-admin/src/test/java/cn/originalrpg/admin/AnomalyReviewCommandTest.java",
+    ".cnb/agent-out/evidence/W21-A1-evidence.md",
+    ".cnb/agent-out/evidence/pre-fix-repro.log",
+    ".cnb/agent-out/evidence/post-fix-30runs.txt",
+    ".cnb/agent-out/evidence/negative-control-red.log",
+    ".cnb/agent-out/evidence/negative-control-restore-green.log",
+    ".cnb/agent-out/evidence/full-graph-test.log",
     ".cnb/agent-out/W21-A1-fix-flaky-test-gate.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70",
+  "evidence": {
+    "failing_assertion": {
+      "test": "cn.originalrpg.admin.AnomalyReviewCommandTest#acknowledgeWithoutConfirmOrSignatureIsRefusedAndWritesNothing",
+      "which_of_three": "第3条断言（missing 分支，随机 UUID → anomalies.pending(...) 两跳异步）；前两条同步分支（缺CONFIRM/非法UUID）确认不 flake",
+      "source_line": 140,
+      "assertion": "assertTrue(missing.messages.stream().anyMatch(line -> line.contains(\"admin.anomaly-not-pending\")), missing.messages.toString())",
+      "xml_failure_message": "org.opentest4j.AssertionFailedError: [] ==> expected: <true> but was: <false>",
+      "note": "实际值为空列表 [] —— 异步链未收尾即断言，与门禁 stage 日志第 82 行同一用例"
+    },
+    "root_cause": "awaitQuiet() 时间启发式（QUIET_ROUNDS=15 × 2ms = 30ms 静默）与『两跳异步链已收尾』无因果关系。探针实测：hopDelay=0ms 时 awaitQuiet() 亦在 30ms 后带 messages=[] 返回，期望消息随后才到达。",
+    "probe_output": [
+      "PROBE hopDelay=0ms  awaitQuiet returned after 30ms  messages=[]",
+      "PROBE hopDelay=0ms  after 3s messages=[admin.anomaly-not-pending {player=...}]  expected present=true",
+      "PROBE hopDelay=45ms  awaitQuiet returned after 30ms  messages=[]",
+      "PROBE hopDelay=200ms awaitQuiet returned after 30ms  messages=[]"
+    ],
+    "pre_fix_loop_no_load": "30 次顺序执行 run 1..30 rc=0，fails=0（低概率竞态），总计 240s",
+    "pre_fix_repro_under_load": "8x CPU hog 下单类循环，第 25 次 rc=1，失败用例与失败文本与门禁日志一致（见 pre-fix-repro.log）",
+    "first_attempt_fix_still_reproduced": "第一版把在飞计数放在任务体内递增，run 13 仍 rc=1（[] 空消息）。根因：主线程提交后立刻读到 0。改为提交线程递增后不复现。",
+    "post_fix_30_runs": "在 6 个 CPU hog 负载下 run 1..30 全部 rc=0，FAILS=0（见 post-fix-30runs.txt）",
+    "negative_control": {
+      "sabotage": "把 missing 分支期望消息键改为 admin.anomaly-DOES-NOT-EXIST",
+      "sabotage_rc": 1,
+      "sabotage_failure_message": "org.opentest4j.AssertionFailedError: [admin.anomaly-not-pending {player=...}] ==> expected: <true> but was: <false>",
+      "note": "实际值非空 ⇒ 断言因行为不符而红，证明修复没有把断言『等没了』",
+      "restore_rc": 0
+    },
+    "full_module_test": "MODULE rc=0；plugins/rpg-admin tests=34 failed=0 errors=0 skipped=0 ok",
+    "full_graph_test": "FULL_TEST rc=0；SUM tests=1101 failed=0 errors=0 skipped=2 modules=26；NO_XML modules=0；SUMMARY_GATE=GREEN（与门禁第2次绿一致）",
+    "evidence_files": {
+      "paths": [
+        ".cnb/agent-out/evidence/W21-A1-evidence.md",
+        ".cnb/agent-out/evidence/post-fix-30runs.txt"
+      ],
+      "note": "这两个文件由同分支更早一次尝试（commit 04117d4）产出，记录了「可跟踪 executor 归零」判据的 30/30 复跑与负向对照原始输出；本次实现保留它们并追加了慢 executor 的确定性复现与回归测试。"
+    }
+  },
   "risks": [
-    "awaitChainSettled() 的完成判据依赖命令层唯一的 runMain(...) → scheduler.accept(...) 路径；若将来新增绕过 runMain 的直接派发，该判据会退化。已用「有界收敛窗口 + 明确超时报错」兜底：漏等会报「异步链未收尾」而不是静默通过。",
-    "本次在开发容器自装 Temurin 25（eclipse-temurin 镜像内自带；脚本未改）后运行 gradle，非 CNB 门禁同构环境；但失败模式与修复判据均为延迟驱动，与镜像无关。",
-    "为满足 <=12 次 gradle 运行预算，第 5b 步的 5/5 循环在最终一次编辑器清理后未再重复整轮（清理仅删空行/修 javadoc 引用）；清理后已跑 1 次全量模块测试 tests=35 failed=0。"
+    "本容器未能在无负载顺序执行下复现（30 次全绿），复现依赖制造 CPU 竞争；但探针已给出与负载无关的确定性证据（hopDelay=0ms 时 30ms 窗口仍提前返回），且实际抓到的失败文本与门禁日志逐字一致。",
+    "awaitQuiet 依赖被注入 executor 的计数：若将来测试改成绕过 tracked() 的 executor（例如直接注入虚拟线程池），屏障会退回『立即返回』。已在 tracked() 与 awaitQuiet() 的注释里写明原因。",
+    "QUIET_POLL_MILLIS=2ms 仍存在，但只影响轮询粒度，不再参与收尾判据；即便 poll 超过一跳耗时也不会误判（计数未归零则不确认）。",
+    "本分支存在同任务更早一次尝试（commit 04117d4，PR #70）：根因结论与修复方向一致，但缺少任务要求的「慢 executor 永久回归测试」。本次 merge 保留其证据文件，并把等待实现统一为本次的 awaitChainSettled()（在飞跳 + 命令层派发计数 + 有界收敛窗口）。"
   ],
   "next_steps": [
-    "合并后由调度器在 CNB 门禁（api_trigger_gate）复验：期望 rpg-admin tests=35 failed=0，假红不再出现。",
-    "可选：把 awaitChainSettled 这套「可跟踪 executor + 派发计数」判据推广到其它含两跳异步的管理命令测试，避免同类时间启发式等待。"
-  ],
-  "evidence": {
-    "environment": {
-      "note": "开发容器无 JDK；按 .cnb.yml 的 eclipse-temurin:25-jdk 口径自装 Temurin 25.0.4.1+1 到 /opt/jdk 后运行 gradle wrapper 9.1.0",
-      "java": "openjdk version \"25.0.4.1\" 2026-08-18 LTS / OpenJDK Runtime Environment Temurin-25.0.4.1+1 (build 25.0.4.1+1-LTS)",
-      "fetch_deps": "sh scripts/fetch-deps.sh -> fetch-deps: 全部就绪（libs/ 5 个公开源 artifact + vendor 4 个本地取回）"
-    },
-    "baseline_before_any_change": {
-      "command": "./gradlew --no-daemon --continue :plugins:rpg-admin:test --rerun -PexcludeTags=env > /tmp/t0.log 2>&1",
-      "rc": 0,
-      "module_totals": "tests=34 failed=0",
-      "note": "修前基线绿（34 tests）。假红是概率性的，靠一次运行碰不到，故改用慢 executor 确定性复现。"
-    },
-    "step2_deterministic_reproduction": {
-      "method": "临时探针测试 FlakyProbeTest（已删除）：把注入 JdbcProgressionAnomalyService 的 executor 换成「先把任务延迟 100ms 再执行」的包装器，用【未修改的】旧 awaitQuiet() 跑 ack missing-of-random-uuid 这条异步路径，断言仍期望 admin.anomaly-not-pending。",
-      "command": "./gradlew --no-daemon :plugins:rpg-admin:test --rerun -PexcludeTags=env --tests 'cn.originalrpg.admin.FlakyProbeTest'",
-      "rc": 1,
-      "stdout_log": "FlakyProbeTest > slowExecutorBreaksTheQuietHeuristic() FAILED\n1 test completed, 1 failed\nBUILD FAILED in 9s",
-      "system_out": "QUIET_WINDOW_SNAPSHOT=[]",
-      "failure_xml_excerpt": "<failure message=\"org.opentest4j.AssertionFailedError: 期望在 30ms 静默窗口内收到 not-pending 播报，实际：[] ==&gt; expected: &lt;true&gt; but was: &lt;false&gt;\" type=\"org.opentest4j.AssertionFailedError\">org.opentest4j.AssertionFailedError: 期望在 30ms 静默窗口内收到 not-pending 播报，实际：[] ==&gt; expected: &lt;true&gt; but was: &lt;false&gt;\n\tat app//org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)\n\tat app//org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)\n\tat app//org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)\n\tat app//org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)\n\tat app//org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:214)\n\tat app//cn.originalrpg.admin.FlakyProbeTest.slowExecutorBreaksTheQuietHeuristic(FlakyProbeTest.java:80)\n\tat java.base@25.0.4.1/java.lang.reflect.Method.invoke(Method.java:565)\n\tat java.base@25.0.4.1/java.util.ArrayList.forEach(ArrayList.java:1604)\n\tat java.base@25.0.4.1/java.util.ArrayList.forEach(ArrayList.java:1604)\n</failure>",
-      "mechanism_confirmed": "旧 awaitQuiet() 在 30ms 静默窗口内返回时 messages 为空；同一场景下把等待换成确定性等待后，1000ms 后 messages=[admin.anomaly-not-pending {player=...}] —— 播报确实在 30ms 之后才落地。两者合起来证明：假红 = 等待窗口短于异步链延迟，而非断言本身错。",
-      "secondary_finding": "首个探针版本把 List.toString() 直接传进 assertTrue 触发了一次竞态（断言消息在回调落地后求值），已改为先 List.copyOf 快照再断言；这是本类断言取值的第 2 处并发隐患，已随修复一并消除。"
-    },
-    "step5a_fix_verifies_same_slow_scenario": {
-      "command": "./gradlew --no-daemon :plugins:rpg-admin:test --rerun -PexcludeTags=env --tests 'cn.originalrpg.admin.AnomalyReviewCommandTest'",
-      "rc": 0,
-      "result": "tests 6 failures 0 errors 0（含新增 slowAsyncHopStillYieldsTheExpectedBroadcast()，time=0.218s）",
-      "meaning": "同一 100ms 延迟下：旧版必红、新版必绿 —— 修复的机械证据。"
-    },
-    "step5b_five_consecutive_runs": {
-      "command": "./gradlew --no-daemon :plugins:rpg-admin:test --rerun -PexcludeTags=env   (循环 5 次)",
-      "rcs": [
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
-      "result": "5/5 绿"
-    },
-    "step5c_negative_controls": {
-      "control_A": {
-        "break": "把回归测试期望的消息键改成不存在的 admin.anomaly-not-pending-TYPO",
-        "command": "./gradlew --no-daemon :plugins:rpg-admin:test --rerun -PexcludeTags=env --tests 'cn.originalrpg.admin.AnomalyReviewCommandTest'",
-        "rc": 1,
-        "log": "AnomalyReviewCommandTest > slowAsyncHopStillYieldsTheExpectedBroadcast() FAILED\n6 tests completed, 1 failed\nBUILD FAILED in 9s"
-      },
-      "control_B": {
-        "break": "把 acknowledgeWithoutConfirmOrSignatureIsRefusedAndWritesNothing 里的 assertNull(reviewer) 改成 assertNotNull(reviewer)",
-        "command": "./gradlew --no-daemon :plugins:rpg-admin:test --rerun -PexcludeTags=env --tests 'cn.originalrpg.admin.AnomalyReviewCommandTest'",
-        "rc": 1,
-        "log": "AnomalyReviewCommandTest > acknowledgeWithoutConfirmOrSignatureIsRefusedAndWritesNothing() FAILED\n6 tests completed, 1 failed\nBUILD FAILED in 8s"
-      },
-      "restore": {
-        "note": "两次破坏均用备份还原，diff 为空（RESTORED_IDENTICAL）",
-        "command": "./gradlew --no-daemon :plugins:rpg-admin:test --rerun -PexcludeTags=env --tests 'cn.originalrpg.admin.AnomalyReviewCommandTest'",
-        "rc": 0,
-        "log": "BUILD SUCCESSFUL in 9s"
-      },
-      "meaning": "破坏后必红、还原后必绿 ⇒ 断言没有被「等没了」，修复不是靠放宽断言换绿。"
-    },
-    "step5d_full_module": {
-      "command": "./gradlew --no-daemon :plugins:rpg-admin:test --rerun -PexcludeTags=env",
-      "rc": 0,
-      "log_tail": "BUILD SUCCESSFUL in 11s",
-      "module_totals": "tests=35 failures=0 errors=0（修前 34 + 新增回归测试 1）",
-      "env_tag_exclusion_still_effective": "excluding tests with tag: env"
-    },
-    "gradle_run_budget": {
-      "limit": 12,
-      "used": 12,
-      "breakdown": [
-        "1 基线 :plugins:rpg-admin:test --rerun（34 tests 绿）",
-        "2-4 探针 3 次（第 1 次暴露竞态、第 2 次得到真实快照、第 3 次拿到确定性复现）",
-        "5-7 修复迭代编译/运行 3 次（1 次编译错误、2 次运行）",
-        "8 负向对照 A（rc=1）",
-        "9 负向对照 B（rc=1）",
-        "10 还原后验证（rc=0）",
-        "11 5 次循环运行",
-        "12 清理后最终全量（tests=35 failed=0）"
-      ],
-      "rerun_tasks_used": false
-    }
-  }
+    "合入后重跑一次门禁（api_trigger_gate）确认同一 commit 连续两次均绿，关闭『十门全绿不可复现』。",
+    "可选：排查本仓其它测试是否也存在同类『静默若干毫秒』收尾判据（本次仅限 rpg-admin 任务范围）。"
+  ]
 }
