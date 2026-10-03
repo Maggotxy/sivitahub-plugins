@@ -10,6 +10,7 @@
     "doc/cnb/agent-protocol.md",
     "doc/cnb/gap-registry.md",
     "scripts/selftest-gates.sh",
+    ".cnb/agent-out/evidence/W21-A2-evidence.md",
     ".cnb/agent-out/W21-A2-ledger-and-guards.json"
   ],
   "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70",
@@ -136,27 +137,31 @@
       "violations": "0（全部落在 scripts/**、plan/**、state/**、doc/cnb/**、.cnb/agent-out/** 内）"
     },
     "pr": {
-      "url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70",
-      "note": "本分支已由同任务更早一次尝试（W21-A1）开过 PR #70（A1 与 A2 串行在同一分支）；创建新 PR 返回 409/2009003「there is already have open pull from refs/heads/agent/W21-A1-fix-flaky-test-gate into refs/heads/main」，故用 patch-pull 把 #70 的标题改为 [agent/W21-A2-ledger-and-guards] 开头并替换描述为本任务的实现步骤/验收点原文。head 已回读为 sha=3a918338a594c0295b79601c0e3fe76eb69ff09b。",
-      "head_sha_after_push": "3a918338a594c0295b79601c0e3fe76eb69ff09b",
-      "state": "open",
-      "base": "refs/heads/main",
-      "mergeable_state": "mergeable",
-      "comment_id": "2106431005065609216",
-      "comment_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70#comment-2106431005065609216"
+      "url": null,
+      "note": "见本轮新建 PR（标题以 [agent/W21-A2-ledger-and-guards] 开头，base=main，head=agent/W21-A1-fix-flaky-test-gate）。上一轮的 #70 已 merged，不能复用。",
+      "state_after_create": null
+    },
+    "this_round_rework": {
+      "trigger": "上一轮被判失败：工作分支停在合并前 sha、且结果 JSON 的 pr.state=open 与平台回读的 merged 不符。",
+      "baseline_cmd": "git rev-parse HEAD origin/main",
+      "baseline_output": "334fb54b6f83c41df5c56b03f325a97c9a97cb17\n334fb54b6f83c41df5c56b03f325a97c9a97cb17",
+      "baseline_diff": "git diff --name-status origin/main...HEAD → 空（内容已全在 main）",
+      "ff_cmd": "git merge --ff-only origin/main",
+      "ff_rc": 0,
+      "reverify": "sh scripts/selftest-gates.sh → PASS=132 FAIL=0 / GATE_SELFTEST=GREEN（§11 原文见 .cnb/agent-out/evidence/W21-A2-evidence.md）",
+      "git_status_porcelain": "（空）",
+      "fixture_residue_check": "plan/world-state.json / plan/verdict-v99.json / plan/gap-matrix-v99.md 三者均不存在"
     }
   },
   "risks": [
-    "「取信息更全的一侧」在 7 处冲突里全部落在 plan 侧（6 个字段 + evidence 里的同号条目）。被替换的 state 侧旧值已逐条抄进 _ledger.superseded_state_side_values，不存在信息丢失；但若调度器认为某字段应以 state 侧为准，需人工指定，本任务按规则自动裁决。",
-    "plan 侧独有的 6 条 evidence 因与 state 侧 E-055..E-057 撞号，已顺延为 E-057..E-062。此后若有任务仍按旧号引用 plan 侧的 E-055/E-056（W15 口径），会指到 state 侧同号事实；已在 _ledger.plan_only_evidence_renumbered 与每条 fact 前缀里写明。",
-    "§11 判据 2 的 basis 检查只要求 `verdict-vN.json` 的 basis 值「作为子串出现在矩阵前 20 行内」，不校验 basis 是否等于当前 main HEAD —— 后者是 W15 的 hook 口径（见 state E-051/E-052），属另一条判据，本任务未纳入（避免与既有 hook 重复且口径不一）。",
-    "§11 判据 2 只覆盖「N 最大的一对」verdict-vN.json + gap-matrix-vN.md；历史上 v1..v7 的旧矛盾不回溯（无 v1 与 v2 的配对格式，且回溯会把历史矩阵判红）。",
-    "selfcheck 里「工作区无残留」的判据已从「git status 非空即红」改为「夹具路径不存在」—— 因为本任务本身就要改 plan/ 与 state/，前者会把任何合法改动判红（实测第一次跑就踩了，PASS=131 FAIL=1）。"
+    "本任务的两条判据、账本收敛与证据文件，上一轮已随 PR #70 合入 main（merge commit 334fb54）。本轮的实际修正是「流程正确性」：上一轮结果 JSON 把 PR #70 的 state 误写为 open —— 平台回读 is_merged=true / mergeable_state=merged；同时工作分支停在合并前的 8fde71a，导致「向 main 发起 PR」这一步在返工时无 delta。本轮已 ff 到 main 顶端并新建打开的 PR。",
+    "本条已保留：§11 判据 2 只覆盖「N 最大的一对」verdict-vN.json + gap-matrix-vN.md，v1..v7 的历史矛盾不回溯。",
+    "本条已保留：判据 2 的 basis 检查只要求「作为子串出现在矩阵前 20 行内」，不校验 basis 是否等于当前 main HEAD（后者是 W15 hook 口径，属另一条判据）。",
+    "自证判据不是「git status 非空即红」，而是「夹具路径不存在」——本任务本身就要改 plan/ 与 state/，前者会把任何合法改动判红（上一轮实测 PASS=131 FAIL=1）。"
   ],
   "next_steps": [
-    "合入后重跑一次质量门（api_trigger_gate）确认「门禁自测」stage 里 §11 两条判据行 GREEN（GATE_SELFTEST 的 PASS 数应从 101 升到 132）。",
-    "建议把 §4.1 的硬规则同步进派单模板（scheduler 侧）：`allowed_paths` 里出现 plan/** 的任务，若 goal/next_steps 涉及账本更新，必须同时带上 state/**。",
-    "可选后续：把「basis 必须等于当前 main HEAD」也做成 §11 判据 3（当前只在本地 hook 里），需先与人类确认口径。",
-    "可选后续：排查其余交付物对（如 tasks-w17.json 与 gap-matrix-v8 的引用）是否也存在同类「同轮结论不一致」，本任务只处理已查实的两条。"
+    "合入后重跑 api_trigger_gate，确认 §11 两条判据行仍 GREEN（本次全量 PASS=132 FAIL=0）。",
+    "调度器侧：派单模板里若 allowed_paths 含 plan/** 且涉及账本更新，必须同时带上 state/**（见 doc/cnb/agent-protocol.md §4.1）。",
+    "可选：把「basis 必须等于当前 main HEAD」做成 §11 判据 3（需先与人类确认口径）。"
   ]
 }
