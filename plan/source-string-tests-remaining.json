@@ -154,9 +154,11 @@
    "test_class": "DungeonTimeoutLifecycleContractTest",
    "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonTimeoutLifecycleContractTest.java",
    "reads": "main-sources",
-   "uses_indexOf": true,
+   "uses_indexOf": false,
    "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
-   "exempt": false
+   "exempt": false,
+   "done": true,
+   "done_by": "W18-A1"
   },
   {
    "module": "rpg-dungeons",
@@ -298,9 +300,12 @@
    "test_class": "EquipmentExitPathReachabilityTest",
    "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
    "reads": "main-sources",
-   "uses_indexOf": true,
+   "uses_indexOf": false,
    "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
-   "exempt": false
+   "exempt": false,
+   "done": true,
+   "done_by": "W19-A1",
+   "done_note": "productionReferences(identifier) 源码扫描 helper 已删除。6 个 @Test 逐条处置：① 行为化（真跑纯规则/状态机/真解析打包 YAML）：destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin、seasonAttunementHasNoPersistedProducerInTheEquipmentPlugin、everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired、destroyEntryPointFollowsTheSalvageOutboxContract、theMailboxLaneGateFailsClosedBeforeAnyStateIsMutated、seasonAttunementHasNeitherCommandNorConfigurationSurface（plugin.yml/config.yml 真解析）；② 迁进新建 scripts/source-contract-specs/rpg-items.json 的 4 个键（season-attunement / season-attunement-consumers / destroy-command / exit-path-producers），类改成真实执行门禁的包装器。同一文件的 destroy-command / season-attunement 两个键从 all.json 迁到 rpg-items.json（避免键冲突，SPECS 不减少）。"
   },
   {
    "module": "rpg-items",
@@ -540,24 +545,6 @@
   "_newly_surfaced_gap": {
    "_class": "rpg-items/EquipmentExitPathReachabilityTest",
    "_path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
-   "_shape": "private productionReferences(identifier) 用 Files.walk(plugins/*/src/main) + Files.readString(file).contains(identifier)，两个 @Test 方法直接依赖其结果（destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin / everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired）。",
-   "_why_w16_missed": "W16-A1 的 _counts_after 只统计了「同一方法体内直接出现」的 3 个剩余类；本类因为 readString 在遍历循环里（helper/私有方法内），readString 与 contains 都不在同一 @Test 方法体里 → 同样被旧判据漏掉。",
-   "_status": "W18-A1 无权修改（allowed_paths 只含 plugins/rpg-dungeons/src/test/**、scripts/**、plan/source-string-tests-remaining.json、.cnb/agent-out/**），因此 SOURCE_STRING_GATE 在真实仓库上保持 RED，并把本条交接给 rpg-items 批次。",
-   "_action": "按本类同样的方式处理：两个 @Test 的「哪些文件引用某标识符」断言迁进 scripts/source-contract-specs/rpg-items.json 的声明式条目，或改真跑纯规则（EquipmentLifecycle / DestroyRules 等）。"
-  }
- },
- "_hits_after_w18a1": {
-  "_cmd": "sh scripts/check-source-string-tests.sh",
-  "_count": 1,
-  "_note": "新判据下的唯一命中是 rpg-items/EquipmentExitPathReachabilityTest，属于 W16 漏判的同类残留（不在 W18-A1 的 allowed_paths 内）。"
- },
- "_w18a1_note": {
-  "_what": "W18-A1（G-302-RESIDUAL-2）修 rpg-dungeons/DungeonTimeoutLifecycleContractTest（8 处 indexOf → 迁进新建的 scripts/source-contract-specs/rpg-dungeons.json，类改成真实执行门禁的包装器），并把 scripts/check-source-string-tests.sh 的判据从「同一方法体内直接出现」扩到间接形态。",
-  "_criterion_after": "类里存在 Files.readString/readAllBytes 读 plugins|tools/src/main 下的生产源码，且（一行式 readString(...).contains(...) 或 读结果变量上有 contains/indexOf/lastIndexOf/startsWith 或 assertTrue/assertFalse(... a < b ...) 先后比较）。helper 里的 readString + 调用方实参里的生产路径/常量路径都算（覆盖 W17 指出的三种间接形态）。",
-  "_why_w16_missed_this_class": "W16 判据要求 readString 与 plugins|tools 路径字面量出现在同一 @Test 方法体内；本类把 readString 藏在 source(...) helper、路径字面量在调用方实参上，因此不被判为命中。",
-  "_newly_surfaced_gap": {
-   "_class": "rpg-items/EquipmentExitPathReachabilityTest",
-   "_path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
    "_shape": "private productionReferences(identifier) 用 Files.walk(plugins/*/src/main) + Files.readString(file).contains(identifier)；两个 @Test 直接依赖其结果（destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin / everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired）。",
    "_why_w16_missed": "W16-A1 的 _counts_after 只统计了「同一方法体内直接出现」的 3 个剩余类；本类 readString 在遍历循环里，与 contains 都不在同一 @Test 方法体内 → 旧判据漏判（与本次修的那个类同形）。",
    "_status": "W18-A1 无权修改（allowed_paths 只含 plugins/rpg-dungeons/src/test/**、scripts/**、plan/source-string-tests-remaining.json、.cnb/agent-out/**），因此 SOURCE_STRING_GATE 在真实仓库上保持 RED；本条交接给 rpg-items 批次。",
@@ -568,5 +555,38 @@
   "_cmd": "sh scripts/check-source-string-tests.sh",
   "_count": 1,
   "_note": "新判据下唯一命中是 rpg-items/EquipmentExitPathReachabilityTest（W16 漏判的同类残留，不在 W18-A1 的 allowed_paths 内）。"
+ },
+ "_w19a1_note": {
+  "_what": "W19-A1（G-302 链上最后一个已知残留）：修 plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java。该类用 private productionReferences(identifier)（Files.walk(plugins/*/src/main) + Files.readString(...).contains(identifier)）统计「哪些生产文件提到了某标识符」，两个 @Test 直接依赖其结果 —— 与 W18 修的 DungeonTimeout 同形（readString 藏在 helper 里，W16 判据漏判）。",
+  "_disposition_per_assertion": [
+   "（a）行为化（真跑）：",
+   "  1. destroyedHasA…：DestroyRules.outcomeIsTerminal / isExitPath / persistedStateIsTerminal + DestroyDeliveryRules lane + 8×12 状态机枚举（玩家操作面产不出 SEASON_ATTUNED）+ SeasonAttunementRules 触发者与结果态；",
+   "  2. seasonAttunementHasNoPersistedProducer…：真跑全部 kind × 全部 State 的 afterOperation（8×12 组合），断言没有任何组合产出 SEASON_ATTUNED；",
+   "  3. seasonAttunementHasNeitherCommandNorConfigurationSurface：**真解析打包后的 plugin.yml / config.yml**（同一份 SnakeYAML、allowDuplicateKeys=false），断言命令名/别名与全部子键里都没有调谐词根（原来只是读源码行找字符串），并保留 destroy 键/`destroy` 命令作为「非恒真」对照；",
+   "  4. everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired：改为真跑状态机判定「这条退出路径有没有一个经状态机认可的生产者」，并断言 SACRIFICED 无玩家操作生产者、SEASON_ATTUNED 可达但只能由换季结算写入；",
+   "  5. destroyEntryPointFollowsTheSalvageOutboxContract / theMailboxLaneGateFailsClosedBeforeAnyStateIsMutated：原样真跑纯规则（保留 W16 的行为化部分）。",
+   "（b）迁进声明式源码契约（新建 scripts/source-contract-specs/rpg-items.json，不改 all.json）：",
+   "  · …#season-attunement：打包清单/(RpgItemsPlugin) 的 forbidden（原 5 条 forbidden + SEASON_ATTUNED）；",
+   "  · …#season-attunement-consumers：唯一权威状态机之外必须有真实消费者（按文件归属指向 EquipmentStateLedger.java / JdbcSeasonAttunementService.java / SeasonAttunementRecord.java）；",
+   "  · …#destroy-command：DestroyCommand 的三条 ordered/forbidden/required 契约（从 all.json 原样迁入）；",
+   "  · …#exit-path-producers：SALVAGED / LEGACY_EXTRACTED / DESTROYED 的消费者文件存在性（required）。",
+   "  为什么只能静态保证：「某标识符出现在哪些 src/main 文件里」与跨插件「零出现」在运行期没有对应形态；且这些断言的语义是「接线存在性」本身。"
+  ],
+  "_negative_controls": [
+   "① 把原形态放回（同一目录加 ProductionReferenceFixture：Path.of(\"plugins/rpg-api/.../EquipmentLifecycle.java\") + Files.readString(...).contains(...)）→ SOURCE_STRING_GATE=RED（脱敏行：ProductionReferenceFixture.java:14 -> ['plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java']）；删除夹具后 → GREEN（SOURCE_STRING_TESTS=0）。",
+   "② 改坏生产代码 DestroyCommand（把 held.setAmount(0)+player.saveData() 挪到 operations.submit(...) 之后）→ 门禁键 …#destroy-command 报 RED：destroyEntryPointPersistsEscrowBeforeSubmitting 顺序契约不成立；还原后 GREEN。"
+  ],
+  "_gates_after": {
+   "source_string": "SOURCE_STRING_GATE=GREEN，SOURCE_STRING_TESTS=0（残留清单为空）",
+   "source_contract": "SOURCE_CONTRACT_GATE=GREEN，CHECKS=470（≥466）SPECS=79（≥77），SPEC_FILES=3",
+   "selftest": "GATE_SELFTEST=GREEN PASS=114 FAIL=0，含 §4d「真实仓库已无此类断言 → 0」由 FAIL 转 OK",
+   "full_tests": "./gradlew --no-daemon test -PexcludeTags=env → BUILD SUCCESSFUL，26 模块 / 1101 用例 / 0 失败 / 2 skipped"
+  }
+ },
+ "_hits_after_w19a1": {
+  "_cmd": "sh scripts/check-source-string-tests.sh",
+  "_count": 0,
+  "_note": "W18 补强判据在真实仓库的唯一命中（rpg-items/EquipmentExitPathReachabilityTest）已由 W19-A1 修好：生产源码扫描 helper 删除 + 断言行为化/规格化 → SOURCE_STRING_GATE=GREEN，残留清单为空。G-302 这条链上的已知残留清空。",
+  "_remaining": "0。判据口径下「读本仓生产源码 + 源码字符串断言」的类已全部处理；仍带 Files.readString 的 46 个测试类里，37 个只读 scripts/check-source-contract.sh 做门禁包装器，4 个读测试自身/运行期 IO/DDL 文本，3 个只读 server/ 与 resource-pack/ 部署产物（@Tag(env) 显式分类），均不落在本判据内（口径见 scripts/check-source-string-tests.sh 头部注释）。"
  }
 }
