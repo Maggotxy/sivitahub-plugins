@@ -1,6 +1,12 @@
 # 全量机制矩阵 v8（gap-matrix-v8）
 
 > basis: 77112113（实测 `git rev-parse HEAD` == `git rev-parse origin/main` == `77112113488eea35f1388faa7c8fd390ab2d8f8e`）
+> verdict: done=false remaining=1
+> basis-substring: 77112113
+> 勘误（W21-A2-ledger-and-guards 追加）：§0 结论表原文写「G-302-RESIDUAL 清零（0 个类 / 0 个方法）/ done=true / remaining=0」，
+> 与同一轮的 `plan/verdict-v8.json`（`done=false` / `remaining=1` / `remaining_ids=["G-302-RESIDUAL-2"]`）矛盾。
+> **以 JSON 为准**：本矩阵的结论是 done=false / remaining=1。§0 原文保留不改（历史结论不得篡改），勘误只加在这里。
+> 不一致根因见 `doc/cnb/agent-protocol.md` §4.1 与 `doc/cnb/gap-registry.md` 的 G-VERDICT-MATRIX-SPLIT。
 > 生成者：CNB CodeBuddy NPC，任务 `W17-A1-verdict-v8`（**当前 main 最终复验轮**）。
 > 本轮在**自己分支出来的那个 commit** 上重跑全量差集矩阵；核心是判定 v7 的唯一 remaining
 > `G-302-RESIDUAL` 是否在 W16（已合入）之后真的清零。
