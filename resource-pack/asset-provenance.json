@@ -2,26 +2,21 @@
  "$comment": [
   "每张素材（resource-pack/assets/** 下全部 252 张 PNG）的来源登记，供 W12-A3 的素材门禁使用。",
   "键 = 相对 resource-pack/ 的路径；值含 category / source / reproduce_cmd / reviewed。",
-  "category ∈ generator（生成器直出）| ai-prompt（AI 生产线直出）| derived-from（由已登记素材派生）| reviewed-baseline（人工审核基线，无可复现来源）。",
+  "category ∈ generator（生成器直出）| ai-prompt（AI 生产线直出）| derived-from（由已登记素材派生）| human-override（人工覆盖，生成器旧设计已弃用，见 override_reason）| upstream-betterhud（BetterHud 编译期字体图集）| upstream-vanilla（上游/原版占位贴图）| reviewed-baseline（人工审核基线，无可复现来源）。",
   "reviewed ∈ reviewed-baseline（已审核）| pending-human（需人工决策）。",
   "本文件的生成器：tools/generate-provenance.py（读生成器源码 / 提示词文件推导，不写死人工结论）。",
   "覆盖数 = 磁盘上全部 PNG：item 83 + compass 帧 32 + betterhud 116 + bettermodel 16 + 字体图集 2 + minecraft 3 = 252。"
  ],
- "$generatedBy": "W12-A2-asset-provenance",
+ "$generatedBy": "W14-A1-merge-two-branches（承接 W13-A2-provenance-decisions / W13-A1-repro-gate-and-generator-sync）",
  "$counts": {
-  "ai-prompt": 9,
-  "derived-from": 74,
-  "generator": 125,
-  "reviewed-baseline": 44
+  "ai-prompt": 10,
+  "derived-from": 69,
+  "generator": 129,
+  "human-override": 1,
+  "upstream-betterhud": 38,
+  "upstream-vanilla": 5
  },
- "$needsHumanDecision": [
-  "betterhud/text_font{1,2}_*.png（38 张）：BetterHud 编译期字体图集，仓库内无生成器也无提示词",
-  "betterhud/splitter.png + bettermodel/mesh_pixel.png + minecraft/textures/gui/sprites/boss_bar/*.png（5 张）：上游/原版占位贴图",
-  "betterhud/image_image_sivita_mana_fill_up_20_1..20.png（20 张）：生成器只产出单张 sivita_mana_fill.png(1x87)，20 帧切分不在仓库生成器内",
-  "item/sulfur_resonance_imprint.png（1 张）：ai/ 下无任何提示词提到它",
-  "item/skill_{arcane-edge,ruin-charge,venom-blade,void-cut,war-cry}.png（5 张）：与生成器 recipe 差 4 px（2x2 强调色块）",
-  "tools/generate-provenance.py（1 个）：生成器脚本本身是否入库"
- ],
+ "$needsHumanDecision": [],
  "assets": {
   "assets/betterhud/textures/glyph_class_assassin.png": {
    "category": "generator",
@@ -396,143 +391,143 @@
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_1.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_1of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_10.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_10of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_11.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_11of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_12.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_12of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_13.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_13of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_14.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_14of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_15.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_15of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_16.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_16of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_17.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_17of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_18.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_18of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_19.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_19of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_2.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_2of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_20.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_20of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_3.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_3of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_4.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_4of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_5.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_5of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_6.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_6of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_7.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_7of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_8.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_8of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_9.png": {
    "category": "generator",
-   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "source": "tools/generate_betterhud_panels.py#mana_fill#frame_9of20",
    "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
    "reviewed": "reviewed-baseline",
-   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+   "note": "sivita_mana_fill.png(1x87) 的 20 帧切分：第 i 帧露出底部 floor(87*i/20) 行，其余透明；切分逻辑已在 W13-A1 补进 generate_betterhud_panels.py#mana_fill，逐像素可复现"
   },
   "assets/betterhud/textures/image_sivita_class_badge.png": {
    "category": "generator",
@@ -563,277 +558,277 @@
    "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
   },
   "assets/betterhud/textures/splitter.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 通用 256x256 空白/分割贴图",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-vanilla",
+   "source": "上游：BetterHud 发行版自带通用占位/分割贴图（256x256）",
+   "reproduce_cmd": "无（上游产物，本项目不重建）",
    "reviewed": "reviewed-baseline",
-   "note": "非游戏内容像素；建议登记为 reviewed-baseline 并在门禁豁免"
+   "note": "上游发行版自带，本项目**不拥有**其像素；改动会与上游不兼容（BetterHud 占位图/原版 GUI 图集被版本升级覆盖，且原版 bars.png 被多个原版与 mod HUD 共享）。故只登记不重建，门禁不判像素。"
   },
   "assets/betterhud/textures/text_font1_1.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_1.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_10.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_10.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_11.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_11.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_12.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_12.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_13.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_13.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_14.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_14.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_15.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_15.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_16.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_16.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_17.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_17.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_18.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_18.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_19.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_19.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_2.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_2.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_3.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_3.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_4.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_4.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_5.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_5.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_6.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_6.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_7.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_7.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_8.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_8.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font1_9.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font1_9.png（series 1：正文默认字号）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_1.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_1.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_10.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_10.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_11.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_11.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_12.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_12.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_13.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_13.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_14.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_14.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_15.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_15.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_16.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_16.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_17.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_17.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_18.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_18.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_19.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_19.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_2.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_2.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_3.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_3.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_4.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_4.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_5.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_5.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_6.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_6.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_7.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_7.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_8.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_8.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/betterhud/textures/text_font2_9.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-betterhud",
+   "source": "BetterHud 编译期生成：assets/betterhud/font/*.json 的 bitmap provider 引用 betterhud:text_font2_9.png（series 2：各字号缩放分页）",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-①：BetterHud 编译期由 font JSON 的 bitmap provider 生成（每格 4x22）；重建走 server/bin/bootstrap.sh → Paper 起停一次生成 plugins/BetterHud/build.zip → server/bin/sync-betterhud-pack.sh → resource-pack/build.sh",
    "reviewed": "reviewed-baseline",
-   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+   "note": "上游编译器直出，非本项目像素；门禁只判「被 font JSON 引用」，不判像素"
   },
   "assets/bettermodel/textures/item/blood_moon_grave_knight_blood_moon_grave_knight.png": {
    "category": "generator",
@@ -941,32 +936,32 @@
    "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」；纹理走共用 texture(spec) 配方"
   },
   "assets/bettermodel/textures/item/mesh_pixel.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）64x64 白色 mesh 贴图，被 models/mesh_triangle_{single,duplex}.json 引用",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-vanilla",
+   "source": "上游：BetterModel 发行版自带 16x16 白色 mesh 占位贴图，被 models/mesh_triangle_{single,duplex}.json 引用",
+   "reproduce_cmd": "无（上游产物，本项目不重建）",
    "reviewed": "reviewed-baseline",
-   "note": "非游戏内容像素；仅着色占位"
+   "note": "上游发行版自带，本项目**不拥有**其像素；改动会与上游不兼容（BetterHud 占位图/原版 GUI 图集被版本升级覆盖，且原版 bars.png 被多个原版与 mod HUD 共享）。故只登记不重建，门禁不判像素。；实测解码后为 16x16（W12-A2 记的 64x64 有误，W13-A2 更正）"
   },
   "assets/minecraft/textures/gui/bars.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）原版/上游 UI 贴图（boss bar 进度条）",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-vanilla",
+   "source": "上游：原版客户端 assets/minecraft/textures/gui/bars.png（256x256 通用 GUI 条图集）",
+   "reproduce_cmd": "无（上游产物，本项目不重建）",
    "reviewed": "reviewed-baseline",
-   "note": "非项目原创像素"
+   "note": "上游发行版自带，本项目**不拥有**其像素；改动会与上游不兼容（BetterHud 占位图/原版 GUI 图集被版本升级覆盖，且原版 bars.png 被多个原版与 mod HUD 共享）。故只登记不重建，门禁不判像素。；改动会让客户端与原版 GUI 期望不一致（黑紫方块/错位）"
   },
   "assets/minecraft/textures/gui/sprites/boss_bar/yellow_background.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）原版/上游 UI 贴图（boss bar 进度条）",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-vanilla",
+   "source": "上游：原版客户端 boss_bar 精灵图（yellow_background，182x5）",
+   "reproduce_cmd": "无（上游产物，本项目不重建）",
    "reviewed": "reviewed-baseline",
-   "note": "非项目原创像素"
+   "note": "上游发行版自带，本项目**不拥有**其像素；改动会与上游不兼容（BetterHud 占位图/原版 GUI 图集被版本升级覆盖，且原版 bars.png 被多个原版与 mod HUD 共享）。故只登记不重建，门禁不判像素。；改动会让客户端与原版 GUI 期望不一致（黑紫方块/错位）"
   },
   "assets/minecraft/textures/gui/sprites/boss_bar/yellow_progress.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）原版/上游 UI 贴图（boss bar 进度条）",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "upstream-vanilla",
+   "source": "上游：原版客户端 boss_bar 精灵图（yellow_progress，182x5）",
+   "reproduce_cmd": "无（上游产物，本项目不重建）",
    "reviewed": "reviewed-baseline",
-   "note": "非项目原创像素"
+   "note": "上游发行版自带，本项目**不拥有**其像素；改动会与上游不兼容（BetterHud 占位图/原版 GUI 图集被版本升级覆盖，且原版 bars.png 被多个原版与 mod HUD 共享）。故只登记不重建，门禁不判像素。；改动会让客户端与原版 GUI 期望不一致（黑紫方块/错位）"
   },
   "assets/originalrpg/textures/font/class_skill_symbols.png": {
    "category": "generator",
@@ -981,18 +976,20 @@
    "reviewed": "reviewed-baseline"
   },
   "assets/originalrpg/textures/item/ancient_echo_skill_book.png": {
-   "category": "generator",
-   "source": "tools/GenerateTextures.java#ancient_echo_skill_book#ancient_echo_skill_book",
-   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "category": "human-override",
+   "source": "ai/skill-book-prompts.jsonl:1  # out=ancient_echo_skill_book_v2.png",
+   "reproduce_cmd": "无（人工覆盖；生成器 book() 的旧紫皮已弃用，故本张**不可**由生成器复现）",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担；ai/prompts.jsonl:17/18 是早期 1024px 原稿版本，当前 32x32 以生成器为准"
+   "note": "override_reason: 仓库里的是 ai/skill-book-prompts.jsonl:1 的 v2 人工覆盖（sealed echo grimoire，pale-violet 同心回响符文 + 断裂金印 + 青色共鸣碎粒），生成器 GenerateTextures.book() 的旧紫皮设计已弃用；ASSET_REPRO_GATE 对本张做反向断言 —— 必须**不等于**生成器输出，若有人把生成器旧设计盖回仓库，门禁必须 RED",
+   "override_reason": "仓库里的是 ai/skill-book-prompts.jsonl:1 的 v2 人工覆盖（sealed echo grimoire，pale-violet 同心回响符文 + 断裂金印 + 青色共鸣碎粒），生成器 GenerateTextures.book() 的旧紫皮设计已弃用；ASSET_REPRO_GATE 对本张做反向断言 —— 必须**不等于**生成器输出，若有人把生成器旧设计盖回仓库，门禁必须 RED",
+   "source_prompt": "ai/skill-book-prompts.jsonl:1"
   },
   "assets/originalrpg/textures/item/blood_moon_essence.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#blood_moon_essence#blood_moon_essence",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/cinnabar_revelation_skill_book.png": {
    "category": "ai-prompt",
@@ -1006,63 +1003,63 @@
    "source": "tools/GenerateTextures.java#common_insight_skill_book#common_insight_skill_book",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担；ai/prompts.jsonl:17/18 是早期 1024px 原稿版本，当前 32x32 以生成器为准"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担；ai/prompts.jsonl:18 是早期 1024px 原稿版本，当前 32x32 以生成器为准"
   },
   "assets/originalrpg/textures/item/dungeon_core.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#dungeon_core#dungeon_core",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/forged_assassin_weapon.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#forged_assassin_weapon#forged_assassin_weapon",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/forged_boots.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#forged_boots#forged_boots",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/forged_chestplate.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#forged_chestplate#forged_chestplate",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/forged_healer_weapon.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#forged_healer_weapon#forged_healer_weapon",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/forged_helmet.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#forged_helmet#forged_helmet",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/forged_leggings.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#forged_leggings#forged_leggings",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/forged_mage_weapon.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#forged_mage_weapon#forged_mage_weapon",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/forged_ranger_bow_pulling_0.png": {
    "category": "ai-prompt",
@@ -1104,91 +1101,91 @@
    "source": "tools/GenerateTextures.java#forged_ranger_weapon#forged_ranger_weapon",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/forged_shield.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#forged_shield#forged_shield",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/forged_warrior_weapon.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#forged_warrior_weapon#forged_warrior_weapon",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/hidden_ticket.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#hidden_ticket#hidden_ticket",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/hunt_crystal.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#hunt_crystal#hunt_crystal",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/journey_attribute.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#journey_attribute#journey_attribute",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/journey_class.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#journey_class#journey_class",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/journey_dungeon.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#journey_dungeon#journey_dungeon",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/journey_explore.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#journey_explore#journey_explore",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/journey_forge.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#journey_forge#journey_forge",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/journey_hub.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#journey_hub#journey_hub",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/journey_hunt.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#journey_hunt#journey_hunt",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/journey_reveal.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#journey_reveal#journey_reveal",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/legacy_blueprint.png": {
    "category": "ai-prompt",
@@ -1201,49 +1198,49 @@
    "source": "tools/GenerateTextures.java#lucky_charm#lucky_charm",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/mob_boomerang.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#mob_boomerang#mob_boomerang",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/mob_corrosive_orb.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#mob_corrosive_orb#mob_corrosive_orb",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/mob_seeker_orb.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#mob_seeker_orb#mob_seeker_orb",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/mutation_core.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#mutation_core#mutation_core",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/mutation_shard.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#mutation_shard#mutation_shard",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/protection_stone.png": {
    "category": "generator",
    "source": "tools/GenerateTextures.java#protection_stone#protection_stone",
    "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+   "note": "程序化 32x32 像素基线；可复现断言由 ASSET_REPRO_GATE 承担"
   },
   "assets/originalrpg/textures/item/silent_thunder_skill_book.png": {
    "category": "ai-prompt",
@@ -1260,11 +1257,11 @@
    "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
   },
   "assets/originalrpg/textures/item/skill_arcane-edge.png": {
-   "category": "derived-from",
-   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_arcane-edge.png",
-   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#skillItem#skill_arcane-edge",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）；实测与生成器 recipe 差 4 px（2x2 强调色块，recipe 为 0a0e13 面板暗色）⇒ 建议 W12-A3 或重跑生成器覆盖、或登记为人工覆盖"
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理；W13-A1 把派生 recipe 漏掉的 2x2 强调色块（SKILL_ACCENTS）回同步进 GenerateTextures.java，本张从此逐像素可复现，由 ASSET_REPRO_GATE 断言"
   },
   "assets/originalrpg/textures/item/skill_ash-domain.png": {
    "category": "derived-from",
@@ -1435,11 +1432,11 @@
    "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
   },
   "assets/originalrpg/textures/item/skill_ruin-charge.png": {
-   "category": "derived-from",
-   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_ruin-charge.png",
-   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#skillItem#skill_ruin-charge",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）；实测与生成器 recipe 差 4 px（2x2 强调色块，recipe 为 0a0e13 面板暗色）⇒ 建议 W12-A3 或重跑生成器覆盖、或登记为人工覆盖"
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理；W13-A1 把派生 recipe 漏掉的 2x2 强调色块（SKILL_ACCENTS）回同步进 GenerateTextures.java，本张从此逐像素可复现，由 ASSET_REPRO_GATE 断言"
   },
   "assets/originalrpg/textures/item/skill_rune-reversal.png": {
    "category": "derived-from",
@@ -1519,18 +1516,18 @@
    "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
   },
   "assets/originalrpg/textures/item/skill_venom-blade.png": {
-   "category": "derived-from",
-   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_venom-blade.png",
-   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#skillItem#skill_venom-blade",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）；实测与生成器 recipe 差 4 px（2x2 强调色块，recipe 为 0a0e13 面板暗色）⇒ 建议 W12-A3 或重跑生成器覆盖、或登记为人工覆盖"
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理；W13-A1 把派生 recipe 漏掉的 2x2 强调色块（SKILL_ACCENTS）回同步进 GenerateTextures.java，本张从此逐像素可复现，由 ASSET_REPRO_GATE 断言"
   },
   "assets/originalrpg/textures/item/skill_void-cut.png": {
-   "category": "derived-from",
-   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_void-cut.png",
-   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#skillItem#skill_void-cut",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）；实测与生成器 recipe 差 4 px（2x2 强调色块，recipe 为 0a0e13 面板暗色）⇒ 建议 W12-A3 或重跑生成器覆盖、或登记为人工覆盖"
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理；W13-A1 把派生 recipe 漏掉的 2x2 强调色块（SKILL_ACCENTS）回同步进 GenerateTextures.java，本张从此逐像素可复现，由 ASSET_REPRO_GATE 断言"
   },
   "assets/originalrpg/textures/item/skill_volley.png": {
    "category": "derived-from",
@@ -1540,18 +1537,18 @@
    "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
   },
   "assets/originalrpg/textures/item/skill_war-cry.png": {
-   "category": "derived-from",
-   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_war-cry.png",
-   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#skillItem#skill_war-cry",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
    "reviewed": "reviewed-baseline",
-   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）；实测与生成器 recipe 差 4 px（2x2 强调色块，recipe 为 0a0e13 面板暗色）⇒ 建议 W12-A3 或重跑生成器覆盖、或登记为人工覆盖"
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理；W13-A1 把派生 recipe 漏掉的 2x2 强调色块（SKILL_ACCENTS）回同步进 GenerateTextures.java，本张从此逐像素可复现，由 ASSET_REPRO_GATE 断言"
   },
   "assets/originalrpg/textures/item/sulfur_resonance_imprint.png": {
-   "category": "reviewed-baseline",
-   "source": "（缺）ai/ 下无任何提示词提到 sulfur imprint",
-   "reproduce_cmd": "无（不可复现）",
+   "category": "ai-prompt",
+   "source": "ai/prompts.jsonl:28",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §6-④；重生成走 ai/generate.sh --apply（需 Image API Key）",
    "reviewed": "reviewed-baseline",
-   "note": "无任何提示词/生成器登记；登记为 reviewed-baseline，需人工决策补 ai/prompts.jsonl 条目还是扩展生成器（见 ASSET-PROVENANCE.md §6-④）"
+   "note": "W13-A2 补登；相似度判定最高 Jaccard=0.099 ⇒ 独立素材（非派生），提示词按实测像素写（32x32 二值 alpha、15 色：暗紫黑底盘 + 琥珀金菱形核心 + 钢灰环）"
   },
   "assets/originalrpg/textures/item/traveler_compass.png": {
    "category": "ai-prompt",

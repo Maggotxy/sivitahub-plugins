@@ -1,0 +1,123 @@
+{
+  "$comment": [
+    "生成器覆盖规格（W13-A1）：每个 Java/Python 生成器产出哪些文件、对应仓库里哪张 PNG。",
+    "scripts/check-asset-reproducible.py 按本文件跑生成器到临时目录并逐像素比对。",
+    "humanOverrides：这些路径必须**不等于**生成器输出（反向断言）—— 它们是人工覆盖，",
+    "生成器的旧设计已弃用；若有人把生成器输出盖回仓库，门禁必须 RED。",
+    "本文件由生成器的源码推导，不写死人工结论。"
+  ],
+  "$generatedBy": "W13-A1-repro-gate-and-generator-sync",
+  "generators": [
+    {
+      "generator": "GenerateTextures",
+      "kind": "java",
+      "source": "resource-pack/tools/GenerateTextures.java",
+      "assetsRoot": "resource-pack/assets/originalrpg/textures/item",
+      "assets": [
+        ["ancient_echo_skill_book.png", "ancient_echo_skill_book.png"],
+        ["blood_moon_essence.png", "blood_moon_essence.png"],
+        ["common_insight_skill_book.png", "common_insight_skill_book.png"],
+        ["dungeon_core.png", "dungeon_core.png"],
+        ["forged_assassin_weapon.png", "forged_assassin_weapon.png"],
+        ["forged_boots.png", "forged_boots.png"],
+        ["forged_chestplate.png", "forged_chestplate.png"],
+        ["forged_healer_weapon.png", "forged_healer_weapon.png"],
+        ["forged_helmet.png", "forged_helmet.png"],
+        ["forged_leggings.png", "forged_leggings.png"],
+        ["forged_mage_weapon.png", "forged_mage_weapon.png"],
+        ["forged_ranger_weapon.png", "forged_ranger_weapon.png"],
+        ["forged_shield.png", "forged_shield.png"],
+        ["forged_warrior_weapon.png", "forged_warrior_weapon.png"],
+        ["hidden_ticket.png", "hidden_ticket.png"],
+        ["hunt_crystal.png", "hunt_crystal.png"],
+        ["journey_attribute.png", "journey_attribute.png"],
+        ["journey_class.png", "journey_class.png"],
+        ["journey_dungeon.png", "journey_dungeon.png"],
+        ["journey_explore.png", "journey_explore.png"],
+        ["journey_forge.png", "journey_forge.png"],
+        ["journey_hub.png", "journey_hub.png"],
+        ["journey_hunt.png", "journey_hunt.png"],
+        ["journey_reveal.png", "journey_reveal.png"],
+        ["lucky_charm.png", "lucky_charm.png"],
+        ["mob_boomerang.png", "mob_boomerang.png"],
+        ["mob_corrosive_orb.png", "mob_corrosive_orb.png"],
+        ["mob_seeker_orb.png", "mob_seeker_orb.png"],
+        ["mutation_core.png", "mutation_core.png"],
+        ["mutation_shard.png", "mutation_shard.png"],
+        ["protection_stone.png", "protection_stone.png"],
+        ["skill_arcane-edge.png", "skill_arcane-edge.png"],
+        ["skill_ruin-charge.png", "skill_ruin-charge.png"],
+        ["skill_venom-blade.png", "skill_venom-blade.png"],
+        ["skill_void-cut.png", "skill_void-cut.png"],
+        ["skill_war-cry.png", "skill_war-cry.png"]
+      ],
+      "humanOverrides": [
+        {
+          "path": "ancient_echo_skill_book.png",
+          "reason": "仓库里的是 ai/skill-book-prompts.jsonl:1 的 v2 人工覆盖；生成器 book() 的旧紫皮已弃用"
+        }
+      ]
+    },
+    {
+      "generator": "GenerateHudAtlas",
+      "kind": "java",
+      "source": "resource-pack/tools/GenerateHudAtlas.java",
+      "assetsRoot": "resource-pack/assets/originalrpg/textures/font",
+      "assets": [
+        ["hud_symbols.png", "hud_symbols.png"]
+      ],
+      "humanOverrides": []
+    },
+    {
+      "generator": "GenerateSkillHudAtlas",
+      "kind": "java",
+      "source": "resource-pack/tools/GenerateSkillHudAtlas.java",
+      "assetsRoot": "resource-pack/assets/originalrpg/textures/font",
+      "assets": [
+        ["class_skill_symbols.png", "class_skill_symbols.png"]
+      ],
+      "humanOverrides": []
+    },
+    {
+      "generator": "GenerateCompassFrames",
+      "kind": "java",
+      "source": "resource-pack/tools/GenerateCompassFrames.java",
+      "assetsRoot": "resource-pack/assets/originalrpg/textures/item/traveler_compass",
+      "assets": [
+        ["frame_00.png", "textures/frame_00.png"],
+        ["frame_01.png", "textures/frame_01.png"],
+        ["frame_02.png", "textures/frame_02.png"],
+        ["frame_03.png", "textures/frame_03.png"],
+        ["frame_04.png", "textures/frame_04.png"],
+        ["frame_05.png", "textures/frame_05.png"],
+        ["frame_06.png", "textures/frame_06.png"],
+        ["frame_07.png", "textures/frame_07.png"],
+        ["frame_08.png", "textures/frame_08.png"],
+        ["frame_09.png", "textures/frame_09.png"],
+        ["frame_10.png", "textures/frame_10.png"],
+        ["frame_11.png", "textures/frame_11.png"],
+        ["frame_12.png", "textures/frame_12.png"],
+        ["frame_13.png", "textures/frame_13.png"],
+        ["frame_14.png", "textures/frame_14.png"],
+        ["frame_15.png", "textures/frame_15.png"],
+        ["frame_16.png", "textures/frame_16.png"],
+        ["frame_17.png", "textures/frame_17.png"],
+        ["frame_18.png", "textures/frame_18.png"],
+        ["frame_19.png", "textures/frame_19.png"],
+        ["frame_20.png", "textures/frame_20.png"],
+        ["frame_21.png", "textures/frame_21.png"],
+        ["frame_22.png", "textures/frame_22.png"],
+        ["frame_23.png", "textures/frame_23.png"],
+        ["frame_24.png", "textures/frame_24.png"],
+        ["frame_25.png", "textures/frame_25.png"],
+        ["frame_26.png", "textures/frame_26.png"],
+        ["frame_27.png", "textures/frame_27.png"],
+        ["frame_28.png", "textures/frame_28.png"],
+        ["frame_29.png", "textures/frame_29.png"],
+        ["frame_30.png", "textures/frame_30.png"],
+        ["frame_31.png", "textures/frame_31.png"]
+      ],
+      "humanOverrides": []
+    }
+  ]
+}

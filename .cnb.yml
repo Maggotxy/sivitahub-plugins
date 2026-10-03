@@ -142,6 +142,34 @@
           chmod +x scripts/*.sh scripts/*.py
           python3 scripts/check-asset-baseline.py
 
+      - name: 素材可复现性门禁（W13-A1）
+        script: |
+          set -e
+          # 上一道 stage（基线门禁）判的是「磁盘像素 == 清单登记的像素」，它挡不住
+          # 「注册表和生成器一起漂走」：有人手改 PNG、再重跑 gen-asset-manifest.py
+          # 把新像素登记进基线，两道门禁全绿，但那 30 张物品纹理从此再也造不出来。
+          # 本 stage 把「再造一次」变成断言：现场编译并运行 resource-pack/tools/ 下的
+          # Java 生成器到临时目录，再逐像素比对仓库里的对应 PNG（覆盖规格见
+          # scripts/check-asset-reproducible.py 与 resource-pack/asset-reproducible.json）。
+          #
+          # 覆盖 70 条资产 / 4 个生成器：GenerateTextures 36（31 原有 + 5 张 skill_*）、
+          # GenerateHudAtlas 1、GenerateSkillHudAtlas 1、GenerateCompassFrames 32 帧
+          # （另加 32 个罗盘模型 JSON 逐字节比对）。
+          #
+          # 本 stage 跑在 eclipse-temurin:25-jdk 镜像里，java/javac 自带；
+          # 开发容器没有 JDK 时脚本会自取 Temurin 25（清华 Adoptium 镜像），
+          # 装不上就 exit 2 明确失败 —— 静默跳过等于门禁不存在。
+          #
+          # 有意**不纳入** GenerateSivitaHudPanel：132x44 遗留物，build.sh 不调用，
+          # 输出不在 assets-manifest.json 里；把没有对应仓库产物的生成器拖进门禁
+          # 只会得到一条恒真的假判据。理由同时写在脚本注释里。
+          #
+          # 判据自身也被「门禁自测（负向对照）」stage 覆盖：scripts/selftest-gates.sh §10
+          # 做「改生成器常量 → 必须 RED / 把 ancient_echo_skill_book 换成生成器输出 →
+          # 必须 RED（反向断言）/ 还原 → GREEN」三组对照。
+          chmod +x scripts/*.sh scripts/*.py
+          sh scripts/check-asset-reproducible.sh
+
       - name: compile
         script: |
           set -e

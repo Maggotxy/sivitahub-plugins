@@ -17,6 +17,7 @@
 #   7) scripts/check-resource-pack.sh（W7-A1 素材门禁）的八条判据都能真的变红
 #   8) W7-A1 接线自证：素材门禁必须真的在 CI 里跑
 #   9) W12-A1 素材逐像素基线门禁的四组负向对照（改 1 像素 / 删图 / 加未登记图 / 还原）
+#  10) W13-A1 素材可复现性门禁的负向对照（改生成器常量 / 人工覆盖被盖回去 / 登记被改）
 #
 # 用法：sh scripts/selftest-gates.sh     （退出码 0 = 全部通过）
 #
@@ -878,6 +879,165 @@ if [ "$base_phantom_hits" = "0" ]; then
   PASS=$((PASS + 1))
 else
   echo "  [FAIL] 不存在的基线门禁竟被查到 $base_phantom_hits 次 —— 接线判据恒绿" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+echo "== 10. 素材可复现性门禁（W13-A1）三组负向对照 =="
+# 失败模式：基线门禁判「磁盘像素 == 清单像素」，挡不住「注册表和生成器一起漂走」——
+# 手改 PNG + 重跑 gen-asset-manifest.py，两道门禁全绿，纹理却再也造不出来。
+# 本节证明可复现性门禁真的会红：改生成器常量 → RED；把 human-override 换成
+# 生成器输出 → RED（反向断言）；human-override 的登记被改掉 → RED；还原 → GREEN。
+#
+# 与 §7/§9 同样的纪律：**只在 $TMP 的夹具副本上破坏**，不碰仓库工作区。
+# 夹具必须整份拷 resource-pack/（生成器就在 tools/ 里），并且要能自取 JDK ——
+# 本机没有 JDK 时把下载做一次到 $TMP，之后各次对照复用。
+REPRO_FIXTURE="$TMP/asset-repro-ws"
+mkdir -p "$REPRO_FIXTURE/scripts"
+cp -R "$ROOT/resource-pack" "$REPRO_FIXTURE/resource-pack"
+cp "$ROOT/scripts/check-asset-reproducible.sh" "$ROOT/scripts/check-asset-reproducible.py" \
+  "$ROOT/scripts/asset_fingerprint.py" "$REPRO_FIXTURE/scripts/"
+
+# 自取一次 JDK 给全部对照复用（装不上就明确报红，不静默跳过）
+REPRO_JDK_HOME="$TMP/asset-repro-jdk"
+mkdir -p "$REPRO_JDK_HOME"
+repro_jdk=""
+if [ -n "${ASSET_REPRO_JDK:-}" ] && [ -x "${ASSET_REPRO_JDK}/bin/javac" ]; then
+  repro_jdk="$ASSET_REPRO_JDK"
+elif [ -x /opt/jdk25/bin/javac ]; then
+  repro_jdk="/opt/jdk25"
+elif command -v javac >/dev/null 2>&1; then
+  repro_jdk=$(dirname "$(dirname "$(command -v javac)")")
+elif command -v curl >/dev/null 2>&1; then
+  repro_archive=OpenJDK25U-jdk_x64_linux_hotspot_25.0.4.1_1.tar.gz
+  repro_mirror=https://mirrors.tuna.tsinghua.edu.cn/Adoptium/25/jdk/x64/linux
+  if curl -sSL -o "$TMP/jdk.tar.gz" "$repro_mirror/$repro_archive" 2>/dev/null; then
+    tar xzf "$TMP/jdk.tar.gz" -C "$REPRO_JDK_HOME" --strip-components=1 2>/dev/null || true
+    [ -x "$REPRO_JDK_HOME/bin/javac" ] && repro_jdk="$REPRO_JDK_HOME"
+  fi
+fi
+
+run_repro_gate() {
+  # 退出码落到调用方给的文件里（不走管道取码：`| tail; echo $?` 拿到的是 tail 的 0）
+  set +e
+  (cd "$REPRO_FIXTURE" && ASSET_REPRO_JDK="$repro_jdk" \
+    sh scripts/check-asset-reproducible.sh > "$1" 2>&1)
+  echo $?
+}
+
+if [ -z "$repro_jdk" ]; then
+  echo "  [FAIL] 本机既无 JDK 也取不到 Temurin 25 —— 可复现性门禁的负向对照无法执行" >&2
+  echo "         （CI 侧由 eclipse-temurin:25-jdk 提供，见 .cnb.yml 的 W13-A1 stage）" >&2
+  FAIL=$((FAIL + 1))
+else
+  echo "  [INFO] 负向对照用 JDK: $repro_jdk"
+  check "可复现性门禁在干净夹具上必须绿（基准）" 0 "$(run_repro_gate "$TMP/repro-base.txt")"
+
+  # ① 改一个生成器常量（STEEL 的蓝通道 +1）：用到 STEEL 的纹理全部失配
+  repro_src="$REPRO_FIXTURE/resource-pack/tools/GenerateTextures.java"
+  cp "$repro_src" "$TMP/repro-GT.java"
+  sed -i 's/private static final int STEEL = 0xffd8e4e8;/private static final int STEEL = 0xffd8e4e9;/' "$repro_src"
+  check "① 改生成器常量（STEEL +1）→ RED" 1 "$(run_repro_gate "$TMP/repro-a.txt")"
+  # 红的必须可归因：判据行是 RED，且报出具体是哪张不一致
+  if grep -q 'ASSET_REPRO_GATE=RED' "$TMP/repro-a.txt" \
+     && grep -q '生成器输出与仓库不一致' "$TMP/repro-a.txt" \
+     && grep -q 'MISMATCH=' "$TMP/repro-a.txt"; then
+    echo "  [OK  ] ① 判据行 RED、指出「生成器输出与仓库不一致」并给出 MISMATCH 计数"
+    PASS=$((PASS + 1))
+  else
+    echo "  [FAIL] ① RED 了但不可归因（没有指向具体文件 / 没有判据行）" >&2
+    FAIL=$((FAIL + 1))
+  fi
+  cp "$TMP/repro-GT.java" "$repro_src"
+  check "① 还原后必须绿" 0 "$(run_repro_gate "$TMP/repro-a2.txt")"
+
+  # ② 反向断言：把 ancient_echo_skill_book 换成生成器输出 —— 必须 RED
+  # 前提是夹具里的生成器真的能编译并跑出那张图（否则对照是空转）
+  repro_out="$TMP/repro-generated"
+  mkdir -p "$repro_out"
+  set +e
+  "$repro_jdk/bin/javac" -d "$TMP/repro-classes" "$repro_src" > "$TMP/repro-javac.txt" 2>&1
+  javac_rc=$?
+  "$repro_jdk/bin/java" -cp "$TMP/repro-classes" GenerateTextures "$repro_out" --force \
+    > "$TMP/repro-gen.txt" 2>&1
+  gen_rc=$?
+  set -e
+  check "② 夹具的生成器可编译（反向断言的前提）" 0 "$javac_rc"
+  check "② 夹具的生成器可运行" 0 "$gen_rc"
+  if [ -f "$repro_out/ancient_echo_skill_book.png" ]; then
+    echo "  [OK  ] ② 生成器确实产出了 ancient_echo_skill_book.png（反向断言有对照物）"
+    PASS=$((PASS + 1))
+  else
+    echo "  [FAIL] ② 生成器没产出 ancient_echo_skill_book.png —— 反向断言会空转" >&2
+    FAIL=$((FAIL + 1))
+  fi
+  repro_override="$REPRO_FIXTURE/resource-pack/assets/originalrpg/textures/item/ancient_echo_skill_book.png"
+  cp "$repro_override" "$TMP/repro-aesb.png"
+  cp "$repro_out/ancient_echo_skill_book.png" "$repro_override"
+  check "② 把 ancient_echo_skill_book 换成生成器输出 → RED（反向断言）" 1 \
+    "$(run_repro_gate "$TMP/repro-b.txt")"
+  if grep -q '人工覆盖竟与生成器输出一致' "$TMP/repro-b.txt"; then
+    echo "  [OK  ] ② 报出「人工覆盖竟与生成器输出一致」——反向断言确实在跑"
+    PASS=$((PASS + 1))
+  else
+    echo "  [FAIL] ② RED 了但没报出反向断言的那句话" >&2
+    FAIL=$((FAIL + 1))
+  fi
+  cp "$TMP/repro-aesb.png" "$repro_override"
+  check "② 还原后必须绿" 0 "$(run_repro_gate "$TMP/repro-b2.txt")"
+
+  # ③ human-override 的登记自证：把 category 改掉必须 RED
+  # （否则「我这张不用管」会变成一个可以随便贴的豁免标签）
+  repro_prov="$REPRO_FIXTURE/resource-pack/asset-provenance.json"
+  cp "$repro_prov" "$TMP/repro-prov.json"
+  python3 - "$repro_prov" <<'PYREPROV'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = json.loads(path.read_text(encoding='utf-8'))
+key = 'assets/originalrpg/textures/item/ancient_echo_skill_book.png'
+data['assets'][key]['category'] = 'generator'
+path.write_text(json.dumps(data, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+PYREPROV
+  check "③ human-override 被改登记为 generator → RED" 1 "$(run_repro_gate "$TMP/repro-c.txt")"
+  if grep -q '应为 human-override' "$TMP/repro-c.txt"; then
+    echo "  [OK  ] ③ 报出 category 与 human-override 不符"
+    PASS=$((PASS + 1))
+  else
+    echo "  [FAIL] ③ RED 了但没报出 category 不符" >&2
+    FAIL=$((FAIL + 1))
+  fi
+  cp "$TMP/repro-prov.json" "$repro_prov"
+  check "③ 还原后必须绿" 0 "$(run_repro_gate "$TMP/repro-c2.txt")"
+
+  # 自证：负向对照没有污染真实仓库（§10 全程只动 $TMP 里的夹具）
+  set +e
+  (cd "$ROOT" && ASSET_REPRO_JDK="$repro_jdk" sh scripts/check-asset-reproducible.sh \
+    >/dev/null 2>&1)
+  repro_after=$?
+  set -e
+  check "负向对照后仓库内可复现性仍为绿（工作区未被污染）" 0 "$repro_after"
+fi
+
+echo "== 10b. W13-A1 接线自证：可复现性门禁必须真的在 CI 里跑 =="
+# 与 §8/§9b 同一套判据：把「谁在跑」变成可 grep 的事实，且断言完整命令行
+# （只断言脚本名会命中注释）。
+if [ -f "$ROOT/.cnb.yml" ] && grep -qF 'sh scripts/check-asset-reproducible.sh' "$ROOT/.cnb.yml"; then
+  echo "  [OK  ] .cnb.yml 全量质量门执行 check-asset-reproducible.sh"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] .cnb.yml 没有执行 check-asset-reproducible.sh —— 可复现性门禁不在 CI 里" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 负向对照：拼出来的假路径必须查不到（证明上面那条判据能变红，不是恒命中）
+repro_phantom="scripts/definitely-not-a-real""-repro-gate.sh"
+set +e
+repro_phantom_hits=$(grep -c -F "$repro_phantom" "$ROOT/.cnb.yml")
+set -e
+if [ "$repro_phantom_hits" = "0" ]; then
+  echo "  [OK  ] 不存在的可复现性门禁查不到（接线判据能变红）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 不存在的可复现性门禁竟被查到 $repro_phantom_hits 次 —— 接线判据恒绿" >&2
   FAIL=$((FAIL + 1))
 fi
 
