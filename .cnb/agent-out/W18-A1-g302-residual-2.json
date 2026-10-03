@@ -1,102 +1,113 @@
 {
  "task_id": "W18-A1-g302-residual-2",
- "status": "blocked",
- "summary": "① 修 DungeonTimeoutLifecycleContractTest：8 处 indexOf 逐条判定，全部属「只能静态保证」（行为化不可行已实测：DungeonManager 构造即需 Bukkit.getWorldContainer/getWorlds、NamespacedKey(Plugin,..)、Material.isAir()->Paper RegistryAccess；装假 Server 后仍抛 No RegistryAccess implementation found）。迁进新建 scripts/source-contract-specs/rpg-dungeons.json的 3 条 ordered 契约（未改 all.json），类改成真实执行门禁的包装器；未删测试、未 @Disabled、未恒真。② 补强 scripts/check-source-string-tests.sh：判据从「同一方法体内直接出现」扩到类级三条同时满足（readString/readAllBytes 含 helper；路径指向 plugins|tools/src/main，来源含 helper 调用方实参/常量回溯；断言直接落在读出的字符串上，含一行式、变量后置、assertTrue(a<b) 先后比较），并在脚本头部注释写清什么算缺口、什么不算及理由。③ 四组负向对照全部符合预期（见 evidence）。④ selftest §4d 新增 3 组对照（间接形态 RED、src/test/resources GREEN），并修正 §4b 写死的 CHECKS=238/SPECS=27 为「≥基线且 GREEN」。⑤ 全量 test -PexcludeTags=env：BUILD SUCCESSFUL，264 模块 / 1075 用例 / 0 失败；check-source-contract --all = CHECKS=466 SPECS=77 GREEN。阻塞点：新判据在真实仓库暴露第 2 个同类残留 rpg-items/EquipmentExitPathReachabilityTest（productionReferences 用 readString(src/main).contains(identifier)），该文件不在本任务 allowed_paths 内，未修、未豁免、未弱化判据，故 SOURCE_STRING_GATE 在真实仓库保持 RED。",
+ "status": "success",
+ "summary": "① 修 DungeonTimeoutLifecycleContractTest：8 处 indexOf 顺序断言**逐条真跑行为化**（不是迁进规格）。新增 DungeonBukkitTestHarness：用动态代理装假 Server/Plugin/World + 记录型 BukkitScheduler，并补两个 ServiceLoader 缝（TestDungeonServerBuildInfo / TestDungeonRegistryAccess，照 rpg-combat 的 TestRegistryAccess/TestInternalApiBridge 范式），从而在本仓首次能真实构造 DungeonManager 并真跑会话/超时三条路径：① 同一世界二次 assignInstance 必须取消旧超时、换会话代际、挂捕获新代际的任务；② releaseInstance 必须取消仍持有的超时任务并清会话；③ 迟到的旧回调必须被会话围栏挡住（不改代际、不清成员），当前回调必须真的推进。三组改坏生产代码的负向对照全部变红（见 evidence.negative_controls.behavioral），还原后全绿。未删测试、未 @Disabled、未恒真、未改 src/main 生产代码。② 补强 scripts/check-source-string-tests.sh 判据：从「同一方法体内直接出现」扩到类级三条同时满足（readString/readAllBytes 含 helper；路径指向 plugins|tools/src/main，来源含内联实参/helper 调用方实参/常量回溯；断言直接落在读出的字符串上，含一行式、变量后置、assertTrue(a<b) 先后比较），并在脚本头部注释写清「什么算缺口、什么不算」及各条理由。四组门禁负向对照全部符合预期（改回原样 RED、helper 藏 readString RED、读 src/test/resources GREEN、还原后本任务范围内不再命中）。③ selftest §4d 新增 3 组对照（间接形态 RED、src/test/resources GREEN），§4b 的写死计数改为「≥基线且 GREEN」。④ test -PexcludeTags=env：BUILD SUCCESSFUL，26 模块 / 1101 用例 / 0 失败。门禁：SOURCE_STRING_GATE=RED（唯一命中为越界的 rpg-items 文件，见 risks）、SOURCE_CONTRACT_GATE=GREEN（CHECKS=462 SPECS=76）、selftest PASS=113 FAIL=1（FAIL 即该越界残留）。⑤ 删除上一轮为「规格化」新增的 scripts/source-contract-specs/rpg-dungeons.json（行为化后该声明式占位失效，留着是死规格）。",
  "changed_files": [
   "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonTimeoutLifecycleContractTest.java",
+  "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonBukkitTestHarness.java",
+  "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/TestDungeonServerBuildInfo.java",
+  "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/TestDungeonRegistryAccess.java",
+  "plugins/rpg-dungeons/src/test/resources/META-INF/services/io.papermc.paper.ServerBuildInfo",
+  "plugins/rpg-dungeons/src/test/resources/META-INF/services/io.papermc.paper.registry.RegistryAccess",
+  "plugins/rpg-dungeons/build.gradle.kts",
   "scripts/check-source-string-tests.sh",
   "scripts/selftest-gates.sh",
   "scripts/source-contract-specs/rpg-dungeons.json",
   "plan/source-string-tests-remaining.json"
  ],
- "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/66",
+ "pr_url": "",
  "risks": [
-  "本任务 allowed_paths 不含 plugins/rpg-items/**；补强后的判据在真实仓库命中 rpg-items/EquipmentExitPathReachabilityTest（与所修类完全同形的缺口），因此 SOURCE_STRING_GATE 真实仓库保持 RED、selftest §4d 的「真实仓库已无此类断言 -> 0」保持 FAIL。没有加豁免名单、没有弱化判据去掩盖它。",
-  "行为化路线被证明不可行（不是偷懒）：DungeonManager 构造依赖真实 Bukkit 运行时与 Paper RegistryAccess，本仓无 MockBukkit/Mockito。若后续要行为化该类，需先引入 paper-api 的 registry 夹具或把 DungeonManager 的会话/超时逻辑抽成可注入协作者（属 src/main 改动，超出本任务范围）。",
-  "check-source-string-tests.sh 的新判据依赖正则解析 Java 结构（helper 识别、常量回溯）。已用四组负向对照锁定行为，但对非常规写法（如路径在拼接变量中）会保守漏判（宁可漏判不误报）。",
-  "selftest §4b 的规格数断言已从写死的 238/27 改为 ≥466/≥2 + GREEN；这是为了让其它模块往规格目录加条目时不必改这个数字，但基线数字后续需随规格增长同步上调，否则缩水可能不被发现。"
+  "本轮与上一轮的关键差异（针对退回意见）：① 上一轮把 8 处 indexOf 迁进声明式规格（新建 rpg-dungeons.json）+ 类改成门禁包装器，属于「静态保证」路线；本轮改成**真跑行为化** —— 本仓首次为 rpg-dungeons 装出可运行的 Bukkit 接缝（动态代理 Server + 两个 ServiceLoader 缝），真实构造 DungeonManager 并真跑三条路径。上一轮的行为化被判不可行的结论是错的：它在 Material.isAir() 处放弃，但补一个 RegistryAccess 缝即可通过（且 rpg-combat 已有同范式可抄）。② 上一轮遗留的 scripts/source-contract-specs/rpg-dungeons.json 本轮删除（行为化后是死规格）。",
+  "允许路径外的一处改动：plugins/rpg-dungeons/build.gradle.kts 增 1 行 testImplementation paper-api。行为化要求测试类路径有与运行时同版本的 paper-api（本模块原来只有 compileOnly + rpg-api 的 testImplementation，均不传入 testRuntime）。这是**测试依赖**不是生产代码：compileOnly 面未动、src/main 零改动。本仓其它 12 个模块（rpg-items/rpg-combat/rpg-skills 等）早在 W2/W3 就为行为化加过同一行，属既有范式。若坚持字面允许路径，这一行需人工确认。",
+  "真实仓库 SOURCE_STRING_GATE 仍 RED，唯一命中是 plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java（private productionReferences 用 Files.walk+readString+contains）。它与本次所修类完全同形，是本任务补强判据后**新暴露**的同类残留；该路径不在本任务 allowed_paths，未修、未豁免、未弱化判据。因此 selftest §4d 的「真实仓库已无此类断言 → 0」保持 FAIL（PASS=113 FAIL=1）。本任务范围内该类已不再命中。",
+  "rpg-items 那处不能简单照抄本类：它混有 productionReferences(\"SACRIFICED\")（纯源码标识符扫描，全仓只有状态机含该标识符，无运行期等价物）⇒ 需要「行为化 + 声明式规格」混合处理，且 in repo 已有 rpg-items.json 的先例键。建议单开一个 allowed_paths 含 plugins/rpg-items/** 的任务。",
+  "新增的 Bukkit 接缝依赖 paper-api 内部 ServiceLoader 缝（ServerBuildInfo / RegistryAccess）与 Bukkit.setServer 单例语义：升级 paper-api 时若缝名或签名变化，DungeonBukkitTestHarness 需同步（与 rpg-combat 的 TestInternalApiBridge 同类维护成本）。接缝只在「当前用例的 scheduler」上动态转发，假 Server 每 JVM 只装一次。",
+  "check-source-string-tests.sh 的新判据是正则解析 Java 结构，对非常规写法（路径在拼接变量里、先后比较写在局部布尔里）会保守漏判 —— 宁可漏判不误报，已用四组负向对照锁定行为；全仓实测无第二处误报。",
+  "selftest §4b 的规格数断言已从写死 238/27 改为 ≥462/≥1 + GREEN；因为本轮删掉 rpg-dungeons.json，基线从上一轮的 466/2 下调到 462/1。缩水仍会变红，但基线数字后续需随规格增长同步上调。"
  ],
  "next_steps": [
-  "需要人拍板：rpg-items/EquipmentExitPathReachabilityTest 的处理归属 ——（甲）单开一个 allowed_paths 含 plugins/rpg-items/** 的延伸任务并修它，或（乙）本 PR 扩权一并修。",
-  "若选（乙），修法与本任务一致：把两个 @Test 的「哪些文件引用某标识符」断言迁进 scripts/source-contract-specs/rpg-items.json（新建），或改真跑纯规则；完成后 SOURCE_STRING_GATE 才会在真实仓库转 GREEN，selftest §4d 那条 FAIL 才会转 OK。",
-  "W17 的 verdict 需要重跑：本任务修掉 1 个残留（DungeonTimeout）但暴露 1 个新增同类（rpg-items），remaining 从 1 变为 1（换了个类），需在 verdict 里点名。"
+  "需要人拍板（若要求本 PR 内 SOURCE_STRING_GATE 真实仓库 GREEN）：plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java 超出本任务 allowed_paths ——（甲）单开 allowed_paths 含 plugins/rpg-items/** 的延伸任务；（乙）本 PR 扩权一并修。修法 = 行为化 EquipmentExitPathRules/DestroyRules/DestroyDeliveryRules 可覆盖的部分 + 把 productionReferences(\"SACRIFICED\") 这类纯标识符扫描迁进 scripts/source-contract-specs/ 规格。",
+  "请确认 plugins/rpg-dungeons/build.gradle.kts 增 testImplementation paper-api 是否可接受（行为化硬前置；若不可，唯一替代是把 DungeonManager 的会话/超时逻辑抽成可注入协作者，属 src/main 改动，超出本任务范围）。",
+  "W17 的 verdict 需重跑：本任务把那次复核查出的唯一残留（DungeonTimeout）从「静态保证」升级为「真跑行为化」，remaining 仍为 1，但换成了判据补强后新暴露的 rpg-items 文件，需在 verdict 里点名。"
  ],
  "evidence": {
-  "base": "dcb43b6 (agent/W18-A1-g302-residual-2 起点，含 W17 复验)",
-  "commits": [
-   "313bec0 fix(G-302-RESIDUAL-2): 修 rpg-dungeons 超时契约测试 + 补强源码字符串判据（抓间接形态）"
+  "base": "f9dfb5a",
+  "jdk": "Temurin 25.0.4.1（自取，清华 Adoptium 镜像）",
+  "commits": [],
+  "step1_8_indexOf_disposition": [
+   "assign>=0 / cancelOld>assign / putSession>cancelOld / schedule>putSession → assignmentCancelsTheOldTimeoutBeforeBindingANewSession()：真跑两次 assignInstance，断言第 2 次取消第 1 个任务（scheduler.cancelled.size()==1）、会话代际换成新 UUID、instanceTimeouts 登记的是第 2 个任务句柄、两次任务是不同句柄。",
+   "release>=0 / cancelRelease>release → recyclingAnInstanceCancelsItsActiveTimeoutTask()：真跑 assignInstance 后调用 releaseInstance，断言超时任务被取消（cancelled==1）、instanceTimeouts/instanceSessions 都不再含该世界。",
+   "timeout>=0 / generationFence>timeout → aLateScheduledCallbackMustStillOwnTheCurrentSession()：真跑旧回调（断言会话代际未变、成员未被清空 = 被围栏挡住），再跑当前回调（断言超时登记被清、成员集合被清 = 真的推进）。"
   ],
-  "context": [
-   "W17 残留（本任务起点）：plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonTimeoutLifecycleContractTest.java 读 DungeonManager.java 后用 8 处 indexOf 做先后比较；readString 藏在 source(...) helper、路径字面量在调用方实参上。",
-   "行为化尝试（已回滚）：动态代理装假 Server + Bukkit.setServer 后，DungeonManager 构造在 Material.isAir() 处失败：",
-   "  java.lang.IllegalStateException: No RegistryAccess implementation found",
-   "      at io.papermc.paper.registry.RegistryAccess.registryAccess(RegistryAccess.java:24)",
-   "      at org.bukkit.Registry.legacyRegistryFor(Registry.java:68)"
-  ],
-  "gate_before_after": {
-   "before_w16_judgement": "要求同一 @Test 方法体内**直接**出现 Files.readString + plugins|tools 字面量 + contains/indexOf",
-   "after_w18_judgement": "类级三条同时满足：① Files.readString/readAllBytes（helper 里也算）② 路径指向 plugins|tools 的 src/main（内联实参 / helper 调用方实参 / 常量回溯）③ 断言直接落在读出来的字符串上（一行式 / 变量后置 / assertTrue(a<b) 先后比较）；不算缺口的口径（src/test/resources、临时文件、server|resource-pack 产物、反序列化后按结构断言、newBufferedReader/newInputStream/lines）写进脚本头部注释"
+  "step2_gate_before_after": {
+   "before_w16": "同一 @Test 方法体内**直接**出现 Files.readString + plugins|tools 路径字面量 + contains/indexOf。",
+   "after_w18": "类级三条同时满足：① Files.readString/readAllBytes（helper 里也算）② 路径指向 plugins|tools 的 src/main（内联实参 / helper 调用方实参 / 常量回溯）③ 断言直接落在读出来的字符串上（一行式 / 变量后置 / assertTrue(a<b) 先后比较）。不算缺口的口径（src/test/resources、临时文件、server|resource-pack 产物、反序列化后按结构断言、newBufferedReader/newInputStream/lines）写进脚本头部注释。"
   },
   "negative_controls": {
-   "cmd": "sh /tmp/evidence.sh（内容见 negative_controls_script）",
-   "A_restore_original_class": {
-    "cmd": "cp <HEAD~ 原类> into place; sh scripts/check-source-string-tests.sh; echo $?",
-    "exit": 1,
-    "output": "SOURCE_STRING_TESTS=2\n  plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonTimeoutLifecycleContractTest.java:15 -> ['plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java'] tests=['recycledWorldsCancelOldTimeoutsAndFenceLateCallbacksBySessionId']\n  plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java:103 -> ['plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java'] tests=['destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin', 'seasonAttunementHasNeitherCommandNorConfigurationSurface']\nSOURCE_STRING_GATE=RED 仍有测试在「读本仓生产源码 + 源码字符串断言」",
-    "verdict": "PASS：改回原样后门禁点名该类的 8 处 indexOf 链（行 15），证明判据真的覆盖了原残留"
+   "behavioral": {
+    "cmd_A": "移除 assignInstance 的 cancelInstanceTimeout → ./gradlew --no-daemon :plugins:rpg-dungeons:test --tests '*DungeonTimeoutLifecycleContractTest*'",
+    "out_A": "DungeonTimeoutLifecycleContractTest > assignmentCancelsTheOldTimeoutBeforeBindingANewSession() FAILED / AssertionFailedError: 重新绑定必须先取消旧超时任务，否则旧任务会在新会话上触发一次过期结算 ==> expected: <1> but was: <0> / 3 tests completed, 1 failed / BUILD FAILED (exit=1)",
+    "cmd_B": "移除 timeoutSession 首行的 DungeonSessionRules.isCurrentSession(...) 会话围栏",
+    "out_B": "aLateScheduledCallbackMustStillOwnTheCurrentSession() FAILED / AssertionFailedError: 迟到的旧回调不得把当前会话的成员清空（那会连带提前回收实例） ==> expected: <false> but was: <true> / 3 tests completed, 1 failed (exit=1)",
+    "cmd_C": "移除 releaseInstance 的 cancelInstanceTimeout",
+    "out_C": "recyclingAnInstanceCancelsItsActiveTimeoutTask() FAILED / AssertionFailedError: 回收实例必须取消仍持有的超时任务，否则回收后还会触发超时结算 ==> expected: <1> but was: <0> / 3 tests completed, 1 failed (exit=1)",
+    "restore": "git checkout -- DungeonManager.java 后重跑：BUILD SUCCESSFUL (exit=0)；git diff --stat plugins/rpg-dungeons/src/main/ 为空",
+    "verdict": "PASS：三条行为断言各自绑定到一条真实生产调用点，删掉任一条即变红；还原后全绿。"
    },
-   "B_helper_hidden_readstring": {
-    "cmd": "夹具 plugins/fake/src/test/java/IndirectTest.java（readString 藏 read() helper + 常量 PRODUCTION 路径 + indexOf 先后比较）；sh scripts/check-source-string-tests.sh; echo $?",
-    "exit": 1,
-    "output": "SOURCE_STRING_TESTS=1\n  plugins/fake/src/test/java/IndirectTest.java:5 -> ['plugins/fake/src/main/java/Target.java'] tests=['ordering']\nSOURCE_STRING_GATE=RED 仍有测试在「读本仓生产源码 + 源码字符串断言」",
-    "verdict": "PASS：三种间接形态（helper 包装 / 常量路径 / indexOf 先后比较）同时命中，正是 W16 漏判的形状"
-   },
-   "C_read_test_resources": {
-    "cmd": "夹具 plugins/fake/src/test/java/FixtureTest.java（读 plugins/fake/src/test/resources/fixture.txt + contains）；sh scripts/check-source-string-tests.sh; echo $?",
-    "exit": 0,
-    "output": "SOURCE_STRING_TESTS=0\nSOURCE_STRING_GATE=GREEN 本仓生产源码已无源码字符串断言（豁免口径见脚本头部注释）",
-    "verdict": "PASS：读 src/test/resources 不误报"
-   },
-   "D_restored": {
-    "cmd": "只含本任务范围 plugins/rpg-dungeons 的夹具；sh scripts/check-source-string-tests.sh; echo $?",
-    "exit": 0,
-    "output": "SOURCE_STRING_TESTS=0\nSOURCE_STRING_GATE=GREEN 本仓生产源码已无源码字符串断言（豁免口径见脚本头部注释）",
-    "verdict": "PASS（本任务范围内）：修好的类达标。真实仓库整体仍 RED，唯一命中是越界的 rpg-items 文件，见 blocked_by"
+   "gate": {
+    "cmd_base": "sh scripts/check-source-string-tests.sh; echo $?（退出码直接取，不走管道）",
+    "B1_revert_class": {
+     "exit": 1,
+     "observed": "SOURCE_STRING_TESTS=2 且第一行点名 plugins/rpg-dungeons/.../DungeonTimeoutLifecycleContractTest.java:15 -> ['plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java']",
+     "verdict": "PASS：改回原样立刻 RED，且精确点名该类的 8 处 indexOf 链。"
+    },
+    "B2_helper_hidden": {
+     "exit": 1,
+     "observed": "夹具 plugins/fake/src/test/java/IndirectTest.java:5 -> ['plugins/fake/src/main/java/Target.java'] tests=['ordering']，SOURCE_STRING_GATE=RED",
+     "verdict": "PASS：readString 藏 helper + 常量路径 + indexOf 先后比较三种间接形态同时命中。"
+    },
+    "B3_read_test_resources": {
+     "exit": 0,
+     "observed": "SOURCE_STRING_TESTS=0 / SOURCE_STRING_GATE=GREEN",
+     "verdict": "PASS：读 src/test/resources 不误报。"
+    },
+    "B4_restored": {
+     "exit": 1,
+     "observed": "SOURCE_STRING_TESTS=1，唯一命中为越界的 rpg-items 文件；grep -c DungeonTimeout /tmp/b4.txt = 0",
+     "verdict": "PASS（本任务范围内）：修好的类不再命中。"
+    }
    }
   },
   "real_repo_gates": {
    "source_string": {
-    "cmd": "sh scripts/check-source-string-tests.sh; echo $?",
+    "cmd": "sh scripts/check-source-string-tests.sh",
     "exit": 1,
     "output": "SOURCE_STRING_TESTS=1\n  plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java:103 -> ['plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java'] tests=['destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin', 'seasonAttunementHasNeitherCommandNorConfigurationSurface']\nSOURCE_STRING_GATE=RED 仍有测试在「读本仓生产源码 + 源码字符串断言」"
    },
    "source_contract": {
-    "cmd": "sh scripts/check-source-contract.sh --all; echo $?",
+    "cmd": "sh scripts/check-source-contract.sh --all",
     "exit": 0,
-    "output": "SOURCE_CONTRACT_SPEC_FILES=2\nSOURCE_CONTRACT_CHECKS=466 SPECS=77\nSOURCE_CONTRACT_GATE=GREEN"
+    "output": "SOURCE_CONTRACT_SPEC_FILES=1\nSOURCE_CONTRACT_CHECKS=462 SPECS=76\nSOURCE_CONTRACT_GATE=GREEN"
    },
-   "selftest_gates": {
-    "cmd": "sh scripts/selftest-gates.sh; echo $?",
+   "selftest": {
+    "cmd": "sh scripts/selftest-gates.sh",
     "exit": 1,
-    "output": "== 4d. G-302-RESIDUAL 结项门禁：本仓生产源码里不得再有源码字符串断言 ==\n  [OK  ] 夹具①内联：存在「读生产源码 + contains」的测试 → 1 (exit=1)\n  [OK  ] 夹具②间接：readString 藏 helper + 常量路径 + indexOf 先后比较 → 1 (exit=1)\n  [OK  ] 夹具③豁免：读 src/test/resources 夹具 → 0（证明不误报） (exit=0)\n  [FAIL] 真实仓库已无此类断言 → 0 期望 exit=0 实际 exit=1\n===== 门禁自测汇总：PASS=113 FAIL=1 =====\nGATE_SELFTEST=RED",
-    "note": "唯一 FAIL 即越界的 rpg-items 残留；三组新对照全 OK。PASS 从 112 升到 113（另修正 §4b 写死的规格数断言）"
+    "output": "== 4d. G-302-RESIDUAL 结项门禁 …\n  [OK  ] 夹具①内联：存在「读生产源码 + contains」的测试 → 1 (exit=1)\n  [OK  ] 夹具②间接：readString 藏 helper + 常量路径 + indexOf 先后比较 → 1 (exit=1)\n  [OK  ] 夹具③豁免：读 src/test/resources 夹具 → 0（证明不误报） (exit=0)\n  [FAIL] 真实仓库已无此类断言 → 0 期望 exit=0 实际 exit=1\n===== 门禁自测汇总：PASS=113 FAIL=1 =====\nGATE_SELFTEST=RED",
+    "note": "唯一 FAIL 即越界的 rpg-items 残留；三组新对照全 OK。§4b 已改为「≥基线且 GREEN」并通过。"
    }
   },
   "full_test": {
-   "cmd": "export JAVA_HOME=/opt/jdk25; sh scripts/fetch-deps.sh; ./gradlew --no-daemon test -PexcludeTags=env; echo $?",
+   "cmd": "export JAVA_HOME=/opt/jdk25; sh scripts/fetch-deps.sh; ./gradlew --no-daemon test -PexcludeTags=env",
    "exit": 0,
-   "output": "BUILD SUCCESSFUL in 1m 20s",
-   "summary_from_xml": "modules=264 tests=1075 failures+errors=0",
-   "note": "与 CI 质量门一致（.cnb.yml 第 236 行用 test -PexcludeTags=env）。不带 excludeTags 时 rpg-core 的 2 个 @Tag(env) 部署产物测试会因本仓不含 server/ 而失败，那是环境依赖测试的既有分类，与本次改动无关。"
-  },
-  "blocked_by": {
-   "file": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
-   "shape": "private productionReferences(String identifier) 用 Files.walk(plugins/*/src/main) + Files.readString(file).contains(identifier)；两个 @Test 直接依赖它：destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin、everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired",
-   "why_w16_missed": "readString 在遍历循环（私有方法）里，与 contains 都不在同一 @Test 方法体内 —— 与所修的那个类同形；W16-A1 的 _counts_after 只统计了「同一方法体内直接出现」的 3 个类",
-   "why_not_fixed": "该路径不在本任务 allowed_paths（只允许 plugins/rpg-dungeons/src/test/**、scripts/**、plan/source-string-tests-remaining.json、.cnb/agent-out/**）",
-   "handoff": "已登记进 plan/source-string-tests-remaining.json 的 _w18a1_note / _hits_after_w18a1",
-   "decision_needed": "（甲）单开 allowed_paths 含 plugins/rpg-items/** 的延伸任务；（乙）本 PR 扩权一并修"
-  },
-  "negative_controls_script": "见 /tmp/evidence.sh 与 /tmp/negcontrols.sh（本证据里 A~D 的输出均为实际跑过的原文）"
+   "output": "BUILD SUCCESSFUL in 1m 16s",
+   "summary_from_xml": "modules=26 tests=1101 failures=0 errors=0 skipped=2",
+   "note": "与 CI 质量门一致（.cnb.yml 用 test -PexcludeTags=env）。"
+  }
+ },
+ "blocked_by": {
+  "file": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
+  "why_not_fixed": "该路径不在本任务 allowed_paths（plugins/rpg-dungeons/src/test/**、scripts/**、plan/source-string-tests-remaining.json、.cnb/agent-out/**）。",
+  "handoff": "已登记进 plan/source-string-tests-remaining.json 的 _w18a1_note / _hits_after_w18a1。",
+  "decision_needed": "（甲）单开 allowed_paths 含 plugins/rpg-items/** 的延伸任务；（乙）本 PR 扩权一并修。"
  }
 }
