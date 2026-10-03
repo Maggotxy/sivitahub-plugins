@@ -114,7 +114,7 @@
       "示例": "(python3 -B scripts/check-asset-baseline.py --root /tmp/w12a1 > /tmp/final3.out 2>&1); echo FINAL_CASE3_EXIT=$? → 1"
     }
   },
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/54",
   "risks": [
     "指纹口径 = 解码后 8bit 取样（ARGB），16bit PNG 取高字节、子字节位深按比例映射。若将来有人用 ImageIO 的 getRGB 之外的取样口径核对，可能对不上 —— 但仓内 252 张里没有 16bit 图，且 CI 侧判据以 scripts/asset_fingerprint.py 为唯一口径。",
     "betterhud/bettermodel 的纹理由外部工具链（BetterHud / BetterModel）消费，本任务只做「防篡改」登记，未核对它们与运行期渲染结果的一致性（那是 W12-A3 的可复现性断言范围）。",
