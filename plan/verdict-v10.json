@@ -1,0 +1,96 @@
+{
+ "done": true,
+ "impossible": false,
+ "basis": "1ace5ab",
+ "reason": "✅ 四个 done 条件全部成立（本任务 §2 复核口径）：① 差集矩阵里「声明未接线」= 0 条，且**没有可派工的实现缺口** —— G-302-RESIDUAL 系列全部清零，并用**方法体复核 + 三组现场负向夹具**证明判据本身没有被放宽到失去意义（§6）。② 十门在 M5=1ace5ab 上两次连续全绿：权威 sn=cnb-785-1k41j43k2（event=api_trigger_gate，sha=1ace5ab，status=success，13 stage）、复核 sn=cnb-q65-1k41k0gtr（同 sha 同 event，success）—— 判据行 GATE_SELFTEST=GREEN(PASS=132 FAIL=0) / COMPILE_GATE=GREEN(TASKS_DONE=28 BUILD_EXIT=0 SECONDS=122) / TEST_GATE=GREEN(SUM tests=1102 failed=0 errors=0 skipped=2 modules=26) / SUMMARY_GATE=GREEN / PACKAGE_GATE=GREEN(JAR_COUNT=56) / RESOURCE_PACK_GATE=GREEN / ASSET_BASELINE_GATE=GREEN / ASSET_REPRO_GATE=GREEN / DDL_CONSUMER_GATE=GREEN / DDL_REGISTRATION_GATE=GREEN / CMD_REFERENCE_GATE=GREEN / SINGLE_SOURCE_OF_TRUTH_GATE=GREEN(WORLD_STATE_FILES=1) / VERDICT_MATRIX_CONSISTENCY_GATE=GREEN。③ 素材层四条全部成立（零消费者=0 逐条给 21 个脚本的调用点原文；252↔252 UNREGISTERED/MISSING/MODIFIED 全 0；provenance 与 manifest 归一后同集合、$needsHumanDecision=[]、六类合计 252；items 81 == runtime-item-models 81（diff IDENTICAL）且七项素材判据全 exit=0）。④ 剩余问题**只有** REQUIRES_HUMAN（H-001 生产机写操作 / U-003 真实客户端握手 / W7-A2 的 4 条 [R] 级 unproven）。⇒ done=true / remaining=0。三条关键自查：**「计数下降」不等于「缺口清零」**（SOURCE_STRING_TESTS=0 只是表象，本轮逐条读 4 个类的 @Test 方法体确认读的是夹具/规格/进程 stdout/配置解析而非生产源码正文）；**「判据变窄」不等于「问题消失」**（W18 第二轮把遍历式源码扫描整体豁免 ⇒ 判据变窄、问题仍在；本轮夹具⑦⑧证明该豁免已被 #69 撤掉，形态④真会红）；**「门禁 GREEN」不等于「判据没有过宽豁免」**（§6.4 逐条复核 6 种豁免口径，两处「看似豁免」的形态都有实质理由，无一条是「本该判红却被放过」）。",
+ "remaining": 0,
+ "remaining_ids": [],
+ "condition_1_no_declared_unwired": true,
+ "condition_1_note": "差集矩阵 v10 的判定列里「声明未接线」= 0 条（plugins/** 与脚本层全部有真实消费者；DDL 81 张表豁免 0 条）；「可派工的实现缺口」= 0 条 —— G-302-RESIDUAL-2（DungeonTimeoutLifecycleContractTest 8 处 indexOf）已真跑行为化；G-302-RESIDUAL-3（assert 包住读取 / Path.of(常量) 被漏判）与 G-302-RESIDUAL-4（遍历式源码扫描被整体豁免）两条**判据反向失效**均已闭环，并由夹具⑤⑥⑦⑧现场反证（各自 RED → 删除 → GREEN）。",
+ "condition_2_gates_green_on_current_main": true,
+ "condition_2_evidence": "basis 实测 = HEAD = origin/main = 1ace5ab89faf563b70af78cee4926330f7906187（两者相等），且 basis 自身就是 M5 ⇒ 十门证据的构建输入与本轮判定 basis 同集合（本分支 git diff --name-only 1ace5ab HEAD 只含 plan/**、state/**、doc/cnb/**、.cnb/agent-out/**，无一个构建输入）。权威 sn=cnb-785-1k41j43k2：status=success，event=api_trigger_gate，targetRef=main，sha=1ace5ab，pipelineSuccessCount=1/pipelineFailCount=0，13 stage（准备下载器 17914ms / 门禁自测 581486ms / DDL 116394ms / 素材 516ms / 基线 340ms / 可复现性 1487ms / compile 131446ms / test 43979ms / assemble 7596ms 全 success，DebugDetection skipped）。复核 sn=cnb-q65-1k41k0gtr：同 sha 同 event，status=success，13 stage 全 success（门禁自测 624574ms / test 44317ms），关键判据行与权威构建逐条一致（PASS=132 FAIL=0 / tests=1102 failed=0 / CHECKS=469 SPECS=79）。两次同 sha 连续全绿是「门禁假红已缓解」的直接证据：改前 b6d38bf 的 cnb-tn4-1k4141s0e 是 stage-7 error（AnomalyReviewCommandTest …WritesNothing FAILED，SUM tests=1101 failed=1）vs cnb-h3n-1k414popl success；334fb54 的 cnb-d93-1k41bqhbe 是 stage-7 error vs cnb-esl-1k41cpau5 success。",
+ "condition_3_asset_layer_four": true,
+ "condition_3_evidence": "(a) 零消费者=0：scripts/ 下 21 个 .sh/.py 逐个给真实调用点原文（13 个有 .cnb.yml stage 入口，如 .cnb.yml:71 sh scripts/selftest-gates.sh / :89 check-ddl-consumers.sh / :117 check-resource-pack.sh / :143 check-asset-baseline.py / :171 check-asset-reproducible.sh；其余 8 个由 selftest-gates.sh 或插件 *ContractTest 经 ProcessBuilder 真跑，如 EnhancementFallbackContractTest.java:37、TrustedMenuBoundaryContractTest.java:62、selftest-gates.sh:181/719/1225/1292）。另有 W19 新增的 scripts/source-contract-specs/rpg-core.json 被 check-source-contract.sh 真实加载（SOURCE_CONTRACT_SPEC_FILES=3）。(b) python3 scripts/check-asset-baseline.py → EXIT=0 / 校验 252 张 PNG（清单 252 条）/ UNREGISTERED=0 MISSING=0 MODIFIED=0 / ASSET_BASELINE_GATE=GREEN；manifest 实测 252 条 == find 磁盘 252 张。(c) manifest 252 == provenance 252（归一 assets/ 前缀后 manifest-only=0 prov-only=0）、$needsHumanDecision=[]（空数组）、六类 $counts 合计 252（generator 129 / derived-from 69 / upstream-betterhud 38 / ai-prompt 10 / upstream-vanilla 5 / human-override 1）。(d) items 定义 81 == runtime-item-models 去注释键 81（diff IDENTICAL），且 python3 scripts/resource-pack-asset-check.py --root . --check {closure,compass,hud,journey,lang,packmeta,textures} 七项全部 exit=0。素材可复现性本地未复跑（本容器无 JDK：command -v java/javac 均无输出），以 M5 stage-5 的 REPRODUCIBLE=70 MISMATCH=0 为证据，如实说明。",
+ "condition_4_only_requires_human": true,
+ "condition_4_note": "剩余问题只有 REQUIRES_HUMAN，共 3 类：H-001（原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/maintain-world-coverage.sh）；U-003（纯原版客户端能否真握手进服，需真实 Paper + 真实客户端）；W7-A2 遗留的 4 条 [R] 级 unproven（G-207 计数器内存态 / G-205 启动对账需真实 Bukkit / G-209 20 tick 是表现层推理值 / G-208 fail-closed 未在真实 Paper 验证）。无一条是代码接线缺口。",
+ "verdict_conditions": {
+  "no_declared_unwired": true,
+  "no_dispatchable_implementation_gap": true,
+  "gates_green_on_M5": true,
+  "asset_layer_four": true,
+  "only_requires_human": true
+ },
+ "g302_residual_series": {
+  "gate_line": "SOURCE_STRING_TESTS=0 / SOURCE_STRING_GATE=GREEN / EXIT=0（--json: {\"hits\": [], \"count\": 0}）",
+  "residual_2_closed": "plugins/rpg-dungeons/.../DungeonTimeoutLifecycleContractTest.java：`grep -n 'readString|readAllBytes|Files\\.'` 只命中 :19（注释）；3 个 @Test 真跑 DungeonManager + 记录型 BukkitScheduler，断言 scheduler.callbacks/cancelled/instanceSessions 等可观察状态。",
+  "residual_3_closed": "判据反向失效①（assert 包住读取 / Files.readString(Path.of(常量))）已由 #67 修复；夹具⑤（文件:行号 plugins/rpg-core/src/test/java/_gatefixture/Fixture5WrappedAssertTest.java:11）EXIT=1 RED，夹具⑥（…Fixture6ConstPathTest.java:7）EXIT=1 RED，删除后 GREEN。",
+  "residual_4_closed": "判据反向失效②（遍历式源码扫描整体豁免）已由 #69 撤销：reads_production_source_via_traversal() 在（check-source-string-tests.sh:217），productionReferences helper 已删除（全仓只剩 3 处注释）。夹具⑦（…Fixture7TraversalTest.java:17）EXIT=1 RED、夹具⑧ resolve 拼接变体（…Fixture8RootResolveTest.java:20）EXIT=1 RED。",
+  "gate_not_weakened": {
+   "samples_reviewed": 4,
+   "fixtures_negative": 4,
+   "counter_example_not_flagged": "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java（Files.newInputStream + SnakeYAML 真解析）未被判红",
+   "specs_not_shrunk": "SOURCE_CONTRACT_CHECKS=469 SPECS=79 SOURCE_CONTRACT_SPEC_FILES=3（v8 基线 462/78/2）；SPEC_FILES 2→3 因 #69 新建 rpg-core.json，符合预期"
+  }
+ },
+ "artifact_layer": {
+  "zero_consumer": 0,
+  "asset_baseline": "252↔252, UNREGISTERED=0 MISSING=0 MODIFIED=0, ASSET_BASELINE_GATE=GREEN",
+  "provenance": "同集合(manifest-only=0 prov-only=0), $needsHumanDecision=[], 六类合计 252",
+  "items": "81 == 81 (diff IDENTICAL); 七项 resource-pack-asset-check 全 exit=0",
+  "asset_repro_local": "未本地复跑（本容器无 JDK）—— 以 M5 stage-5 为证据"
+ },
+ "registered_defects_closed": {
+  "G-FLAKY-GATE": "plugins/rpg-admin/.../AnomalyReviewCommandTest.java：grep awaitQuiet 只剩 :283 注释；:239 awaitChainSettled()（onIdle().await 在飞归零 + isBusy 复位 + 硬超时抛 AssertionError）；:294 永久回归测试 slowAsyncHopStillYieldsTheExpectedBroadcast（每跳 parkNanos(100ms)），断言仍是 admin.anomaly-not-pending（未放宽）。W21-A1 json：post_fix_30_runs=6 hog 下 30/30 rc=0；negative_control sabotage_rc=1 且实际值非空 ⇒ 断言没被『等没了』。同 sha 1ace5ab 两次连续全绿。",
+  "G-DUP-WORLDSTATE": "test ! -e plan/world-state.json 成立（git ls-files 只有 state/world-state.json）；CI stage-1 SINGLE_SOURCE_OF_TRUTH_GATE=GREEN / WORLD_STATE_FILES=1；负向夹具 RED（state=48679B plan=45B）。",
+  "G-VERDICT-MATRIX-SPLIT": "CI stage-1 VERDICT_MATRIX_CONSISTENCY_GATE=GREEN；本轮 v10 矩阵前 20 行 `> verdict: done=true remaining=0` 与 `basis: 1ace5ab` 与 verdict-v10.json 的 done/remaining/basis 逐字一致（§7.3 自查已贴）。"
+ },
+ "gates": {
+  "evidence_sn": "cnb-785-1k41j43k2",
+  "review_sn": "cnb-q65-1k41k0gtr",
+  "evidence_sha": "1ace5ab",
+  "event": "api_trigger_gate",
+  "targetRef": "main",
+  "same_sha_green_twice": true,
+  "gate_selftest": "GREEN (PASS=132 FAIL=0)",
+  "downloader": "GREEN (curl=yes python3=yes sha256sum=yes / DOWNLOADER=ready)",
+  "ddl_consumer": "GREEN (81 张表，豁免 0)",
+  "ddl_registration": "GREEN (549 文件扫描，反向豁免 0)",
+  "cmd_reference": "GREEN (43 指令，豁免 9)",
+  "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
+  "asset_baseline": "GREEN (252 张 PNG 逐像素对账)",
+  "asset_repro": "GREEN (REPRODUCIBLE=70 MISMATCH=0)",
+  "compile": "GREEN (TASKS_DONE=28 BUILD_EXIT=0 SECONDS=122 ATTEMPTS=1)",
+  "test": "GREEN (SUM tests=1102 failed=0 errors=0 skipped=2 modules=26)",
+  "summary": "GREEN (NO_XML modules=0 期望模块数=26)",
+  "package": "GREEN (JAR_COUNT=56 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)",
+  "source_string": "GREEN (SOURCE_STRING_TESTS=0；在 stage-1 经 selftest §4d 真实执行，夹具①..⑥ exit 断言全 [OK])",
+  "source_contract": "GREEN (CHECKS=469 SPECS=79 SPEC_FILES=3)",
+  "single_source_of_truth": "GREEN (WORLD_STATE_FILES=1)",
+  "verdict_matrix_consistency": "GREEN"
+ },
+ "basis_scope": {
+  "head": "1ace5ab",
+  "origin_main": "1ace5ab",
+  "equal": true,
+  "diff_vs_M5": [
+   "plan/**",
+   "state/**",
+   "doc/cnb/**",
+   ".cnb/agent-out/**"
+  ],
+  "build_inputs_touched": false
+ },
+ "needs_human": [
+  "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/maintain-world-coverage.sh（生产机写操作，L-006）。",
+  "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端（REQUIRES_HUMAN）。",
+  "W7-A2 遗留的 4 条 [R] 级 unproven：G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证。"
+ ],
+ "artifacts": [
+  "plan/gap-matrix-v10.md",
+  "plan/verdict-v10.json",
+  "plan/tasks-w23.json",
+  "state/world-state.json",
+  ".cnb/agent-out/W23-A1-verdict-v10.json",
+  "doc/cnb/gap-registry.md"
+ ]
+}
