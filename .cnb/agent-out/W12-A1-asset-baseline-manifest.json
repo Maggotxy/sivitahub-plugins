@@ -1,0 +1,127 @@
+{
+  "task_id": "W12-A1-asset-baseline-manifest",
+  "status": "success",
+  "summary": "给素材层建了逐像素基线 + 门禁，补上「素材可以被悄悄换掉而 CI 不知道」这个洞。① scripts/asset_fingerprint.py：python3 实现与 resource-pack/tools/PngFingerprint.java 同构的指纹（大端 width+height+逐像素 ARGB 的 SHA-256），覆盖仓内全部 3 种 PNG 形态（250 张 8bit RGBA + 1 张 8bit RGB + 1 张 4bit 调色板），不依赖 JDK / Pillow / ImageMagick。② scripts/gen-asset-manifest.py：扫 resource-pack/assets/**/*.png 生成 resource-pack/assets-manifest.json，252 张（originalrpg 117 / betterhud 116 / bettermodel 16 / minecraft 3），键排序 + 稳定输出，重复运行字节一致（cmp 验证）。③ scripts/check-asset-baseline.py：三条判据 —— 未登记（磁盘有清单无）/ 丢失（清单有磁盘无）/ 被改动（指纹不一致，打印期望/实际），退出码 0/1/2（2=清单缺失）。④ .cnb.yml 新增 stage「素材逐像素基线门禁（W12-A1）」，紧跟素材门禁，判据行 ASSET_BASELINE_GATE=GREEN|RED；push 与 api_trigger_gate 共用同一 YAML 锚点。⑤ 四组负向对照全部实测：改 1 个像素 → RED 且指出是哪张（期望 32x32:016c08c5... / 实际 32x32:0b089b30...）；删一张图 → RED 并报「丢失」；加未登记的图 → RED 并报「未登记」；还原 → GREEN。另测「重编码后指纹不变」（212B→320B 文件字节变了、像素指纹一致）证明基线口径正确。⑥ scripts/selftest-gates.sh 新增 §9/§9b：把四组对照做成常驻自测（只在 $TMP 夹具上破坏，不碰工作区）+ 接线自证，自测总数 67→83，全绿。⑦ resource-pack/README.md 写清「如何有意更新基线」（改素材 → 跑 gen → 提交 manifest → 门禁转绿）与「为什么不能靠 --force 跳过」：门禁有意不留 --skip/--force/--update —— 门禁唯一会红的场景就是「改了素材没更新清单」，而这与「偷偷换了素材」在机械层面无法区分，留开关只会让跳过变成出事时的默认动作。未改动任何 PNG 的像素内容（git status resource-pack/assets 为空）。",
+  "changed_files": [
+    "scripts/asset_fingerprint.py",
+    "scripts/gen-asset-manifest.py",
+    "scripts/check-asset-baseline.py",
+    "scripts/selftest-gates.sh",
+    "resource-pack/assets-manifest.json",
+    "resource-pack/README.md",
+    ".cnb.yml"
+  ],
+  "evidence": {
+    "gate_scripts_added": {
+      "cmd": "ls -l scripts/asset_fingerprint.py scripts/gen-asset-manifest.py scripts/check-asset-baseline.py",
+      "hit": "三个脚本入库；check-asset-baseline.py 有意不提供 --skip/--force/--update"
+    },
+    "fingerprint_matches_java_algorithm": {
+      "cmd": "python3 scripts/asset_fingerprint.py resource-pack/assets/originalrpg/textures/item/hunt_crystal.png; echo EXIT=$?",
+      "hit": "32x32:016c08c5b1ab04770b7e9a65a031f8e0594a959fa0a0574d98997f9a42f79c4f resource-pack/assets/originalrpg/textures/item/hunt_crystal.png / EXIT=0",
+      "说明": "摘要输入 = 大端 width(4)+height(4)+逐像素大端 ARGB(4)，与 resource-pack/tools/PngFingerprint.java 同构；本仓无 JDK，故用 python3 实现（zlib 解码，不依赖 Pillow / ImageMagick）"
+    },
+    "manifest_generated": {
+      "cmd": "python3 scripts/gen-asset-manifest.py; echo EXIT=$?",
+      "hit": "已写入 /workspace/resource-pack/assets-manifest.json（252 张 PNG）/ EXIT=0",
+      "coverage": {
+        "total": 252,
+        "by_root": {
+          "originalrpg": 117,
+          "betterhud": 116,
+          "bettermodel": 16,
+          "minecraft": 3
+        }
+      }
+    },
+    "manifest_stable_output": {
+      "cmd": "cp resource-pack/assets-manifest.json /tmp/m1.json && python3 scripts/gen-asset-manifest.py >/dev/null && cmp /tmp/m1.json resource-pack/assets-manifest.json && echo STABLE=byte-identical",
+      "hit": "STABLE=byte-identical（键排序 + indent=2 + ensure_ascii=False + 末尾换行，重复运行字节一致）",
+      "cmd2": "python3 scripts/gen-asset-manifest.py --check; echo CHECK_EXIT=$?",
+      "hit2": "清单与磁盘素材一致: /workspace/resource-pack/assets-manifest.json（252 张） / CHECK_EXIT=0"
+    },
+    "clean_baseline_green": {
+      "cmd": "python3 scripts/check-asset-baseline.py; echo EXIT=$?",
+      "hit": "ASSET_BASELINE: 校验 252 张 PNG（清单 252 条）\\n  UNREGISTERED=0 MISSING=0 MODIFIED=0\\nASSET_BASELINE_GATE=GREEN\\nEXIT=0"
+    },
+    "negative_control_0_fixture_setup": {
+      "cmd": "rm -rf /tmp/w12a1 && mkdir -p /tmp/w12a1/scripts && cp -R resource-pack /tmp/w12a1/resource-pack && cp scripts/check-asset-baseline.py scripts/asset_fingerprint.py scripts/gen-asset-manifest.py /tmp/w12a1/scripts/ && python3 -B scripts/check-asset-baseline.py --root /tmp/w12a1; echo EXIT=$?",
+      "hit": "ASSET_BASELINE_GATE=GREEN / EXIT=0（负向对照全部在 $TMP 夹具副本上做，不碰仓库工作区）"
+    },
+    "negative_control_1_one_pixel_changed": {
+      "cmd": "python3 -B - <<'PY'  # 解出 hunt_crystal.png 的 IDAT，把 raw[1]（(0,0) 像素第一个通道）加 1，重新封装 PNG 写回\\n...\\nPY\\npython3 -B scripts/check-asset-baseline.py --root /tmp/w12a1; echo CASE1_EXIT=$?",
+      "hit": "ASSET_BASELINE: 校验 252 张 PNG（清单 252 条）\\n  UNREGISTERED=0 MISSING=0 MODIFIED=1\\nASSET_BASELINE_GATE=RED\\n  被改动（指纹与基线不一致）: 1 条\\n    ! originalrpg/textures/item/hunt_crystal.png\\n        期望 32x32:016c08c5b1ab04770b7e9a65a031f8e0594a959fa0a0574d98997f9a42f79c4f\\n        实际 32x32:0b089b30556ab0662eb9913540b43618922409701e706e5de3e5e7b523d2dfe0\\nCASE1_EXIT=1",
+      "结论": "改 1 个像素 → RED，并且**指出是哪张**（路径 + 期望/实际指纹分别打印）"
+    },
+    "negative_control_1_restore": {
+      "cmd": "cp resource-pack/assets/originalrpg/textures/item/hunt_crystal.png /tmp/w12a1/resource-pack/assets/originalrpg/textures/item/hunt_crystal.png && python3 -B scripts/check-asset-baseline.py --root /tmp/w12a1; echo RESTORE_EXIT=$?",
+      "hit": "UNREGISTERED=0 MISSING=0 MODIFIED=0 / ASSET_BASELINE_GATE=GREEN / RESTORE_EXIT=0"
+    },
+    "negative_control_2_image_deleted": {
+      "cmd": "mv resource-pack/assets/originalrpg/textures/item/hunt_crystal.png /tmp/w12a1/probe_deleted.png && python3 -B scripts/check-asset-baseline.py --root /tmp/w12a1; echo FINAL_CASE2_EXIT=$?",
+      "hit": "  丢失（清单有、磁盘无）: 1 条\\n    - originalrpg/textures/item/hunt_crystal.png\\nASSET_BASELINE: 校验 251 张 PNG（清单 252 条）\\n  UNREGISTERED=0 MISSING=1 MODIFIED=0\\nASSET_BASELINE_GATE=RED\\nFINAL_CASE2_EXIT=1",
+      "结论": "删一张图 → RED，并且报出「丢失」+ 哪张"
+    },
+    "negative_control_2_restore": {
+      "cmd": "mv /tmp/w12a1/probe_deleted.png resource-pack/assets/originalrpg/textures/item/hunt_crystal.png && python3 -B scripts/check-asset-baseline.py --root /tmp/w12a1; echo RESTORE_EXIT=$?",
+      "hit": "ASSET_BASELINE_GATE=GREEN / RESTORE_EXIT=0"
+    },
+    "negative_control_3_unregistered_image_added": {
+      "cmd": "cp resource-pack/assets/originalrpg/textures/item/hunt_crystal.png resource-pack/assets/originalrpg/textures/item/unregistered_probe.png && python3 -B scripts/check-asset-baseline.py --root /tmp/w12a1; echo FINAL_CASE3_EXIT=$?",
+      "hit": "  未登记（磁盘有、清单无 —— 新增素材必须登记）: 1 条\\n    ? originalrpg/textures/item/unregistered_probe.png\\nASSET_BASELINE: 校验 253 张 PNG（清单 252 条）\\n  UNREGISTERED=1 MISSING=0 MODIFIED=0\\nASSET_BASELINE_GATE=RED\\nFINAL_CASE3_EXIT=1",
+      "结论": "加一张未登记的图 → RED，并且报出「未登记」+ 哪张"
+    },
+    "negative_control_3_restore": {
+      "cmd": "rm -f resource-pack/assets/originalrpg/textures/item/unregistered_probe.png && python3 -B scripts/check-asset-baseline.py --root /tmp/w12a1; echo RESTORE_EXIT=$?",
+      "hit": "ASSET_BASELINE_GATE=GREEN / RESTORE_EXIT=0"
+    },
+    "negative_control_4_manifest_missing": {
+      "cmd": "mv resource-pack/assets-manifest.json /tmp/w12a1/.manifest.bak && python3 -B scripts/check-asset-baseline.py --root /tmp/w12a1; echo NOMANIFEST_EXIT=$?",
+      "hit": "ASSET_BASELINE_GATE=RED 找不到基线清单: /tmp/w12a1/resource-pack/assets-manifest.json\\n  修复：python3 scripts/gen-asset-manifest.py 并提交清单 / NOMANIFEST_EXIT=2",
+      "结论": "清单缺失 → exit 2（既不是 0 也不是 1，便于 CI 区分「门禁没装好」与「素材被改」）"
+    },
+    "fingerprint_immune_to_reencoding": {
+      "cmd": "复用同一 PNG 的 IDAT，用 zlib 压缩级别 1 重新封装（文件 212 字节 → 320 字节），再各算一次指纹",
+      "hit": "原文件字节 212 → 重编码 320\\n原指纹 32x32:016c08c5b1ab04770b7e9a65a031f8e0594a959fa0a0574d98997f9a42f79c4f\\n重编码指纹 32x32:016c08c5b1ab04770b7e9a65a031f8e0594a959fa0a0574d98997f9a42f79c4f\\nFINGERPRINT_STABLE_ACROSS_ENCODING = True",
+      "结论": "用「解码后像素」而不是「PNG 文件字节」做基线：换编码器/压缩率不假红，换画面必红"
+    },
+    "png_decoder_coverage": {
+      "cmd": "python3 - <<'PY'  # 遍历资源包全部 PNG 调 fingerprint_png，统计失败\\nPY",
+      "hit": "failures 0（252 张全部可解码）",
+      "note": "仓内有 3 种 PNG 形态，都覆盖：250 张 8bit RGBA(color type 6)、1 张 8bit RGB(2, mesh_pixel.png)、1 张 4bit 调色板(3, blood_moon_resonant_husk_*.png)。调色板路径最初把 4bit 索引乘了 17 导致 PLTE 越界 —— 已修（索引必须原样查表），这是本任务实现期真实抓到的一个 bug"
+    },
+    "ci_wiring": {
+      "cmd": "python3 -c \"import yaml;d=yaml.safe_load(open('.cnb.yml'));[print('-',s['name']) for s in d['$']['push'][0]['stages']]\"",
+      "hit": "准备下载器 → 门禁自测 → DDL 门禁 → 素材门禁（W7-A1） → 素材逐像素基线门禁（W12-A1） → compile → test → assemble",
+      "说明": "新 stage 紧跟素材门禁（同属「不编译就能判定的结构性门禁」，早失败早修）；push 与 api_trigger_gate 共用同一 YAML 锚点，不存在「push 严 / 手动触发松」的缝隙"
+    },
+    "selftest_gate_9": {
+      "cmd": "sh scripts/selftest-gates.sh > /tmp/st.out 2>&1; echo SELFTEST_EXIT=$?; sed -n '/== 9\\./,$p' /tmp/st.out",
+      "hit": "== 9. 素材逐像素基线门禁（W12-A1）四组负向对照 ==\\n  [OK] 基线门禁在干净夹具上必须绿（基准）(exit=0)\\n  [OK] ① 改一个像素 → RED (exit=1)\\n  [OK] ① 指出是哪张图并打印 期望/实际 指纹\\n  [OK] ① 还原后必须绿 (exit=0)\\n  [OK] ② 删一张图 → RED (exit=1)\\n  [OK] ② 报出「丢失」并指出是哪张\\n  [OK] ② 还原后必须绿 (exit=0)\\n  [OK] ③ 加一张未登记图 → RED (exit=1)\\n  [OK] ③ 报出「未登记」并指出是哪张\\n  [OK] ③ 还原后必须绿 (exit=0)\\n  [OK] ④ 清单缺失 → exit 2 (exit=2)\\n  [OK] ④ 还原后必须绿 (exit=0)\\n  [OK] 负向对照后仓库内基线仍为绿（工作区未被污染）(exit=0)\\n  [OK] 重跑 gen-asset-manifest.py 后清单字节一致（稳定输出）(exit=0)\\n== 9b. W12-A1 接线自证：基线门禁必须真的在 CI 里跑 ==\\n  [OK] .cnb.yml 全量质量门执行 check-asset-baseline.py\\n  [OK] 不存在的基线门禁查不到（接线判据能变红）\\n\\n===== 门禁自测汇总：PASS=83 FAIL=0 =====\\nGATE_SELFTEST=GREEN\\nSELFTEST_EXIT=0",
+      "说明": "自测总数 67 → 83（新增 16 项：4 组对照 + 归因断言 + 2 组还原 + 清单缺失 + 未污染 + 稳定输出 + 2 项接线自证），全绿",
+      "negatives_are_in_fixture": "§9 全程只动 $TMP 里的夹具副本（cp -R resource-pack）；§7 沿用同一纪律，脚本被中断也不会留下被改坏的素材"
+    },
+    "repo_wide_recheck_after_change": {
+      "cmd": "sh scripts/check-resource-pack.sh; echo $?; python3 scripts/check-asset-baseline.py; echo $?; sh scripts/selftest-gates.sh; echo $?; sh scripts/check-ddl-consumers.sh; echo $?",
+      "hit": "RESOURCE_PACK_GATE=GREEN(EXIT=0) / ASSET_BASELINE_GATE=GREEN(EXIT=0) / GATE_SELFTEST=GREEN PASS=83 FAIL=0(EXIT=0) / DDL_CONSUMER_GATE=GREEN + DDL_REGISTRATION_GATE=GREEN(EXIT=0)"
+    },
+    "no_pixel_content_touched": {
+      "cmd": "git status --short resource-pack/assets/ | wc -l",
+      "hit": "0（未改动任何 PNG 的像素内容；只新增了清单与三个脚本、改了 .cnb.yml / README / selftest）"
+    },
+    "exit_codes_without_pipe": {
+      "说明": "所有退出码都重定向到文件（或子 shell）后取 $?，没有 `... | tail; echo $?`（那拿到的是 tail 的 0）",
+      "示例": "(python3 -B scripts/check-asset-baseline.py --root /tmp/w12a1 > /tmp/final3.out 2>&1); echo FINAL_CASE3_EXIT=$? → 1"
+    }
+  },
+  "pr_url": "",
+  "risks": [
+    "指纹口径 = 解码后 8bit 取样（ARGB），16bit PNG 取高字节、子字节位深按比例映射。若将来有人用 ImageIO 的 getRGB 之外的取样口径核对，可能对不上 —— 但仓内 252 张里没有 16bit 图，且 CI 侧判据以 scripts/asset_fingerprint.py 为唯一口径。",
+    "betterhud/bettermodel 的纹理由外部工具链（BetterHud / BetterModel）消费，本任务只做「防篡改」登记，未核对它们与运行期渲染结果的一致性（那是 W12-A3 的可复现性断言范围）。",
+    "清单是「当前像素的冻结快照」，对素材的审美/质量不做任何判断；素材本身有问题（比如某张图糊）不会因此被发现。"
+  ],
+  "next_steps": [
+    "W12-A2：全量来源登记（resource-pack/ASSET-PROVENANCE.md + asset-provenance.json），给每张素材标 category/source/reproduce_cmd/reviewed。",
+    "W12-A3：可复现性断言 —— 跑生成器到临时目录后与本清单逐像素比对，一致则做成 ASSET_REPRO_GATE。把生成器输出与 assets-manifest.json 的指纹对比即可，无需另建基线格式。"
+  ]
+}

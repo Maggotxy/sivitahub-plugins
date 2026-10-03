@@ -116,6 +116,32 @@
           chmod +x scripts/*.sh scripts/*.py
           sh scripts/check-resource-pack.sh
 
+      - name: 素材逐像素基线门禁（W12-A1）
+        script: |
+          set -e
+          # 素材门禁（上一 stage）判定的是「素材自洽」：闭包 / 32x32 / 二值 alpha /
+          # 码位 / 语言键。它管不了「这张图还是不是原来那张」—— 换一张同样 32x32、
+          # 同样二值 alpha 的图，八条判据全绿。结果是 83 张物品纹理 + 116 张 betterhud
+          # 纹理 + 16 张 bettermodel 纹理可以被悄悄换掉而没有任何人知道。
+          #
+          # 本 stage 拿 resource-pack/assets-manifest.json 做逐像素对账（252 张）：
+          #   a) 磁盘有、清单无 → 未登记    b) 清单有、磁盘无 → 丢失
+          #   c) 指纹不一致 → 被改动（打印 期望/实际）
+          # 指纹 = 解码后像素的 SHA-256（宽高 + 逐像素 ARGB），与
+          # resource-pack/tools/PngFingerprint.java 同构，但用 python3 实现
+          # （本仓无 JDK）；不受 PNG 编码器元数据 / 滤波 / 压缩率影响。
+          #
+          # 本门禁有意**不留** --skip / --force / --update 开关：一旦有，它就会变成
+          # 出事时的默认动作。有意更新基线的唯一路径：
+          #   python3 scripts/gen-asset-manifest.py && git add resource-pack/assets-manifest.json
+          # 那会作为可评审的 diff 出现在 PR 里。见 resource-pack/README.md。
+          #
+          # 判据自身也被「门禁自测（负向对照）」stage 覆盖：
+          # scripts/selftest-gates.sh §9 做「改 1 像素 / 删图 / 加未登记图 / 还原」
+          # 四组对照，证明它会红也能转绿。
+          chmod +x scripts/*.sh scripts/*.py
+          python3 scripts/check-asset-baseline.py
+
       - name: compile
         script: |
           set -e
