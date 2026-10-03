@@ -2,14 +2,16 @@
 
 > 生成者：CNB CodeBuddy NPC，任务 `W12-A2-asset-provenance`。
 > 分支 `agent/W12-A2-asset-provenance`；基线 `main @ b0a540d`。
-> 机器可读版本：`resource-pack/asset-provenance.json`（键=相对路径，值含 category/source/reproduce_cmd/reviewed），
+> 机器可读版本：`resource-pack/asset-provenance.json`（键 = **相对仓库根的路径**，形如 `assets/...`；
+> 值含 category/source/reproduce_cmd/reviewed），
 > 由 `resource-pack/tools/generate-provenance.py` 从**生成器源码 + 提示词文件**推导（不写死人工结论）。
 > **本任务只做登记与对账，未改动任何 PNG 的像素内容。**
 
 ## 0. 覆盖与口径
 
-覆盖 `resource-pack/assets/**` 下**全部 252 张 PNG**，与磁盘一一对应
-（判据：`asset-provenance.json` 的键集合 == `find assets -name '*.png'`，见 §7 证据）。
+覆盖 `resource-pack/assets/**` 下**全部 252 张 PNG**，与磁盘一一对应。
+键口径：**相对仓库根**，即 `assets/<子路径>/<文件>.png`（在 `resource-pack/` 下跑 `find assets -name '*.png'` 得到的字符串）。
+判据：`asset-provenance.json` 的键集合 == `cd resource-pack && find assets -name '*.png'`（见 §7 证据）。
 
 | 分区 | 张数 | generator | derived-from | ai-prompt | reviewed-baseline |
 | --- | --- | --- | --- | --- | --- |
@@ -226,7 +228,8 @@ Jaccard ≤ 0.29（若为「旋转 / 裁切派生」应当 > 0.9）⇒ **5 张�
 
 - 重新生成：`python3 resource-pack/tools/generate-provenance.py --write`
 - 一致性判据（供 W12-A3 引用）：
-  1. `asset-provenance.json.assets` 的键集合 == `find resource-pack/assets -name '*.png'`；
+  1. `asset-provenance.json.assets` 的键集合 == `cd resource-pack && find assets -name '*.png'`
+     （键形如 `assets/...`，不带 `resource-pack/` 前缀）；
   2. 每个值都有 `category` / `source` / `reproduce_cmd` / `reviewed` 四个字段；
   3. `category == "generator"` 的项，其 `reproduce_cmd` 必须指向仓库内存在的生成器文件；
   4. `category == "ai-prompt"` 的项，其 `source` 必须形如 `<file>:<line>` 且该行存在。

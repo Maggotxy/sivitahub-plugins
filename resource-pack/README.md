@@ -12,8 +12,8 @@
 
 `ASSET-PROVENANCE.md` 是**逐张**的来源登记台账，覆盖 `assets/**` 下全部 **252 张 PNG**
 （item 83 + 罗盘帧 32 + betterhud 116 + bettermodel 16 + 字体图集 2 + minecraft 3），
-与磁盘一一对应。机器可读版本是 `asset-provenance.json`（键 = 相对 `resource-pack/` 的路径，
-值含 `category` / `source` / `reproduce_cmd` / `reviewed`），两边的路径集合与内容**同源同构**。
+与磁盘一一对应。机器可读版本是 `asset-provenance.json`（键 = **相对仓库根的路径**，形如
+`assets/originalrpg/textures/item/xxx.png`；值与 `ASSET-PROVENANCE.md` 的逐张表**同源同构**）。
 
 `category` 四类口径：
 
@@ -32,7 +32,8 @@ python3 resource-pack/tools/generate-provenance.py --write   # 覆盖 asset-prov
 
 **交付给 W12-A3 门禁的四条一致性判据**（均已在本任务实测通过）：
 
-1. `asset-provenance.json` 的键集合 == `find resource-pack/assets -name '*.png'`；
+1. `asset-provenance.json` 的键集合 == `cd resource-pack && find assets -name '*.png'`
+   （键形如 `assets/...`，**不带** `resource-pack/` 前缀；请勿与 `find resource-pack/assets` 的输出直接比较）；
 2. 每个值都有 `category` / `source` / `reproduce_cmd` / `reviewed` 四个字段；
 3. `category == "generator"` 的项，其 `source` 必须指向仓库内真实存在的 `tools/*`；
 4. `category == "ai-prompt"` 的项，其 `source` 必须形如 `<file>:<line>` 且该行存在。
