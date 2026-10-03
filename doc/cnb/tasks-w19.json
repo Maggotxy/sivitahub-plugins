@@ -1,0 +1,21 @@
+{
+  "_comment": "第十九波：修 W18 补强判据后暴露的第 2 个残留（rpg-items/EquipmentExitPathReachabilityTest），并直接提交到 W18 的分支上，让 PR#66 一次带上两处修复、main 全程保持绿。",
+  "_source": "PR#66 的 W18 证据（status=blocked，原因是新判据暴露了 allowed_paths 之外的同类残留）",
+  "tasks": [
+    {
+      "id": "W19-A1-equipment-exit-path-residual",
+      "mode": "implement",
+      "branch": "agent/W18-A1-g302-residual-2",
+      "goal": "W18 把 `check-source-string-tests.sh` 的判据补强后，**在真实仓库暴露了第 2 个同类残留**，但它不在 W18 的 allowed_paths 内，所以 W18 如实报了 blocked 而没有修它、也没有弱化判据。\n\n## 待修（W18 实测）\n`plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java`\n—— 它的 `productionReferences` 用 `readString(src/main).contains(identifier)` 对生产源码做字符串断言。\n\n先自己复跑确认：\n```bash\nsh scripts/check-source-string-tests.sh > /tmp/ss.log 2>&1; echo \"exit=$?\"; cat /tmp/ss.log\n```\n它应报出 `SOURCE_STRING_GATE=RED` 与残留清单。**若它报出的不止这一个类，一并修掉**（逐条列出你实测的清单）。\n\n## 要求\n① 逐条判定该类的每个断言想证明什么，二选一（**不许批量替换**）：\n   (a) **行为化**：能构造真实对象/状态的，改成真跑一次再断言结果。\n       参考同一分支上 W18 的做法与证据：`DungeonManager` 那种「构造即需真实 Bukkit / Paper RegistryAccess」的，       要先实测能否装假 `Server`（W18 实测装了假 Server 仍抛 `No RegistryAccess implementation found` ⇒ 判不可行）。       你若能构造成功，就行为化；**做不到就如实说做不到**，走 (b)。\n   (b) **迁进声明式源码契约**：写进 **新建的** `scripts/source-contract-specs/rpg-items.json`（**不要改 all.json**；`|| 备选` 展开成多条 required、跨多文件作用域按文件归属拆键、`ordered` 链保证在同一文件里成立），并把该类改成真实执行门禁的包装器（照抄同分支上 `DungeonTimeoutLifecycleContractTest` 现在的写法）。\n② **负向对照（必须做）**：① 把修好的断言**改回**原形态（或放同形态夹具）→ `SOURCE_STRING_GATE` 必须 RED；② 还原后必须 GREEN。把命令与输出写进证据。\n③ 跑 `sh scripts/check-source-string-tests.sh` 确认 **`SOURCE_STRING_GATE=GREEN` 且残留清单为空**；跑 `sh scripts/check-source-contract.sh --all` 确认 `SOURCE_CONTRACT_GATE=GREEN` 且 `CHECKS`/`SPECS` 不减少（同分支上 W18 的基线是 `CHECKS=466 SPECS=77`）。\n④ 跑 `./gradlew --no-daemon test -PexcludeTags=env` 确认 BUILD SUCCESSFUL、0 失败（至少覆盖 `:plugins:rpg-items:test` + 下游），把 modules/tests 汇总写进证据。\n⑤ 更新 `plan/source-string-tests-remaining.json`：把已处理的移出，重数，**剩余项逐条写明性质**。\n⑥ PR #66 的描述里追加一段「W19 追加」：你修了哪个类、用什么方式、负向对照结果、以及两条门禁的最终判据行。\n⑦ 目标：**让 `SOURCE_STRING_GATE` 在真实仓库转 GREEN 且残留清单为空** —— 这是 G-302 这条链上最后一个已知残留。\n\n【环境事实】\n- 你的工作分支是 **`agent/W18-A1-g302-residual-2`**（已有 PR #66 开着）。**直接在本分支上继续提交**，让 PR #66 把两处修复一起带上 —— 这样 main 全程保持绿。\n- 该分支上已有 W18 的成果：\n  · `DungeonTimeoutLifecycleContractTest` 的 8 处 indexOf 已迁进 **新建的** `scripts/source-contract-specs/rpg-dungeons.json`（3 条 `ordered` 契约，未改 all.json），类改成真实执行门禁的包装器\n  · `scripts/check-source-string-tests.sh` 判据已**补强**：从「同一方法体内直接出现」扩到**类级三条同时满足**（readString/readAllBytes 含 helper；路径指向 `plugins|tools/src/main` 含 helper 调用方实参/常量回溯；断言直接落在读出的字符串上，含一行式、变量后置、`assertTrue(a<b)` 先后比较）\n  · `scripts/selftest-gates.sh` §4d 新增 3 组对照（间接形态 RED、`src/test/resources` GREEN）；§4b 的写死计数改成「≥基线且 GREEN」\n- **本仓没有 JDK**：跑 gradle 前先自取 Temurin 25（清华 Adoptium 镜像）\n\n【证据契约】写 .cnb/agent-out/<task-id>.json，evidence 必须是实际跑过的命令原文与输出。\n**取退出码不要走管道**：`sh x | tail; echo $?` 拿到的是 tail 的 0；必须重定向到文件再取 $?。\n\n【禁止】不改宪法；不新增货币/转数；注释用中文。不许删测试、不许 `@Disabled`、不许改成恒真。**不许弱化判据、不许加豁免** —— 把类修好让门禁自然转绿。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/rpg-items/src/test/**",
+        "scripts/**",
+        "plan/source-string-tests-remaining.json",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "只改测试与 scripts/，不要改 src/main 下的生产代码（负向对照时临时改坏要还原）。不要删测试、不要弱化判据、不要加豁免。不要改 all.json（新建 rpg-items.json）。取退出码不要走管道。"
+    }
+  ]
+}
