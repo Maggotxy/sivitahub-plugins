@@ -13,7 +13,7 @@
     ".cnb/agent-out/evidence/W21-A2-evidence.md",
     ".cnb/agent-out/W21-A2-ledger-and-guards.json"
   ],
-  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/71",
   "evidence": {
     "ledger_defect_repro": {
       "commit": "6500a21e58f0c52133f1306ce1d0b3f12513ba31 (feat(plan): W17 复验当前 main，判 done=false（G-302-RESIDUAL-2）)",
@@ -137,9 +137,15 @@
       "violations": "0（全部落在 scripts/**、plan/**、state/**、doc/cnb/**、.cnb/agent-out/** 内）"
     },
     "pr": {
-      "url": null,
-      "note": "见本轮新建 PR（标题以 [agent/W21-A2-ledger-and-guards] 开头，base=main，head=agent/W21-A1-fix-flaky-test-gate）。上一轮的 #70 已 merged，不能复用。",
-      "state_after_create": null
+      "number": 71,
+      "url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/71",
+      "title": "[agent/W21-A2-ledger-and-guards] 账本唯一真相源 + verdict↔矩阵一致两条门禁（PASS=132 FAIL=0，含正负夹具）",
+      "state": "open",
+      "is_merged": false,
+      "base": "refs/heads/main (sha=334fb54b6f83c41df5c56b03f325a97c9a97cb17)",
+      "head": "refs/heads/agent/W21-A1-fix-flaky-test-gate (sha=8890c5dbbc40242992f43adc4a0702c7048b5420)",
+      "verify_cmd": "cnb pulls get-pull --repo xzqkjmnbvc2026/sivitahub --number 71",
+      "note": "上一轮的 PR #70 已 merged（is_merged=true / mergeable_state=merged），不能作为本任务的「发起 PR」交付；本轮新建 #71。"
     },
     "this_round_rework": {
       "trigger": "上一轮被判失败：工作分支停在合并前 sha、且结果 JSON 的 pr.state=open 与平台回读的 merged 不符。",
