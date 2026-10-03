@@ -1,0 +1,1788 @@
+{
+ "$comment": [
+  "每张素材（resource-pack/assets/** 下全部 252 张 PNG）的来源登记，供 W12-A3 的素材门禁使用。",
+  "键 = 相对 resource-pack/ 的路径；值含 category / source / reproduce_cmd / reviewed。",
+  "category ∈ generator（生成器直出）| ai-prompt（AI 生产线直出）| derived-from（由已登记素材派生）| reviewed-baseline（人工审核基线，无可复现来源）。",
+  "reviewed ∈ reviewed-baseline（已审核）| pending-human（需人工决策）。",
+  "本文件的生成器：tools/generate-provenance.py（读生成器源码 / 提示词文件推导，不写死人工结论）。",
+  "覆盖数 = 磁盘上全部 PNG：item 83 + compass 帧 32 + betterhud 116 + bettermodel 16 + 字体图集 2 + minecraft 3 = 252。"
+ ],
+ "$generatedBy": "W12-A2-asset-provenance",
+ "$counts": {
+  "ai-prompt": 9,
+  "derived-from": 74,
+  "generator": 125,
+  "reviewed-baseline": 44
+ },
+ "$needsHumanDecision": [
+  "betterhud/text_font{1,2}_*.png（38 张）：BetterHud 编译期字体图集，仓库内无生成器也无提示词",
+  "betterhud/splitter.png + bettermodel/mesh_pixel.png + minecraft/textures/gui/sprites/boss_bar/*.png（5 张）：上游/原版占位贴图",
+  "betterhud/image_image_sivita_mana_fill_up_20_1..20.png（20 张）：生成器只产出单张 sivita_mana_fill.png(1x87)，20 帧切分不在仓库生成器内",
+  "item/sulfur_resonance_imprint.png（1 张）：ai/ 下无任何提示词提到它",
+  "item/skill_{arcane-edge,ruin-charge,venom-blade,void-cut,war-cry}.png（5 张）：与生成器 recipe 差 4 px（2x2 强调色块）",
+  "tools/generate-provenance.py（1 个）：生成器脚本本身是否入库"
+ ],
+ "assets": {
+  "assets/betterhud/textures/glyph_class_assassin.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_class_assassin.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_class_freeform.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_class_freeform.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_class_healer.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_class_healer.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_class_mage.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_class_mage.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_class_ranger.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_class_ranger.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_class_unchosen.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_class_unchosen.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_class_warrior.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_class_warrior.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_control_cast_en.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#control_label#'F CAST'",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移；字形来自脚本内嵌 CONTROL_GLYPHS"
+  },
+  "assets/betterhud/textures/glyph_control_cast_zh.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#control_label#'F 施放'",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移；字形来自脚本内嵌 CONTROL_GLYPHS"
+  },
+  "assets/betterhud/textures/glyph_control_cycle_en.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#control_label#'2x F CYCLE'",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移；字形来自脚本内嵌 CONTROL_GLYPHS"
+  },
+  "assets/betterhud/textures/glyph_control_cycle_zh.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#control_label#'双击 F 切换'",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移；字形来自脚本内嵌 CONTROL_GLYPHS"
+  },
+  "assets/betterhud/textures/glyph_skill_adaptive-arsenal.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_adaptive-arsenal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_arcane-edge.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_arcane-edge.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_ash-domain.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_ash-domain.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_axiomatic-break.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_axiomatic-break.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_battle-trance.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_battle-trance.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_beast-call.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_beast-call.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_blood-rage.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_blood-rage.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_fate-seal.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_fate-seal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_fireball.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_fireball.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_fortress.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_fortress.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_frost-nova.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_frost-nova.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_gale-step.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_gale-step.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_heal.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_heal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_horizon-arrow.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_horizon-arrow.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_improvisation.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_improvisation.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_life-thread.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_life-thread.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_mana-surge.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_mana-surge.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_meteor.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_meteor.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_omen-reversal.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_omen-reversal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_open-form.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_open-form.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_pack-hunt.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_pack-hunt.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_piercing-shot.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_piercing-shot.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_plague-bloom.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_plague-bloom.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_power-shot.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_power-shot.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_rallying-standard.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_rallying-standard.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_renewal.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_renewal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_ruin-charge.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_ruin-charge.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_rune-reversal.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_rune-reversal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_sanctuary.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_sanctuary.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_second-wind.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_second-wind.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_shadow-step.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_shadow-step.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_shield-wall.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_shield-wall.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_smoke-bomb.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_smoke-bomb.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_soul-resonance.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_soul-resonance.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_time-lock.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_time-lock.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_toxic-burst.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_toxic-burst.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_unbroken-line.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_unbroken-line.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_vanished-horizon.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_vanished-horizon.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_venom-blade.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_venom-blade.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_void-cut.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_void-cut.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_volley.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_volley.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/glyph_skill_war-cry.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#semantic_icons#sivita_icon_skill_war-cry.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_1.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_10.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_11.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_12.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_13.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_14.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_15.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_16.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_17.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_18.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_19.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_2.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_20.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_3.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_4.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_5.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_6.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_7.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_8.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_image_sivita_mana_fill_up_20_9.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#mana_fill + 构建期 20 帧切分",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "脚本只生成单张 sivita_mana_fill.png(1x87)；1..20 帧切分不在仓库生成器内（build.sh 依赖 server/ 侧产物的预切帧）⇒ 在干净克隆里无法逐张复现，需人工决策"
+  },
+  "assets/betterhud/textures/image_sivita_class_badge.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#class_badge",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/image_sivita_skill_cooldown.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#cooldown_mask",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/image_sivita_skill_panel.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#skill_panel",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/image_sivita_skill_selected.png": {
+   "category": "generator",
+   "source": "tools/generate_betterhud_panels.py#selected_frame",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "build.sh 用 PngFingerprint 逐张与 reviewed 源比对，防静默漂移"
+  },
+  "assets/betterhud/textures/splitter.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 通用 256x256 空白/分割贴图",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "非游戏内容像素；建议登记为 reviewed-baseline 并在门禁豁免"
+  },
+  "assets/betterhud/textures/text_font1_1.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_10.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_11.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_12.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_13.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_14.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_15.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_16.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_17.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_18.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_19.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_2.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_3.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_4.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_5.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_6.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_7.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_8.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font1_9.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_1.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_10.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_11.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_12.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_13.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_14.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_15.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_16.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_17.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_18.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_19.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_2.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_3.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_4.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_5.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_6.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_7.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_8.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/betterhud/textures/text_font2_9.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）BetterHud 编译期字体图集；仓库内无生成器也无提示词",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "占 116 张中的 38 张；是 BetterHud 的拉丁/HUD 字库分页，须人工决策：保留为 reviewed-baseline 还是在 build.sh 里改成「存在即可」"
+  },
+  "assets/bettermodel/textures/item/blood_moon_grave_knight_blood_moon_grave_knight.png": {
+   "category": "generator",
+   "source": "tools/generate_blood_moon_models.py#PALETTES#blood_moon_grave_knight",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_blood_moon_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」；由 blood_moon_resonant_husk.bbmodel 内嵌纹理按调色板重着色"
+  },
+  "assets/bettermodel/textures/item/blood_moon_resonant_husk_blood_moon_resonant_husk.png": {
+   "category": "generator",
+   "source": "tools/generate-mob-model.mjs#textureOutput",
+   "reproduce_cmd": "cd resource-pack && node tools/generate-mob-model.mjs  # 需要 website/node_modules/sharp",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」（build.sh 在每次打包时重跑）"
+  },
+  "assets/bettermodel/textures/item/blood_moon_rift_stalker_blood_moon_rift_stalker.png": {
+   "category": "generator",
+   "source": "tools/generate_blood_moon_models.py#PALETTES#blood_moon_rift_stalker",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_blood_moon_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」；由 blood_moon_resonant_husk.bbmodel 内嵌纹理按调色板重着色"
+  },
+  "assets/bettermodel/textures/item/boss_cinnabar_reborn_core_boss_cinnabar_reborn_core.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_boss_models.py#texture#boss_cinnabar_reborn_core",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_boss_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」"
+  },
+  "assets/bettermodel/textures/item/boss_ruins_echo_adjudicator_boss_ruins_echo_adjudicator.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_boss_models.py#texture#boss_ruins_echo_adjudicator",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_boss_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」"
+  },
+  "assets/bettermodel/textures/item/boss_ruins_inscription_warden_boss_ruins_inscription_warden.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_boss_models.py#texture#boss_ruins_inscription_warden",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_boss_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」"
+  },
+  "assets/bettermodel/textures/item/boss_silent_thunder_oathguard_boss_silent_thunder_oathguard.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_boss_models.py#texture#boss_silent_thunder_oathguard",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_boss_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」"
+  },
+  "assets/bettermodel/textures/item/boss_storm_vault_keykeeper_boss_storm_vault_keykeeper.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_boss_models.py#texture#boss_storm_vault_keykeeper",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_boss_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」"
+  },
+  "assets/bettermodel/textures/item/boss_sulfur_crystal_devourer_boss_sulfur_crystal_devourer.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_boss_models.py#texture#boss_sulfur_crystal_devourer",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_boss_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」"
+  },
+  "assets/bettermodel/textures/item/dungeon_ruins_echo_sentinel_dungeon_ruins_echo_sentinel.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_wave_models.py#SPECS#dungeon_ruins_echo_sentinel",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_wave_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」；纹理走共用 texture(spec) 配方"
+  },
+  "assets/bettermodel/textures/item/dungeon_ruins_runebound_dungeon_ruins_runebound.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_wave_models.py#SPECS#dungeon_ruins_runebound",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_wave_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」；纹理走共用 texture(spec) 配方"
+  },
+  "assets/bettermodel/textures/item/dungeon_storm_conductor_dungeon_storm_conductor.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_wave_models.py#SPECS#dungeon_storm_conductor",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_wave_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」；纹理走共用 texture(spec) 配方"
+  },
+  "assets/bettermodel/textures/item/dungeon_storm_gust_wisp_dungeon_storm_gust_wisp.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_wave_models.py#SPECS#dungeon_storm_gust_wisp",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_wave_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」；纹理走共用 texture(spec) 配方"
+  },
+  "assets/bettermodel/textures/item/dungeon_sulfur_fume_crawler_dungeon_sulfur_fume_crawler.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_wave_models.py#SPECS#dungeon_sulfur_fume_crawler",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_wave_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」；纹理走共用 texture(spec) 配方"
+  },
+  "assets/bettermodel/textures/item/dungeon_sulfur_slag_mote_dungeon_sulfur_slag_mote.png": {
+   "category": "generator",
+   "source": "tools/generate_dungeon_wave_models.py#SPECS#dungeon_sulfur_slag_mote",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_dungeon_wave_models.py",
+   "reviewed": "reviewed-baseline",
+   "note": "64x64 RGBA 像素图；模型侧只保证「文件存在 + 几何/骨骼契约」；纹理走共用 texture(spec) 配方"
+  },
+  "assets/bettermodel/textures/item/mesh_pixel.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）64x64 白色 mesh 贴图，被 models/mesh_triangle_{single,duplex}.json 引用",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "非游戏内容像素；仅着色占位"
+  },
+  "assets/minecraft/textures/gui/bars.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）原版/上游 UI 贴图（boss bar 进度条）",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "非项目原创像素"
+  },
+  "assets/minecraft/textures/gui/sprites/boss_bar/yellow_background.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）原版/上游 UI 贴图（boss bar 进度条）",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "非项目原创像素"
+  },
+  "assets/minecraft/textures/gui/sprites/boss_bar/yellow_progress.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）原版/上游 UI 贴图（boss bar 进度条）",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "非项目原创像素"
+  },
+  "assets/originalrpg/textures/font/class_skill_symbols.png": {
+   "category": "generator",
+   "source": "tools/GenerateSkillHudAtlas.java#48 glyphs U+E020..U+E04F",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateSkillHudAtlas.java && java -cp /tmp/rp-build GenerateSkillHudAtlas assets/originalrpg/textures/font/class_skill_symbols.png",
+   "reviewed": "reviewed-baseline"
+  },
+  "assets/originalrpg/textures/font/hud_symbols.png": {
+   "category": "generator",
+   "source": "tools/GenerateHudAtlas.java#11 glyphs U+E000..U+E00A",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateHudAtlas.java && java -cp /tmp/rp-build GenerateHudAtlas assets/originalrpg/textures/font/hud_symbols.png",
+   "reviewed": "reviewed-baseline"
+  },
+  "assets/originalrpg/textures/item/ancient_echo_skill_book.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#ancient_echo_skill_book#ancient_echo_skill_book",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担；ai/prompts.jsonl:17/18 是早期 1024px 原稿版本，当前 32x32 以生成器为准"
+  },
+  "assets/originalrpg/textures/item/blood_moon_essence.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#blood_moon_essence#blood_moon_essence",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/cinnabar_revelation_skill_book.png": {
+   "category": "ai-prompt",
+   "source": "ai/skill-book-prompts.jsonl:2",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §2；重生成走 ai/generate.sh --apply（需 Image API Key）",
+   "reviewed": "reviewed-baseline",
+   "note": "唯一有逐张提示词的技能书；复用地脉/雷库设定"
+  },
+  "assets/originalrpg/textures/item/common_insight_skill_book.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#common_insight_skill_book#common_insight_skill_book",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担；ai/prompts.jsonl:17/18 是早期 1024px 原稿版本，当前 32x32 以生成器为准"
+  },
+  "assets/originalrpg/textures/item/dungeon_core.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#dungeon_core#dungeon_core",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/forged_assassin_weapon.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#forged_assassin_weapon#forged_assassin_weapon",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/forged_boots.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#forged_boots#forged_boots",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/forged_chestplate.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#forged_chestplate#forged_chestplate",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/forged_healer_weapon.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#forged_healer_weapon#forged_healer_weapon",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/forged_helmet.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#forged_helmet#forged_helmet",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/forged_leggings.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#forged_leggings#forged_leggings",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/forged_mage_weapon.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#forged_mage_weapon#forged_mage_weapon",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/forged_ranger_bow_pulling_0.png": {
+   "category": "ai-prompt",
+   "source": "ai/prompts.jsonl:4",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §5-⑤；重生成走 ai/generate.sh --apply（需 Image API Key）",
+   "reviewed": "reviewed-baseline",
+   "note": "独立素材：与主纹理不透明像素 IoU<=0.29，非派生；物品定义走 condition/select/range_dispatch 状态分发，每帧各自带 layer0"
+  },
+  "assets/originalrpg/textures/item/forged_ranger_bow_pulling_1.png": {
+   "category": "ai-prompt",
+   "source": "ai/prompts.jsonl:4",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §5-⑤；重生成走 ai/generate.sh --apply（需 Image API Key）",
+   "reviewed": "reviewed-baseline",
+   "note": "独立素材：与主纹理不透明像素 IoU<=0.29，非派生；物品定义走 condition/select/range_dispatch 状态分发，每帧各自带 layer0"
+  },
+  "assets/originalrpg/textures/item/forged_ranger_bow_pulling_2.png": {
+   "category": "ai-prompt",
+   "source": "ai/prompts.jsonl:4",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §5-⑤；重生成走 ai/generate.sh --apply（需 Image API Key）",
+   "reviewed": "reviewed-baseline",
+   "note": "独立素材：与主纹理不透明像素 IoU<=0.29，非派生；物品定义走 condition/select/range_dispatch 状态分发，每帧各自带 layer0"
+  },
+  "assets/originalrpg/textures/item/forged_ranger_crossbow.png": {
+   "category": "ai-prompt",
+   "source": "ai/prompts.jsonl:4",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §5-⑤；重生成走 ai/generate.sh --apply（需 Image API Key）",
+   "reviewed": "reviewed-baseline",
+   "note": "独立素材：与主纹理不透明像素 IoU<=0.29，非派生；物品定义走 condition/select/range_dispatch 状态分发，每帧各自带 layer0"
+  },
+  "assets/originalrpg/textures/item/forged_ranger_trident.png": {
+   "category": "ai-prompt",
+   "source": "ai/prompts.jsonl:4",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §5-⑤；重生成走 ai/generate.sh --apply（需 Image API Key）",
+   "reviewed": "reviewed-baseline",
+   "note": "独立素材：与主纹理不透明像素 IoU<=0.29，非派生；物品定义走 condition/select/range_dispatch 状态分发，每帧各自带 layer0"
+  },
+  "assets/originalrpg/textures/item/forged_ranger_weapon.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#forged_ranger_weapon#forged_ranger_weapon",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/forged_shield.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#forged_shield#forged_shield",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/forged_warrior_weapon.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#forged_warrior_weapon#forged_warrior_weapon",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/hidden_ticket.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#hidden_ticket#hidden_ticket",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/hunt_crystal.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#hunt_crystal#hunt_crystal",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/journey_attribute.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#journey_attribute#journey_attribute",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/journey_class.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#journey_class#journey_class",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/journey_dungeon.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#journey_dungeon#journey_dungeon",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/journey_explore.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#journey_explore#journey_explore",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/journey_forge.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#journey_forge#journey_forge",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/journey_hub.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#journey_hub#journey_hub",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/journey_hunt.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#journey_hunt#journey_hunt",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/journey_reveal.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#journey_reveal#journey_reveal",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/legacy_blueprint.png": {
+   "category": "ai-prompt",
+   "source": "ai/prompts.jsonl:27",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §2；重生成走 ai/generate.sh --apply（需 Image API Key）",
+   "reviewed": "reviewed-baseline"
+  },
+  "assets/originalrpg/textures/item/lucky_charm.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#lucky_charm#lucky_charm",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/mob_boomerang.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#mob_boomerang#mob_boomerang",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/mob_corrosive_orb.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#mob_corrosive_orb#mob_corrosive_orb",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/mob_seeker_orb.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#mob_seeker_orb#mob_seeker_orb",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/mutation_core.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#mutation_core#mutation_core",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/mutation_shard.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#mutation_shard#mutation_shard",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/protection_stone.png": {
+   "category": "generator",
+   "source": "tools/GenerateTextures.java#protection_stone#protection_stone",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateTextures.java && java -cp /tmp/rp-build GenerateTextures /tmp/rp-out --force && cmp /tmp/rp-out/<key>.png assets/originalrpg/textures/item/<key>.png",
+   "reviewed": "reviewed-baseline",
+   "note": "程序化 32x32 像素基线；可复现性断言由 W12-A3 的 ASSET_REPRO_GATE 承担"
+  },
+  "assets/originalrpg/textures/item/silent_thunder_skill_book.png": {
+   "category": "ai-prompt",
+   "source": "ai/skill-book-prompts.jsonl:3",
+   "reproduce_cmd": "见 ASSET-PROVENANCE.md §2；重生成走 ai/generate.sh --apply（需 Image API Key）",
+   "reviewed": "reviewed-baseline",
+   "note": "唯一有逐张提示词的技能书；复用地脉/雷库设定"
+  },
+  "assets/originalrpg/textures/item/skill_adaptive-arsenal.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_adaptive-arsenal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_arcane-edge.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_arcane-edge.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）；实测与生成器 recipe 差 4 px（2x2 强调色块，recipe 为 0a0e13 面板暗色）⇒ 建议 W12-A3 或重跑生成器覆盖、或登记为人工覆盖"
+  },
+  "assets/originalrpg/textures/item/skill_ash-domain.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_ash-domain.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_axiomatic-break.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_axiomatic-break.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_battle-trance.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_battle-trance.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_beast-call.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_beast-call.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_blood-rage.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_blood-rage.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_fate-seal.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_fate-seal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_fireball.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_fireball.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_fortress.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_fortress.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_frost-nova.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_frost-nova.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_gale-step.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_gale-step.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_heal.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_heal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_horizon-arrow.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_horizon-arrow.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_improvisation.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_improvisation.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_life-thread.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_life-thread.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_mana-surge.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_mana-surge.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_meteor.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_meteor.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_omen-reversal.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_omen-reversal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_open-form.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_open-form.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_pack-hunt.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_pack-hunt.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_piercing-shot.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_piercing-shot.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_plague-bloom.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_plague-bloom.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_power-shot.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_power-shot.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_rallying-standard.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_rallying-standard.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_renewal.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_renewal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_ruin-charge.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_ruin-charge.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）；实测与生成器 recipe 差 4 px（2x2 强调色块，recipe 为 0a0e13 面板暗色）⇒ 建议 W12-A3 或重跑生成器覆盖、或登记为人工覆盖"
+  },
+  "assets/originalrpg/textures/item/skill_rune-reversal.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_rune-reversal.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_sanctuary.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_sanctuary.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_second-wind.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_second-wind.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_shadow-step.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_shadow-step.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_shield-wall.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_shield-wall.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_smoke-bomb.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_smoke-bomb.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_soul-resonance.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_soul-resonance.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_time-lock.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_time-lock.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_toxic-burst.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_toxic-burst.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_unbroken-line.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_unbroken-line.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_vanished-horizon.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_vanished-horizon.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_venom-blade.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_venom-blade.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）；实测与生成器 recipe 差 4 px（2x2 强调色块，recipe 为 0a0e13 面板暗色）⇒ 建议 W12-A3 或重跑生成器覆盖、或登记为人工覆盖"
+  },
+  "assets/originalrpg/textures/item/skill_void-cut.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_void-cut.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）；实测与生成器 recipe 差 4 px（2x2 强调色块，recipe 为 0a0e13 面板暗色）⇒ 建议 W12-A3 或重跑生成器覆盖、或登记为人工覆盖"
+  },
+  "assets/originalrpg/textures/item/skill_volley.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_volley.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）"
+  },
+  "assets/originalrpg/textures/item/skill_war-cry.png": {
+   "category": "derived-from",
+   "source": "tools/generate_betterhud_panels.py#skill_menu_items#sivita_icon_skill_war-cry.png",
+   "reproduce_cmd": "cd resource-pack && python3 tools/generate_betterhud_panels.py  # 需要 Pillow；同时写 server/config-templates/BetterHud/assets 与 assets/originalrpg/textures/item",
+   "reviewed": "reviewed-baseline",
+   "note": "由 18px HUD 语义图标最近邻放大 2x 后裁成 32px 物品纹理（非 AI 直出）；实测与生成器 recipe 差 4 px（2x2 强调色块，recipe 为 0a0e13 面板暗色）⇒ 建议 W12-A3 或重跑生成器覆盖、或登记为人工覆盖"
+  },
+  "assets/originalrpg/textures/item/sulfur_resonance_imprint.png": {
+   "category": "reviewed-baseline",
+   "source": "（缺）ai/ 下无任何提示词提到 sulfur imprint",
+   "reproduce_cmd": "无（不可复现）",
+   "reviewed": "reviewed-baseline",
+   "note": "无任何提示词/生成器登记；登记为 reviewed-baseline，需人工决策补 ai/prompts.jsonl 条目还是扩展生成器（见 ASSET-PROVENANCE.md §6-④）"
+  },
+  "assets/originalrpg/textures/item/traveler_compass.png": {
+   "category": "ai-prompt",
+   "source": "ai/prompts/traveler_compass.txt",
+   "reproduce_cmd": "见 ai/README.md 的单资产 image_gen 命令（--prompt-file ai/prompts/traveler_compass.txt）",
+   "reviewed": "reviewed-baseline",
+   "note": "静态兜底图；32 帧转针由 GenerateCompassFrames 派生"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_00.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_00",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_01.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_01",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_02.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_02",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_03.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_03",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_04.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_04",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_05.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_05",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_06.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_06",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_07.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_07",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_08.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_08",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_09.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_09",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_10.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_10",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_11.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_11",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_12.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_12",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_13.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_13",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_14.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_14",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_15.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_15",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_16.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_16",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_17.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_17",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_18.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_18",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_19.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_19",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_20.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_20",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_21.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_21",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_22.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_22",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_23.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_23",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_24.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_24",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_25.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_25",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_26.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_26",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_27.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_27",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_28.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_28",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_29.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_29",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_30.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_30",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  },
+  "assets/originalrpg/textures/item/traveler_compass/frame_31.png": {
+   "category": "derived-from",
+   "source": "tools/GenerateCompassFrames.java#drawNeedle#frame_31",
+   "reproduce_cmd": "cd resource-pack && javac -d /tmp/rp-build tools/GenerateCompassFrames.java && java -cp /tmp/rp-build GenerateCompassFrames assets/originalrpg/textures/item/traveler_compass.png assets/originalrpg/textures/item/traveler_compass assets/originalrpg/models/item",
+   "reviewed": "reviewed-baseline",
+   "note": "派生物；基图是 ai/prompts/traveler_compass.txt"
+  }
+ }
+}
