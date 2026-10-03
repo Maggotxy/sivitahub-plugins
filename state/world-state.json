@@ -5,7 +5,7 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 16,
+  "round": 20,
   "max_round": 12,
   "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
   "gate": {
@@ -292,6 +292,36 @@
       "fact": "唯一剩下的三条都需要真实环境，本仓做不到：H-001（生产机写操作：跑 maintain-world-coverage.sh 补 5435 个四角区块）、U-003（真实 Paper + 真实客户端握手）、W7-A2 的 4 条 [R] 级 unproven（G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）",
       "source": "plan/verdict-v6.json 的 needs_human",
       "level": "[S]"
+    },
+    {
+      "id": "E-046",
+      "fact": "★ 素材层收口完成：**十门全绿**（门禁自测 PASS=99 FAIL=0）。新增三门：RESOURCE_PACK_GATE（8 判据）/ ASSET_BASELINE_GATE（252 张 PNG 逐像素对账）/ ASSET_REPRO_GATE（生成器重放逐像素比对）；其余七门不变。SUM tests=1091 failed=0 modules=26；JAR_COUNT=56",
+      "source": "api_trigger_gate（素材层收口后）",
+      "level": "[S]"
+    },
+    {
+      "id": "E-047",
+      "fact": "素材层真实缺口（不是「图不好看」）：① 252 张 PNG 原本没有任何逐像素基线 ⇒ 可被悄悄换掉；② 83 张物品纹理里 52 张没有来源登记；③ 可复现性无断言。已全部补齐：`resource-pack/assets-manifest.json`（252 条指纹）+ `resource-pack/asset-provenance.json`（252 条来源，六类：generator 129 / derived-from 69 / ai-prompt 10 / human-override 1 / upstream-betterhud 38 / upstream-vanilla 5）+ `ASSET-PROVENANCE.md`（现为生成物，--write-doc）+ `scripts/check-asset-reproducible.sh`",
+      "source": "PR#54/#56/#58/#61",
+      "level": "[S]"
+    },
+    {
+      "id": "E-048",
+      "fact": "生成器覆盖从 31 张扩到 **129 张**（generator 类），并把 20 帧 mana_fill 切分与 5 张 skill 的 2x2 强调色块补进生成器；`ancient_echo_skill_book` 判为 human-override（仓库里是 ai/skill-book-prompts.jsonl v2 的人工覆盖，生成器旧紫皮设计已弃用）并加了**反向断言**（被盖回生成器输出即 RED）",
+      "source": "PR#61（W14-A1 并集）",
+      "level": "[S]"
+    },
+    {
+      "id": "E-049",
+      "fact": "音频不是缺口：代码只用原版 `Sound.*`（64 个枚举项），无任何自定义音效引用 ⇒ 不需要 ogg 素材",
+      "source": "grep 全仓 Sound 枚举 + 自定义 namespace 引用",
+      "level": "[S]"
+    },
+    {
+      "id": "E-050",
+      "fact": "W12/W13 踩到两次「同波任务创建同名文件」的坑：W12-A3 与 A1/A2 在 9 个文件冲突；W13-A1 与 A2 各做一半（A1 有生成器同步无新类别、A2 有新类别无出清）⇒ 只能取并集重做（W14）。教训已写进 skill pitfalls §J2e：同一文件只能有一个 owner、生成物只由生成器产出、冲突时合并改动而非手工合并生成物",
+      "source": "PR#55 关闭 / #57#59#60 关闭 / #61 并集",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -333,7 +363,7 @@
   ],
   "next_action": "目标已达成（verdict-v6 done=true / remaining=0）。剩余三项均需真实 Paper / 生产机，属 REQUIRES_HUMAN。",
   "updated_by": "WorkBuddy AI（本地调度）",
-  "updated_at": "2026-10-02T16:10:00Z",
+  "updated_at": "2026-10-03T05:15:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
@@ -372,15 +402,20 @@
     "W8": "DONE：最终验收轮（gap-matrix-v4 + verdict-v4，判 done=false / remaining=2）",
     "W9": "DONE：2/2 合入（/rpgadmin anomaly 入口 + G-302 最后 2 个测试类迁进声明式源码契约门禁）",
     "W10": "DONE：收尾判定轮 v5（判 done=false / remaining=2，但两条后被复核为假缺口）",
-    "W11": "DONE：复核两条并给出 **verdict-v6：done=true / remaining=0**"
+    "W11": "DONE：复核两条并给出 **verdict-v6：done=true / remaining=0**",
+    "W12": "DONE（部分）：#54 逐像素基线门禁 + #56 全量来源登记 252 张；#55 因与二者重复冲突而关闭",
+    "W13": "DONE（部分）：A1 可复现性门禁 + 生成器同步/扩展、A2 6 组 provenance 裁决落地；两者各做一半 ⇒ 关闭 #57/#59/#60",
+    "W14": "DONE：把 W13 两个分支合并成并集（#61）—— 六类 252 张、NEEDS_HUMAN 为空、十门全绿"
   },
   "gates": {
-    "gate_selftest": "GREEN (PASS=67 FAIL=0)",
-    "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
+    "gate_selftest": "GREEN (PASS=99 FAIL=0)",
+    "resource_pack": "GREEN (8 判据 + 14 负向对照)",
+    "asset_baseline": "GREEN (252 张 PNG 逐像素对账)",
+    "asset_repro": "GREEN (生成器重放逐像素比对)",
     "ddl_consumer": "GREEN (81 张表，豁免 0)",
     "ddl_registration": "GREEN",
     "cmd_reference": "GREEN (43 指令，豁免 9)",
-    "compile": "GREEN (BUILD_EXIT=0 SECONDS=133)",
+    "compile": "GREEN",
     "test": "GREEN (1091 tests / 0 failed / 2 skipped / 26 modules)",
     "summary": "GREEN",
     "package": "GREEN (56 jars / 25 plugin jars 全含 plugin.yml)"
@@ -414,5 +449,22 @@
     "remaining_ids": [],
     "basis": "plan/verdict-v6.json（W11-A1）",
     "decided_at": "2026-10-02"
+  },
+  "assets": {
+    "png_total": 252,
+    "manifest": "resource-pack/assets-manifest.json",
+    "provenance": "resource-pack/asset-provenance.json",
+    "provenance_doc": "resource-pack/ASSET-PROVENANCE.md",
+    "categories": {
+      "generator": 129,
+      "derived-from": 69,
+      "ai-prompt": 10,
+      "human-override": 1,
+      "upstream-betterhud": 38,
+      "upstream-vanilla": 5,
+      "reviewed-baseline": 0
+    },
+    "needs_human_decision": [],
+    "audio": "0（代码只用原版 Sound.*，不是缺口）"
   }
 }
