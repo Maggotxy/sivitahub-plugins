@@ -12,7 +12,7 @@
     "scripts/selftest-gates.sh",
     ".cnb/agent-out/W21-A2-ledger-and-guards.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70",
   "evidence": {
     "ledger_defect_repro": {
       "commit": "6500a21e58f0c52133f1306ce1d0b3f12513ba31 (feat(plan): W17 复验当前 main，判 done=false（G-302-RESIDUAL-2）)",
@@ -134,6 +134,14 @@
       "cmd": "git status --porcelain",
       "output": " M doc/cnb/agent-protocol.md\n M doc/cnb/gap-registry.md\n M plan/gap-matrix-v8.md\nD  plan/world-state.json\n M scripts/selftest-gates.sh\n M state/world-state.json\n?? plan/README.md",
       "violations": "0（全部落在 scripts/**、plan/**、state/**、doc/cnb/**、.cnb/agent-out/** 内）"
+    },
+    "pr": {
+      "url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/70",
+      "note": "本分支已由同任务更早一次尝试（W21-A1）开过 PR #70（A1 与 A2 串行在同一分支）；创建新 PR 返回 409/2009003「there is already have open pull from refs/heads/agent/W21-A1-fix-flaky-test-gate into refs/heads/main」，故用 patch-pull 把 #70 的标题改为 [agent/W21-A2-ledger-and-guards] 开头并替换描述为本任务的实现步骤/验收点原文。head 已回读为 sha=3a918338a594c0295b79601c0e3fe76eb69ff09b。",
+      "head_sha_after_push": "3a918338a594c0295b79601c0e3fe76eb69ff09b",
+      "state": "open",
+      "base": "refs/heads/main",
+      "mergeable_state": "mergeable"
     }
   },
   "risks": [
