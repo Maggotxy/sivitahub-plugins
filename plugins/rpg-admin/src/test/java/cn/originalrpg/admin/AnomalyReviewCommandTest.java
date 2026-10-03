@@ -43,11 +43,31 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class AnomalyReviewCommandTest {
     private static final String OPERATOR = "operator-zhang";
-    /** 「静默」判定所需的无新消息轮数（每轮 2ms）。 */
-    private static final int QUIET_ROUNDS = 15;
+    /**
+     * 等待异步链收尾的硬上限（毫秒）。超时即断言失败，绝不静默通过。
+     *
+     * <p>原实现用「连续 15 轮 × 2ms 无新消息 = 30ms」当收尾判据（时间启发式）。
+     * 实测（W21-A1 证据）在 CI 高负载下，两跳异步链某一跳 >30ms 才落地，
+     * {@code awaitQuiet()} 就会在播报到达前返回，得到空消息列表：
+     * {@code AssertionFailedError: [] ==> expected: <true> but was: <false>}
+     * （{@code ack} 的 {@code missing} 分支，命令第 3 条断言）。
+     * 同一 commit 两次门禁先红后绿，正是「十门全绿」不可复现的来源。</p>
+     */
+    private static final long AWAIT_QUIET_TIMEOUT_MILLIS = 10_000L;
+    /** 「在飞任务归零」需连续成立的检查次数：跨过回调线程与断言线程之间的调度间隙。 */
+    private static final int QUIET_CONFIRMATIONS = 3;
+    /** 每次检查之间的让出间隔（毫秒）。只影响轮询粒度，不再是收尾判据本身。 */
+    private static final long QUIET_POLL_MILLIS = 2L;
 
     private HikariDataSource dataSource;
     private ExecutorService executor;
+    /**
+     * 在飞任务计数：{@code awaitQuiet()} 的确定性收尾判据。
+     * 递增在提交线程上、{@code execute()} 之前；递减在任务体（含该跳
+     * {@code whenComplete} 回调）之后。因此 {@code inFlight==0} 严格意味着
+     * 「每一跳都已连同其收尾回调执行完」，即播报已落地。
+     */
+    private final java.util.concurrent.atomic.AtomicInteger inFlight = new java.util.concurrent.atomic.AtomicInteger();
     private JdbcProgressionAnomalyService service;
     private AnomalyReviewCommand command;
     private final List<String> messages = new ArrayList<>();
@@ -62,7 +82,9 @@ class AnomalyReviewCommandTest {
         dataSource = new HikariDataSource(config);
         executor = Executors.newVirtualThreadPerTaskExecutor();
         createSchema();
-        service = new JdbcProgressionAnomalyService(dataSource, executor);
+        // 注入可跟踪执行器：被测服务仍跑真实虚拟线程 + 真实 JDBC 事务，
+        // 只在提交/收尾处裹一层计数 —— 不改异步路径本身（改成同步就等于改掉被测行为）。
+        service = new JdbcProgressionAnomalyService(dataSource, tracked(executor));
         // Runnable::run = 真同步：命令返回时事务已提交，断言读到的就是数据库里的那一格。
         command = AnomalyReviewCommand.of(service, messages(), plugin(), Runnable::run).orElseThrow();
     }
@@ -184,24 +206,62 @@ class AnomalyReviewCommandTest {
     }
 
     /**
-     * 等命令的异步链彻底收尾：至少让出 {@link #QUIET_ROUNDS} 轮、且期间没有新的播报。
+     * 等命令的异步链彻底收尾：**确定性**等待在飞任务归零，而不是等「静默若干毫秒」。
      *
-     * <p>「连续若干轮无新消息」而不是固定 sleep：ack 是「写 → 回读 → 播报」两跳，
-     * 只等一轮会在第二跳落地前就断言。
+     * <p>为什么这样是确定性的，而不是把 30ms 换成更大的数：</p>
+     * <ol>
+     *   <li>计数在 {@link #tracked} 里于**提交线程**上、{@code execute()} 之前递增，
+     *       在任务体（含该跳 {@code whenComplete} 回调）之后递减。若在任务体内递增，
+     *       主线程提交完立刻查计数就可能读到「虚拟线程还没启动」的 0 ——
+     *       那就是把原缺陷换成另一个竞态（W21-A1 实测：这样改仍会复现空消息红）。</li>
+     *   <li>{@code whenComplete} 回调与下一跳 {@code supplyAsync} 的提交都发生在该跳
+     *       任务体**之内**，所以「归零」天然晚于「播报落地」，两跳之间不会被误判为完成。</li>
+     *   <li>{@link #QUIET_CONFIRMATIONS} 次连续归零进一步覆盖回调线程与断言线程的调度间隙。</li>
+     * </ol>
+     *
+     * <p>超时（{@link #AWAIT_QUIET_TIMEOUT_MILLIS}）抛错并报出「异步链未收尾」，
+     * 绝不静默通过 —— 原实现最危险之处正是在链未收尾时返回空列表，
+     * 把「异步真失败」与「等得不够久」混成同一种红。</p>
      */
     private void awaitQuiet() {
-        int quiet = 0;
-        for (int attempt = 0; attempt < 1000 && quiet < QUIET_ROUNDS; attempt++) {
-            int before = messages.size();
+        long deadline = System.nanoTime() + AWAIT_QUIET_TIMEOUT_MILLIS * 1_000_000L;
+        int confirmed = 0;
+        while (confirmed < QUIET_CONFIRMATIONS) {
+            if (inFlight.get() == 0) {
+                confirmed++;
+            } else {
+                confirmed = 0;
+            }
+            if (confirmed >= QUIET_CONFIRMATIONS) break;
+            if (System.nanoTime() - deadline > 0) {
+                throw new AssertionError("异步链未收尾：在飞任务=" + inFlight.get()
+                        + " 已等 " + AWAIT_QUIET_TIMEOUT_MILLIS + "ms，messages=" + List.copyOf(messages));
+            }
             Thread.onSpinWait();
             try {
-                Thread.sleep(2L);
+                Thread.sleep(QUIET_POLL_MILLIS);
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
-                return;
+                throw new AssertionError("异步链等待被中断：在飞任务=" + inFlight.get(), exception);
             }
-            quiet = messages.size() == before ? quiet + 1 : 0;
         }
+    }
+
+    /**
+     * 可跟踪执行器：真实执行交给虚拟线程池，只在提交/收尾处维护在飞计数。
+     * 递增必须在提交线程上（见 {@link #awaitQuiet()} 第 1 条理由）。
+     */
+    private java.util.concurrent.Executor tracked(ExecutorService delegate) {
+        return task -> {
+            inFlight.incrementAndGet();
+            delegate.execute(() -> {
+                try {
+                    task.run();
+                } finally {
+                    inFlight.decrementAndGet();
+                }
+            });
+        };
     }
 
     private void createSchema() throws Exception {
