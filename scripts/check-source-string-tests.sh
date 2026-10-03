@@ -110,10 +110,17 @@ def constant_paths(src, argument):
     的测试判成缺口（实测误报 rpg-items/EquipmentExitPathReachabilityTest）。
     """
     found = []
-    for constant in set(re.findall(r'\b([A-Z][A-Z0-9_]{2,})\b', argument)):
-        # 实参必须**以该常量名开头**（`read(PRODUCTION)` / `read(PRODUCTION + suffix)`），
-        # 才算「读取目标就是这个常量」。在 lambda / 比较里出现的常量名一律不算。
-        if not re.match(r'\s*' + re.escape(constant) + r'\b', argument):
+    # 实参既可能是裸常量名（`read(PRODUCTION)`），也可能是 `Path.of(PRODUCTION)`
+    # 这种包了一层的写法（`Files.readString(java.nio.file.Path.of(P))`）。
+    # 只认「实参的**读取目标表达式**就是该常量」的形态：`<常量>` 或 `Path.of(<常量>)`
+    # （允许 `PRODUCTION + "/x"` 这类以常量名开头的简单拼接）。
+    # lambda / 比较里**提及**的常量不算，否则会误报「对解析后的列表做断言」的测试。
+    target = argument.strip()
+    inner = re.fullmatch(r'(?:[\w.]+\.)?Path\.of\s*\(\s*(.*?)\s*\)', target, re.DOTALL)
+    if inner:
+        target = inner.group(1).strip()
+    for constant in set(re.findall(r'\b([A-Z][A-Z0-9_]{2,})\b', target)):
+        if not re.match(r'\s*' + re.escape(constant) + r'\b', target):
             continue
         declaration = re.search(
             r'\b' + re.escape(constant) + r'\s*=\s*'
@@ -201,6 +208,43 @@ def reads_production_source(src):
     return None
 
 
+def inside_assert_arguments(src, offset):
+    """offset 处的表达式是否落在某次 assert 调用的实参里。
+
+    向前匹配括号：遇到 `assertXxx(` 且该括号**尚未闭合**，说明读取调用就是这次断言的
+    实参（或实参的一部分）。这样 `assertTrue(Files.readString(...).contains(x))`、
+    `assertEquals(List.of(LIFECYCLE_ONLY), source("..."))`、
+    `assertEquals(0, source("...").indexOf(a) - source("...").indexOf(b))` 都能命中，
+    而 `if (Files.readString(f).contains(x)) { ... }` 这种**过滤谓词**（前面的开括号
+    是 if，不是 assert）不会命中。
+
+    只向前看同一个语句块（以 `;` `{` `}` 为界），避免把上一个语句的 assert 借给
+    当前读取。
+    """
+    depth = 0
+    index = offset - 1
+    while index >= 0:
+        char = src[index]
+        if char == ')':
+            depth += 1
+        elif char == '(':
+            if depth == 0:
+                # 找到包住读取调用的那个开括号，看它前面是不是 assertXxx。
+                head = src[max(0, index - 64):index]
+                if re.search(r'(?:assert[A-Za-z]*|fail)\s*$', head):
+                    return True
+                # 继续向前：读取调用可能是某个实参的一部分（如 List.of(...)）。
+                # 但一旦跨过语句边界就停，避免误借。
+                if re.search(r'[;{}]', head):
+                    return False
+            else:
+                depth -= 1
+        elif char in ';{}' and depth == 0:
+            return False
+        index -= 1
+    return False
+
+
 def asserts_source_string(src, read_offset):
     """断言是否**直接落在读出来的字符串**上。
 
@@ -220,16 +264,22 @@ def asserts_source_string(src, read_offset):
     # 对「读一遍 src/main 得到的路径列表」做 contains/anyMatch 属于对**解析后的集合**断言，
     # 不算（实测误报 rpg-items/EquipmentExitPathReachabilityTest 与
     # rpg-core/SeasonAttunementSettlementWiringTest 的同类 helper）。
+    #
+    # ⚠️ W19-A1 修正 W18 收紧时引入的**漏判**：W18 用「assert 文本紧邻读取调用」来判定，
+    # 但断言块常常是 `assertEquals(0, source("...").indexOf(a) - source("...").indexOf(b))`
+    # 或 `assertTrue(Files.readString(...)\n    .contains(x))` —— assert 与读取之间隔着
+    # 实参、换行、甚至另一次读取调用。旧实现要求 assert( 与读取之间没有 `;{}`，于是
+    # 上面两种**真实断言**全部漏判（实测：把 `assertTrue(Files.readString(...).contains(x))`
+    # 的夹具喂进去是 GREEN）。现在改为「读取调用是否落在某次 assert 调用的实参里」：
+    # 从读取位置向前扫，找到最近的未闭合 assertXxx(... 开括号即算。
     for match in READ_CALL.finditer(src):
         statement = src[match.start():match.start() + 4000].split(';')[0] + ';'
         chain = re.search(r'\)\s*\.\s*' + ASSERT_CALLS + r'\s*\(', statement)
         if not chain:
             continue
-        # contains 结果必须处在 assert 调用里（assertTrue(...) / assertFalse(...)），
-        # 而不是 if/while/三元/stream filter 的谓词位置。
-        prefix = src[max(0, match.start() - 400):match.start()] + statement
-        if re.search(r'assert(?:True|False|Equals|NotEquals)\s*\([^;{}]*$', prefix):
-            return True
+        if not inside_assert_arguments(src, match.start()):
+            continue
+        return True
     # 读结果被赋给变量（readString 直接赋值或 helper 返回值赋值）后对该变量做断言。
     read_helpers_names = {name for name, _ in read_helpers(src)}
     for match in ASSIGNED_STRING.finditer(src):

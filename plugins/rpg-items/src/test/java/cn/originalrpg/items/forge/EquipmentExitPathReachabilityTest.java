@@ -13,6 +13,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,10 +27,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class EquipmentExitPathReachabilityTest {
     private static final Path ROOT = repositoryRoot();
-
-    /** C-008 里「调谐」这条退出路径在装备插件里唯一允许出现的位置：状态机自身（经 rpg-api 依赖）。 */
-    private static final String LIFECYCLE_ONLY =
-            "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/EquipmentLifecycle.java";
 
     @Test
     void destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin() throws IOException {
@@ -89,7 +86,21 @@ class EquipmentExitPathReachabilityTest {
         assertFalse(productionReferences("SEASON_ATTUNED").stream()
                         .anyMatch(path -> path.startsWith("plugins/rpg-items/")),
                 "赛季调谐不得在 rpg-items 里出现消费者（触发者是换季结算）");
-        assertEquals(List.of(LIFECYCLE_ONLY), productionReferences("SACRIFICED"));
+
+        // SACRIFICED 是预留态：**没有**任何玩家操作会把它产出来。
+        // 原实现读 src/main 断言「除状态机自身外零引用」，那是源码字符串断言（G-302）。
+        // 改成真跑状态机本身：枚举全部 EquipmentOperationKind，断言没有任何一种
+        // 的种子态或结果态是 SACRIFICED。
+        for (EquipmentOperationKind kind : EquipmentOperationKind.values()) {
+            assertNotEquals(EquipmentLifecycle.State.SACRIFICED,
+                    EquipmentLifecycle.seedForOperation(kind),
+                    kind + " 不得把装备种成献祭态：SACRIFICED 是预留态");
+            for (EquipmentLifecycle.State from : EquipmentLifecycle.State.values()) {
+                assertNotEquals(EquipmentLifecycle.State.SACRIFICED,
+                        EquipmentLifecycle.afterOperation(kind, from),
+                        kind + " 由 " + from + " 出发不得产出 SACRIFICED：没有玩家献祭入口");
+            }
+        }
     }
 
     /**
@@ -100,7 +111,8 @@ class EquipmentExitPathReachabilityTest {
      * 误判成「没接线」。</p>
      */
     private static boolean wiredIn(String state) throws IOException {
-        return productionReferences(state).stream().anyMatch(path -> !path.equals(LIFECYCLE_ONLY));
+        return productionReferences(state).stream()
+                .anyMatch(path -> !path.endsWith("/EquipmentLifecycle.java"));
     }
 
     @Test

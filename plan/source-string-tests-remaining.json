@@ -298,9 +298,10 @@
       "test_class": "EquipmentExitPathReachabilityTest",
       "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
       "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
-      "exempt": false
+      "uses_indexOf": false,
+      "reason": "W16-A1：销毁退出路径改真跑 DestroyRules / EquipmentExitPathRules / DestroyDeliveryRules / DestroyGate 四条纯规则；跨三文件否定断言迁进 all.json 的 #season-attunement 与 #destroy-command。W19-A1：最后一条 source-string 断言（assertEquals(List.of(LIFECYCLE_ONLY), productionReferences(\"SACRIFICED\"))）已行为化 —— 真跑 EquipmentLifecycle 状态机，断言没有任何 EquipmentOperationKind 的种子态/结果态是 SACRIFICED。该类已不读源码做断言。",
+      "exempt": false,
+      "source_string_assertions_remaining": 0
     },
     {
       "module": "rpg-items",
@@ -551,5 +552,30 @@
     "_cmd": "sh scripts/check-source-string-tests.sh",
     "_count": 0,
     "_note": "W18-A1 第二轮修正后真实仓库命中数 = 0（GREEN）。上一轮把 rpg-items/EquipmentExitPathReachabilityTest 当残留交付，实为**判据过捕**：① constant_paths() 把 lambda/比较里**提及**的常量（LIFECYCLE_ONLY）当成读取路径；② branch1 把 `if (Files.readString(f).contains(x)) hits.add(f)` 这种**过滤谓词**当断言。两处均按本脚本注释口径（断言必须直接落在读出来的字符串上；对解析后的集合断言不算）收紧。收紧后本任务范围内的 DungeonTimeoutLifecycleContractTest（原 8 处 indexOf）与两类间接形态仍能变红（见 selftest §4d 夹具①/②）。"
+  },
+  "_hits_after_w19a1": {
+    "_cmd": "sh scripts/check-source-string-tests.sh",
+    "_count": 0,
+    "_note": "W19-A1：真实仓 SOURCE_STRING_GATE=GREEN、残留清单为空。本任务修的是**判据本身的反向失效**：W18 第二轮为解决『过滤谓词误报』把一行式判据收成『assert 文本紧邻读取调用』，过窄 —— 实测 `assertTrue(Files.readString(Path.of(\"...\")).contains(x))` 这种**最直白的源码字符串断言**被判 GREEN（漏判）；同族还有 `Files.readString(Path.of(常量))` 因『实参以常量名开头』口径解析不出生产路径。W19-A1 改为「读取调用是否落在某次 assert 调用的实参里」（向前找未闭合 assert 开括号），并让常量路径解析接受 `Path.of(常量)`。检测力回到 W16 水平以上，同时过滤谓词仍判豁免（selftest 夹具④ GREEN），并补夹具⑤⑥锁住该反向失效。另：rpg-items/EquipmentExitPathReachabilityTest 的 `assertEquals(List.of(LIFECYCLE_ONLY), productionReferences(\"SACRIFICED\"))` 已按 (a) 行为化 —— 真跑状态机断言没有任何 EquipmentOperationKind 的种子态/结果态是 SACRIFICED。"
+  },
+  "_hits_after_w19a1_readString_files": 46,
+  "_remaining_nature_after_w19a1": {
+    "_comment": "按本判据口径逐条写明剩余项性质（残留清单为空，但读源码的类仍在，逐类说明为什么不算缺口）",
+    "① 已迁进声明式规格的门禁包装器（Files.readString 只用于读 scripts/check-source-contract.sh 是否存在）": "占绝大多数 *ContractTest；断言由 scripts/check-source-contract.sh 执行 all.json 里的 required/forbidden/ordered。",
+    "② 读的不是生产源码": [
+      "rpg-core/MechanismKillSwitchContractTest（反射 + 真 H2，无源码读）",
+      "rpg-core/ProgressionAnomalySchemaUpgradeTest（读 DDL 文本做结构断言，DDL 非生产 Java）",
+      "rpg-integrations/HudRailSpecTest（无 plugins/* 路径字面量）",
+      "rpg-performance/PerformanceStatusStoreTest（@TempDir 真实读写 status.json）"
+    ],
+    "③ 只读 server/ 或 resource-pack/ 部署产物（本仓按设计不含 server/，已 @Tag(env)）": [
+      "rpg-core/LanguageBundleContractTest（数据包部分）",
+      "rpg-hub/WorldTravelConfigurationContractTest（运维脚本）",
+      "rpg-story/StoryJourneyOrderContractTest（BetonQuest 对话包）"
+    ],
+    "④ 用读取结果做过滤谓词后断言文件列表（对解析后的集合断言，脚本头部口径明确排除）": [
+      "rpg-items/EquipmentExitPathReachabilityTest::productionReferences（其他方法仍在用；SACRIFICED 那条已行为化）",
+      "rpg-core/SeasonAttunementSettlementWiringTest::productionReferences"
+    ]
   }
 }
