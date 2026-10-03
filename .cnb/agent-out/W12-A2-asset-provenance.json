@@ -99,10 +99,54 @@
    "pr_out": "PR #56 created; cnb pulls list-pulls --state open => number 56 / title 以 [agent/W12-A2-asset-provenance] 开头 / refs/heads/agent/W12-A2-asset-provenance",
    "pr_sha_verified": "cnb pulls list-commits --number 56 => total 1, sha 4fab81e4（与本分支 HEAD 一致）",
    "exit": 0
+  },
+  "retry_round_reverify": {
+   "note": "上一轮已 success 并开出 PR #56；本轮为调度器要求的『复跑并刷新证据』。以下为本轮重新跑过的命令与输出。",
+   "gate": {
+    "cmd": "cd /workspace && sh scripts/check-resource-pack.sh > /tmp/gate.txt 2>&1; echo $?",
+    "out": "exit=0；RESOURCE_PACK_GATE=GREEN（8/8：manifest closure textures hud journey lang compass packmeta）",
+    "exit": 0
+   },
+   "selftest": {
+    "cmd": "cd /workspace && sh scripts/selftest-gates.sh > /tmp/st.txt 2>&1; echo $?",
+    "out": "exit=0；GATE_SELFTEST=GREEN（PASS=67 FAIL=0）",
+    "exit": 0
+   },
+   "generator_idempotent_retry": {
+    "cmd": "cd resource-pack && python3 tools/generate-provenance.py > /tmp/g2.json 2>&1; echo $?; diff -q /tmp/g2.json asset-provenance.json",
+    "out": "gen_exit=0；diff 无输出（字节一致）",
+    "exit": 0
+   },
+   "json_eq_disk_retry": {
+    "cmd": "python3 /tmp/ev_retry.py",
+    "out": "KEYS 252 DISK 252 EQUAL True / FOURFIELDS True",
+    "exit": 0
+   },
+   "gate_criteria_handed_to_w12a3_retry": {
+    "cmd": "python3 内联脚本：③generator.source 指向真实 tools/*；④ai-prompt.source 的 file:line 存在",
+    "out": "generator source missing: [] / ai-prompt source problems: []",
+    "exit": 0
+   },
+   "skill_prompt_reconcile_retry": {
+    "cmd": "python3 内联脚本：44 个提示词来源对 42 张 skill_* 整词匹配",
+    "out": "prompt sources: 44 skill: 42 hits: ['fortress', 'heal']（两条均已逐条判为假命中，见 §2-①）",
+    "exit": 0
+   },
+   "betterhud_bettermodel_recount_retry": {
+    "cmd": "python3 内联脚本：betterhud/bettermodel 分类计数",
+    "out": "betterhud: 116（generator 77 / reviewed-baseline 39）; mana 帧 20; text_font 38; bettermodel: 16（generator 15 / reviewed-baseline 1=mesh_pixel）",
+    "exit": 0
+   },
+   "no_pixel_change_retry": {
+    "cmd": "cd resource-pack && git status --porcelain -- assets; git diff --stat -- assets",
+    "out": "两条命令均无输出 ⇒ 未改动任何 PNG 像素",
+    "exit": 0
+   }
   }
  },
  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/56",
  "risks": [
+  "重试轮说明：上一轮（commit 4fab81e）已产出全部交付物并开出 PR #56（open/mergeable），但调度器判定本轮为失败重做。本轮**没有发现需要修复的缺陷**——逐项复跑后所有判据仍为绿，故本轮只做『复跑取证 + 刷新 agent-out 证据 + 追加一次提交』，交付物内容未变。若调度器期望的是内容变更而非复跑确认，请明确要改哪一处（见 next_steps）。",
   "asset-provenance.json 里 44 张 reviewed-baseline 中有 6 组仍无来源证据（38 张 BetterHud 字库分页 / 20 张法力帧切分 / 4 张上游占位贴图 / sulfur_resonance_imprint / 5 张 skill 的 4 px 差异）；登记只记录事实，未替人工决策（见 json.$needsHumanDecision）。",
   "betterhud/bettermodel 的 91 张 generator 项在**本仓无法逐张复现**：生成器的输出目录写的是 ROOT/server/config-templates/...，assets/betterhud|bettermodel 是下游拷贝，本仓没有 server/。标注为 generator 是依据入库形态（build.sh 每轮重跑生成器后 cp），不是本仓可自证的逐张复现。",
   "generate_betterhud_panels.py 的 #mana_fill 只产出单张 1x87，磁盘上的 20 帧切分不在该脚本内，build.sh 的 fallback 分支（本仓无 Pillow 时）只断言 49 张 sivita_icon_*.png 的存在，不覆盖 mana 帧。",
@@ -110,6 +154,7 @@
   "W12-A1/W12-A3 与本任务并行，尚未产出 assets-manifest.json / 复现门禁；asset-provenance.json 的 schema 是按本任务书写的（category/source/reproduce_cmd/reviewed），若 A1 的清单用了别的键名，需在 W12-A3 合流时对齐。"
  ],
  "next_steps": [
+  "若『重试』指的是需要内容级修改而非复跑确认：请指定要改的判据/口径（本任务书 ①~⑦ 的交付物已逐项落地并全绿，见 evidence.retry_round_reverify）。",
   "W12-A3 可直接用 asset-provenance.json 的四条一致性判据做门禁（键集==磁盘 / 四字段齐 / generator 指向真实 tools/* / ai-prompt 的 file:line 存在），本任务已全部实测通过。",
   "需人工拍板的 6 组（见 json.$needsHumanDecision）：① 是否把 20 帧 mana 切分移进 generate_betterhud_panels.py；② 38 张 text_font* 是否保留 reviewed-baseline、是否把 BetterHud font 编译纳入 build.sh；③ 4 张上游占位贴图是否在门禁里豁免；④ sulfur_resonance_imprint 是补 ai/prompts.jsonl 条目还是保留 reviewed-baseline；⑤ 5 张 skill 的 4 px 差异是重跑生成器覆盖还是登记为人工覆盖；⑥ 是否为 bow_pulling_*/crossbow/trident 补 5 条逐帧提示词。",
   "W12-A3 若采纳『20 帧 mana 切分移进生成器』，需同步更新本文件的 reproduce_cmd 与 category（generator→不变，但会变成真可复现）。"
