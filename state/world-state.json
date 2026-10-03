@@ -5,7 +5,7 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 23,
+  "round": 24,
   "max_round": 12,
   "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
   "gate": {
@@ -346,6 +346,18 @@
       "fact": "G-302-RESIDUAL（真缺口）：GOAL.md §2 明确排除「Files.readString + indexOf/contains 的源码字符串断言」，但实测仍有 **10 个测试类**含这类断言：OptionalServiceLifecycleContractTest / LanguageBundleContractTest / DungeonEntryCommitAmbiguityContractTest / EquipmentOperationIntegrationContractTest / WorldTravelConfigurationContractTest / ForgeOperationIntegrationContractTest / MailboxDeliveryIntegrationContractTest / SkillAsyncLifecycleContractTest / StoryJourneyOrderContractTest / SurvivalPerformanceConfigurationContractTest。W5-A2 的 unproven 自己承认「第二批剩余 15 个读生产源码的类未处理」⇒ 之前把 G-302 当完成是判断偏早",
       "source": "plan/verdict-v7.json 的 reason + plan/source-string-tests-remaining.json",
       "level": "[S]"
+    },
+    {
+      "id": "E-055",
+      "fact": "W17 复验（verdict-v8，basis=77112113 实测 = origin/main）：done=false / remaining=1 = G-302-RESIDUAL-2。G-302-RESIDUAL 的 10 个派单类里 9 个已清零（行为化或迁进声明式规格），剩 1 个逃过 W16 新门禁的行内形态判据：DungeonTimeoutLifecycleContractTest 的 readString 藏在 helper 里。",
+      "source": "plan/verdict-v8.json / plan/gap-matrix-v8.md / plan/tasks-w17.json",
+      "level": "[S]"
+    },
+    {
+      "id": "E-056",
+      "fact": "十门在 W16 合入后全绿：sn=cnb-152-1k4081ljq（sha=f580ab69，event=api_trigger_gate，targetRef=main，status=success，pipelineSuccessCount=1）；判据行：DOWNLOADER=ready / GATE_SELFTEST=GREEN(PASS=101 FAIL=0) / RESOURCE_PACK_GATE=GREEN(RUN=8) / ASSET_BASELINE_GATE=GREEN(UNREGISTERED=0 MISSING=0 MODIFIED=0) / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / DDL_CONSUMER_GATE=GREEN(81 表 豁免 0) / DDL_REGISTRATION_GATE=GREEN(549 文件 豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令 豁免 9) / COMPILE_GATE=GREEN(TASKS_DONE=28 BUILD_EXIT=0 SECONDS=120) / TEST_GATE=GREEN(SUM tests=1099 failed=0 skipped=2 modules=26) / PACKAGE_GATE=GREEN(JAR_COUNT=56 JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)。SOURCE_STRING_GATE 在「门禁自测」stage 内经 selftest-gates.sh §4d 真实执行（stage-1 两条 [OK]，夹具 exit=1 / 真实仓 exit=0）。",
+      "source": "GET https://api.cnb.cool/xzqkjmnbvc2026/sivitahub/-/build/status/cnb-152-1k4081ljq + cnb build get-build-stage 各 stage 日志",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -385,31 +397,32 @@
     "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
     "W7-A2 的 4 条 [R] 级 unproven：G-207 计数器是内存态（重启丢当天场次）/ G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证。"
   ],
-  "next_action": "等 W16 交付 → 合入 → 触发十门质量门 → 再派一次复验轮（verdict-v8，basis 必须等于届时 main HEAD）。若 done=true 则收口。",
-  "updated_by": "WorkBuddy AI（本地调度）",
-  "updated_at": "2026-10-03T06:10:00Z",
+  "next_action": "派 W17-A1（G-302-RESIDUAL-2）→ 合入 → 触发十门 → 再派复验轮（verdict-v9，basis 必须等于届时 main HEAD）。若 done=true 则收口。",
+  "updated_by": "CNB CodeBuddy NPC（W17-A1-verdict-v8）",
+  "updated_at": "2026-10-03T07:30:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
     "G-003",
     "G-004",
-    "G-301",
-    "G-303",
-    "G-401",
-    "G-402",
-    "G-403",
+    "G-101",
+    "G-102",
+    "G-103",
     "G-104",
     "G-105",
     "G-107",
+    "G-108",
     "G-110",
     "G-111",
     "G-112",
     "G-113",
     "G-114",
-    "G-101",
-    "G-102",
-    "G-103",
-    "G-108"
+    "G-301",
+    "G-302-RESIDUAL",
+    "G-303",
+    "G-401",
+    "G-402",
+    "G-403"
   ],
   "authorization": {
     "L-009": "人类授权跨 Phase 并行推进（2026-10-02 用户原话见 decisions-locked.md）"
@@ -431,20 +444,22 @@
     "W13": "DONE（部分）：A1 可复现性门禁 + 生成器同步/扩展、A2 6 组 provenance 裁决落地；两者各做一半 ⇒ 关闭 #57/#59/#60",
     "W14": "DONE：把 W13 两个分支合并成并集（#61）—— 六类 252 张、NEEDS_HUMAN 为空、十门全绿",
     "W15": "DONE：在当前 main 复验（gap-matrix-v7 + verdict-v7，判 done=false / remaining=1）",
-    "W16": "DISPATCHED：修 G-302-RESIDUAL（10 个类的纯源码字符串断言逐条行为化或迁进声明式源码契约）"
+    "W16": "DONE：G-302-RESIDUAL 派单 10 类逐条处置（14 类/34 方法），all.json 27→76 键，新增 check-source-string-tests.sh 接入 selftest §4d（PR#63 / f580ab6）",
+    "W17": "DONE：当前 main 复验（gap-matrix-v8 + verdict-v8，判 done=false / remaining=1 = G-302-RESIDUAL-2）"
   },
   "gates": {
-    "gate_selftest": "GREEN (PASS=99 FAIL=0)",
-    "resource_pack": "GREEN (8 判据 + 14 负向对照)",
+    "gate_selftest": "GREEN (PASS=101 FAIL=0)",
+    "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
     "asset_baseline": "GREEN (252 张 PNG 逐像素对账)",
-    "asset_repro": "GREEN (生成器重放逐像素比对)",
+    "asset_repro": "GREEN (REPRODUCIBLE=70 MISMATCH=0)",
     "ddl_consumer": "GREEN (81 张表，豁免 0)",
-    "ddl_registration": "GREEN",
+    "ddl_registration": "GREEN (549 文件扫描，反向豁免 0)",
     "cmd_reference": "GREEN (43 指令，豁免 9)",
     "compile": "GREEN",
-    "test": "GREEN (1091 tests / 0 failed / 2 skipped / 26 modules)",
+    "test": "GREEN (1099 tests / 0 failed / 2 skipped / 26 modules)",
     "summary": "GREEN",
-    "package": "GREEN (56 jars / 25 plugin jars 全含 plugin.yml)"
+    "package": "GREEN (56 jars / 25 plugin jars 全含 plugin.yml)",
+    "source_string": "GREEN (SOURCE_STRING_TESTS=0；在门禁自测 stage 经 selftest §4d 真实执行)"
   },
   "decisions_by_agent": [
     {
@@ -467,14 +482,16 @@
       "by": "WorkBuddy AI"
     }
   ],
-  "status": "IN PROGRESS —— verdict-v7 判 done=false（G-302-RESIDUAL），W16 正在修",
+  "status": "REMAINING —— verdict-v8 判 done=false / remaining=1（G-302-RESIDUAL-2）",
   "verdict": {
-    "done": true,
+    "done": false,
     "impossible": false,
-    "remaining": 0,
-    "remaining_ids": [],
-    "basis": "plan/verdict-v6.json（W11-A1）",
-    "decided_at": "2026-10-02"
+    "remaining": 1,
+    "remaining_ids": [
+      "G-302-RESIDUAL-2"
+    ],
+    "basis": "77112113",
+    "decided_at": "2026-10-03"
   },
   "assets": {
     "png_total": 252,
@@ -492,5 +509,6 @@
     },
     "needs_human_decision": [],
     "audio": "0（代码只用原版 Sound.*，不是缺口）"
-  }
+  },
+  "basis": "77112113"
 }
