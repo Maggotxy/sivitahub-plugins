@@ -7,7 +7,7 @@
     "scripts/selftest-gates.sh",
     ".cnb/agent-out/W19-A1-equipment-exit-path-residual.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/67",
   "risks": [
     "【本轮改了什么（针对上一轮 timeout）】上一轮（PR #66，已合并为 main 的 60773c6）完成了EquipmentExitPathReachabilityTest 的整体行为化/规格化，但**没有发现判据本身在收紧时引入了反向失效**。本轮实测确认：main=1b3075c 的 scripts/check-source-string-tests.sh 对夹具 `assertTrue(Files.readString(Path.of(\"plugins/...\")).contains(x))` 判 GREEN（漏判），对 `Files.readString(Path.of(常量))` 同样漏判。本轮的改动是**收紧检测力**（把判据从「assert 文本紧邻」改成「读取调用落在某次 assert 的实参里」），不是放宽：selftest §4d 由 4 组夹具增到 6 组，两条既有豁免（过滤谓词 / 对解析后集合断言）原样保留。",
     "判据仍以正则解析 Java 结构：路径写在拼接变量里（如 `String p = dir + \"/x\"`）、先后比较塞进局部布尔等非常规写法会保守漏判。口径是「宁可漏判不误报」，且由 §4d 六组夹具锁定。这是长期风险，非本轮引入。",
@@ -169,6 +169,7 @@
         "out": "BUILD SUCCESSFUL；SUM tests=1101 failed=0 errors=0 skipped=2 modules=26；SUMMARY_GATE=GREEN"
       }
     },
-    "jdk": "Temurin 25.0.4.1（清华 Adoptium 镜像自取，/opt/jdk25）"
+    "jdk": "Temurin 25.0.4.1（清华 Adoptium 镜像自取，/opt/jdk25）",
+    "pr_note": "PR #66（上一轮）已被合并进 main 成为 60773c6，故本任务另开 PR #67：从 main(1b3075c) 新建 auto/g302-gate-reverse-failure-9404，只携带本轮 3 处改动。"
   }
 }
