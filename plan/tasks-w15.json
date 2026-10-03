@@ -1,0 +1,22 @@
+{
+  "_comment": "第十五波（复验轮产出）：只含真实剩余缺口（可派工的实现工作）。basis = 3947000。",
+  "_why": "verdict-v6 判 done=true/remaining=0 时的 basis 早于 12 个 PR（#48-#61），且漏看了 G-302 的 15 个残留类。本轮在 3947000 上重跑全量矩阵后发现 G-302 仍有 10 个类含纯源码字符串断言。",
+  "tasks": [
+    {
+      "id": "W16-A1-source-string-residual",
+      "mode": "implement",
+      "goal": "消除 G-302 的源码字符串伪测试残留（10 个类）。\n\n## 判定口径（本轮已实测，直接采信）\nGOAL.md §2 第 2 条要求「至少一条**事件级/行为级**测试，不是 `Files.readString + indexOf` 的源码字符串断言」。\n评判脚本口径：一个 `@Test` 方法体内同时有 `Files.readString` 读生产源码 + `assertTrue/assertFalse(x.contains(...))`\n或 `x.indexOf(...)` 的比较 ⇒ 纯源码字符串断言。\n\n## 待处理的 10 个类（纯源码断言方法数已实测）\n1. plugins/rpg-api/.../service/OptionalServiceLifecycleContractTest.java（1 个方法；4 条断言跨 19 个文件，需按文件归属逐条迁移）\n2. plugins/rpg-core/.../i18n/LanguageBundleContractTest.java（1 个方法）\n3. plugins/rpg-dungeons/.../DungeonEntryCommitAmbiguityContractTest.java（3 个方法；含段内 substring 断言，需改写规格语义）\n4. plugins/rpg-dungeons/.../DungeonRewardWorldHoldContractTest.java（顺序链跨多个方法体，需按方法切分）\n5. plugins/rpg-dungeons/.../DungeonTimeoutLifecycleContractTest.java（同上）\n6. plugins/rpg-enhancement/.../EquipmentOperationIntegrationContractTest.java（2 个方法；顺序链含多文件 + 段内断言）\n7. plugins/rpg-hub/.../WorldTravelConfigurationContractTest.java（1 个方法）\n8. plugins/rpg-items/.../forge/ForgeOperationIntegrationContractTest.java（6 个方法；含段内 substring + getItemInMainHand 排除）\n9. plugins/rpg-market/.../MailboxDeliveryIntegrationContractTest.java（1 个方法；顺序链跨方法体）\n10. plugins/rpg-skills/.../SkillAsyncLifecycleContractTest.java（1 个方法；含 || 备选断言）\n11. plugins/rpg-story/.../StoryJourneyOrderContractTest.java（1 个方法）\n12. plugins/rpg-world/.../SurvivalPerformanceConfigurationContractTest.java（2 个方法）\n（注：清单以 plan/source-string-tests-remaining.json 的 `_remaining_after_batch2` 为准；上面列的是本轮实测仍含纯源码断言的类，\n开工前先自己用下面的口径 grep 复跑一次确认，不要盲信这份清单。）\n\n## 处置模式（沿用 W5-A2 已合入的做法，不要另发明）\nA) 能行为化的 ⇒ 改**反射或事件级行为断言**（真的 new 对象、调方法、断言副作用 / 对 `@EventHandler` 用反射断言注解）；\n   断言意图是「配置键被读取」的 ⇒ 加载配置对象后断言解析结果。\nB) 无法在测试进程内行为化（生产类是 JavaPlugin / 需真实 Paper，本仓无 MockBukkit/Mockito）但约束仍可机械保障的 ⇒\n   迁进 `scripts/source-contract-specs/all.json`，测试类改成「真实执行 `scripts/check-source-contract.sh <SPEC_KEY> <method>`\n   并断言 `exitValue()==0`」的包装器（照抄 W9-A1 迁移最后 2 个类的形态）。\nC) 确实只能靠「源码里存在某字面量」或「运维侧部署产物」保证的 ⇒ 保留，但必须在该 `@Test` 方法上加**中文注释**说明为什么不能行为化，\n   并在 PR 描述里列进豁免清单（逐条给理由）。\n\n## 硬要求\n① 开工先复跑口径，把命中类清单与命令原文写进证据（`git rev-parse HEAD` 也写进去）。\n② 每个被替换的测试做**负向对照**：删掉被测的生产调用点 → 测试必须变红 → 恢复后必须变绿。命令与输出写进证据。\n③ 不得删除测试、不得 `@Disabled`、不得改成恒真断言。\n④ 改完跑 `./gradlew --no-daemon --continue test -PexcludeTags=env`，把按模块汇总与 SUM 行写进证据。\n⑤ 更新 `plan/source-string-tests-remaining.json`：把已处置的类从 `_remaining_after_batch2` 移出，并更新 `_batch2_note`。\n⑥ 证据里给出：命中类清单（复跑口径）+ 逐类处置（A/B/C）+ 负向对照 + 测试门汇总行 + 迁移后的规格键数。\n\n【证据契约】写 .cnb/agent-out/W16-A1-source-string-residual.json，evidence 必须是实际跑过的命令原文与输出。\n**取退出码不要走管道**：`sh x | tail; echo $?` 拿到的是 tail 的 0；必须重定向到文件再取 $?。\n\n【禁止】不改宪法；不新增货币/转数/第二套市场/第二套装备状态机/第二套等级账本；不内存补偿铸币；注释用中文；不要改任何 PNG 像素。",
+      "deps": [],
+      "allowed_paths": [
+        "plugins/*/src/test/**",
+        "scripts/source-contract-specs/**",
+        "scripts/check-source-contract.sh",
+        "scripts/selftest-gates.sh",
+        "plan/source-string-tests-remaining.json",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "不得删除测试、不得 @Disabled、不得改成恒真断言。迁移进规格的判据必须与原断言一一对应（覆盖不降级）。取退出码不要走管道。"
+    }
+  ]
+}
