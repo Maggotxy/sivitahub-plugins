@@ -184,12 +184,25 @@ def cooldown_mask() -> None:
     save(image, "sivita_skill_cooldown.png")
 
 
+MANA_FILL_FRAMES = 20
+
+
 def mana_fill() -> None:
     image = Image.new("RGBA", (1, 87), (72, 223, 226, 255))
     draw = ImageDraw.Draw(image)
     draw.point((0, 0), fill=(32, 146, 167, 255))
     draw.point((0, 86), fill=(181, 255, 247, 255))
     save(image, "sivita_mana_fill.png")
+    # 20 帧「自底向上填充」贴图是这张单列的确定性切分：第 i 帧露出底部
+    # floor(87*i/20) 行，其余透明。BetterHud 的 hud_sivita_hud_image.json 逐个引用
+    # 它们（image_image_sivita_mana_fill_up_20_1..20），所以它们必须由本脚本产出，
+    # 否则在干净克隆里无法逐像素复现。
+    for frame in range(1, MANA_FILL_FRAMES + 1):
+        visible = 87 * frame // MANA_FILL_FRAMES
+        cut = Image.new("RGBA", (1, 87), (0, 0, 0, 0))
+        if visible:
+            cut.paste(image.crop((0, 87 - visible, 1, 87)), (0, 87 - visible))
+        save(cut, f"image_image_sivita_mana_fill_up_20_{frame}.png")
 
 
 def class_badge() -> None:

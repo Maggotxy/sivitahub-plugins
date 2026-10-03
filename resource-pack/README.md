@@ -15,19 +15,23 @@
 与磁盘一一对应。机器可读版本是 `asset-provenance.json`（键 = **相对仓库根的路径**，形如
 `assets/originalrpg/textures/item/xxx.png`；值与 `ASSET-PROVENANCE.md` 的逐张表**同源同构**）。
 
-`category` 四类口径：
+`category` 六类口径：
 
 | 类别 | 含义 | 覆盖量 |
 | --- | --- | --- |
-| `generator` | 可由仓库内生成器**确定性重跑** | 125 |
-| `derived-from` | 由另一张**已登记素材**派生（skill 图标 42 + 罗盘帧 32） | 74 |
-| `ai-prompt` | `ai/` 生产线 Image API 产出，**不可复现**（已登记提示词文件:行号） | 9 |
-| `reviewed-baseline` | 人工审核基线，**仓库内既无生成器也无提示词** | 44 |
+| `generator` | 可由仓库内生成器**确定性重跑** | 129 |
+| `derived-from` | 由另一张**已登记素材**派生（skill 图标 37 + 罗盘帧 32） | 69 |
+| `ai-prompt` | `ai/` 生产线 Image API 产出，**不可复现**（已登记提示词文件:行号） | 10 |
+| `human-override` | 人工覆盖，**生成器旧设计已弃用** ⇒ 按定义不可复现；必须带 `override_reason` + `source_prompt`，并由 `ASSET_REPRO_GATE` **反向断言** | 1 |
+| `upstream-betterhud` | BetterHud **编译期**生成的字体图集分页（本仓无 `server/`，只给可重建步骤） | 38 |
+| `upstream-vanilla` | 上游/原版发行版自带占位贴图，改动会与上游不兼容 | 5 |
+| `reviewed-baseline` | 人工审核基线，**仓库内既无生成器也无提示词** | 0 |
 
-重新生成与自检：
+重新生成与自检（**JSON 与那份 .md 都是生成物，不要手改**）：
 
 ```bash
-python3 resource-pack/tools/generate-provenance.py --write   # 覆盖 asset-provenance.json
+# 一次产出 asset-provenance.json + ASSET-PROVENANCE.md（含附录的逐张总表）
+python3 resource-pack/tools/generate-provenance.py --write --write-doc
 ```
 
 **交付给 W12-A3 门禁的四条一致性判据**（均已在本任务实测通过）：
@@ -40,17 +44,21 @@ python3 resource-pack/tools/generate-provenance.py --write   # 覆盖 asset-prov
 
 **对账修正了任务书里的三处口径**（详见 `ASSET-PROVENANCE.md` §2）：
 
-- 42 张 `skill_*` **不是 AI 直出**：`ai/` 下 0 / 42 有对应提示词；它们是
-  `tools/generate_betterhud_panels.py#skill_menu_items` 从 18px HUD 语义图标派生的
-  `derived-from`（42 张里 37 张与生成器 recipe 逐像素一致，5 张差 4 px）。
-- `ai/prompts.jsonl` 的 27 条里，**26 条不能单独作为当前磁盘纹理的来源证明**
-  （6 条指向已删除的方块头、20 条指向被 `GenerateTextures` 同名覆盖的图）。
+- 42 张 `skill_*` **不是 AI 直出**：`ai/` 下 0 / 42 有对应提示词；
+  37 张是 `tools/generate_betterhud_panels.py#skill_menu_items` 从 18px HUD 语义图标派生的
+  `derived-from`，另外 5 张（2x2 强调色块）的派生 recipe 已回同步进 `GenerateTextures.java`，
+  因此提为 `generator`。
+- `ai/prompts.jsonl` 的条目里，**绝大多数不能单独作为当前磁盘纹理的来源证明**
+  （多条指向已删除的方块头、多条指向被 `GenerateTextures` 同名覆盖的图）。
 - 5 张 forged 变体帧是**独立素材**而非主纹理派生：与 `forged_ranger_weapon` 的不透明像素
   Jaccard ≤ 0.29；其中 crossbow 的 5 个状态、trident 的 2 个姿态在模型层**回指同一张 `layer0`**。
 
-仍有 **6 组需人工决策项**（`asset-provenance.json.$needsHumanDecision`）：38 张 BetterHud 字库分页、
-20 张法力帧切分、4 张上游占位贴图、`sulfur_resonance_imprint` 的提示词缺口、上述 5 张 skill 的
-4 px 差异，以及生成器脚本自身是否入库。
+**旧口径下的 6 组待决项已全部裁决**（W13-A2 五组 + W13-A1 三条出清，合并后
+`asset-provenance.json.$needsHumanDecision` 为**空数组**）：38 张 BetterHud 字库分页 →
+`upstream-betterhud`；5 张上游占位贴图 → `upstream-vanilla`；`sulfur_resonance_imprint`
+相似度判定最高 Jaccard 0.099 ⇒ 独立素材，补登 `ai/prompts.jsonl:28`；
+生成器脚本经 `git ls-files` 确认**已在库**；20 张法力帧切分与 5 张 skill 的 4 px 差异
+则由 W13-A1 回同步进生成器（见下一节的 `human-override` 与 §7 可复现断言）。
 
 ## 逐像素基线：`assets-manifest.json`
 
@@ -116,15 +124,16 @@ python3 scripts/check-asset-baseline.py     # 0=全一致 1=有差异 2=清单�
 （不是 0，也不是 1）。同一节做接线自证，断言 `.cnb.yml` 真的在跑这条命令 ——
 「脚本写好了但没人调用」比「脚本有 bug」更隐蔽。
 
-## 三道素材门禁的分工（不要复制粘贴第二套逻辑）
+## 四道素材门禁的分工（不要复制粘贴第二套逻辑）
 
-同一批素材有**三个**校验入口，职责不同、判据有重叠但**不共享代码**（避免多套会漂移的实现）：
+同一批素材有**四个**校验入口，职责不同、判据有重叠但**不共享代码**（避免多套会漂移的实现）：
 
 | 入口 | 跑在哪 | 依赖 | 定位 |
 | --- | --- | --- | --- |
 | `resource-pack/build.sh` | 生产机（Paper 停机窗口） | bash + jq + rg + java + zip/unzip/sha1sum + `server/` | **打包真相源**：闭包、纹理、字体、语言键、SHA-1、稳定 UUID、`server.properties` 一致性、Paper 运行中拒绝覆盖 |
 | `scripts/check-resource-pack.sh` | CNB 质量门（`素材门禁（W7-A1）` stage） | **只用 POSIX sh + python3 stdlib**（PNG 解码走 zlib，不用 jq / 不用 ImageMagick / 不碰 Paper） | **仓内静态子集**：拦「素材坏着进 main」（判素材是否**自洽**） |
 | `scripts/check-asset-baseline.py` | CNB 质量门（`素材逐像素基线门禁（W12-A1）` stage，紧随素材门禁） | 只用 python3 stdlib（zlib 解码 + hashlib） | **逐像素对账**：拦「素材被悄悄换掉」（判素材是否**还是原来那张**），口径见上一节 |
+| `scripts/check-asset-reproducible.sh` | CNB 质量门（`素材可复现性门禁（W13-A1）` stage，紧随基线门禁） | **需要 JDK**（CI 镜像自带；开发容器自取 Temurin 25）+ python3 stdlib | **再造一次**：拦「生成器与仓库静默漂移」（判素材**还造不造得出来**），口径见下一节 |
 
 重叠判据（清单一一对应 / 闭包 / 32x32 二值 alpha / HUD 码位 / 旅程码位 /
 中英语言键 / 罗盘方向分发 / `pack.mcmeta` 格式）**以 `scripts/check-resource-pack.sh` 为准**：
@@ -136,6 +145,61 @@ python3 scripts/check-asset-baseline.py     # 0=全一致 1=有差异 2=清单�
 只比对「当前像素 vs `assets-manifest.json` 里登记的像素」，因此**不复制任何判据逻辑**，
 也不与 `build.sh` 重叠 —— `build.sh` 不读这份清单（生产机打包不依赖基线，
 基线是「防篡改」而不是「防打包错」）。
+
+可复现性门禁（`check-asset-reproducible.sh`）与上面三道都不同源：它现场编译并运行
+`resource-pack/tools/` 下的 Java 生成器到**临时目录**，再逐像素比对仓库里的对应 PNG。
+它补的是基线门禁**结构上管不到**的那个洞：
+
+> 基线门禁问的是「磁盘像素 == 清单里的像素」。有人手改一张纹理、再重跑
+> `scripts/gen-asset-manifest.py` 把新像素登记进清单，**两道门禁全绿** ——
+> 但生成器再也产不出那张图了（生成器与仓库不同步是**静默**的，没有任何东西在看着它）。
+
+覆盖规格在 `resource-pack/asset-reproducible.json`（70 条资产 / 4 个生成器）：
+`GenerateTextures` 36（31 原有 + 5 张 `skill_*`）、`GenerateHudAtlas` 1、
+`GenerateSkillHudAtlas` 1、`GenerateCompassFrames` 32 帧（另加 32 个罗盘模型 JSON 逐字节）。
+
+**有意不纳入 `GenerateSivitaHudPanel`**：它是 132x44 的遗留物，`build.sh` 不调用
+（现役 26x91 面板由 `generate_betterhud_panels.py` 产出），输出在
+`assets-manifest.json` 里没有条目。把没有对应仓库产物的生成器拖进门禁，
+只会得到一条**恒真的假判据** —— 那比没有门禁更坏。
+
+### `human-override`：人工覆盖要反向断言，不能豁免
+
+`ancient_echo_skill_book.png` 是 `ai/skill-book-prompts.jsonl:1`（v2）的人工覆盖，
+生成器 `GenerateTextures.book()` 的旧紫皮设计已弃用。它**按定义不可复现**，
+因此登记为 `category: human-override`，并在门禁里做**反向断言**：
+
+> 仓库像素必须**不等于**生成器输出。若有人把生成器的旧设计盖回仓库，必须 RED。
+
+为什么不用「豁免」：豁免只能证明「这张图没被检查」，反向断言能证明
+「这张图**是人工覆盖的那个版本**」。前者在有人覆盖回旧设计时静默放行，后者立刻变红。
+登记必须带 `override_reason` + `source_prompt`，缺了门禁同样 RED ——
+否则 `human-override` 会变成一个可以随便贴的免罚标签。
+
+### 有意更新生成器覆盖
+
+改了生成器（或要新增覆盖）后的正路：
+
+```sh
+# 1. 跑生成器，逐张确认真的一致（判据行必须是 GREEN）
+sh scripts/check-asset-reproducible.sh
+
+# 2. 若新增/改名了生成器输出，同步覆盖规格
+$EDITOR resource-pack/asset-reproducible.json
+
+# 3. 若像素真的变了（例如生成器修好了某张图）：同步基线清单
+python3 scripts/gen-asset-manifest.py
+git add resource-pack/assets resource-pack/assets-manifest.json
+git commit -m "feat(resource-pack): 同步生成器与基线"
+
+# 4. 同步来源登记与登记文档（两份都是生成物）
+python3 resource-pack/tools/generate-provenance.py --write --write-doc
+```
+
+与基线门禁同样，**不做** `--skip` / `--force` 开关：想转绿只有
+「改生成器」或「改素材并同步基线」两条路。
+`scripts/selftest-gates.sh` §10 用三组负向对照证明它真的会红
+（改生成器常量 / 人工覆盖被盖回去 / `human-override` 登记被改）。
 
 **CI 判不了、只能由 `build.sh` 判的**（需要 Paper / 仓外产物，本仓没有）：
 - `pack.mcmeta` 声明的格式 88 是否与**安装中的** 26.2 服务端一致 ——
@@ -149,6 +213,6 @@ python3 scripts/check-asset-baseline.py     # 0=全一致 1=有差异 2=清单�
 
 构建成功后会生成稳定文件名 `server/web/resourcepacks/sivita-hub-26.2.zip`，更新 SHA-1，并让线上模板与局域网运行配置使用同一个稳定资源包 UUID；两个环境仍保留各自域名或局域网 URL。黑紫方块排查与客户端验收清单见 `docs/RESOURCE_PACK_QA.md`。
 
-`ai/` 提供 Image API 美术生产线：27 条批量提示词 + 3 条技能书提示词，加上独立的旅者罗盘提示词，全部通过 `/v1/images/generations` 生成绿幕原稿，去背后压缩成统一 32x32 调色板；单资产修改通过 `/v1/images/edits` 版本化输出。只有显式传入 `--apply` 才覆盖当前资源，具体命令见 `ai/README.md`。当前 Sub2API Key 的分组必须开启 `allow_image_generation`，否则网关会返回 403。
+`ai/` 提供 Image API 美术生产线：28 条批量提示词 + 3 条技能书提示词，加上独立的旅者罗盘提示词，全部通过 `/v1/images/generations` 生成绿幕原稿，去背后压缩成统一 32x32 调色板；单资产修改通过 `/v1/images/edits` 版本化输出。只有显式传入 `--apply` 才覆盖当前资源，具体命令见 `ai/README.md`。当前 Sub2API Key 的分组必须开启 `allow_image_generation`，否则网关会返回 403。
 
 物品身份仍以服务端签名 PDC 和数据库 `item_id` 为准，模型键只负责显示，绝不作为交易或属性校验依据。
