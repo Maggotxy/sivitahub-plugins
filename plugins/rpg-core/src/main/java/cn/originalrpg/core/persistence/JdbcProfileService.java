@@ -38,7 +38,13 @@ public final class JdbcProfileService implements ProfileService {
     private final int startingEnergy;
     private final int energyPerStamina;
     private final IntSupplier maximumOpenAscension;
-    private final Map<UUID, PlayerProfile> cache = new ConcurrentHashMap<>();
+    /**
+     * 读缓存：值带一个「提交版本号」。版本号在写事务**提交成功之后、仍在 DB 线程上**取得，
+     * 因此同一玩家的版本号顺序 == 数据库提交顺序（行锁已把该玩家的写事务串行化）。
+     * 发布时只接受更高的版本号 —— 晚到的旧快照不得回滚新快照。
+     */
+    private final Map<UUID, CachedProfile> cache = new ConcurrentHashMap<>();
+    private final java.util.concurrent.atomic.AtomicLong commitVersion = new java.util.concurrent.atomic.AtomicLong();
 
     public JdbcProfileService(DataSource dataSource, Executor executor, int startingEnergy, int energyPerStamina) {
         this(dataSource, executor, startingEnergy, energyPerStamina, () -> 0);
@@ -65,20 +71,25 @@ public final class JdbcProfileService implements ProfileService {
 
     @Override
     public CompletionStage<PlayerProfile> get(UUID playerId) {
-        PlayerProfile cached = cache.get(playerId);
+        CachedProfile cached = cache.get(playerId);
         if (cached != null) {
-            return CompletableFuture.completedFuture(cached);
+            return CompletableFuture.completedFuture(cached.profile());
         }
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> loadOrCreate(connection, playerId, true)))
-                .thenApply(profile -> {
-                    cache.put(playerId, profile);
-                    return profile;
-                });
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            PlayerProfile profile = inTransaction(
+                    connection -> loadOrCreate(connection, playerId, true), version);
+            return new Committed<>(profile, version[0]);
+        }).thenApply(committed -> {
+            publish(committed.value(), committed.version());
+            return committed.value();
+        });
     }
 
     @Override
     public Optional<PlayerProfile> cached(UUID playerId) {
-        return Optional.ofNullable(cache.get(playerId));
+        CachedProfile cached = cache.get(playerId);
+        return Optional.ofNullable(cached == null ? null : cached.profile());
     }
 
     @Override
@@ -119,32 +130,36 @@ public final class JdbcProfileService implements ProfileService {
 
     @Override
     public CompletionStage<PlayerProfile> prepareStarterBuild(UUID playerId) {
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            PlayerProfile current = loadOrCreate(connection, playerId, true);
-            if (current.archetype() == Archetype.UNCHOSEN) {
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            PlayerProfile updated = inTransaction(connection -> {
+                PlayerProfile current = loadOrCreate(connection, playerId, true);
+                if (current.archetype() == Archetype.UNCHOSEN) {
                 throw new IllegalStateException("A class is required before starter correction");
-            }
-            if (StarterBuildRules.ready(current.archetype(), current.attributes())) return current;
-            int allocated = current.attributes().values().stream()
+                }
+                if (StarterBuildRules.ready(current.archetype(), current.attributes())) return current;
+                int allocated = current.attributes().values().stream()
                     .mapToInt(value -> Math.max(0, value)).sum();
-            int totalBudget = Math.addExact(allocated, current.unspentAttributePoints());
-            if (totalBudget < StarterBuildRules.STARTING_ATTRIBUTE_POINTS) {
+                int totalBudget = Math.addExact(allocated, current.unspentAttributePoints());
+                if (totalBudget < StarterBuildRules.STARTING_ATTRIBUTE_POINTS) {
                 throw new IllegalStateException("Starter attribute budget is incomplete");
-            }
-            EnumMap<CoreAttribute, Integer> corrected = new EnumMap<>(CoreAttribute.class);
-            corrected.putAll(StarterBuildRules.requirements(current.archetype()));
-            int energyCap = startingEnergy + corrected.getOrDefault(CoreAttribute.STAMINA, 0) * energyPerStamina;
-            PlayerProfile updated = new PlayerProfile(
+                }
+                EnumMap<CoreAttribute, Integer> corrected = new EnumMap<>(CoreAttribute.class);
+                corrected.putAll(StarterBuildRules.requirements(current.archetype()));
+                int energyCap = startingEnergy + corrected.getOrDefault(CoreAttribute.STAMINA, 0) * energyPerStamina;
+                PlayerProfile correctedProfile = new PlayerProfile(
                     current.playerId(), current.archetype(), current.ascension(), current.level(), current.experience(),
                     Math.min(current.energy(), energyCap), energyCap,
                     totalBudget - StarterBuildRules.STARTING_ATTRIBUTE_POINTS,
                     current.skillPoints(), corrected
-            );
-            update(connection, updated);
-            return updated;
-        })).thenApply(updated -> {
-            cache.put(playerId, updated);
-            return updated;
+                );
+                update(connection, correctedProfile);
+                return correctedProfile;
+            }, version);
+            return new Committed<>(updated, version[0]);
+        }).thenApply(committed -> {
+            publish(committed.value(), committed.version());
+            return committed.value();
         });
     }
 
@@ -153,19 +168,23 @@ public final class JdbcProfileService implements ProfileService {
         if (amount <= 0) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Experience must be positive"));
         }
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            PlayerProfile current = loadOrCreate(connection, playerId, true);
-            PlayerProfile leveled = withGrantedExperience(current, amount);
-            // 直接授予经验没有业务 receipt，幂等依据是「档案 + 本段档位」：
-            // 同一档位只落一行流水，重复授予到同一档位不再加点。
-            int granted = settleSkillPointMilestones(connection,
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            PlayerProfile updated = inTransaction(connection -> {
+                PlayerProfile current = loadOrCreate(connection, playerId, true);
+                PlayerProfile leveled = withGrantedExperience(current, amount);
+                // 直接授予经验没有业务 receipt，幂等依据是「档案 + 本段档位」：
+                // 同一档位只落一行流水，重复授予到同一档位不再加点。
+                int granted = settleSkillPointMilestones(connection,
                     skillPointContexts(current, leveled, profileSource(playerId)));
-            PlayerProfile updated = withSkillPoints(leveled, granted);
-            update(connection, updated);
-            return updated;
-        })).thenApply(updated -> {
-            cache.put(playerId, updated);
-            return updated;
+                PlayerProfile settled = withSkillPoints(leveled, granted);
+                update(connection, settled);
+                return settled;
+            }, version);
+            return new Committed<>(updated, version[0]);
+        }).thenApply(committed -> {
+            publish(committed.value(), committed.version());
+            return committed.value();
         });
     }
 
@@ -179,17 +198,22 @@ public final class JdbcProfileService implements ProfileService {
         if (amount <= 0) {
             return CompletableFuture.completedFuture(false);
         }
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            PlayerProfile current = loadOrCreate(connection, playerId, true);
-            if (current.energy() < amount) {
-                return new EnergySpend(false, current);
-            }
-            PlayerProfile updated = copy(current, current.archetype(), current.level(), current.experience(), current.energy() - amount);
-            update(connection, updated);
-            return new EnergySpend(true, updated);
-        })).thenApply(result -> {
-            cache.put(playerId, result.profile());
-            return result.spent();
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            EnergySpend result = inTransaction(connection -> {
+                PlayerProfile current = loadOrCreate(connection, playerId, true);
+                if (current.energy() < amount) {
+                    return new EnergySpend(false, current);
+                }
+                PlayerProfile updated = copy(current, current.archetype(), current.level(),
+                        current.experience(), current.energy() - amount);
+                update(connection, updated);
+                return new EnergySpend(true, updated);
+            }, version);
+            return new Committed<>(result, version[0]);
+        }).thenApply(committed -> {
+            publish(committed.value().profile(), committed.version());
+            return committed.value().spent();
         });
     }
 
@@ -198,9 +222,9 @@ public final class JdbcProfileService implements ProfileService {
         if (amount <= 0) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Energy amount must be positive"));
         }
-        PlayerProfile cached = cache.get(playerId);
-        if (cached != null && cached.energy() >= cached.energyCap()) {
-            return CompletableFuture.completedFuture(cached);
+        CachedProfile cached = cache.get(playerId);
+        if (cached != null && cached.profile().energy() >= cached.profile().energyCap()) {
+            return CompletableFuture.completedFuture(cached.profile());
         }
         return mutate(playerId, profile -> copy(
                 profile,
@@ -225,40 +249,44 @@ public final class JdbcProfileService implements ProfileService {
                 || periodLimit < 1 || periodLimit > 1_000_000) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Invalid Energy quota request"));
         }
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            PlayerProfile current = loadOrCreate(connection, playerId, true);
-            ensureEnergyQuota(connection, playerId, sourceId, periodKey);
-            EnergyQuota quota = lockEnergyQuota(connection, playerId, sourceId, periodKey);
-            int next = diminishingGrant(
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            EnergyQuotaResult result = inTransaction(connection -> {
+                PlayerProfile current = loadOrCreate(connection, playerId, true);
+                ensureEnergyQuota(connection, playerId, sourceId, periodKey);
+                EnergyQuota quota = lockEnergyQuota(connection, playerId, sourceId, periodKey);
+                int next = diminishingGrant(
                     quota.uses(), baseAmount, decayEveryUses, decayAmount, minimumAmount);
-            if (current.energy() >= current.energyCap()) {
-                return new EnergyQuotaResult(EnergyQuotaResult.Status.ENERGY_FULL, current,
-                        0, quota.uses(), Math.min(quota.energyRestored(), periodLimit), periodLimit,
-                        quota.energyRestored() >= periodLimit ? 0 : next);
-            }
-            if (quota.energyRestored() >= periodLimit) {
-                return new EnergyQuotaResult(EnergyQuotaResult.Status.PERIOD_LIMIT, current,
-                        0, quota.uses(), periodLimit, periodLimit, 0);
-            }
-            int granted = Math.min(next, Math.min(
+                if (current.energy() >= current.energyCap()) {
+                    return new EnergyQuotaResult(EnergyQuotaResult.Status.ENERGY_FULL, current,
+                            0, quota.uses(), Math.min(quota.energyRestored(), periodLimit), periodLimit,
+                            quota.energyRestored() >= periodLimit ? 0 : next);
+                }
+                if (quota.energyRestored() >= periodLimit) {
+                    return new EnergyQuotaResult(EnergyQuotaResult.Status.PERIOD_LIMIT, current,
+                            0, quota.uses(), periodLimit, periodLimit, 0);
+                }
+                int granted = Math.min(next, Math.min(
                     periodLimit - quota.energyRestored(), current.energyCap() - current.energy()));
-            if (granted <= 0) {
-                return new EnergyQuotaResult(EnergyQuotaResult.Status.PERIOD_LIMIT, current,
-                        0, quota.uses(), Math.min(quota.energyRestored(), periodLimit), periodLimit, 0);
-            }
-            PlayerProfile updated = copy(current, current.archetype(), current.level(),
+                if (granted <= 0) {
+                    return new EnergyQuotaResult(EnergyQuotaResult.Status.PERIOD_LIMIT, current,
+                            0, quota.uses(), Math.min(quota.energyRestored(), periodLimit), periodLimit, 0);
+                }
+                PlayerProfile updated = copy(current, current.archetype(), current.level(),
                     current.experience(), current.energy() + granted);
-            update(connection, updated);
-            int updatedUses = quota.uses() + 1;
-            int updatedTotal = quota.energyRestored() + granted;
-            updateEnergyQuota(connection, playerId, sourceId, periodKey, updatedUses, updatedTotal);
-            int following = updatedTotal >= periodLimit ? 0 : diminishingGrant(
+                update(connection, updated);
+                int updatedUses = quota.uses() + 1;
+                int updatedTotal = quota.energyRestored() + granted;
+                updateEnergyQuota(connection, playerId, sourceId, periodKey, updatedUses, updatedTotal);
+                int following = updatedTotal >= periodLimit ? 0 : diminishingGrant(
                     updatedUses, baseAmount, decayEveryUses, decayAmount, minimumAmount);
-            return new EnergyQuotaResult(EnergyQuotaResult.Status.SUCCESS, updated,
+                return new EnergyQuotaResult(EnergyQuotaResult.Status.SUCCESS, updated,
                     granted, updatedUses, updatedTotal, periodLimit, following);
-        })).thenApply(result -> {
-            cache.put(playerId, result.profile());
-            return result;
+            }, version);
+            return new Committed<>(result, version[0]);
+        }).thenApply(committed -> {
+            publish(committed.value().profile(), committed.version());
+            return committed.value();
         });
     }
 
@@ -330,62 +358,68 @@ public final class JdbcProfileService implements ProfileService {
                 || (limitGroup == null && maxUses != 0)) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Invalid skill-book redemption"));
         }
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            PlayerProfile current = loadOrCreate(connection, playerId, true);
-            UsedBook existing = usedBook(connection, instanceId);
-            if (existing != null) {
-                return new SkillBookRedemption(
-                        SkillBookRedemption.Status.DUPLICATE,
-                        existing.pointsGranted(),
-                        countUses(connection, playerId, existing.limitGroup()),
-                        current
-                );
-            }
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            SkillBookRedemption result = inTransaction(connection -> {
+                PlayerProfile current = loadOrCreate(connection, playerId, true);
+                UsedBook existing = usedBook(connection, instanceId);
+                if (existing != null) {
+                    return new SkillBookRedemption(
+                            SkillBookRedemption.Status.DUPLICATE,
+                            existing.pointsGranted(),
+                            countUses(connection, playerId, existing.limitGroup()),
+                            current
+                    );
+                }
 
-            int uses = countUses(connection, playerId, limitGroup);
-            if (limitGroup != null && maxUses > 0 && uses >= maxUses) {
-                return new SkillBookRedemption(
-                        SkillBookRedemption.Status.LIMIT_REACHED, 0, uses, current);
-            }
-            if (current.skillPoints() > MAX_SKILL_POINTS - points) {
-                return new SkillBookRedemption(
-                        SkillBookRedemption.Status.POINT_LIMIT, 0, uses, current);
-            }
+                int uses = countUses(connection, playerId, limitGroup);
+                if (limitGroup != null && maxUses > 0 && uses >= maxUses) {
+                    return new SkillBookRedemption(
+                            SkillBookRedemption.Status.LIMIT_REACHED, 0, uses, current);
+                }
+                if (current.skillPoints() > MAX_SKILL_POINTS - points) {
+                    return new SkillBookRedemption(
+                            SkillBookRedemption.Status.POINT_LIMIT, 0, uses, current);
+                }
 
-            try (PreparedStatement insert = connection.prepareStatement("""
+                try (PreparedStatement insert = connection.prepareStatement("""
                     INSERT INTO rpg_skill_book_uses (
                         instance_id, player_uuid, book_id, limit_group, points_granted
                     ) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING
                     """)) {
-                insert.setString(1, instanceId.toString());
-                insert.setString(2, playerId.toString());
-                insert.setString(3, bookId);
-                insert.setString(4, limitGroup);
-                insert.setInt(5, points);
-                if (insert.executeUpdate() != 1) {
-                    UsedBook raced = usedBook(connection, instanceId);
-                    if (raced == null) throw new IllegalStateException("Skill-book replay could not be resolved");
-                    return new SkillBookRedemption(
-                            SkillBookRedemption.Status.DUPLICATE,
-                            raced.pointsGranted(),
-                            countUses(connection, playerId, raced.limitGroup()),
-                            current
-                    );
+                    insert.setString(1, instanceId.toString());
+                    insert.setString(2, playerId.toString());
+                    insert.setString(3, bookId);
+                    insert.setString(4, limitGroup);
+                    insert.setInt(5, points);
+                    if (insert.executeUpdate() != 1) {
+                        UsedBook raced = usedBook(connection, instanceId);
+                        if (raced == null) {
+                            throw new IllegalStateException("Skill-book replay could not be resolved");
+                        }
+                        return new SkillBookRedemption(
+                                SkillBookRedemption.Status.DUPLICATE,
+                                raced.pointsGranted(),
+                                countUses(connection, playerId, raced.limitGroup()),
+                                current
+                        );
+                    }
                 }
-            }
 
-            int updatedPoints = current.skillPoints() + points;
-            PlayerProfile updated = new PlayerProfile(
-                    current.playerId(), current.archetype(), current.ascension(), current.level(), current.experience(),
-                    current.energy(), current.energyCap(), current.unspentAttributePoints(), updatedPoints,
-                    current.attributes()
-            );
-            update(connection, updated);
-            return new SkillBookRedemption(
-                    SkillBookRedemption.Status.SUCCESS, points, uses + (limitGroup == null ? 0 : 1), updated);
-        })).thenApply(result -> {
-            cache.put(playerId, result.profile());
-            return result;
+                int updatedPoints = current.skillPoints() + points;
+                PlayerProfile updated = new PlayerProfile(
+                        current.playerId(), current.archetype(), current.ascension(), current.level(),
+                        current.experience(), current.energy(), current.energyCap(),
+                        current.unspentAttributePoints(), updatedPoints, current.attributes()
+                );
+                update(connection, updated);
+                return new SkillBookRedemption(
+                        SkillBookRedemption.Status.SUCCESS, points, uses + (limitGroup == null ? 0 : 1), updated);
+            }, version);
+            return new Committed<>(result, version[0]);
+        }).thenApply(committed -> {
+            publish(committed.value().profile(), committed.version());
+            return committed.value();
         });
     }
 
@@ -415,14 +449,18 @@ public final class JdbcProfileService implements ProfileService {
     }
 
     private CompletionStage<PlayerProfile> mutate(UUID playerId, ProfileMutation mutation) {
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            PlayerProfile current = loadOrCreate(connection, playerId, true);
-            PlayerProfile updated = mutation.apply(current);
-            update(connection, updated);
-            return updated;
-        })).thenApply(updated -> {
-            cache.put(playerId, updated);
-            return updated;
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            PlayerProfile updated = inTransaction(connection -> {
+                PlayerProfile current = loadOrCreate(connection, playerId, true);
+                PlayerProfile applied = mutation.apply(current);
+                update(connection, applied);
+                return applied;
+            }, version);
+            return new Committed<>(updated, version[0]);
+        }).thenApply(committed -> {
+            publish(committed.value(), committed.version());
+            return committed.value();
         });
     }
 
@@ -436,10 +474,40 @@ public final class JdbcProfileService implements ProfileService {
         update(connection, profile);
     }
 
-    /** Refreshes the read cache only after the caller's transaction has committed. */
-    void cacheCommitted(PlayerProfile profile) {
-        cache.put(profile.playerId(), profile);
+    /**
+     * 提交后刷新读缓存。
+     *
+     * @param version 调用方事务提交成功后取得的版本号（{@link #nextCommitVersion()}）。
+     *                必须传提交时取的号，否则「谁先回调谁后写」又会把旧快照盖到新快照上。
+     */
+    void cacheCommitted(PlayerProfile profile, long version) {
+        publish(profile, version);
     }
+
+    /**
+     * 发布已提交的快照到读缓存。
+     *
+     * <p>判据是**提交版本号**，不是「谁先回到主线程」：一个先提交的事务可能后执行
+     * {@code thenApply}，把更旧的快照盖到更新的快照上，读缓存被回滚
+     * （实测 {@code CACHED=19 DB=20}，即门禁 {@code expected: <20> but was: <19>}）。
+     * 行锁保证数据库正确，但 {@link #get} 只读缓存，玩家因此读到回滚后的经验。
+     *
+     * @param version 该事务提交成功后取得的版本号（{@link #nextCommitVersion()}）
+     */
+    private void publish(PlayerProfile profile, long version) {
+        cache.compute(profile.playerId(), (key, existing) ->
+                existing == null || version > existing.version()
+                        ? new CachedProfile(profile, version) : existing);
+    }
+
+    /** 在写事务提交成功后取版本号（单调递增，全实例唯一）。 */
+    long nextCommitVersion() {
+        return commitVersion.incrementAndGet();
+    }
+
+    private record CachedProfile(PlayerProfile profile, long version) {
+    }
+
 
     /**
      * Applies normal level/point progression inside a caller-owned transaction.
@@ -704,10 +772,20 @@ public final class JdbcProfileService implements ProfileService {
     }
 
     private <T> T inTransaction(SqlOperation<T> operation) {
+        return inTransaction(operation, new long[1]);
+    }
+
+    /**
+     * @param versionStamp 出参：写入本次事务**提交成功后**取得的版本号（仍在 DB 线程上）。
+     *                     调用方在 {@code thenApply} 里用它发布读缓存，使发布判定基于
+     *                     提交顺序而非调度顺序。
+     */
+    private <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
         try (Connection connection = dataSource.getConnection()) {
             try {
                 T result = operation.apply(connection);
                 connection.commit();
+                versionStamp[0] = nextCommitVersion();
                 return result;
             } catch (Exception exception) {
                 connection.rollback();

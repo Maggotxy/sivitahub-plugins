@@ -46,12 +46,17 @@ public final class JdbcAdminTestService implements AdminTestService {
 
     @Override
     public CompletionStage<AdminTestState> status(UUID playerId) {
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            PlayerProfile profile = profiles.loadForUpdate(connection, playerId);
-            return new AdminTestState(hasSnapshot(connection, playerId), profile, skillCount(connection, playerId));
-        })).thenApply(state -> {
-            profiles.cacheCommitted(state.profile());
-            return state;
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            AdminTestState state = inTransaction(connection -> {
+                PlayerProfile profile = profiles.loadForUpdate(connection, playerId);
+                return new AdminTestState(hasSnapshot(connection, playerId), profile,
+                        skillCount(connection, playerId));
+            }, version);
+            return new Committed<>(state, version[0]);
+        }).thenApply(committed -> {
+            profiles.cacheCommitted(committed.value().profile(), committed.version());
+            return committed.value();
         });
     }
 
@@ -64,21 +69,25 @@ public final class JdbcAdminTestService implements AdminTestService {
             int skillPoints
     ) {
         validate(archetype, skillLevels, attributeValue, skillPoints);
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            PlayerProfile current = profiles.loadForUpdate(connection, playerId);
-            if (!hasSnapshot(connection, playerId)) saveSnapshot(connection, current);
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            AdminTestState state = inTransaction(connection -> {
+                PlayerProfile current = profiles.loadForUpdate(connection, playerId);
+                if (!hasSnapshot(connection, playerId)) saveSnapshot(connection, current);
 
-            EnumMap<CoreAttribute, Integer> attributes = new EnumMap<>(CoreAttribute.class);
-            for (CoreAttribute attribute : CoreAttribute.values()) attributes.put(attribute, attributeValue);
-            int energyCap = startingEnergy + attributeValue * energyPerStamina;
-            PlayerProfile testing = new PlayerProfile(
+                EnumMap<CoreAttribute, Integer> attributes = new EnumMap<>(CoreAttribute.class);
+                for (CoreAttribute attribute : CoreAttribute.values()) attributes.put(attribute, attributeValue);
+                int energyCap = startingEnergy + attributeValue * energyPerStamina;
+                PlayerProfile testing = new PlayerProfile(
                     playerId, archetype, ProgressionRules.MAX_ASCENSION,
                     ProgressionRules.levelCap(ProgressionRules.MAX_ASCENSION), 0,
                     energyCap, energyCap, 0, skillPoints, attributes);
-            profiles.updateInTransaction(connection, testing);
-            replaceSkills(connection, playerId, skillLevels);
-            return new AdminTestState(true, testing, skillLevels.size());
-        })).thenApply(state -> refreshCaches(playerId, state));
+                profiles.updateInTransaction(connection, testing);
+                replaceSkills(connection, playerId, skillLevels);
+                return new AdminTestState(true, testing, skillLevels.size());
+            }, version);
+            return new Committed<>(state, version[0]);
+        }).thenApply(committed -> refreshCaches(playerId, committed.value(), committed.version()));
     }
 
     @Override
@@ -87,35 +96,43 @@ public final class JdbcAdminTestService implements AdminTestService {
             return java.util.concurrent.CompletableFuture.failedFuture(
                     new IllegalArgumentException("A concrete archetype is required"));
         }
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            if (!hasSnapshot(connection, playerId)) {
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            AdminTestState state = inTransaction(connection -> {
+                if (!hasSnapshot(connection, playerId)) {
                 throw new IllegalStateException("Administrator test mode is not active");
-            }
-            PlayerProfile current = profiles.loadForUpdate(connection, playerId);
-            PlayerProfile changed = new PlayerProfile(
+                }
+                PlayerProfile current = profiles.loadForUpdate(connection, playerId);
+                PlayerProfile changed = new PlayerProfile(
                     playerId, archetype, current.ascension(), current.level(), current.experience(),
                     current.energy(), current.energyCap(), current.unspentAttributePoints(),
                     current.skillPoints(), current.attributes());
-            profiles.updateInTransaction(connection, changed);
-            return new AdminTestState(true, changed, skillCount(connection, playerId));
-        })).thenApply(state -> refreshCaches(playerId, state));
+                profiles.updateInTransaction(connection, changed);
+                return new AdminTestState(true, changed, skillCount(connection, playerId));
+            }, version);
+            return new Committed<>(state, version[0]);
+        }).thenApply(committed -> refreshCaches(playerId, committed.value(), committed.version()));
     }
 
     @Override
     public CompletionStage<AdminTestState> restore(UUID playerId) {
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            PlayerProfile snapshot = loadSnapshot(connection, playerId);
-            if (snapshot == null) throw new IllegalStateException("Administrator test mode is not active");
-            profiles.updateInTransaction(connection, snapshot);
-            restoreSkills(connection, playerId);
-            int restoredSkills = skillCount(connection, playerId);
-            deleteSnapshot(connection, playerId);
-            return new AdminTestState(false, snapshot, restoredSkills);
-        })).thenApply(state -> refreshCaches(playerId, state));
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            AdminTestState state = inTransaction(connection -> {
+                PlayerProfile snapshot = loadSnapshot(connection, playerId);
+                if (snapshot == null) throw new IllegalStateException("Administrator test mode is not active");
+                profiles.updateInTransaction(connection, snapshot);
+                restoreSkills(connection, playerId);
+                int restoredSkills = skillCount(connection, playerId);
+                deleteSnapshot(connection, playerId);
+                return new AdminTestState(false, snapshot, restoredSkills);
+            }, version);
+            return new Committed<>(state, version[0]);
+        }).thenApply(committed -> refreshCaches(playerId, committed.value(), committed.version()));
     }
 
-    private AdminTestState refreshCaches(UUID playerId, AdminTestState state) {
-        profiles.cacheCommitted(state.profile());
+    private AdminTestState refreshCaches(UUID playerId, AdminTestState state, long version) {
+        profiles.cacheCommitted(state.profile(), version);
         skills.evict(playerId);
         return state;
     }
@@ -265,10 +282,20 @@ public final class JdbcAdminTestService implements AdminTestService {
     }
 
     private <T> T inTransaction(SqlOperation<T> operation) {
+        return inTransaction(operation, new long[1]);
+    }
+
+    /**
+     * @param versionStamp 出参：写入本次事务**提交成功后**取得的提交版本号
+     *                     （{@link JdbcProfileService#nextCommitVersion()}）。调用方在
+     *                     {@code thenApply} 里用它发布读缓存，使发布判定基于提交顺序。
+     */
+    private <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
         try (Connection connection = dataSource.getConnection()) {
             try {
                 T result = operation.apply(connection);
                 connection.commit();
+                versionStamp[0] = profiles.nextCommitVersion();
                 return result;
             } catch (Exception exception) {
                 connection.rollback();
