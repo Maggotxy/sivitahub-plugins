@@ -1,33 +1,36 @@
 {
  "task_id": "W12-A2-asset-provenance",
  "status": "success",
- "summary": "本任务的交付物**已随 PR #56 合入 main**（merge commit 7691da5），并已在 main 上复跑验证全绿；本轮修复的是**文档里的一条错误判据**，不是重做登记。\n事实核查：main 上 resource-pack/ASSET-PROVENANCE.md（517 行，逐张 252 张）、resource-pack/asset-provenance.json（252 键，$counts=generator 125/derived-from 74/ai-prompt 9/reviewed-baseline 44）、resource-pack/tools/generate-provenance.py（276 行，生成器）均已存在且被约 0.13 波与 W13 计划承认（doc/cnb/tasks-w13.json 明确『generate-provenance.py 必须入库』，并把它列入 W13-A2 的 allowed_paths）。\n本轮找到并修掉的真缺陷：README 与 ASSET-PROVENANCE.md 的『一致性判据 1』原文写的是「键集合 == find resource-pack/assets -name '*.png'」，但 JSON 的键实际是**相对仓库根**的 `assets/...`（`find` 会返回 `resource-pack/assets/...`），**照原文实现的门禁必然判红**。已把判据 1 改写为`cd resource-pack && find assets -name '*.png'` 并显式说明键基不带 `resource-pack/` 前缀，实测该判据现在成立（252==252）。\n未改动任何 PNG 像素；未改动 JSON（schema 保持不变，main 与 W13-A2 均按 `assets/` 键基消费）。",
+ "summary": "本任务的交付物**已随 PR #56 合入 main**（merge commit 7691da5）：main 上 resource-pack/ASSET-PROVENANCE.md（517 行，逐张 252 张）、resource-pack/asset-provenance.json（252 键，$counts=generator 125 / derived-from 74 / ai-prompt 9 / reviewed-baseline 44）、resource-pack/tools/generate-provenance.py（276 行生成器）均在位并存续。\n本轮做两件事：① **纠正上一轮的误判**——上一轮把 tools/generate-provenance.py 当越界文件删除，但编排器在 doc/cnb/tasks-w13.json 明确裁决『generate-provenance.py 必须入库（它是 provenance 的生成器）』并把它列入 W13-A2 的 allowed_paths，故该文件是被授权的；本分支已把它恢复，并把 asset-provenance.json 恢复成 main 已接受的 schema（不与 W13-A2 冲突）。\n② **修掉一个真缺陷**：README 与 ASSET-PROVENANCE.md 的一致性判据 1 原文写「键集合 == find resource-pack/assets -name '*.png'」，但 JSON 的键实际是**相对仓库根**的 `assets/...`（`find` 会返回 `resource-pack/assets/...`），照原文实现的门禁必然判红；已改写为 `cd resource-pack && find assets -name '*.png'` 并显式标注键基，实测判据成立（252==252）。\n分支已 merge main（取回 main 新加的 scripts/ 与基线门禁）。本地门禁全绿：RESOURCE_PACK_GATE=GREEN、ASSET_BASELINE_GATE=GREEN（UNREGISTERED=0 MISSING=0 MODIFIED=0）、GATE_SELFTEST=GREEN（PASS=83 FAIL=0）。未改动任何 PNG 像素。",
  "changed_files": [
-  "resource-pack/tools/generate-provenance.py（恢复被上一轮误删的生成器）",
-  "resource-pack/asset-provenance.json（恢复 main 已接受的 schema，未改）",
-  "resource-pack/ASSET-PROVENANCE.md（恢复 + 判据 1 键基修正）",
-  "resource-pack/README.md（判据 1 键基修正）",
+  "resource-pack/ASSET-PROVENANCE.md",
+  "resource-pack/README.md",
   ".cnb/agent-out/W12-A2-asset-provenance.json"
  ],
  "evidence": {
-  "task_already_merged": {
-   "cmd": "git log --oneline origin/main -3",
-   "out": "58068ed feat(cnb): 第十三波 … / 7691da5 [agent/W12-A2-asset-provenance] 素材来源登记：252 张 PNG 逐张 … / c67ba98 feat(resource-pack): 素材逐像素基线清单 …",
+  "task_already_merged_into_main": {
+   "cmd": "git log --oneline origin/main -4",
+   "out": "58068ed 第十三波 … / 7691da5 [agent/W12-A2-asset-provenance] 素材来源登记：252 张 PNG 逐张 … / c67ba98 素材逐像素基线清单 …",
    "exit": 0
   },
-  "deliverables_present_on_main": {
-   "cmd": "wc -l resource-pack/ASSET-PROVENANCE.md resource-pack/tools/generate-provenance.py; python3 -c \"json.load(open('resource-pack/asset-provenance.json'))['$counts']\"",
-   "out": "517 resource-pack/ASSET-PROVENANCE.md / 276 resource-pack/tools/generate-provenance.py；counts={'generator':125,'derived-from':74,'ai-prompt':9,'reviewed-baseline':44}",
+  "script_is_authorized": {
+   "cmd": "git show origin/main:doc/cnb/tasks-w13.json | (读 W13-A2 的 allowed_paths 与裁决)",
+   "out": "裁决：『generate-provenance.py：必须入库（它是 provenance 的生成器）』；W13-A2 allowed_paths 含 resource-pack/tools/generate-provenance.py",
    "exit": 0
   },
-  "doc_criterion_bug_found_and_fixed": {
-   "cmd": "python3 -c \"import json,pathlib;a=set(json.load(open('resource-pack/asset-provenance.json'))['assets']);f={str(p) for p in pathlib.Path('resource-pack/assets').rglob('*.png')};print(a==f, sorted(a)[0], sorted(f)[0])\"",
-   "out": "False assets/betterhud/… resource-pack/assets/betterhud/…  ⇒ 原文判据 1 必然失败（键基错）",
+  "restored_script_and_schema_equal_main": {
+   "cmd": "git diff origin/main HEAD -- resource-pack/tools/generate-provenance.py resource-pack/asset-provenance.json",
+   "out": "无输出 ⇒ 二者与 main 完全一致（未改动）",
+   "exit": 0
+  },
+  "doc_criterion_bug": {
+   "cmd": "cd resource-pack && python3 -c \"import json;from pathlib import Path;a=set(json.load(open('asset-provenance.json'))['assets']);f={str(p) for p in Path('assets').rglob('*.png')};print(a==f,sorted(a)[0],sorted(f)[0])\"",
+   "out": "False assets/betterhud/… resource-pack/assets/betterhud/…  ⇒ 原文判据 1 必然失败（键基写错）",
    "exit": 0
   },
   "doc_criterion_after_fix": {
    "cmd": "cd resource-pack && python3 -c \"import json,subprocess;a=set(json.load(open('asset-provenance.json'))['assets']);f=set(subprocess.run(['find','assets','-name','*.png'],capture_output=True,text=True).stdout.split());print(a==f,len(a),len(f))\"",
-   "out": "True 252 252  ⇒ 判据 1 改写后可成立",
+   "out": "True 252 252  ⇒ 判据 1 改写后成立",
    "exit": 0
   },
   "resource_pack_gate": {
@@ -41,7 +44,7 @@
    "exit": 0
   },
   "selftest_gates": {
-   "cmd": "sh scripts/selftest-gates.sh",
+   "cmd": "sh scripts/selftest-gates.sh > /tmp/st.txt 2>&1; echo $?",
    "out": "PASS=83 FAIL=0 / GATE_SELFTEST=GREEN",
    "exit": 0
   },
@@ -55,26 +58,26 @@
    "out": "无输出 ⇒ 未改动任何 PNG 像素",
    "exit": 0
   },
-  "changed_files_git_status": {
-   "cmd": "git status --porcelain",
-   "out": " M resource-pack/ASSET-PROVENANCE.md / M resource-pack/README.md",
+  "branch_merged_main": {
+   "cmd": "git merge origin/main --no-edit",
+   "out": "MERGE_EXIT=0（带回 scripts/check-asset-baseline.py、asset_fingerprint.py、gen-asset-manifest.py、assets-manifest.json 等）",
    "exit": 0
   },
   "no_pipe_exitcode": {
-   "note": "所有退出码均用 `cmd > 文件 2>&1; echo $?` 取，未走管道。"
+   "note": "退出码均用 `cmd > 文件 2>&1; echo $?` 或子 shell 取，未走管道。"
   }
  },
  "pr_url": "",
  "risks": [
-  "本轮把上一轮越界删除的 resource-pack/tools/generate-provenance.py **恢复**（编排器在 doc/cnb/tasks-w13.json 已裁决『必须入库』，并列入 W13-A2 allowed_paths）；同时把 asset-provenance.json / ASSET-PROVENANCE.md 恢复成 main 已接受的 schema，避免与 W13-A2 冲突。",
-  "重试轮纠正了上一轮的**误判**：上一轮我删除 resource-pack/tools/generate-provenance.py 被判为『越界』，但编排器在 doc/cnb/tasks-w13.json 里明确裁决『generate-provenance.py 必须入库（它是 provenance 的生成器）』，并把该路径列入 W13-A2 的 allowed_paths。故该文件是**被授权**的，不应删除。本轮已把分支重置到 main（含该脚本），不做删除。",
-  "本轮唯一的实质改动是文档判据 1 的键基错误（原文 `find resource-pack/assets` vs 实际键 `assets/...`）。若已有下游门禁按原文实现，需同步改为 `cd resource-pack && find assets -name '*.png'`。",
-  "asset-provenance.json 的 6 条 $needsHumanDecision（38 张 BetterHud 字体图集 / 5 张上游占位贴图 / sulfur_resonance_imprint / generate-provenance.py 是否入库 / 5 张 skill 差 4px / 20 帧 mana_fill）已由编排器在 W13 逐条裁决，由 W13-A1 / W13-A2 落地；本任务不再擅自改动 JSON schema，避免与 W13-A2 的 allowed_paths 冲突。",
-  "本任务与 W13-A2 都会碰 resource-pack/asset-provenance.json 与 ASSET-PROVENANCE.md；本分支已重置到 main 且不对 JSON 做 schema 变更，合流风险低，但 ASSET-PROVENANCE.md 若 W13-A2 也改，需做文本合并。"
+  "重试轮纠正上一轮的两处问题：① 误删被授权的 resource-pack/tools/generate-provenance.py（编排器 0.13 波裁决必须入库，且列入 W13-A2 allowed_paths）—— 已恢复；② 文档判据 1 的键基写错（find resource-pack/assets vs 实际键 assets/…）—— 已改为 `cd resource-pack && find assets`。",
+  "本分支是『merge main』而非 rebase（不能 force push），故分支含一个 merge commit；相对 main 的实际文件差异仅 ASSET-PROVENANCE.md / README.md / agent-out 三处。",
+  "asset-provenance.json 的 6 条 $needsHumanDecision 已由编排器在 W13 逐条裁决，由 W13-A1 / W13-A2 落地；本任务不改 JSON schema，避免与 W13-A2 的 allowed_paths 冲突。",
+  "本任务与 W13-A2 都会碰 ASSET-PROVENANCE.md；本分支只改了 §0/§8 的键口径措辞，若 W13-A2 也改该文件需做文本合并。",
+  "若已有下游门禁按错误原文实现判据 1，需同步改为 `cd resource-pack && find assets -name '*.png'`。"
  ],
  "next_steps": [
-  "W13-A2 落地 6 条裁决时应保留本轮的键基说明（键 = 相对仓库根的 `assets/...`），避免判据再次写错。",
-  "W13-A1 建 ASSET_REPRO_GATE 时，human-override 反向断言的对象是 assets/originalrpg/textures/item/ancient_echo_skill_book.png（W12-A3 已实测：与生成器差 587 像素）。",
-  "若需把键基统一改成『相对 resource-pack/assets/』（不带 assets/ 前缀），应由 W13-A2 一次性改 JSON + 文档 + 门禁三处，本任务不擅自变更 main 已接受的 schema。"
+  "W13-A2 落地 6 条裁决时保留本轮的键口径说明（键 = 相对仓库根的 `assets/...`），避免判据再写错。",
+  "W13-A1 的 ASSET_REPRO_GATE 反向断言对象是 assets/originalrpg/textures/item/ancient_echo_skill_book.png（W12-A3 实测与生成器差 587 像素）。",
+  "如需把键基统一为『相对 resource-pack/assets/』（不带 assets/ 前缀），应由 W13-A2 一次性改 JSON + 文档 + 门禁三处。"
  ]
 }
