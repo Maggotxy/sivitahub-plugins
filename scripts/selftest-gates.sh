@@ -453,9 +453,9 @@ real_checks=$(sed -n 's/.*SOURCE_CONTRACT_CHECKS=\([0-9]\+\) SPECS=\([0-9]\+\).*
 real_spec_checks=${real_checks%% *}
 real_spec_files=${real_checks##* }
 if [ -n "$real_checks" ] \
-  && [ "$real_spec_checks" -ge 462 ] && [ "$real_spec_files" -ge 1 ] \
+  && [ "$real_spec_checks" -ge 466 ] && [ "$real_spec_files" -ge 2 ] \
   && grep -q 'SOURCE_CONTRACT_GATE=GREEN' "$TMP/specs-real.txt"; then
-  echo "  [OK  ] 真实规格目录已加载且未缩水（CHECKS=$real_spec_checks≥462 SPECS=$real_spec_files≥1 GREEN）"
+  echo "  [OK  ] 真实规格目录已加载且未缩水（CHECKS=$real_spec_checks≥466 SPECS=$real_spec_files≥2 GREEN）"
   PASS=$((PASS + 1))
 else
   echo "  [FAIL] 真实规格目录缩水或加载失败（CHECKS=$real_spec_checks SPECS=$real_spec_files）" >&2
