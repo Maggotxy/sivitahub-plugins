@@ -17,7 +17,7 @@
     ".cnb.yml",
     ".cnb/agent-out/W14-A1-merge-two-branches.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/61",
   "risks": [
     "本仓无 server/：assets/betterhud/** 与 assets/bettermodel/** 是 server/config-templates 的下游拷贝，逐张复现需在部署机上跑（登记为已知边界，见 ASSET-PROVENANCE.md §7-②）。",
     "38 张 upstream-betterhud 图集只登记可重建步骤、门禁只判「被 font JSON 引用」，不判像素。",
@@ -26,7 +26,7 @@
     "本地无 JDK 时门禁需联网自取 Temurin 25（清华 Adoptium 镜像）；装不上时脚本 exit 2 明确失败而非静默跳过。"
   ],
   "next_steps": [
-    "由人工评审并合并本 PR（NPC 不执行 merge）。",
+    "由人工评审并合并 PR #61（NPC 不执行 merge）。",
     "后续若新增生成器输出，需同步 resource-pack/asset-reproducible.json 覆盖规格并重跑两道素材门禁。",
     "部署机上按 ASSET-PROVENANCE.md §6-① 的重建步骤重跑 BetterHud 编译，用于验证那 38 张字库分页。"
   ],
