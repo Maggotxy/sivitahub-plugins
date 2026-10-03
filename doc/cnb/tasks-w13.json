@@ -1,0 +1,49 @@
+{
+  "_comment": "第十三波：素材细节收口 —— 可复现性门禁 + 生成器同步/扩展 + 6 条 provenance 裁决落地。",
+  "_decisions_by_agent": {
+    "upstream-betterhud": "38 张 BetterHud 字体图集登记为上游编译期产物 + 给可重建步骤，不自己画",
+    "upstream-vanilla": "5 张原版/上游占位贴图登记为 upstream-vanilla 并说明为何不改",
+    "sulfur_resonance_imprint": "先做相似度判定：派生则标 derived-from，独立则补一条与像素一致的提示词",
+    "generate-provenance.py": "必须入库（它是 provenance 的生成器）",
+    "5张skill差4px": "判定为生成器与仓库不同步 ⇒ 同步生成器（补 2x2 强调色块）",
+    "20帧mana_fill": "判定为切分逻辑未入仓 ⇒ 扩展 generate_betterhud_panels.py 让 20 帧可复现"
+  },
+  "tasks": [
+    {
+      "id": "W13-A1-repro-gate-and-generator-sync",
+      "mode": "implement",
+      "goal": "把「可复现性」做成 CI 断言，并把生成器补齐到覆盖更多素材。\n\n① **建可复现性门禁**（复用已有脚本，**不要重造** A1/A2 已有的东西）：\n   写 `scripts/check-asset-reproducible.sh` + 一个 python 辅助：自取 Temurin 25（照抄 W12-A3 的做法，清华 Adoptium 镜像），编译并运行 `resource-pack/tools/` 下的 Java 生成器到**临时目录**，再用 `scripts/asset_fingerprint.py` 与仓库里的对应 PNG 逐像素比对。判据行 `ASSET_REPRO_GATE=GREEN|RED`。\n   覆盖：`GenerateTextures`（31 键）、`GenerateHudAtlas`、`GenerateSkillHudAtlas`、`GenerateCompassFrames`（32 帧+32 模型）。\n   **`GenerateSivitaHudPanel` 是 132x44 遗留物、build.sh 不调用 ⇒ 不纳入门禁**，但在脚本注释里写明原因。\n② **`ancient_echo_skill_book` 的处置**（W12-A3 已判：仓库里的是 v2 人工覆盖，生成器旧设计已弃用）：\n   把它登记为 **`human-override`**，并在门禁里加一条**反向断言**：该文件必须**不等于**生成器输出   （若有人把生成器的旧设计盖回去，必须 RED）。同时在 `asset-provenance.json` 里给它 `category: human-override` +    `override_reason` + `source_prompt: ai/skill-book-prompts.jsonl#<行号>`。\n③ **同步生成器**：`skill_{arcane-edge,ruin-charge,venom-blade,void-cut,war-cry}.png` 这 5 张   与生成器 recipe 差 **4 px（2x2 强调色块）** —— 这是**生成器与仓库不同步**。   把缺失的 2x2 强调色块补进 `GenerateTextures.java` 的对应方法里，让这 5 张变成逐像素可复现，   并把它们纳入 `ASSET_REPRO_GATE`。\n④ **扩展生成器让 20 帧可复现**：`betterhud/textures/image_image_sivita_mana_fill_up_20_1..20.png`（20 张）   是 `sivita_mana_fill.png`（1x87）的 20 帧切分，但**切分逻辑不在仓库生成器内**。   把切分逻辑加进 `resource-pack/tools/generate_betterhud_panels.py`（或它调用的地方），   让这 20 张也能被程序产出并逐像素比对。\n⑤ **改了生成器就必须同步基线**：跑 `python3 scripts/gen-asset-manifest.py` 更新    `resource-pack/assets-manifest.json`，并更新 `asset-provenance.json`（这 5+20 张的 category 改为 generator）。\n⑥ 把 `ASSET_REPRO_GATE` 接进 `.cnb.yml`（放在素材基线门禁旁边），并在 `scripts/selftest-gates.sh` 加**负向对照**：\n   改一个生成器常量 → 必须 RED；把 `ancient_echo_skill_book` 换成生成器输出 → 必须 RED（反向断言）；   还原 → GREEN。把命令与输出写进证据。\n⑦ 证据里给出：比对命令原文 + 逐张结果 + 你扩到多少张可复现 + selftest 的 PASS/FAIL 计数。\n\n【环境事实】\n- **新 main 上已有**：`scripts/asset_fingerprint.py`（python3 版 PngFingerprint：宽高+逐像素 ARGB 的 SHA-256）、`scripts/gen-asset-manifest.py`、`scripts/check-asset-baseline.py`（252 张 PNG 逐像素基线门禁，已接进 .cnb.yml）、`resource-pack/assets-manifest.json`（252 条）、`resource-pack/asset-provenance.json`（252 条在 `assets` 键下 + `$counts` + `$needsHumanDecision`）、`resource-pack/ASSET-PROVENANCE.md`（516 行）\n- `.cnb.yml` 现有 stage：准备下载器 → 门禁自测 → 素材门禁(W7-A1) → 素材逐像素基线门禁(W12-A1) → DDL 消费者门禁 → DDL 登记反向门禁 → 命令引用门禁 → compile → test → assemble\n- **本仓没有 JDK**：跑 `resource-pack/tools/*.java` 要先自取 Temurin 25（W12-A3 用的是清华 Adoptium 镜像，可照抄）\n- PNG 处理只用 python3（准备下载器 stage 已装），**不要引入 Pillow / ImageMagick**\n- 上一轮 W12-A3（PR#55 已关闭）实测结论（**直接采信，别重跑**）：`GenerateTextures` 31 键中 **30 张逐像素一致**、`ancient_echo_skill_book` **不一致（587 像素，是 ai/skill-book-prompts.jsonl v2 的人工覆盖，生成器 book() 的旧紫皮已弃用）**；`GenerateHudAtlas` / `GenerateSkillHudAtlas` / `GenerateCompassFrames`（32 帧+32 模型）全部逐像素一致；`GenerateSivitaHudPanel` 是 132x44 遗留物（build.sh 不调用，现役 26x91 由 generate_betterhud_panels.py 产生）\n\n【证据契约】写 .cnb/agent-out/<task-id>.json，evidence 必须是实际跑过的命令原文与输出。\n**取退出码不要走管道**：`sh x | tail; echo $?` 拿到的是 tail 的 0；必须重定向到文件再取 $?。\n\n【禁止】不改宪法；不新增货币/转数；注释用中文。不要手绘二进制素材。",
+      "deps": [],
+      "allowed_paths": [
+        "scripts/**",
+        "resource-pack/tools/**",
+        "resource-pack/assets/**",
+        "resource-pack/assets-manifest.json",
+        "resource-pack/asset-provenance.json",
+        "resource-pack/ASSET-PROVENANCE.md",
+        "resource-pack/README.md",
+        ".cnb.yml",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "复用已有脚本，不要重造 asset_fingerprint.py / gen-asset-manifest.py / check-asset-baseline.py。改生成器必须同步基线清单，否则门禁会红。"
+    },
+    {
+      "id": "W13-A2-provenance-decisions",
+      "mode": "implement",
+      "goal": "把 `asset-provenance.json` 的 **`$needsHumanDecision` 6 条**按下面的裁决落地（这是本地按人类授权做的决定，逐条在 PR 里写明理由）。\n\n裁决如下：\n1) **`betterhud/text_font{1,2}_*.png`（38 张）**：BetterHud 编译期字体图集 ⇒ 新增分类 `upstream-betterhud`，登记来源为「BetterHud 编译期生成」+ **可重建步骤**（读 `resource-pack/betterhud_26_1/` 与 `docs/RESOURCE_PACK_QA.md` 里的 `sync-betterhud-pack.sh` 流程，把步骤写进 `ASSET-PROVENANCE.md`）。**不要**试图自己画这 38 张。\n2) **`betterhud/splitter.png` + `bettermodel/mesh_pixel.png` + `minecraft/textures/gui/sprites/boss_bar/*.png`（5 张）**：上游/原版占位贴图 ⇒ 新增分类 `upstream-vanilla`，逐张写明来自哪个上游（原版客户端 / BetterHud / BetterModel），并说明**为什么不该改**（改了会与上游不兼容）。\n3) **`sulfur_resonance_imprint.png`（1 张）**：`ai/` 下无任何提示词提到它 ⇒ 先做相似度判定（与哪些已有纹理最接近），据此二选一：**派生自某主纹理** ⇒ 标 `derived-from:<键>`；**独立素材** ⇒ 在 `ai/prompts.jsonl` 补一条与它一致的提示词（描述按实际像素写，不要编）。给出你选哪条及依据。\n4) **`tools/generate-provenance.py`**：判定它是否已入库（`ls` 一下）；**没入库就入库**，因为它是 `asset-provenance.json` 的生成器，不入库就无法复现来源登记。\n5) 更新 `resource-pack/asset-provenance.json`：把上述 44 张的 category/source 补齐，`$counts` 重算，`$needsHumanDecision` **清空**（若仍有你无法裁决的项，保留并写明为什么）。\n6) 更新 `resource-pack/ASSET-PROVENANCE.md`（逐张表要覆盖全部 252 张，每张都有 category + source + 可复现命令/重建步骤 + 审核状态）。\n7) 确认 `python3 scripts/check-asset-baseline.py` 仍 GREEN（**不要改任何 PNG 的像素**，只改登记与文档）。\n8) 证据里给出：6 条各自的裁决 + 依据 + 改动清单 + `$counts` 前后对比。\n\n【环境事实】\n- **新 main 上已有**：`scripts/asset_fingerprint.py`（python3 版 PngFingerprint：宽高+逐像素 ARGB 的 SHA-256）、`scripts/gen-asset-manifest.py`、`scripts/check-asset-baseline.py`（252 张 PNG 逐像素基线门禁，已接进 .cnb.yml）、`resource-pack/assets-manifest.json`（252 条）、`resource-pack/asset-provenance.json`（252 条在 `assets` 键下 + `$counts` + `$needsHumanDecision`）、`resource-pack/ASSET-PROVENANCE.md`（516 行）\n- `.cnb.yml` 现有 stage：准备下载器 → 门禁自测 → 素材门禁(W7-A1) → 素材逐像素基线门禁(W12-A1) → DDL 消费者门禁 → DDL 登记反向门禁 → 命令引用门禁 → compile → test → assemble\n- **本仓没有 JDK**：跑 `resource-pack/tools/*.java` 要先自取 Temurin 25（W12-A3 用的是清华 Adoptium 镜像，可照抄）\n- PNG 处理只用 python3（准备下载器 stage 已装），**不要引入 Pillow / ImageMagick**\n- 上一轮 W12-A3（PR#55 已关闭）实测结论（**直接采信，别重跑**）：`GenerateTextures` 31 键中 **30 张逐像素一致**、`ancient_echo_skill_book` **不一致（587 像素，是 ai/skill-book-prompts.jsonl v2 的人工覆盖，生成器 book() 的旧紫皮已弃用）**；`GenerateHudAtlas` / `GenerateSkillHudAtlas` / `GenerateCompassFrames`（32 帧+32 模型）全部逐像素一致；`GenerateSivitaHudPanel` 是 132x44 遗留物（build.sh 不调用，现役 26x91 由 generate_betterhud_panels.py 产生）\n\n【证据契约】写 .cnb/agent-out/<task-id>.json，evidence 必须是实际跑过的命令原文与输出。\n**取退出码不要走管道**：`sh x | tail; echo $?` 拿到的是 tail 的 0；必须重定向到文件再取 $?。\n\n【禁止】不改宪法；不新增货币/转数；注释用中文。不要手绘二进制素材。",
+      "deps": [],
+      "allowed_paths": [
+        "resource-pack/asset-provenance.json",
+        "resource-pack/ASSET-PROVENANCE.md",
+        "resource-pack/README.md",
+        "resource-pack/tools/generate-provenance.py",
+        "ai/prompts.jsonl",
+        "resource-pack/ai/prompts.jsonl",
+        ".cnb/agent-out/**"
+      ],
+      "max_retries": 2,
+      "extra_rules": "**不要改任何 PNG 的像素内容**。只改登记、文档与生成器脚本。若某条你判断我的裁决是错的，**不要照做**：在 blockers 里给出你的证据与建议。"
+    }
+  ]
+}

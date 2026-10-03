@@ -1,0 +1,1010 @@
+{
+  "betterhud/textures/glyph_class_assassin.png": {
+    "bytes": 315,
+    "fingerprint": "18x18:cb48a58bf150cdfc68bf9ad103c2844d166302f443995ba116e0cc27d38969af"
+  },
+  "betterhud/textures/glyph_class_freeform.png": {
+    "bytes": 288,
+    "fingerprint": "18x18:645fb5765ab744b7a8fc56a7674e688095a3ce6a255183d19d40d57139f38acf"
+  },
+  "betterhud/textures/glyph_class_healer.png": {
+    "bytes": 278,
+    "fingerprint": "18x18:b91f4df27ae6d299a83e5176a9f1fa9c4fd0971557b8d65e08fad75e04f3b1b0"
+  },
+  "betterhud/textures/glyph_class_mage.png": {
+    "bytes": 297,
+    "fingerprint": "18x18:8a6f0264ad9f036440e5472d70d776e7c90b20812d6786e097ad8df22614658a"
+  },
+  "betterhud/textures/glyph_class_ranger.png": {
+    "bytes": 277,
+    "fingerprint": "18x18:cd8d42ca80951374fb4842e9cd3d72502d2641c75b5394f969df06ca4828512f"
+  },
+  "betterhud/textures/glyph_class_unchosen.png": {
+    "bytes": 267,
+    "fingerprint": "18x18:9e68fe69d9dbd253df052b2df3b2f46ae2f73af6a0691513bd95175964c3f8a0"
+  },
+  "betterhud/textures/glyph_class_warrior.png": {
+    "bytes": 289,
+    "fingerprint": "18x18:19e6d5af2ce54c8f576828aad77266b57d445f26ee548e5ccc10ccfa79fdf336"
+  },
+  "betterhud/textures/glyph_control_cast_en.png": {
+    "bytes": 244,
+    "fingerprint": "53x12:5c410c462e971d30c43f71cd18790db6e03d9871f74b5c966ae088809ac92656"
+  },
+  "betterhud/textures/glyph_control_cast_zh.png": {
+    "bytes": 275,
+    "fingerprint": "51x12:a1e56749dbdbe03a6a5ebf6b7f170391660f20e899362e0c15ec879f2bb7343e"
+  },
+  "betterhud/textures/glyph_control_cycle_en.png": {
+    "bytes": 330,
+    "fingerprint": "85x12:3291b8507aadd575c7821860dceda2c3b82754db285636bd10d7d3e423811e1d"
+  },
+  "betterhud/textures/glyph_control_cycle_zh.png": {
+    "bytes": 373,
+    "fingerprint": "90x12:a5cd5e2ed6593bba3fb1d24d4008e68235a32daa25e85bc5e9fa2e5cac241692"
+  },
+  "betterhud/textures/glyph_skill_adaptive-arsenal.png": {
+    "bytes": 263,
+    "fingerprint": "18x18:e3d21faf88a6789530cc7d3835029e463ca69fb5fbb064b9dc0a5a1911d3b80a"
+  },
+  "betterhud/textures/glyph_skill_arcane-edge.png": {
+    "bytes": 269,
+    "fingerprint": "18x18:64fc1b00bb33ecbee5c9cd3a85868177f19646f607c90ec073b5ab872b7daee4"
+  },
+  "betterhud/textures/glyph_skill_ash-domain.png": {
+    "bytes": 287,
+    "fingerprint": "18x18:40b69e1fff228887df3062b016f6d7660ef247e106e7f837999660e63071bc6e"
+  },
+  "betterhud/textures/glyph_skill_axiomatic-break.png": {
+    "bytes": 277,
+    "fingerprint": "18x18:62c7475b8723d3340ed002ba30304b1a3526a93ff1d738b634d5624088e8edd1"
+  },
+  "betterhud/textures/glyph_skill_battle-trance.png": {
+    "bytes": 244,
+    "fingerprint": "18x18:1ddcae13b1061fbc5fe3399f0d39f85a7ab89c6c566b26324774cb7c1b838bbb"
+  },
+  "betterhud/textures/glyph_skill_beast-call.png": {
+    "bytes": 269,
+    "fingerprint": "18x18:8260911b28dbef87c63b1a30e89113f4c4d986332f33720bd11e69e731fda7bb"
+  },
+  "betterhud/textures/glyph_skill_blood-rage.png": {
+    "bytes": 295,
+    "fingerprint": "18x18:fbe91392a19412c4732ab11b87fdd812866ba0810d26c69ccd2ee33a0c904484"
+  },
+  "betterhud/textures/glyph_skill_fate-seal.png": {
+    "bytes": 286,
+    "fingerprint": "18x18:fc907d1f0f71f226c19320b5093821929b30ab6714128492e5c75acf480787ff"
+  },
+  "betterhud/textures/glyph_skill_fireball.png": {
+    "bytes": 269,
+    "fingerprint": "18x18:fb55a42772d78fb03d6d621f243680ff9b99ae6a1203528a62885530210428ae"
+  },
+  "betterhud/textures/glyph_skill_fortress.png": {
+    "bytes": 214,
+    "fingerprint": "18x18:7bbaff68a010cfe1164e444bb935715afe221dc8fecc1dc423cda6289d9f6d71"
+  },
+  "betterhud/textures/glyph_skill_frost-nova.png": {
+    "bytes": 292,
+    "fingerprint": "18x18:952038ad272ae5d4ebf921683bdeb46de7e6a37b9d236db1a5d06687b7c6b89d"
+  },
+  "betterhud/textures/glyph_skill_gale-step.png": {
+    "bytes": 314,
+    "fingerprint": "18x18:34ef89b1fa5d07003088d67d274d9d8d36636e9f0c2c99435c44b97d6f994ad1"
+  },
+  "betterhud/textures/glyph_skill_heal.png": {
+    "bytes": 206,
+    "fingerprint": "18x18:2c742803e98765c0f39555ad9d9a2689984c36d7e345c37c37b6c9046bdf605f"
+  },
+  "betterhud/textures/glyph_skill_horizon-arrow.png": {
+    "bytes": 236,
+    "fingerprint": "18x18:ef4a2bacd0397999c06a8c4c3e9b654334992350ecfa2fe7f28d5ec98af7d070"
+  },
+  "betterhud/textures/glyph_skill_improvisation.png": {
+    "bytes": 276,
+    "fingerprint": "18x18:39c94025475877709e771c842b18db0adfcef3b7af0494e3f26f019e39c5715f"
+  },
+  "betterhud/textures/glyph_skill_life-thread.png": {
+    "bytes": 269,
+    "fingerprint": "18x18:d4b81f593b6d9969fce6be7f35d10119f40ad682afbefbb2fd508cff31b09d62"
+  },
+  "betterhud/textures/glyph_skill_mana-surge.png": {
+    "bytes": 262,
+    "fingerprint": "18x18:74802b15c987b93fef35be4e4aabdd6eb7e20c29bb92ff29521929fd0ff8a683"
+  },
+  "betterhud/textures/glyph_skill_meteor.png": {
+    "bytes": 304,
+    "fingerprint": "18x18:622aaeeb01b52dfdef87c447fa638704b1d94a8930c1c903f2b2ec68ef8673c4"
+  },
+  "betterhud/textures/glyph_skill_omen-reversal.png": {
+    "bytes": 246,
+    "fingerprint": "18x18:bf87af17e41cebc1e0c596b315b57c2acf01fa0dadc1defe692e19173f16e1a4"
+  },
+  "betterhud/textures/glyph_skill_open-form.png": {
+    "bytes": 271,
+    "fingerprint": "18x18:9655f604af8de37295efcf61b05f00754f1b763b66d6779b422f43545c99729e"
+  },
+  "betterhud/textures/glyph_skill_pack-hunt.png": {
+    "bytes": 263,
+    "fingerprint": "18x18:5ba1db32039b5f8d2d15cc6366be57dab4c58450a6158f4dc6001cfef4283c3a"
+  },
+  "betterhud/textures/glyph_skill_piercing-shot.png": {
+    "bytes": 225,
+    "fingerprint": "18x18:c8864d1f1e52dfa658545155da15e269080c8e6de4928f8215fe4aa34423d2c2"
+  },
+  "betterhud/textures/glyph_skill_plague-bloom.png": {
+    "bytes": 291,
+    "fingerprint": "18x18:ef0f4d71a26778a997ff31ba431676762fb4456fe377e5796ac6fcfaa59ae6c2"
+  },
+  "betterhud/textures/glyph_skill_power-shot.png": {
+    "bytes": 221,
+    "fingerprint": "18x18:982b52122ee410b4373c39b0755263596b88ef4ed4ba26a6a4af299ad9cb5f7e"
+  },
+  "betterhud/textures/glyph_skill_rallying-standard.png": {
+    "bytes": 240,
+    "fingerprint": "18x18:bd464c0382ef0fe5ebe6bf85e5b48afcd02d2bf410e03119e0bbfb2d7cbef406"
+  },
+  "betterhud/textures/glyph_skill_renewal.png": {
+    "bytes": 221,
+    "fingerprint": "18x18:3219b3c551672af70b6a494ce989d52f4a14eac06504689671a87e5d5222fe75"
+  },
+  "betterhud/textures/glyph_skill_ruin-charge.png": {
+    "bytes": 221,
+    "fingerprint": "18x18:1f736dd221c32cc07224690f306810403aaf88474eb48dcc182e959800997f5c"
+  },
+  "betterhud/textures/glyph_skill_rune-reversal.png": {
+    "bytes": 289,
+    "fingerprint": "18x18:c9828e259abcf7050196d87cdde971edea349b04f4bbc41ed43f84a160a7cb82"
+  },
+  "betterhud/textures/glyph_skill_sanctuary.png": {
+    "bytes": 250,
+    "fingerprint": "18x18:f6502ec2d98c6519f7162f5e81cdf86d62c95aeb86862e00221d7c9003bb13ed"
+  },
+  "betterhud/textures/glyph_skill_second-wind.png": {
+    "bytes": 241,
+    "fingerprint": "18x18:b6b8f1b6504d20e598a0a33619d7de6765c4bdd51369dc3d8a9a29053cd85d8d"
+  },
+  "betterhud/textures/glyph_skill_shadow-step.png": {
+    "bytes": 341,
+    "fingerprint": "18x18:52c034092f1666a33e557cf01c31e0053db2410fa27b1c6704980a08c36bf997"
+  },
+  "betterhud/textures/glyph_skill_shield-wall.png": {
+    "bytes": 266,
+    "fingerprint": "18x18:907d0e235a0212101e31202687d28d16bbd286db6424c280fb10611beca67553"
+  },
+  "betterhud/textures/glyph_skill_smoke-bomb.png": {
+    "bytes": 265,
+    "fingerprint": "18x18:4360d94d48179ed794b2743809042261710a361afb88cef04a400fecbfc04cda"
+  },
+  "betterhud/textures/glyph_skill_soul-resonance.png": {
+    "bytes": 281,
+    "fingerprint": "18x18:a4127b19b442e1dd953cb639b4a3ed545d5c22608d740ac77dde7194fe65c45c"
+  },
+  "betterhud/textures/glyph_skill_time-lock.png": {
+    "bytes": 245,
+    "fingerprint": "18x18:8ce8500b5e92241c2c4a474e5941a7dc0340255e75ec55c8908ca7b5e10a59ee"
+  },
+  "betterhud/textures/glyph_skill_toxic-burst.png": {
+    "bytes": 331,
+    "fingerprint": "18x18:e5152cd7610679b9faa41957ee0fe34ac72df002fe6c526b150955bf4244a200"
+  },
+  "betterhud/textures/glyph_skill_unbroken-line.png": {
+    "bytes": 255,
+    "fingerprint": "18x18:87769cf1c5f52190fa2be79f4872f1a50afe9d036cc0afde21fe92348fc7c6d9"
+  },
+  "betterhud/textures/glyph_skill_vanished-horizon.png": {
+    "bytes": 259,
+    "fingerprint": "18x18:88ca173286f8b9f8773e22fefbac057b255f34f254676917c9eef682609d381a"
+  },
+  "betterhud/textures/glyph_skill_venom-blade.png": {
+    "bytes": 260,
+    "fingerprint": "18x18:60ad968e0e82b9cd6cc2f53fe770e4ed4322656d8577050e1ee8a3e2152fe875"
+  },
+  "betterhud/textures/glyph_skill_void-cut.png": {
+    "bytes": 352,
+    "fingerprint": "18x18:886785916e710b335fdbfc73c2203c74a50ce550041de0756105e5aa1c8cf112"
+  },
+  "betterhud/textures/glyph_skill_volley.png": {
+    "bytes": 206,
+    "fingerprint": "18x18:3202bfcec5f5539c4263d7e2b61634b747a4f1ab00f93d9cc3b5902d004da5c0"
+  },
+  "betterhud/textures/glyph_skill_war-cry.png": {
+    "bytes": 284,
+    "fingerprint": "18x18:b120a894cd2fa5b5400b5bdaad8723a88c35a6706c971a1cfb6d0d5882361ce2"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_1.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:b8f5410303ead99214cb20b8815fe649a2c9b39b816fa1e2dc818131161b125a"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_10.png": {
+    "bytes": 80,
+    "fingerprint": "1x87:89c828b37920bff97bbbb0336dceabf6531cad7e4c73443628d18449752e577e"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_11.png": {
+    "bytes": 80,
+    "fingerprint": "1x87:2c09ac38c4d220f0686d07cf8a4d75a6e4618a8aba4d2969b6b0feffa3d858b7"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_12.png": {
+    "bytes": 80,
+    "fingerprint": "1x87:c5449a5fdabbfee80b7910ce25a13f8c91c6b96d09631be8b7befb54638e9f96"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_13.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:dad2bfbb0320c2a598e64ae734406b9464d75c7cea5c58caaa61cefa6f92fde2"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_14.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:d02fbdb738d8e7657557a7521b89fa28104c51bd03cd3521331c853ac28f54a8"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_15.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:08a72b64e895dda887d33aebe454fb1f8ed25e5edda531aef09775189b4d8626"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_16.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:2f9df97d568267d18789b003d25baa95a639c5ea95fc90c7237b52ddeaba2ab1"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_17.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:684bb1390d14acce63914831a18023420d2b9b7cf7d97380877b850d8040cee1"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_18.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:7c7512ef8eb80d205428a99293442f69297738bca0f3be904439d0f9295482d2"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_19.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:9b00f8f3b0d98faf317ca4200b7bf4bb39e46c856172a25a1a8093611bf087bb"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_2.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:179eef580c465f841b8395cf66e96aedc144933755806da106ae0b8f8396473b"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_20.png": {
+    "bytes": 83,
+    "fingerprint": "1x87:1013483eb36b39bdba9a68bfc11498129799f259b7ca1855beab3533bb7ba031"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_3.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:4a94b8347c876d6af9dbea9887e8a007860b43f2a443fb77f20901e4050c6e8b"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_4.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:86d6e2371b1c0ca9ad45aecdd1c37324d7a82ea195a79251bc11588930bef9fe"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_5.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:b86500adda4ec2e1bb180f1f853f4177ee34fed37bba9adda7eab5ef569232c0"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_6.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:51d21897c2c82b95f9de9e086c9168810a59c14a59204a890be94153c707626b"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_7.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:47cd0a952d6b020b0c084978bd28433d8967bf797e9bb08e1ba562835cb6e091"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_8.png": {
+    "bytes": 81,
+    "fingerprint": "1x87:1e6b906f1e356d35ad238caeb103165ad95c88b8573b5635f7508be53e13becf"
+  },
+  "betterhud/textures/image_image_sivita_mana_fill_up_20_9.png": {
+    "bytes": 80,
+    "fingerprint": "1x87:ca4d4cc8c27e1e70cf67eb96e7419351c37af737789b9daf53895aac8371cc5a"
+  },
+  "betterhud/textures/image_sivita_class_badge.png": {
+    "bytes": 162,
+    "fingerprint": "29x26:064d4c473d74eb832702c6707956381e596505b59a863be211f936efd6de8c3a"
+  },
+  "betterhud/textures/image_sivita_skill_cooldown.png": {
+    "bytes": 182,
+    "fingerprint": "18x18:cf632344f3ea1e85f1369c09fb7b749e2ead4c4854ee51fb975cacb4ce4ba192"
+  },
+  "betterhud/textures/image_sivita_skill_panel.png": {
+    "bytes": 298,
+    "fingerprint": "26x91:9180e9117071503bc20acc6976119a5a2424f4114507603efcbd2d2c6c9247b2"
+  },
+  "betterhud/textures/image_sivita_skill_selected.png": {
+    "bytes": 130,
+    "fingerprint": "18x18:a5fbdfd39628bff84be323619095796ebb4aa88080c7e2d7d978c979b0eb9a13"
+  },
+  "betterhud/textures/splitter.png": {
+    "bytes": 336,
+    "fingerprint": "256x256:88122667cb149e5c7e8c5dbb3f368cb1a86a0712b3cc0e9dc5c7fa5fc935e1e0"
+  },
+  "betterhud/textures/text_font1_1.png": {
+    "bytes": 99,
+    "fingerprint": "4x22:ec6670d5e0a55d384abeba006cbeab02e9c9806c5839fd4025a9701a5d2b9319"
+  },
+  "betterhud/textures/text_font1_10.png": {
+    "bytes": 393,
+    "fingerprint": "105x22:7f18e0591c5856d3468e3ca26d6afcac9e6fbad08a38aaa53c71177554402807"
+  },
+  "betterhud/textures/text_font1_11.png": {
+    "bytes": 1854,
+    "fingerprint": "128x88:75f0739de0630a1bd5d6dae0465da7f09b1627ad4cc5b5bce732519c56e669cc"
+  },
+  "betterhud/textures/text_font1_12.png": {
+    "bytes": 135,
+    "fingerprint": "16x22:198a5e391eb93d71a30c7c1ed18173e510e035fc256db941e7700237ef62d18b"
+  },
+  "betterhud/textures/text_font1_13.png": {
+    "bytes": 560,
+    "fingerprint": "144x22:bff5d621b31ee8c679da630710ef88dedb2de7fa6e7263007c501997f5e983ff"
+  },
+  "betterhud/textures/text_font1_14.png": {
+    "bytes": 125,
+    "fingerprint": "9x22:461418b2d69a0e76b2601eea160e2f9dc175c0ef047a1a485cc2b98029da11d6"
+  },
+  "betterhud/textures/text_font1_15.png": {
+    "bytes": 513,
+    "fingerprint": "130x22:4472fafc27dc548f48a1254f93821525810760257b4a1c4c25224454671c51b1"
+  },
+  "betterhud/textures/text_font1_16.png": {
+    "bytes": 188,
+    "fingerprint": "33x22:ab25e6e227b68ac64c057e0304c59d81e5cbf3a01af42a123a3ec602ac10c63d"
+  },
+  "betterhud/textures/text_font1_17.png": {
+    "bytes": 326,
+    "fingerprint": "72x22:e403fcd4d14be5f121773103b5a808eb692b31401cbc3df59bf3758a1ffbe0ce"
+  },
+  "betterhud/textures/text_font1_18.png": {
+    "bytes": 276,
+    "fingerprint": "52x22:34396404dccfa03d359d3088277b5ff9575c544146ab24a46c340baf1b0a603b"
+  },
+  "betterhud/textures/text_font1_19.png": {
+    "bytes": 294,
+    "fingerprint": "56x22:f1e8e3310ddf9c0cccabd2e2f2f94fb58fc208ac6796fdee2b9141cb1449163d"
+  },
+  "betterhud/textures/text_font1_2.png": {
+    "bytes": 262,
+    "fingerprint": "32x22:823416f856569714713843d74747fd6cc6e19ac6b63822262350702a5acbdf91"
+  },
+  "betterhud/textures/text_font1_3.png": {
+    "bytes": 273,
+    "fingerprint": "33x22:7568d1806f8b86d3281c34280184acea0c36268812a0f0b5f131a08d6be3ac61"
+  },
+  "betterhud/textures/text_font1_4.png": {
+    "bytes": 212,
+    "fingerprint": "32x22:ecab5ea9b0a70a7386b62ba44f62a271310bd4e099dcb8910f2ba15a54e5614f"
+  },
+  "betterhud/textures/text_font1_5.png": {
+    "bytes": 645,
+    "fingerprint": "80x44:e47c01650ef1eab56b4c550dca748a14c4a065c230d21dfb13e44bea3d3a1ea7"
+  },
+  "betterhud/textures/text_font1_6.png": {
+    "bytes": 221,
+    "fingerprint": "40x22:6cd848b1b6ae53f20916d381bdb4a10041e2c5d00d07dccebe713ec3622c7054"
+  },
+  "betterhud/textures/text_font1_7.png": {
+    "bytes": 748,
+    "fingerprint": "96x44:e898f4f4d0e5e23914f0affc7b6a1f09c250502a704309017af7308b8485e932"
+  },
+  "betterhud/textures/text_font1_8.png": {
+    "bytes": 280,
+    "fingerprint": "72x22:3ff5732106b93c3c0b5b84848c6b9cfda736af0c75da61378ee2c7cc1dbaa7df"
+  },
+  "betterhud/textures/text_font1_9.png": {
+    "bytes": 1515,
+    "fingerprint": "112x88:654b21b72fbaf66115f2df3dab64faa52af093011dfdad674d4ec6d1858dddb0"
+  },
+  "betterhud/textures/text_font2_1.png": {
+    "bytes": 99,
+    "fingerprint": "4x22:ec6670d5e0a55d384abeba006cbeab02e9c9806c5839fd4025a9701a5d2b9319"
+  },
+  "betterhud/textures/text_font2_10.png": {
+    "bytes": 393,
+    "fingerprint": "105x22:7f18e0591c5856d3468e3ca26d6afcac9e6fbad08a38aaa53c71177554402807"
+  },
+  "betterhud/textures/text_font2_11.png": {
+    "bytes": 1854,
+    "fingerprint": "128x88:75f0739de0630a1bd5d6dae0465da7f09b1627ad4cc5b5bce732519c56e669cc"
+  },
+  "betterhud/textures/text_font2_12.png": {
+    "bytes": 135,
+    "fingerprint": "16x22:198a5e391eb93d71a30c7c1ed18173e510e035fc256db941e7700237ef62d18b"
+  },
+  "betterhud/textures/text_font2_13.png": {
+    "bytes": 560,
+    "fingerprint": "144x22:bff5d621b31ee8c679da630710ef88dedb2de7fa6e7263007c501997f5e983ff"
+  },
+  "betterhud/textures/text_font2_14.png": {
+    "bytes": 125,
+    "fingerprint": "9x22:461418b2d69a0e76b2601eea160e2f9dc175c0ef047a1a485cc2b98029da11d6"
+  },
+  "betterhud/textures/text_font2_15.png": {
+    "bytes": 513,
+    "fingerprint": "130x22:4472fafc27dc548f48a1254f93821525810760257b4a1c4c25224454671c51b1"
+  },
+  "betterhud/textures/text_font2_16.png": {
+    "bytes": 188,
+    "fingerprint": "33x22:ab25e6e227b68ac64c057e0304c59d81e5cbf3a01af42a123a3ec602ac10c63d"
+  },
+  "betterhud/textures/text_font2_17.png": {
+    "bytes": 326,
+    "fingerprint": "72x22:e403fcd4d14be5f121773103b5a808eb692b31401cbc3df59bf3758a1ffbe0ce"
+  },
+  "betterhud/textures/text_font2_18.png": {
+    "bytes": 276,
+    "fingerprint": "52x22:34396404dccfa03d359d3088277b5ff9575c544146ab24a46c340baf1b0a603b"
+  },
+  "betterhud/textures/text_font2_19.png": {
+    "bytes": 294,
+    "fingerprint": "56x22:f1e8e3310ddf9c0cccabd2e2f2f94fb58fc208ac6796fdee2b9141cb1449163d"
+  },
+  "betterhud/textures/text_font2_2.png": {
+    "bytes": 262,
+    "fingerprint": "32x22:823416f856569714713843d74747fd6cc6e19ac6b63822262350702a5acbdf91"
+  },
+  "betterhud/textures/text_font2_3.png": {
+    "bytes": 273,
+    "fingerprint": "33x22:7568d1806f8b86d3281c34280184acea0c36268812a0f0b5f131a08d6be3ac61"
+  },
+  "betterhud/textures/text_font2_4.png": {
+    "bytes": 212,
+    "fingerprint": "32x22:ecab5ea9b0a70a7386b62ba44f62a271310bd4e099dcb8910f2ba15a54e5614f"
+  },
+  "betterhud/textures/text_font2_5.png": {
+    "bytes": 645,
+    "fingerprint": "80x44:e47c01650ef1eab56b4c550dca748a14c4a065c230d21dfb13e44bea3d3a1ea7"
+  },
+  "betterhud/textures/text_font2_6.png": {
+    "bytes": 221,
+    "fingerprint": "40x22:6cd848b1b6ae53f20916d381bdb4a10041e2c5d00d07dccebe713ec3622c7054"
+  },
+  "betterhud/textures/text_font2_7.png": {
+    "bytes": 748,
+    "fingerprint": "96x44:e898f4f4d0e5e23914f0affc7b6a1f09c250502a704309017af7308b8485e932"
+  },
+  "betterhud/textures/text_font2_8.png": {
+    "bytes": 280,
+    "fingerprint": "72x22:3ff5732106b93c3c0b5b84848c6b9cfda736af0c75da61378ee2c7cc1dbaa7df"
+  },
+  "betterhud/textures/text_font2_9.png": {
+    "bytes": 1515,
+    "fingerprint": "112x88:654b21b72fbaf66115f2df3dab64faa52af093011dfdad674d4ec6d1858dddb0"
+  },
+  "bettermodel/textures/item/blood_moon_grave_knight_blood_moon_grave_knight.png": {
+    "bytes": 1944,
+    "fingerprint": "64x64:a0fa2679d9cf0ff347da8575fedef417cef315899bf78c6fb43d6e66c1ac5c41"
+  },
+  "bettermodel/textures/item/blood_moon_resonant_husk_blood_moon_resonant_husk.png": {
+    "bytes": 992,
+    "fingerprint": "64x64:e513972fc0f2f7e9ba5de1e9192ad3b883d1bb99197e125841091068b9bc53d1"
+  },
+  "bettermodel/textures/item/blood_moon_rift_stalker_blood_moon_rift_stalker.png": {
+    "bytes": 1928,
+    "fingerprint": "64x64:4998806433c4706e92bc654572f2b0c900db1a72f8e241a46ac2effefdb9336a"
+  },
+  "bettermodel/textures/item/boss_cinnabar_reborn_core_boss_cinnabar_reborn_core.png": {
+    "bytes": 943,
+    "fingerprint": "64x64:5845a9572c77006dd150706af7f350c73695124e53ce18748f202163e390631d"
+  },
+  "bettermodel/textures/item/boss_ruins_echo_adjudicator_boss_ruins_echo_adjudicator.png": {
+    "bytes": 918,
+    "fingerprint": "64x64:25eb266d84d9485f2f5be76d55f63721dc988a9706603c34e7833bb58b2f6a39"
+  },
+  "bettermodel/textures/item/boss_ruins_inscription_warden_boss_ruins_inscription_warden.png": {
+    "bytes": 959,
+    "fingerprint": "64x64:23574ca24ceb589668b6127bd25acdc5c3c46981c5e6fb70aba7bb252ece1155"
+  },
+  "bettermodel/textures/item/boss_silent_thunder_oathguard_boss_silent_thunder_oathguard.png": {
+    "bytes": 907,
+    "fingerprint": "64x64:5c8b43aa92424d1e072d71b99f82d81f71fccec6f15e59561b979cd207931569"
+  },
+  "bettermodel/textures/item/boss_storm_vault_keykeeper_boss_storm_vault_keykeeper.png": {
+    "bytes": 910,
+    "fingerprint": "64x64:c4730c5f9cc10ef06099f71f511371a6077eaf57d41fc3d45b2dbdcdb4a06a97"
+  },
+  "bettermodel/textures/item/boss_sulfur_crystal_devourer_boss_sulfur_crystal_devourer.png": {
+    "bytes": 913,
+    "fingerprint": "64x64:bfefc4c0b2acd81090e04e9cd229b197db0582f4c28b71135c302a00b7379add"
+  },
+  "bettermodel/textures/item/dungeon_ruins_echo_sentinel_dungeon_ruins_echo_sentinel.png": {
+    "bytes": 934,
+    "fingerprint": "64x64:582aeafda2e1a9649efa304f00a814d5b63f7756fba89b8e23d9676373fb1962"
+  },
+  "bettermodel/textures/item/dungeon_ruins_runebound_dungeon_ruins_runebound.png": {
+    "bytes": 914,
+    "fingerprint": "64x64:ce7841f8858f5f9ff04cb238cbcc84146215f3bfb7a68e9491b772e92584d7f3"
+  },
+  "bettermodel/textures/item/dungeon_storm_conductor_dungeon_storm_conductor.png": {
+    "bytes": 910,
+    "fingerprint": "64x64:045105c34cefec520a11b6eaccc1f1307a032086463a3bae5509632bc8276da2"
+  },
+  "bettermodel/textures/item/dungeon_storm_gust_wisp_dungeon_storm_gust_wisp.png": {
+    "bytes": 911,
+    "fingerprint": "64x64:b0cbabb952dfbf820dcc7322abbb89d4be4c695a098622f79bf912da811b5a0c"
+  },
+  "bettermodel/textures/item/dungeon_sulfur_fume_crawler_dungeon_sulfur_fume_crawler.png": {
+    "bytes": 924,
+    "fingerprint": "64x64:5f4e00a5aad1a8b546d9959689dee7b9fb68eae2a3ed55349c51220a112f981b"
+  },
+  "bettermodel/textures/item/dungeon_sulfur_slag_mote_dungeon_sulfur_slag_mote.png": {
+    "bytes": 901,
+    "fingerprint": "64x64:72168c4340c27570383532ee2a3743ec8f99af98fce3630b21f513f3b991d938"
+  },
+  "bettermodel/textures/item/mesh_pixel.png": {
+    "bytes": 84,
+    "fingerprint": "16x16:3a62fd6d74f0474eedf678f559e41fd3b81c4eba9baadff607ae9110c8c96185"
+  },
+  "minecraft/textures/gui/bars.png": {
+    "bytes": 1779,
+    "fingerprint": "256x256:251f011c7c44a75f42f105f176898d047d90ac1859f908daf08388a00715b26e"
+  },
+  "minecraft/textures/gui/sprites/boss_bar/yellow_background.png": {
+    "bytes": 134,
+    "fingerprint": "182x5:d712814364709906a27f379596e2b4b5a12125b948bfc8b90bf940572f065003"
+  },
+  "minecraft/textures/gui/sprites/boss_bar/yellow_progress.png": {
+    "bytes": 134,
+    "fingerprint": "182x5:d712814364709906a27f379596e2b4b5a12125b948bfc8b90bf940572f065003"
+  },
+  "originalrpg/textures/font/class_skill_symbols.png": {
+    "bytes": 1454,
+    "fingerprint": "432x9:5763694ffebc461c44d8e700ba0b49aed437039b98bdd65473db7971d4626f8a"
+  },
+  "originalrpg/textures/font/hud_symbols.png": {
+    "bytes": 588,
+    "fingerprint": "99x9:e713616e6d393c9e8b40f92eaa39c7acf764bac852c2eae292662617e15f529a"
+  },
+  "originalrpg/textures/item/ancient_echo_skill_book.png": {
+    "bytes": 680,
+    "fingerprint": "32x32:024fe7bb01874f29329695372f868953216d6de1ab7fa15a2c61d578d3e870aa"
+  },
+  "originalrpg/textures/item/blood_moon_essence.png": {
+    "bytes": 233,
+    "fingerprint": "32x32:fd8e0646336ce89bcb04c89bc0cc11af88137e5496c274c55a5ea65455673e86"
+  },
+  "originalrpg/textures/item/cinnabar_revelation_skill_book.png": {
+    "bytes": 739,
+    "fingerprint": "32x32:e0f3c37001e115ccf03cb3bc265cd1be0854b35aa716ce8fc4960bee75e03fab"
+  },
+  "originalrpg/textures/item/common_insight_skill_book.png": {
+    "bytes": 197,
+    "fingerprint": "32x32:c0527914b403dfc09ce53f2f2a06b0aef7c17b51636dd7151e730731521cb9af"
+  },
+  "originalrpg/textures/item/dungeon_core.png": {
+    "bytes": 274,
+    "fingerprint": "32x32:763561258fed3be5ea3cb094143a960f8e42d43cc06e504c8fa5616117177311"
+  },
+  "originalrpg/textures/item/forged_assassin_weapon.png": {
+    "bytes": 232,
+    "fingerprint": "32x32:11352bead7dfd40c7a70ff5dfd0737d647e1b5ab3634a4d83cdbd9f479e70b3c"
+  },
+  "originalrpg/textures/item/forged_boots.png": {
+    "bytes": 215,
+    "fingerprint": "32x32:96f430cf7ac5698bf87f9e8d7f911e3fcc5c371177465fed63e5f16ffb2da5e2"
+  },
+  "originalrpg/textures/item/forged_chestplate.png": {
+    "bytes": 252,
+    "fingerprint": "32x32:643b81513d9ad789372d9127d84ae97afef68683006d7e8be53122bb11fcb2f7"
+  },
+  "originalrpg/textures/item/forged_healer_weapon.png": {
+    "bytes": 210,
+    "fingerprint": "32x32:16273e931457a7b480a96c981becb543dc12c9066de2d102aba3018e0743dc02"
+  },
+  "originalrpg/textures/item/forged_helmet.png": {
+    "bytes": 173,
+    "fingerprint": "32x32:5b6e194057f575a55849b945b5a48360e62d491566a6dab03e4bd2ffe85f5b49"
+  },
+  "originalrpg/textures/item/forged_leggings.png": {
+    "bytes": 170,
+    "fingerprint": "32x32:797f236fce6432095697bae8546184be101b96693a50c556c82802da5b8336ae"
+  },
+  "originalrpg/textures/item/forged_mage_weapon.png": {
+    "bytes": 213,
+    "fingerprint": "32x32:3cad8ad2805fc8e5ef50dbd1c147a6f98dc6eede6666ad0222e9a14810d5ad36"
+  },
+  "originalrpg/textures/item/forged_ranger_bow_pulling_0.png": {
+    "bytes": 547,
+    "fingerprint": "32x32:49b8735dc4601b6994a9131d1630b2034c6717ef38c0c4c6a53518e9dc278f78"
+  },
+  "originalrpg/textures/item/forged_ranger_bow_pulling_1.png": {
+    "bytes": 521,
+    "fingerprint": "32x32:786c3e6b3815f9bfe2629a5321658565287d1edb86c130187e74aab00b5fc940"
+  },
+  "originalrpg/textures/item/forged_ranger_bow_pulling_2.png": {
+    "bytes": 559,
+    "fingerprint": "32x32:4f877a3e56c462f73d028359cfea26b2d74fc38a3ac9f207aafdd32771b425d4"
+  },
+  "originalrpg/textures/item/forged_ranger_crossbow.png": {
+    "bytes": 800,
+    "fingerprint": "32x32:605118ed0b93a460e464409822386e012c9c34a4e63a9a84f08022850100db58"
+  },
+  "originalrpg/textures/item/forged_ranger_trident.png": {
+    "bytes": 442,
+    "fingerprint": "32x32:3429ca6b8864cd3d49e9ae1927a429f328461ed6f1758b58b2ae6b56ea7c80f1"
+  },
+  "originalrpg/textures/item/forged_ranger_weapon.png": {
+    "bytes": 193,
+    "fingerprint": "32x32:ef06e4660d927e73134bef084c892459bb95b6d7f0e181e1e6d25b14838a5f85"
+  },
+  "originalrpg/textures/item/forged_shield.png": {
+    "bytes": 266,
+    "fingerprint": "32x32:3fede6a76b512d81197da4e1758774be2eeb29b964ec3c85bca5d2593c4e64b7"
+  },
+  "originalrpg/textures/item/forged_warrior_weapon.png": {
+    "bytes": 202,
+    "fingerprint": "32x32:c3663e0db2d888f0573bdb85425d08c9fc8c1065e8f2e23c28c58ae57c1b9428"
+  },
+  "originalrpg/textures/item/hidden_ticket.png": {
+    "bytes": 175,
+    "fingerprint": "32x32:c8cc9c8ea54576c3900d85515c77e046dbc0a57df76b34036b6410732164b656"
+  },
+  "originalrpg/textures/item/hunt_crystal.png": {
+    "bytes": 212,
+    "fingerprint": "32x32:016c08c5b1ab04770b7e9a65a031f8e0594a959fa0a0574d98997f9a42f79c4f"
+  },
+  "originalrpg/textures/item/journey_attribute.png": {
+    "bytes": 276,
+    "fingerprint": "32x32:cab4b8d982b64422afe64dd50685a6eef4746758af76e0421bf6779bdfac71a4"
+  },
+  "originalrpg/textures/item/journey_class.png": {
+    "bytes": 313,
+    "fingerprint": "32x32:fc070cbfbdcaa10d94f97b64906f15c9520a9b5645bda07e2530c6f4ac1d0e8d"
+  },
+  "originalrpg/textures/item/journey_dungeon.png": {
+    "bytes": 222,
+    "fingerprint": "32x32:761bf3f3d4c65c39e3cb08349cd78e373a117e5b11a347f4471f14abee3b177d"
+  },
+  "originalrpg/textures/item/journey_explore.png": {
+    "bytes": 240,
+    "fingerprint": "32x32:9c8849ae3e65225afc30f9db9b6295756275d910af6ba8bc0b3235dc2f90e6e1"
+  },
+  "originalrpg/textures/item/journey_forge.png": {
+    "bytes": 239,
+    "fingerprint": "32x32:c691adbc9ae42d5a5b91da71d5ff9d60f1c2a10cf999d2772fca344c644527b2"
+  },
+  "originalrpg/textures/item/journey_hub.png": {
+    "bytes": 216,
+    "fingerprint": "32x32:25adb25e8359e315a710412dc4b56e5db260b01adb268652fe89acf3a341df29"
+  },
+  "originalrpg/textures/item/journey_hunt.png": {
+    "bytes": 279,
+    "fingerprint": "32x32:6f49446e3732942c40d4e5bdfa9d6263f0108e615b6ab982ae1f7e3225d5342f"
+  },
+  "originalrpg/textures/item/journey_reveal.png": {
+    "bytes": 294,
+    "fingerprint": "32x32:12089bf25c9f009927de6e8c80ce7003b905481997d02eb33d57fd88afd641a6"
+  },
+  "originalrpg/textures/item/legacy_blueprint.png": {
+    "bytes": 923,
+    "fingerprint": "32x32:5a351114c39695b39ffd3063f5e53c5d9e9e0ac7315273994318c27da5866f4e"
+  },
+  "originalrpg/textures/item/lucky_charm.png": {
+    "bytes": 265,
+    "fingerprint": "32x32:427c4d7158470cafc299ca277e7336af36c7eada271873fc1193712679f83cf9"
+  },
+  "originalrpg/textures/item/mob_boomerang.png": {
+    "bytes": 238,
+    "fingerprint": "32x32:4283d2faca8684fe8cee6d64288575be7461e4359deaba89a00bd0b886eb9503"
+  },
+  "originalrpg/textures/item/mob_corrosive_orb.png": {
+    "bytes": 214,
+    "fingerprint": "32x32:762eceb8b04f2dbab6647337a94b528cc37508b9ca354b62f25c2faf39405635"
+  },
+  "originalrpg/textures/item/mob_seeker_orb.png": {
+    "bytes": 304,
+    "fingerprint": "32x32:05d82f6e34f31f66abe11b4d558b76afbbe75e6e8686bd411789011391bf44c8"
+  },
+  "originalrpg/textures/item/mutation_core.png": {
+    "bytes": 278,
+    "fingerprint": "32x32:b030d4cdef60e83fcdbfb41233817a78377c26d6959ffe7a759970ad8ad3bd0c"
+  },
+  "originalrpg/textures/item/mutation_shard.png": {
+    "bytes": 211,
+    "fingerprint": "32x32:c1b84e6dc57e0378de38b3349fdea3d046acc4bfa0571edc5b8a1c69e799a0cf"
+  },
+  "originalrpg/textures/item/protection_stone.png": {
+    "bytes": 278,
+    "fingerprint": "32x32:5a9dd76410a4f71d98ae4a76f608fe5f924ca14f4bbc886950ca6e56f2563b39"
+  },
+  "originalrpg/textures/item/silent_thunder_skill_book.png": {
+    "bytes": 614,
+    "fingerprint": "32x32:05886b3135e7f2396deb859987b4b5f54c6e32da5eb967874b0c1b63563fa84d"
+  },
+  "originalrpg/textures/item/skill_adaptive-arsenal.png": {
+    "bytes": 297,
+    "fingerprint": "32x32:f028bbb8c84bb36870e4e0ff8edec89e11eb0d19a65bf1e93e5eceb4813d367c"
+  },
+  "originalrpg/textures/item/skill_arcane-edge.png": {
+    "bytes": 275,
+    "fingerprint": "32x32:b4401e9adc7045a00c57eb37f2aed43ddf87e83514c0fbf5ac144e4c60fd030b"
+  },
+  "originalrpg/textures/item/skill_ash-domain.png": {
+    "bytes": 290,
+    "fingerprint": "32x32:442eaa1a23c56c0d1156905ceec90d2df80e842305191ebb4a0a593bfcaa701a"
+  },
+  "originalrpg/textures/item/skill_axiomatic-break.png": {
+    "bytes": 291,
+    "fingerprint": "32x32:68cb226c3fe057ea44c814c7efddc7d4c27d6b937a3ecc3b5b53b9bf60bb8696"
+  },
+  "originalrpg/textures/item/skill_battle-trance.png": {
+    "bytes": 283,
+    "fingerprint": "32x32:c84937dd99d9ac10c62f31bda708a3f77f3e9d64d4be4276ff165176ff52244c"
+  },
+  "originalrpg/textures/item/skill_beast-call.png": {
+    "bytes": 290,
+    "fingerprint": "32x32:bf29878d33dab19c63c263f5dda5a22c53c2104e09252849483e223b79bdc0ff"
+  },
+  "originalrpg/textures/item/skill_blood-rage.png": {
+    "bytes": 301,
+    "fingerprint": "32x32:59afa9461fa9009848d536ad5bba303164acda1eb4788225694db0b06c5e85b0"
+  },
+  "originalrpg/textures/item/skill_fate-seal.png": {
+    "bytes": 301,
+    "fingerprint": "32x32:06d630988a050598f309bb78a8f03b9623aaf5ea7050454ffdbf31bb0f3ee4c7"
+  },
+  "originalrpg/textures/item/skill_fireball.png": {
+    "bytes": 280,
+    "fingerprint": "32x32:e76f4f2df96ad59ae5b8fa770c352caa59521c919c59ee6e677099cd04412907"
+  },
+  "originalrpg/textures/item/skill_fortress.png": {
+    "bytes": 255,
+    "fingerprint": "32x32:2b43b161eb80938e6975e9d08ad8fd47f1434b60b0b7c51ac214b9e739551193"
+  },
+  "originalrpg/textures/item/skill_frost-nova.png": {
+    "bytes": 292,
+    "fingerprint": "32x32:fb4973d64f3206acaa5bb1b6677184891442e7844f607a5b08ee0f0eb884a0f2"
+  },
+  "originalrpg/textures/item/skill_gale-step.png": {
+    "bytes": 296,
+    "fingerprint": "32x32:f1af4a6e5c1a6b492b766ac400401803d2b05867eb266b5d9c700b0d5894f890"
+  },
+  "originalrpg/textures/item/skill_heal.png": {
+    "bytes": 229,
+    "fingerprint": "32x32:87e2db5333dcbc4aa1c69e74f9bf821a2316f2a8d379375b3e9975fab4c124b7"
+  },
+  "originalrpg/textures/item/skill_horizon-arrow.png": {
+    "bytes": 275,
+    "fingerprint": "32x32:6376ab4d99334370a9046640fb039904c0360ea61871476957be43ea53b7d07c"
+  },
+  "originalrpg/textures/item/skill_improvisation.png": {
+    "bytes": 301,
+    "fingerprint": "32x32:69d4f44a9613f0d7cb728f87daf140988420b0f5003096e3a42f37746df2918c"
+  },
+  "originalrpg/textures/item/skill_life-thread.png": {
+    "bytes": 272,
+    "fingerprint": "32x32:1cdce255ad9bdb9d64363d1a2f8e1642b259890a156ccf208fc37856b1f27f43"
+  },
+  "originalrpg/textures/item/skill_mana-surge.png": {
+    "bytes": 278,
+    "fingerprint": "32x32:625cbbeb8e9366814c71b754f9b9bca4b3c1d2a13d24d28d9193844e4b4e37a9"
+  },
+  "originalrpg/textures/item/skill_meteor.png": {
+    "bytes": 307,
+    "fingerprint": "32x32:6d4ce4d4777d67cd6f6f51db8aab58ac53916cce01a63d344bc6baac9f8c843d"
+  },
+  "originalrpg/textures/item/skill_omen-reversal.png": {
+    "bytes": 268,
+    "fingerprint": "32x32:f271de8ab1371e70c1493bf7dd06b593a9e1879acf161092aab2992984c8d295"
+  },
+  "originalrpg/textures/item/skill_open-form.png": {
+    "bytes": 316,
+    "fingerprint": "32x32:3e1fd72a5e464f02cb2476fa785abe01af63938861a78a170685c24020462abb"
+  },
+  "originalrpg/textures/item/skill_pack-hunt.png": {
+    "bytes": 291,
+    "fingerprint": "32x32:22b3ac9fd2bad57218f7ec117bbe30b8f8d6b4ba899b4809993f8422fd079089"
+  },
+  "originalrpg/textures/item/skill_piercing-shot.png": {
+    "bytes": 275,
+    "fingerprint": "32x32:94b2f5fc3239c978795ad85e4c26a313ad700ad6976bb0b200590bea80f787df"
+  },
+  "originalrpg/textures/item/skill_plague-bloom.png": {
+    "bytes": 316,
+    "fingerprint": "32x32:8126a559eeb6da3bc392ca88357139e3c97ed8fa11127543fd31f816af111591"
+  },
+  "originalrpg/textures/item/skill_power-shot.png": {
+    "bytes": 263,
+    "fingerprint": "32x32:c4fda8c3835abc70d45ed769ba6daf6149c6118b5d61ac8f027c10464c53389b"
+  },
+  "originalrpg/textures/item/skill_rallying-standard.png": {
+    "bytes": 259,
+    "fingerprint": "32x32:47afe1e16dced0105ddc6cb50a60cb6ba71918dba22627701ab7cf4e63a233b0"
+  },
+  "originalrpg/textures/item/skill_renewal.png": {
+    "bytes": 258,
+    "fingerprint": "32x32:5fbe0f2dc03fd2b16dd0d63bb1d47770e23b554626f6fa365a62869e877f51fc"
+  },
+  "originalrpg/textures/item/skill_ruin-charge.png": {
+    "bytes": 272,
+    "fingerprint": "32x32:07d637d8e64443407d23c23a67a309459fe2d1a78c538ae049c9fb2790107bc7"
+  },
+  "originalrpg/textures/item/skill_rune-reversal.png": {
+    "bytes": 298,
+    "fingerprint": "32x32:7db56e28d8dff7669aa042e2392fc93809531109b0dd2cafc05a7f4937c004ef"
+  },
+  "originalrpg/textures/item/skill_sanctuary.png": {
+    "bytes": 259,
+    "fingerprint": "32x32:3a0921a9e5a7292b2edb9142d64eb78e3c01da8b6b190f140526424afca461fb"
+  },
+  "originalrpg/textures/item/skill_second-wind.png": {
+    "bytes": 281,
+    "fingerprint": "32x32:1cf6e001efc2a7964947f4313c3457b1eb6a7f5cd8f265bee98c2f6713dcf67a"
+  },
+  "originalrpg/textures/item/skill_shadow-step.png": {
+    "bytes": 356,
+    "fingerprint": "32x32:392af4ae48617c87103d14ba792238a0d98c7ac2926d3764ce637ff363c993ac"
+  },
+  "originalrpg/textures/item/skill_shield-wall.png": {
+    "bytes": 273,
+    "fingerprint": "32x32:771bce7ad7b42482e41247369303b0ccc0061cce72a887189af3daebb6a2949d"
+  },
+  "originalrpg/textures/item/skill_smoke-bomb.png": {
+    "bytes": 280,
+    "fingerprint": "32x32:05fd8310b1ffbbcbd69c29a6b5290ad29e63b70666fc8af18d7e6f654432b57e"
+  },
+  "originalrpg/textures/item/skill_soul-resonance.png": {
+    "bytes": 284,
+    "fingerprint": "32x32:9bf09380da8ae2cdb4719bb9ac68da4969378f2130eeaa688099333893b3f4ef"
+  },
+  "originalrpg/textures/item/skill_time-lock.png": {
+    "bytes": 273,
+    "fingerprint": "32x32:4e73babfacf952b35aaf30427ba2fee79ea624b1914f1ef32d12a664fcfa3d0f"
+  },
+  "originalrpg/textures/item/skill_toxic-burst.png": {
+    "bytes": 342,
+    "fingerprint": "32x32:d77e2f4b2993ea483b256d26ee71e8cb155bf81b36563d6421c37021209faeb6"
+  },
+  "originalrpg/textures/item/skill_unbroken-line.png": {
+    "bytes": 272,
+    "fingerprint": "32x32:f7f327a10f8ddf50d28a5a9e13d427dfcc73e19cb469254756ce14fa0a2838b3"
+  },
+  "originalrpg/textures/item/skill_vanished-horizon.png": {
+    "bytes": 282,
+    "fingerprint": "32x32:f5dd8998ac83f63760c5638ccf71a545f95cf7b758cab53b743a2679b6b95ed1"
+  },
+  "originalrpg/textures/item/skill_venom-blade.png": {
+    "bytes": 274,
+    "fingerprint": "32x32:be417d765313a4cfa25279c9d6d482daf5590467b7313736e73f3e47c75ea26e"
+  },
+  "originalrpg/textures/item/skill_void-cut.png": {
+    "bytes": 366,
+    "fingerprint": "32x32:d7b1fb29e6904cf7de9f708c27077bf533dd6c7bdea2c35f80e0621d23863fa8"
+  },
+  "originalrpg/textures/item/skill_volley.png": {
+    "bytes": 230,
+    "fingerprint": "32x32:16187c96663dea70c328f3d78470b8778a926a743f3075181f6d5a73394ec443"
+  },
+  "originalrpg/textures/item/skill_war-cry.png": {
+    "bytes": 279,
+    "fingerprint": "32x32:8bf2b5bf87752dd36d8e86eb2b5754dfbe8c52ddcf8d11e0c2a7b66483d05ed1"
+  },
+  "originalrpg/textures/item/sulfur_resonance_imprint.png": {
+    "bytes": 1062,
+    "fingerprint": "32x32:117ddafdfb51945b3f635a69e0c25fc0a0845587fc09e6a66712ae8fd45b0c38"
+  },
+  "originalrpg/textures/item/traveler_compass.png": {
+    "bytes": 1027,
+    "fingerprint": "32x32:428966208ce400f6ab0151edabc6f859e4fd9a0db4b8a9d50d166aa72aa42326"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_00.png": {
+    "bytes": 556,
+    "fingerprint": "32x32:763c363ae9b1d440a15fca8117c291fcebf2f7a361210f4ce935ccf6f79d22a7"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_01.png": {
+    "bytes": 563,
+    "fingerprint": "32x32:943277318da009ba6b34aef01e47b5bfc1d8d09692a63bf9bfb8e9fcdb761659"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_02.png": {
+    "bytes": 558,
+    "fingerprint": "32x32:1a5782a64a6065503763596dae7379b98b0c55bb278ab53a18e6f47a0bc29b7c"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_03.png": {
+    "bytes": 545,
+    "fingerprint": "32x32:e5cc4b31071e27c79675a62e1c4e7fcda0d0bc5ed042178654134b90ebd5ef0d"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_04.png": {
+    "bytes": 545,
+    "fingerprint": "32x32:cc32744aa2e7599606f13aa3c20d3b220252079b4d5d424c9bb702fa395ce1a0"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_05.png": {
+    "bytes": 555,
+    "fingerprint": "32x32:094e158ff1b44ba2892dfa8d460a0a7cf75df8d828c1d6d318a594e917c0b62e"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_06.png": {
+    "bytes": 556,
+    "fingerprint": "32x32:b25ab2cb705f34b07f430579037e9268110de6a7f35efcd5206a9b9b73c5606c"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_07.png": {
+    "bytes": 556,
+    "fingerprint": "32x32:712081130c8f6b32330d1ab84e0bf306ddedae5feb553dc7ef72824edda66d77"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_08.png": {
+    "bytes": 548,
+    "fingerprint": "32x32:4106e4fcdcea80a016ba76a2aec136d1022475a183fc8da37ee1c660589b91cb"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_09.png": {
+    "bytes": 554,
+    "fingerprint": "32x32:8701c8906ccfc4239330a7d0de32b82dd2c56abb764222efa1473e5810b60fce"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_10.png": {
+    "bytes": 561,
+    "fingerprint": "32x32:a64823e2bfeb4a19a4d309a467a1aa73dacdbd35d2872cff9b95e6a510f577ef"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_11.png": {
+    "bytes": 564,
+    "fingerprint": "32x32:ac76f04623e41c54e2dbc2591b420fa832a570eb488d0eb33b5999cae77faaa6"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_12.png": {
+    "bytes": 562,
+    "fingerprint": "32x32:4329d26510bd010e91e3c2dc76c3a144b7da18409b5aa96a026658224bb1dd51"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_13.png": {
+    "bytes": 564,
+    "fingerprint": "32x32:0d32162d2a0623fe99d73130345e2da05d4f72dafbefa34e75b2e9197b2db9b6"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_14.png": {
+    "bytes": 564,
+    "fingerprint": "32x32:b34cdac4dc8a285e0a7e866638a38324bad98bb133aa761035d11bd9e27ac56d"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_15.png": {
+    "bytes": 567,
+    "fingerprint": "32x32:621111648acd351465af4bf24b60f77fa8cdb9014f1147cf703e893225a77911"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_16.png": {
+    "bytes": 553,
+    "fingerprint": "32x32:427cfeede0744db193c11b5e91497c08e899361370a2ba77dd54b87eea3694d0"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_17.png": {
+    "bytes": 567,
+    "fingerprint": "32x32:e7e2117c978fa831b7e5a745e96025f9d7cf7f1de7e916712121cc1a80be0092"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_18.png": {
+    "bytes": 558,
+    "fingerprint": "32x32:6443aaadef5bbb2b9b7d55b1b080717c6466c296d4475bfd43e86d5eb9ae880c"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_19.png": {
+    "bytes": 550,
+    "fingerprint": "32x32:9f739d095154347cfd130192c890a68e94c495136ef71d6731624732f9b1f188"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_20.png": {
+    "bytes": 545,
+    "fingerprint": "32x32:ddfc8cd1e53a42c4f9cf77b05dcb502ad3b3684521c5fe417bf37a8424f86eba"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_21.png": {
+    "bytes": 556,
+    "fingerprint": "32x32:6e4ab0cce66125b8b8114a92ce21a11aced2432549331ea2579fd1075fcb7ee7"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_22.png": {
+    "bytes": 558,
+    "fingerprint": "32x32:3cf177a8f349fb64f076f05154271d79afb51fcf80341a979a0fd8e14d63d76b"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_23.png": {
+    "bytes": 551,
+    "fingerprint": "32x32:1daa5af33e61854512a6e28eab728671de3abd321bf93d643570e72ba5047481"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_24.png": {
+    "bytes": 545,
+    "fingerprint": "32x32:e3b258e25750eefb3e401f5f84e69a1cab27ca80f33cf8dd6ec1245c50cda414"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_25.png": {
+    "bytes": 554,
+    "fingerprint": "32x32:64b3aa349b1ab433fb78e6c9093bc1bc0cf87906aa377535b77acd36bdb204ca"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_26.png": {
+    "bytes": 559,
+    "fingerprint": "32x32:682a7ff163630d3d379af525b840225719388847af0d4c527767850423d2e2d2"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_27.png": {
+    "bytes": 556,
+    "fingerprint": "32x32:9274bbb671112c12c9a0cc93d1e340c473cefbb096df4105c9fe6b9e62df1ab4"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_28.png": {
+    "bytes": 561,
+    "fingerprint": "32x32:f81a1dc13609dec351ccb60da6eb608b48330e3e64e8fb4b220aa68ad7949ade"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_29.png": {
+    "bytes": 564,
+    "fingerprint": "32x32:9bfae2eaec7dc2244b608f41dbe1f3ee68c9edba14a9131cf4afa85afb90782c"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_30.png": {
+    "bytes": 560,
+    "fingerprint": "32x32:9d6534acb4c3b483cafc5ea5d3244ab70e345559791afc91395468551168f0a5"
+  },
+  "originalrpg/textures/item/traveler_compass/frame_31.png": {
+    "bytes": 569,
+    "fingerprint": "32x32:502036958d835f82d8a2fccd4abfeff050a483a24096dad711a3e44d5c5a3cb6"
+  }
+}

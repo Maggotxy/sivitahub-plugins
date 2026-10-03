@@ -16,6 +16,7 @@
 #   6) G-206 接线自证：§4c/§5 两段门禁必须被本脚本真实调用、且被 .cnb.yml 执行
 #   7) scripts/check-resource-pack.sh（W7-A1 素材门禁）的八条判据都能真的变红
 #   8) W7-A1 接线自证：素材门禁必须真的在 CI 里跑
+#   9) W12-A1 素材逐像素基线门禁的四组负向对照（改 1 像素 / 删图 / 加未登记图 / 还原）
 #
 # 用法：sh scripts/selftest-gates.sh     （退出码 0 = 全部通过）
 #
@@ -715,6 +716,168 @@ if [ "$rpg_phantom_hits" = "0" ]; then
   PASS=$((PASS + 1))
 else
   echo "  [FAIL] 不存在的素材门禁竟被查到 $rpg_phantom_hits 次 —— 接线判据恒绿" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+cd "$ROOT"
+
+echo "== 9. 素材逐像素基线门禁（W12-A1）四组负向对照 =="
+# 失败模式：素材门禁判的是「素材自洽」（闭包 / 尺寸 / 二值 alpha / 码位 / 语言键），
+# 判不了「这张图还是不是原来那张」—— 换一张同样 32x32、同样二值 alpha 的图，
+# 八条判据全绿，116 张 betterhud 纹理可以被人悄悄换掉而 CI 毫无反应。
+# 基线门禁（scripts/check-asset-baseline.py）就是补这个洞，本节证明它真的会红。
+#
+# 与 §7 同样的纪律：**只在 $TMP 的夹具副本上破坏**，不碰仓库工作区。
+# 夹具整份拷 resource-pack/（约 3 MB），因为门禁扫的是 assets/**/*.png 全量。
+BASE_FIXTURE="$TMP/asset-baseline-ws"
+mkdir -p "$BASE_FIXTURE/scripts"
+cp -R "$ROOT/resource-pack" "$BASE_FIXTURE/resource-pack"
+cp "$ROOT/scripts/check-asset-baseline.py" "$ROOT/scripts/asset_fingerprint.py" \
+  "$BASE_FIXTURE/scripts/"
+
+run_baseline_gate() {
+  # 把退出码打到 stdout（调用方用命令替换取，不走管道）
+  set +e
+  (cd "$BASE_FIXTURE" && python3 scripts/check-asset-baseline.py >/dev/null 2>&1)
+  echo $?
+}
+
+check "基线门禁在干净夹具上必须绿（基准）" 0 "$(run_baseline_gate)"
+
+# ① 改一张图的一个像素：必须 RED，且报出是哪张 + 期望 / 实际指纹
+python3 - "$BASE_FIXTURE" <<'PY'
+import struct, sys, zlib
+
+fixture = sys.argv[1]
+path = fixture + '/resource-pack/assets/originalrpg/textures/item/hunt_crystal.png'
+data = open(path, 'rb').read()
+pos, idat = 8, []
+width = height = None
+while pos + 8 <= len(data):
+    (length,) = struct.unpack('>I', data[pos:pos + 4])
+    kind = data[pos + 4:pos + 8]
+    body = data[pos + 8:pos + 8 + length]
+    pos += 12 + length
+    if kind == b'IHDR':
+        width, height, bit_depth, color_type, _c, _f, _i = struct.unpack('>IIBBBBB', body)
+    elif kind == b'IDAT':
+        idat.append(body)
+    elif kind == b'IEND':
+        break
+raw = bytearray(zlib.decompress(b''.join(idat)))
+raw[1] = (raw[1] + 1) & 0xFF  # 只动 (0,0) 像素的第一个通道
+
+
+def chunk(kind, body):
+    payload = kind + body
+    return (struct.pack('>I', len(body)) + payload
+            + struct.pack('>I', zlib.crc32(payload) & 0xFFFFFFFF))
+
+
+out = (b'\x89PNG\r\n\x1a\n'
+       + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, bit_depth, color_type, 0, 0, 0))
+       + chunk(b'IDAT', zlib.compress(bytes(raw))) + chunk(b'IEND', b''))
+open(path, 'wb').write(out)
+PY
+set +e
+(cd "$BASE_FIXTURE" && python3 scripts/check-asset-baseline.py > "$TMP/base-1-pixel.txt" 2>&1)
+base_pixel_rc=$?
+set -e
+check "① 改一个像素 → RED" 1 "$base_pixel_rc"
+# 红的原因必须可归因：报出被改的那张图，并同时给出期望与实际指纹
+if grep -q 'originalrpg/textures/item/hunt_crystal.png' "$TMP/base-1-pixel.txt" \
+   && grep -q '期望 ' "$TMP/base-1-pixel.txt" && grep -q '实际 ' "$TMP/base-1-pixel.txt"; then
+  echo "  [OK  ] ① 指出是哪张图并打印 期望/实际 指纹"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] ① RED 了但没说清是哪张图（门禁不可归因）" >&2
+  FAIL=$((FAIL + 1))
+fi
+# 还原：从**真实仓库**取回原始字节（夹具里的已被改坏）
+cp "$ROOT/resource-pack/assets/originalrpg/textures/item/hunt_crystal.png" \
+  "$BASE_FIXTURE/resource-pack/assets/originalrpg/textures/item/hunt_crystal.png"
+check "① 还原后必须绿" 0 "$(run_baseline_gate)"
+
+# ② 删一张图：必须报「丢失」
+mv "$BASE_FIXTURE/resource-pack/assets/originalrpg/textures/item/hunt_crystal.png" \
+  "$TMP/base-deleted.png"
+set +e
+(cd "$BASE_FIXTURE" && python3 scripts/check-asset-baseline.py > "$TMP/base-missing.txt" 2>&1)
+base_missing_rc=$?
+set -e
+check "② 删一张图 → RED" 1 "$base_missing_rc"
+if grep -q '丢失' "$TMP/base-missing.txt" \
+   && grep -q 'originalrpg/textures/item/hunt_crystal.png' "$TMP/base-missing.txt"; then
+  echo "  [OK  ] ② 报出「丢失」并指出是哪张"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] ② 没有报出「丢失」" >&2
+  FAIL=$((FAIL + 1))
+fi
+mv "$TMP/base-deleted.png" \
+  "$BASE_FIXTURE/resource-pack/assets/originalrpg/textures/item/hunt_crystal.png"
+check "② 还原后必须绿" 0 "$(run_baseline_gate)"
+
+# ③ 加一张未登记的图：必须报「未登记」
+cp "$BASE_FIXTURE/resource-pack/assets/originalrpg/textures/item/hunt_crystal.png" \
+  "$BASE_FIXTURE/resource-pack/assets/originalrpg/textures/item/unregistered_probe.png"
+set +e
+(cd "$BASE_FIXTURE" && python3 scripts/check-asset-baseline.py > "$TMP/base-unregistered.txt" 2>&1)
+base_unregistered_rc=$?
+set -e
+check "③ 加一张未登记图 → RED" 1 "$base_unregistered_rc"
+if grep -q '未登记' "$TMP/base-unregistered.txt" \
+   && grep -q 'unregistered_probe.png' "$TMP/base-unregistered.txt"; then
+  echo "  [OK  ] ③ 报出「未登记」并指出是哪张"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] ③ 没有报出「未登记」" >&2
+  FAIL=$((FAIL + 1))
+fi
+rm -f "$BASE_FIXTURE/resource-pack/assets/originalrpg/textures/item/unregistered_probe.png"
+check "③ 还原后必须绿" 0 "$(run_baseline_gate)"
+
+# ④ 清单文件缺失：必须 exit 2（不是 1，也不许当绿）
+mv "$BASE_FIXTURE/resource-pack/assets-manifest.json" "$TMP/base-manifest.json"
+check "④ 清单缺失 → exit 2" 2 "$(run_baseline_gate)"
+mv "$TMP/base-manifest.json" "$BASE_FIXTURE/resource-pack/assets-manifest.json"
+check "④ 还原后必须绿" 0 "$(run_baseline_gate)"
+
+# 自证：负向对照没有污染真实仓库（§9 全程只动 $TMP 里的夹具）
+set +e
+(cd "$ROOT" && python3 scripts/check-asset-baseline.py >/dev/null 2>&1)
+base_after=$?
+set -e
+check "负向对照后仓库内基线仍为绿（工作区未被污染）" 0 "$base_after"
+
+# 自证：清单与磁盘素材「重跑 gen 后字节一致」——否则基线会在无关提交里漂移
+set +e
+(cd "$ROOT" && python3 scripts/gen-asset-manifest.py --check >/dev/null 2>&1)
+gen_rc=$?
+set -e
+check "重跑 gen-asset-manifest.py 后清单字节一致（稳定输出）" 0 "$gen_rc"
+
+echo "== 9b. W12-A1 接线自证：基线门禁必须真的在 CI 里跑 =="
+# 与 §8 同一套判据：把「谁在跑」变成可 grep 的事实。
+# 只断言脚本名出现在某处不够 —— 它也可能只出现在注释里，因此断言完整命令行。
+if [ -f "$ROOT/.cnb.yml" ] && grep -qF 'python3 scripts/check-asset-baseline.py' "$ROOT/.cnb.yml"; then
+  echo "  [OK  ] .cnb.yml 全量质量门执行 check-asset-baseline.py"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] .cnb.yml 没有执行 check-asset-baseline.py —— 基线门禁不在 CI 里" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 负向对照：拼出来的假路径必须查不到（证明上面那条判据能变红，不是恒命中）
+base_phantom="scripts/definitely-not-a-real""-baseline-gate.py"
+set +e
+base_phantom_hits=$(grep -c -F "$base_phantom" "$ROOT/.cnb.yml")
+set -e
+if [ "$base_phantom_hits" = "0" ]; then
+  echo "  [OK  ] 不存在的基线门禁查不到（接线判据能变红）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 不存在的基线门禁竟被查到 $base_phantom_hits 次 —— 接线判据恒绿" >&2
   FAIL=$((FAIL + 1))
 fi
 
