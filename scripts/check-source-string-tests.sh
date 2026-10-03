@@ -44,6 +44,16 @@
 #     （YAML/JSON/二进制）。算进来会把一批配置契约测试误判成缺口（W18-A1 实测多报 4 个）
 #     ⇒ 不算。
 #   · 断言只用 .contains( 等字符串方法但类里根本没有读生产源码的调用点 ⇒ 不算。
+#   · 用读取结果做**过滤谓词**（`if (Files.readString(f).contains(x)) { hits.add(f); }`），
+#     再对**筛出来的文件列表**做 contains/anyMatch/assertEquals：断言对象是「哪些文件提到
+#     某标识符」这一仓库布局事实，不是源码字符串本身。按上一条口径（对解析后的集合断言）
+#     ⇒ 不算。例：rpg-items/EquipmentExitPathReachabilityTest 与
+#     rpg-core/SeasonAttunementSettlementWiringTest 的 productionReferences(identifier)。
+#     ⚠️ W18-A1 第二轮修正：旧实现只看「`).contains(` 紧邻读取调用」就把这种谓词当断言，
+#     会误报上面两个类。现在要求 contains 结果真的处在 assert 调用里才计。
+#   · `Files.walk(生产目录)` 遍历出文件后只断言「文件名列表」：路径不是 plugins/ 开头的
+#     字面量（是 ROOT.resolve("plugins") 拼出来的），按上上条口径宁可漏判不误报 ⇒ 不算。
+#     它的**子形态**（对读出来的正文做 contains/顺序断言）仍然会被判为缺口，见上面的判据。
 #
 # 用法：sh scripts/check-source-string-tests.sh [--json]
 # 退出码：0 = 本仓生产源码里已无此类断言；1 = 仍有命中（打印文件:行:类名）
@@ -86,14 +96,25 @@ def production_paths(text):
                    if is_production_path(literal)})
 
 
-def constant_paths(src, text):
-    """文本里引用的常量/枚举名 → 回溯其初始化语句里的生产路径（形态 ②）。
+def constant_paths(src, argument):
+    """读取实参**就是**某个常量名时的常量路径解析（形态 ②）。
 
     覆盖 `read(PRODUCTION)` / `readString(PRODUCTION_PATH)` 这类写法：路径字面量不在
     调用点，而在字段声明里。只回溯该常量的**初始化语句**，避免把同类里无关路径误报。
+
+    ⚠️ 收紧点（W18-A1 第二轮）：实参必须是**指向读取目标的那个常量本身**
+    （允许 `PRODUCTION` 以及 `PRODUCTION + "/x"` 这类以常量名开头的简单拼接），
+    而不是「实参文本里恰好提到了某个大写常量名」。否则会误报：把
+    `anyMatch(path -> path.equals(LIFECYCLE_ONLY))` 这种**比较/lambda 里提及**的常量
+    当成「读取的是 LIFECYCLE_ONLY 这个生产路径」，从而把「对解析后的路径列表做断言」
+    的测试判成缺口（实测误报 rpg-items/EquipmentExitPathReachabilityTest）。
     """
     found = []
-    for constant in set(re.findall(r'\b([A-Z][A-Z0-9_]{2,})\b', text)):
+    for constant in set(re.findall(r'\b([A-Z][A-Z0-9_]{2,})\b', argument)):
+        # 实参必须**以该常量名开头**（`read(PRODUCTION)` / `read(PRODUCTION + suffix)`），
+        # 才算「读取目标就是这个常量」。在 lambda / 比较里出现的常量名一律不算。
+        if not re.match(r'\s*' + re.escape(constant) + r'\b', argument):
+            continue
         declaration = re.search(
             r'\b' + re.escape(constant) + r'\s*=\s*'
             r'(?:"[^"]*"|\n\s*"[^"]*"|Path\.of\s*\(\s*"[^"]*")',
@@ -191,10 +212,23 @@ def asserts_source_string(src, read_offset):
     「直接落在读出来的字符串上」把「读 config.yml → 对解析后的 Map/Set 做 contains」
     的配置契约测试排除在外。
     """
-    # 一行式：读取调用后紧跟字符串断言。
+    # 一行式：读取调用后紧跟字符串断言，**且该断言真的被 assert 出去**。
+    #
+    # ⚠️ 收紧点（W18-A1 第二轮）：`if (Files.readString(f).contains(x)) { hits.add(f); }`
+    # 是**过滤谓词**（用读取内容筛出文件列表），不是断言。旧实现只看「`).contains(` 紧邻」，
+    # 会把这种形态判成缺口 —— 但按本脚本注释的口径 #3，断言必须**直接落在读出来的字符串**上；
+    # 对「读一遍 src/main 得到的路径列表」做 contains/anyMatch 属于对**解析后的集合**断言，
+    # 不算（实测误报 rpg-items/EquipmentExitPathReachabilityTest 与
+    # rpg-core/SeasonAttunementSettlementWiringTest 的同类 helper）。
     for match in READ_CALL.finditer(src):
-        tail = src[match.start():match.start() + 4000]
-        if re.search(r'\)\s*\.\s*' + ASSERT_CALLS + r'\s*\(', tail.split(';')[0] + ';'):
+        statement = src[match.start():match.start() + 4000].split(';')[0] + ';'
+        chain = re.search(r'\)\s*\.\s*' + ASSERT_CALLS + r'\s*\(', statement)
+        if not chain:
+            continue
+        # contains 结果必须处在 assert 调用里（assertTrue(...) / assertFalse(...)），
+        # 而不是 if/while/三元/stream filter 的谓词位置。
+        prefix = src[max(0, match.start() - 400):match.start()] + statement
+        if re.search(r'assert(?:True|False|Equals|NotEquals)\s*\([^;{}]*$', prefix):
             return True
     # 读结果被赋给变量（readString 直接赋值或 helper 返回值赋值）后对该变量做断言。
     read_helpers_names = {name for name, _ in read_helpers(src)}

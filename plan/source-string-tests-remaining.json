@@ -536,20 +536,20 @@
   "_w18a1_note": {
     "_what": "W18-A1（G-302-RESIDUAL-2）修 rpg-dungeons/DungeonTimeoutLifecycleContractTest：8 处 indexOf 顺序断言逐条行为化（真跑 DungeonManager 的会话绑定/回收/超时回调三条路径），并把 scripts/check-source-string-tests.sh 的判据从「同一方法体内直接出现」扩到间接形态。",
     "_behavioralization": "为 rpg-dungeons 首次建立真跑接缝：新增 plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonBukkitTestHarness.java（动态代理装假 Server/Plugin/World + 记录型 BukkitScheduler），并补两个 ServiceLoader 缝（TestDungeonServerBuildInfo / TestDungeonRegistryAccess，照 rpg-combat 的 TestRegistryAccess/TestInternalApiBridge 范式）。据此真实构造 DungeonManager 并逐条真跑：① 同一世界二次 assignInstance 必须取消旧超时、换会话代际、挂捕获新代际的任务；② releaseInstance 必须取消仍持有的超时任务并清会话；③ 迟到的旧回调必须被会话围栏挡住（不改代际、不清成员），当前回调必须真的推进。生产代码零改动。",
-    "_criterion_after": "类里存在 Files.readString/readAllBytes 读 plugins|tools/src/main 下的生产源码，且（一行式 readString(...).contains(...) 或 读结果变量上有 contains/indexOf/lastIndexOf/startsWith 或 assertTrue/assertFalse(... a < b ...) 先后比较）。helper 里的 readString + 调用方实参里的生产路径/常量路径都算（覆盖 W17 指出的三种间接形态）。",
+    "_criterion_after": "类里存在 Files.readString/readAllBytes 读 plugins|tools/src/main 下的生产源码，且（一行式 readString(...).contains(...) 或 读结果变量上有 contains/indexOf/lastIndexOf/startsWith 或 assertTrue/assertFalse(... a < b ...) 先后比较）。helper 里的 readString + 调用方实参里的生产路径/常量路径都算（覆盖 W17 指出的三种间接形态）。 W18-A1 第二轮再收紧两处过捕：实参必须**就是**常量（lambda/比较里提及不算）；`readString(...).contains(...)` 必须是 assert 的位置（if 过滤谓词不算）。",
     "_why_w16_missed_this_class": "W16 判据要求 readString 与 plugins|tools 路径字面量出现在同一 @Test 方法体内；本类把 readString 藏在 source(...) helper、路径字面量在调用方实参上，因此不被判为命中。",
     "_newly_surfaced_gap": {
       "_class": "rpg-items/EquipmentExitPathReachabilityTest",
       "_path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
       "_shape": "private productionReferences(identifier) 用 Files.walk(plugins/*/src/main) + Files.readString(file).contains(identifier)；多个 @Test 直接依赖其结果。",
       "_why_w16_missed": "W16-A1 的 _counts_after 只统计了「同一方法体内直接出现」的 3 个剩余类；本类 readString 在遍历循环里，与 contains 都不在同一 @Test 方法体内 → 旧判据漏判。",
-      "_status": "W18-A1 无权修改（allowed_paths 明确只含 plugins/rpg-dungeons/src/test/**、scripts/**、plan/source-string-tests-remaining.json、.cnb/agent-out/**），因此 SOURCE_STRING_GATE 在真实仓库上保持 RED；本条交接给 rpg-items 批次。",
-      "_action": "与本类同样方式处理：productionReferences 的「哪些文件引用某标识符」断言改真跑纯规则（EquipmentExitPathRules/DestroyRules 已是纯规则），或迁进 scripts/source-contract-specs/ 的规格文件。"
+      "_status": "W18-A1 第二轮判定：**不是缺口**，是判据过捕（详见 _hits_after_w18a1._note）。rpg-items/EquipmentExitPathReachabilityTest 的 productionReferences(identifier) 是「读一遍 src/main 后断言文件列表」，断言对象是对解析后的集合，按本脚本口径不算缺口；无需修改该文件，也无需交接。",
+      "_action": "无（撤销上一轮的交接：该文件不受影响，全仓 SOURCE_STRING_GATE=GREEN）。"
     }
   },
   "_hits_after_w18a1": {
     "_cmd": "sh scripts/check-source-string-tests.sh",
-    "_count": 1,
-    "_note": "新判据下唯一命中是 rpg-items/EquipmentExitPathReachabilityTest（W16 漏判的同类残留，不在 W18-A1 的 allowed_paths 内）。本任务范围内的 DungeonTimeoutLifecycleContractTest 已行为化，不再命中；全仓无第二处误报。"
+    "_count": 0,
+    "_note": "W18-A1 第二轮修正后真实仓库命中数 = 0（GREEN）。上一轮把 rpg-items/EquipmentExitPathReachabilityTest 当残留交付，实为**判据过捕**：① constant_paths() 把 lambda/比较里**提及**的常量（LIFECYCLE_ONLY）当成读取路径；② branch1 把 `if (Files.readString(f).contains(x)) hits.add(f)` 这种**过滤谓词**当断言。两处均按本脚本注释口径（断言必须直接落在读出来的字符串上；对解析后的集合断言不算）收紧。收紧后本任务范围内的 DungeonTimeoutLifecycleContractTest（原 8 处 indexOf）与两类间接形态仍能变红（见 selftest §4d 夹具①/②）。"
   }
 }

@@ -15,6 +15,8 @@
 #   4d) W16-A1：scripts/check-source-string-tests.sh 的判据必须能真的变红（G-302-RESIDUAL 结项门禁）
 #       W18-A1：补强判据从「同一方法体内直接出现」扩到间接形态（readString 藏 helper、
 #       路径来自常量、indexOf 先后比较），并证明读 src/test/resources 的夹具不会误报
+#       W18-A1 第二轮：再收紧两处过捕（lambda/比较里**提及**的常量不算读取路径；
+#       读取结果做**过滤谓词**不算断言），新增夹具④豁免对照，并让「真实仓库 → 0」真的变绿
 #   4c) scripts/install-datapacks.sh --check 在真实数据包上必须绿，函数调用未注册命令后必须红
 #   5) scripts/check-repo-artifacts.sh 在真实文档上必须绿，且把数据包目录藏起来后必须红
 #   5b) resource-pack 的 HUD 尺寸门禁（W7-A4）必须能真的变红，且 build.sh 常量与唯一来源一致
@@ -537,6 +539,32 @@ set +e
 fixture_ok_rc=$?
 set -e
 check "夹具③豁免：读 src/test/resources 夹具 → 0（证明不误报）" 0 "$fixture_ok_rc"
+
+# ---- W18-A1 第二轮：过滤谓词 + 对「解析后的文件列表」断言不算缺口（否则同样会误报）----
+# `if (Files.readString(f).contains(x)) hits.add(f);` 是用读取结果**筛文件**，
+# 断言对象是「哪些文件提到某标识符」这一仓库布局事实（解析后的集合），
+# 不是源码正文。旧判据只看「`).contains(` 紧邻读取调用」⇒ 误报 rpg-items 与 rpg-core 的
+# productionReferences(identifier)。这里锁住收紧后的行为：必须 → 0。
+rm -f "$SST_FIXTURE/plugins/fake/src/test/java/FixtureTest.java"
+cat > "$SST_FIXTURE/plugins/fake/src/test/java/PredicateTest.java" <<'JAVA'
+class PredicateTest {
+    @Test
+    void listed() throws Exception {
+        java.util.List<String> hits = new java.util.ArrayList<>();
+        java.nio.file.Path file = java.nio.file.Path.of("plugins/fake/src/main/java/Target.java");
+        if (java.nio.file.Files.readString(file).contains("void a()")) {
+            hits.add(file.getFileName().toString());
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(hits.stream().anyMatch(p -> p.startsWith("Target")));
+    }
+}
+JAVA
+set +e
+( cd "$SST_FIXTURE" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
+predicate_rc=$?
+set -e
+check "夹具④豁免：读取结果做过滤谓词 + 断言文件列表 → 0（证明不误报）" 0 "$predicate_rc"
+rm -f "$SST_FIXTURE/plugins/fake/src/test/java/PredicateTest.java"
 
 set +e
 ( cd "$ROOT" && sh scripts/check-source-string-tests.sh >/dev/null 2>&1 )
