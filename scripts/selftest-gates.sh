@@ -9,7 +9,9 @@
 #   3) scripts/list-env-tests.sh 在真实源码上能抽出非空清单
 #   4) scripts/check-ddl-consumers.sh 的第 7 节（DDL 注册门禁/反向检查）在四种形态下
 #      给出预期退出码：正常 → 0；代码引用不存在的表 → 1；前缀误报 → 1；显式豁免 → 0
-#   4b) scripts/check-source-contract.sh 在不可能满足的顺序契约上必须红、真实顺序必须绿
+#   4b) scripts/check-source-contract.sh 在不可能满足的顺序契约上必须红、真实顺序必须绿；
+#        W16b-A1 还证明规格目录（多份 *.json）会被真的执行、键冲突会点名两个文件、
+#        SOURCE_CONTRACT_SPEC 单文件模式保持向后兼容
 #   4c) scripts/install-datapacks.sh --check 在真实数据包上必须绿，函数调用未注册命令后必须红
 #   5) scripts/check-repo-artifacts.sh 在真实文档上必须绿，且把数据包目录藏起来后必须红
 #   5b) resource-pack 的 HUD 尺寸门禁（W7-A4）必须能真的变红，且 build.sh 常量与唯一来源一致
@@ -282,6 +284,168 @@ check "禁止片段命中 → 1" 1 "$(run_contract)"
 
 write_spec '[]' '["never-in-this-file"]'
 check "禁止片段未命中 → 0" 0 "$(run_contract)"
+
+# ---- W16b-A1：规格目录合并（多份 *.json）的负向对照 ----
+# 动机：后续每个模块各加一份规格文件（rpg-items.json / rpg-dungeons.json / ...），
+# 不再抢改同一个 all.json。这里证明「新加的规格文件是真的被执行」，不是只被读到：
+#   a) 规格目录里放一个**注定失败**的夹具 ⇒ 该规格的违例必须真出现在输出里 ⇒ RED
+#   b) 两个文件写同一个 spec 键 ⇒ RED，且错误信息点名两个文件（不许静默覆盖）
+#   c) 无冲突的合并必须绿 ⇒ 上面那条冲突断言不是恒红（负向对照）
+#   d) SOURCE_CONTRACT_SPEC 指单文件时只加载该文件（向后兼容，不被目录合并污染）
+# 夹具改到哪个目录走 SOURCE_CONTRACT_SPECS_DIR（只给自测用，CI 不设置 ⇒ CI 永远
+# 加载 scripts/source-contract-specs 全目录）。
+SPECS_TMP="$TMP/specs-negative"
+mkdir -p "$SPECS_TMP"
+
+run_specs() {
+  # $1 = 输出文件；返回退出码
+  set +e
+  SOURCE_CONTRACT_SPECS_DIR="$SPECS_TMP" sh scripts/check-source-contract.sh --all \
+    >"$1" 2>&1
+  echo $?
+}
+
+cat > "$SPECS_TMP/10-first.json" <<JSON
+{
+ "fake/First.java": {
+  "files": ["$frag/Target.java"],
+  "checks": [
+   {"method": "selftest", "required": ["never-in-this-file"], "forbidden": [], "ordered": []}
+  ]
+ }
+}
+JSON
+
+first_rc=$(run_specs "$TMP/specs-first.txt")
+check "规格目录里新加的规格会被执行（夹具必然失败 → RED）" 1 "$first_rc"
+# 判据不是「文件被读到」（读到一个空目录也会绿），而是「它声明的检查真的跑了」：
+# 违例标签必须来自该规格的 method + 类名，且必须打出它那条 required 片段。
+if grep -q 'First.java::selftest' "$TMP/specs-first.txt" \
+  && grep -q 'never-in-this-file' "$TMP/specs-first.txt" \
+  && grep -q 'SOURCE_CONTRACT_GATE=RED' "$TMP/specs-first.txt"; then
+  echo "  [OK  ] 报出的违例来自新加的规格文件（证明它真的被执行，不只是被读到）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] RED 了但没报出新规格的违例 —— 新文件可能根本没被加载" >&2
+  sed 's/^/    /' "$TMP/specs-first.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 冲突：第二个文件重复 10-first.json 的键，同时自己带一条会失败的检查。
+# 若走「后者覆盖前者」的旧语义，输出里会只剩 20-second 的违例与 GREEN/RED 之外的
+# 东西 —— 断言「两个文件名都出现在错误信息里」正是为了掐死这条路径。
+cat > "$SPECS_TMP/20-second.json" <<JSON
+{
+ "fake/First.java": {
+  "files": ["$frag/Target.java"],
+  "checks": [
+   {"method": "selftest", "required": ["never-in-this-file-either"], "forbidden": [], "ordered": []}
+  ]
+ },
+ "fake/Second.java": {
+  "files": [],
+  "checks": [{"method": "selftest", "required": [], "forbidden": [], "ordered": []}]
+ }
+}
+JSON
+
+conflict_rc=$(run_specs "$TMP/specs-conflict.txt")
+check "键冲突 → 报错（不是静默覆盖）" 2 "$conflict_rc"
+if grep -q '规格键冲突' "$TMP/specs-conflict.txt" \
+  && grep -q '10-first.json' "$TMP/specs-conflict.txt" \
+  && grep -q '20-second.json' "$TMP/specs-conflict.txt"; then
+  echo "  [OK  ] 冲突信息点名了两个文件（10-first.json 与 20-second.json）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 冲突信息没说清是哪两个文件" >&2
+  FAIL=$((FAIL + 1))
+fi
+if grep -q 'SOURCE_CONTRACT_GATE=RED' "$TMP/specs-conflict.txt"; then
+  echo "  [OK  ] 冲突时判据行是 SOURCE_CONTRACT_GATE=RED"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 冲突时没有给出 SOURCE_CONTRACT_GATE=RED" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 负向对照：没有冲突时，同一个目录必须绿 —— 否则上面那条冲突断言可能只是恒红
+rm -f "$SPECS_TMP/20-second.json"
+cat > "$SPECS_TMP/10-first.json" <<JSON
+{
+ "fake/First.java": {
+  "files": ["$frag/Target.java"],
+  "checks": [
+   {"method": "selftest", "required": ["void a()"], "forbidden": [], "ordered": []}
+  ]
+ }
+}
+JSON
+cat > "$SPECS_TMP/20-second.json" <<JSON
+{
+ "fake/Second.java": {
+  "files": ["$frag/Target.java"],
+  "checks": [
+   {"method": "selftest", "required": ["void b()"], "forbidden": [], "ordered": []}
+  ]
+ }
+}
+JSON
+
+merged_rc=$(run_specs "$TMP/specs-merged.txt")
+check "两份不冲突的规格合并后 → 0" 0 "$merged_rc"
+if grep -q 'SOURCE_CONTRACT_CHECKS=2 SPECS=2' "$TMP/specs-merged.txt"; then
+  echo "  [OK  ] 两份规格都被执行（CHECKS=2 SPECS=2）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 合并后的计数不对，应有 2 条检查 / 2 个规格" >&2
+  sed 's/^/    /' "$TMP/specs-merged.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 向后兼容：SOURCE_CONTRACT_SPEC 指单文件时只加载该文件（selftest 夹具与
+# *ContractTest 的单键用法都靠它）
+cat > "$TMP/specs-single.json" <<JSON
+{
+ "fake/First.java": {
+  "files": ["$frag/Target.java"],
+  "checks": [
+   {"method": "selftest", "required": ["void a()"], "forbidden": [], "ordered": []}
+  ]
+ }
+}
+JSON
+set +e
+SOURCE_CONTRACT_SPEC="$TMP/specs-single.json" \
+  SOURCE_CONTRACT_SPECS_DIR="$SPECS_TMP" \
+  sh scripts/check-source-contract.sh --all >"$TMP/specs-single.txt" 2>&1
+single_rc=$?
+set -e
+check "SOURCE_CONTRACT_SPEC 指定单文件仍然生效 → 0" 0 "$single_rc"
+if grep -q 'SOURCE_CONTRACT_CHECKS=1 SPECS=1' "$TMP/specs-single.txt"; then
+  echo "  [OK  ] 单文件模式下只加载该文件（SPECS=1，没有合并目录里那两份）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 单文件模式被目录合并污染了" >&2
+  sed 's/^/    /' "$TMP/specs-single.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+rm -rf "$SPECS_TMP"
+
+# 自证：负向对照没有污染真实规格目录（全程只动 $TMP 里的夹具）
+set +e
+sh scripts/check-source-contract.sh --all >"$TMP/specs-real.txt" 2>&1
+real_rc=$?
+set -e
+check "负向对照后真实规格目录仍为绿（工作区未被污染）" 0 "$real_rc"
+if grep -q 'SOURCE_CONTRACT_CHECKS=238 SPECS=27' "$TMP/specs-real.txt"; then
+  echo "  [OK  ] 真实规格仍是 CHECKS=238 SPECS=27"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 真实规格的检查数/规格数发生变化" >&2
+  sed 's/^/    /' "$TMP/specs-real.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+
 cd "$ROOT"
 
 echo "== 4c. install-datapacks 门禁（G-206）必须能真的变红（负向对照） =="

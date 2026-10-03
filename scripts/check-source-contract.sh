@@ -16,22 +16,36 @@
 # 每个契约仍由对应的 JUnit 类真实执行本脚本（见 *ContractTest 包装器），
 # 因此「改坏生产代码 ⇒ 门禁 RED ⇒ 那个测试 RED」依然成立。
 #
+# 规格目录（W16b-A1）：默认加载 scripts/source-contract-specs/ 下**全部** *.json 并合并
+#   —— 后续每个模块自己加一份规格文件（rpg-items.json / rpg-dungeons.json / ...），
+#   不必再抢改同一个 all.json。合并按文件名排序，重复运行输出一致。
+#   · 同一个 spec 键出现在两个文件里 ⇒ 直接 RED 并点名是两个文件
+#     （静默覆盖会让后写的任务把先写的契约整段吞掉，是最危险的失效形态）
+#   · 向后兼容：SOURCE_CONTRACT_SPEC=<单个文件> 时只加载该文件
+#     （selftest 的夹具与 *ContractTest 的单键用法都走这条路径）
+#   · SOURCE_CONTRACT_SPECS_DIR=<目录> 只用于门禁自测，CI 不设置
+#
 # 用法：sh scripts/check-source-contract.sh <spec-key>|--all [<method>]
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
-SPEC=${SOURCE_CONTRACT_SPEC:-scripts/source-contract-specs/all.json}
-if [ ! -f "$SPEC" ]; then
+SPEC=${SOURCE_CONTRACT_SPEC:-}
+SPECS_DIR=${SOURCE_CONTRACT_SPECS_DIR:-scripts/source-contract-specs}
+if [ -n "$SPEC" ] && [ ! -f "$SPEC" ]; then
   echo "SOURCE_CONTRACT_GATE=RED 找不到规格文件 $SPEC" >&2
+  exit 2
+fi
+if [ -z "$SPEC" ] && [ ! -d "$SPECS_DIR" ]; then
+  echo "SOURCE_CONTRACT_GATE=RED 找不到规格目录 $SPECS_DIR" >&2
   exit 2
 fi
 
 KEY="${1:---all}"
 METHOD="${2:-}"
 
-exec python3 - "$SPEC" "$KEY" "$METHOD" <<'PY'
+exec python3 - "$ROOT" "$SPEC" "$SPECS_DIR" "$KEY" "$METHOD" <<'PY'
 import json, sys, os
 
 
@@ -46,8 +60,53 @@ def ordered_in(text, sequence):
     return True
 
 
-spec_path, key, method = sys.argv[1], sys.argv[2], sys.argv[3]
-spec = json.load(open(spec_path, encoding='utf-8'))
+root, spec_path, specs_dir, key, method = sys.argv[1:6]
+
+
+def load_merged():
+    """返回 (合并后的规格, 加载的文件清单)；键冲突时打印 RED 后 exit 2。
+
+    · SOURCE_CONTRACT_SPEC 指定单文件时只加载它（向后兼容）
+    · 否则加载规格目录下全部 *.json，按文件名排序（确定性）
+    """
+    if spec_path:
+        sources = [spec_path]
+    else:
+        directory = specs_dir if os.path.isabs(specs_dir) else os.path.join(root, specs_dir)
+        sources = sorted(
+            os.path.join(directory, name)
+            for name in os.listdir(directory)
+            if name.endswith('.json')
+        )
+        if not sources:
+            print(f'SOURCE_CONTRACT_GATE=RED 规格目录里没有任何 *.json: {specs_dir}',
+                  file=sys.stderr)
+            sys.exit(2)
+    merged, origins, conflicts = {}, {}, []
+    for source in sources:
+        try:
+            data = json.load(open(source, encoding='utf-8'))
+        except ValueError as error:
+            print(f'SOURCE_CONTRACT_GATE=RED 规格文件不是合法 JSON: {source} -> {error}',
+                  file=sys.stderr)
+            sys.exit(2)
+        for spec_key, entry in data.items():
+            if spec_key in merged:
+                # 点名两个文件：只说「键重复」没法定位是哪个任务抢了哪个键
+                conflicts.append((spec_key, origins[spec_key], source))
+                continue
+            merged[spec_key] = entry
+            origins[spec_key] = source
+    if conflicts:
+        for spec_key, first, second in conflicts:
+            print(f'SOURCE_CONTRACT_GATE=RED 规格键冲突: {spec_key!r} 同时出现在 '
+                  f'{first} 与 {second}（不允许静默覆盖）', file=sys.stderr)
+        sys.exit(2)
+    return merged, sources
+
+
+spec, spec_files = load_merged()
+print(f'SOURCE_CONTRACT_SPEC_FILES={len(spec_files)}', file=sys.stderr)
 
 if key == '--all':
     keys = sorted(spec)
