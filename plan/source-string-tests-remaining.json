@@ -294,6 +294,18 @@
    "exempt": false
   },
   {
+   "module": "rpg-core",
+   "test_class": "SeasonAttunementSettlementWiringTest",
+   "path": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/SeasonAttunementSettlementWiringTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "W4-A4 只迁走了 #command-surface/#command-dispatch 两个 key，遗漏了 theLifecycleIsTheOnlyProducerOfSeasonAttuned 里的 productionReferences(\"attune\")（Files.walk(plugins/rpg-core/src/main) + Files.readString(...).contains()）—— 与 rpg-items/EquipmentExitPath 同形的源码扫描 helper。",
+   "exempt": false,
+   "done": true,
+   "done_by": "W19-A1（第二轮）",
+   "done_note": "删除 productionReferences(identifier) helper。断言「换季调谐的唯一权威写入者真的存在（状态机之外没有第二套状态机）」的运行期没有对应形态 → 迁进新建 scripts/source-contract-specs/rpg-core.json 的键 #attunement-consumer（required 用生产文件里真实存在的可鉴别字面量：State attune(Connection connection / SeasonAttunementRules.attunable( / State.SEASON_ATTUNED，避免退化成「出现这个词就算」），类改成真实执行门禁的包装器（assertSourceContractHolds）。（行为化的另一半 —— 全部 kind 都产不出 SEASON_ATTUNED —— 在同方法里真跑状态机。）"
+  },
+  {
    "module": "rpg-items",
    "test_class": "EquipmentExitPathReachabilityTest",
    "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
@@ -581,7 +593,26 @@
  "_hits_after_w19a1": {
   "_cmd": "sh scripts/check-source-string-tests.sh",
   "_count": 0,
-  "_note": "判据在真实仓库命中数 = 0（GREEN），残留清单为空。W19-A1 已把 rpg-items/EquipmentExitPathReachabilityTest 的源码扫描 helper 删除并逐条行为化/规格化 —— 即使 W18 第二轮把判据收紧到不再点名它，该类也不再读生产源码。",
-  "_remaining": "0。判据口径下「读本仓生产源码 + 源码字符串断言」的类已全部处理（rpg-dungeons/DungeonTimeout 由 W18 真跑行为化，rpg-items/EquipmentExitPath 由 W19 行为化 + 规格化）。"
+  "_note": "判据在真实仓库命中数 = 0（GREEN），残留清单为空。",
+  "_remaining": "0。判据口径下「读本仓生产源码 + 源码字符串断言」的类已全部处理：rpg-dungeons/DungeonTimeout（W18 真跑行为化）、rpg-items/EquipmentExitPath（W19 行为化 + 规格化）、rpg-core/SeasonAttunementSettlementWiring（W19 规格化）。"
+ },
+ "_w19a1b_note": {
+  "_what": "W19-A1 第二轮（修上一轮遗留）：① 撤掉 scripts/check-source-string-tests.sh 里对「遍历式源码扫描」形态的整体豁免（W18 第二轮以「对解析后的集合断言」为由豁免了 productionReferences(identifier)，注释里点名 rpg-items 与 rpg-core 两个类），使**原形态**被正确判为缺口；② 修 rpg-core/SeasonAttunementSettlementWiringTest 的同类 helper。",
+  "_hole_found": "针对上一轮的复核实验：把 rpg-items/EquipmentExitPathReachabilityTest 还原成**原形态**（productionReferences + Files.walk(plugins/*/src/main) + readString().contains() 筛文件列表 + 对列表 anyMatch 断言）后，旧判据仍报 SOURCE_STRING_GATE=GREEN —— 即「改回原形态必须变红」这条负向对照失效。原因是 W18 第二轮把这一形态整体豁免了（脚本注释明文写了两个类名）。",
+  "_criterion_after": "新增形态④：类里存在 Files.walk/Files.list（遍历根指向 plugins|tools 下 src/main，内联字面量或 plugins+src/main 分两段 resolve 的拼接写法都算）→ 对遍历出来的文件 readString/readAllBytes → 读到的正文被 .contains( 判断（就地 assert 或聚合成「哪些文件提到某标识符」的列表后再 assert）。三类判定先按原有三条读源码判据，再落形态④。",
+  "_why_not_exempt_anymore": "断言对象看着是「文件列表」，但列表每一项的真伪都取决于**生产源码正文里含不含那个词**（改注释就会变红）—— 它就是源码字符串断言，只是把 contains 的结果聚合了一层。",
+  "_still_exempt": "遍历目录后只**解析**文件（Files.newInputStream/lines + SnakeYAML/JSON，不 readString、不对正文 contains）仍不算：真实仓对应 LanguageBundleContractTest#projectYamlFilesParseWithoutDuplicateKeys（walk plugins/ + 严格 YAML 解析）。夹具④b 锁住这条，避免收紧后误报。",
+  "_negative_controls": [
+   "① 把 rpg-items/EquipmentExitPathReachabilityTest 还原成原形态 → SOURCE_STRING_GATE=RED：EquipmentExitPathReachabilityTest.java:209 -> ['(traversal root: plugins|tools -> src/main)']；还原成修好的版本 → GREEN（SOURCE_STRING_TESTS=0）。",
+   "② 改坏生产代码 EquipmentStateLedger（State attune(Connection connection → 改名）→ 门禁键 …#attunement-consumer 报 RED：必须出现但缺失 -> 'State attune(Connection connection'；还原后 SOURCE_CONTRACT_GATE=GREEN。",
+   "③ 变异对照（rpg-items）：把 EquipmentLifecycle 的 SALVAGE -> SALVAGED 改成 -> SACRIFICED → 该类 everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired FAILED；还原后全绿。",
+   "④ 门禁自测 §4d：夹具④（遍历式源码扫描）期望 1、夹具④b（遍历 + 真解析 YAML）期望 0，均通过。"
+  ],
+  "_gates_after": {
+   "source_string": "SOURCE_STRING_GATE=GREEN，SOURCE_STRING_TESTS=0（残留清单为空）",
+   "source_contract": "SOURCE_CONTRACT_GATE=GREEN，CHECKS=469 SPECS=79 SPEC_FILES=3（基线 CHECKS=466 SPECS=77，未减少）",
+   "selftest": "GATE_SELFTEST=GREEN，PASS=118 FAIL=0",
+   "tests": "BUILD SUCCESSFUL；26 模块 / 1101 用例 / 0 失败 / 2 skipped（env 条件 Postgres）"
+  }
  }
 }

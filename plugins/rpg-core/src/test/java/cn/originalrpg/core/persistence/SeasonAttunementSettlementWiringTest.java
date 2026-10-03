@@ -20,7 +20,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -212,9 +211,12 @@ final class SeasonAttunementSettlementWiringTest {
         assertNull(EquipmentLifecycle.seedForOperation(
                 cn.originalrpg.api.model.EquipmentOperationKind.SEASON_ATTUNEMENT));
         // 调谐的消费者在 rpg-core（状态机之外没有第二套状态机）。
-        assertTrue(productionReferences("attune").stream()
-                        .anyMatch(path -> path.contains("EquipmentStateLedger.java")),
-                "状态机必须有真实消费者：" + productionReferences("attune"));
+        // G-302：原实现用 productionReferences("attune")（Files.walk(plugins/rpg-core/src/main)
+        // + Files.readString(...).contains()）统计「哪些生产文件提到了 attune」。
+        // 「哪个生产文件含某标识符」在运行期没有对应形态 → 迁进声明式契约
+        // （scripts/source-contract-specs/rpg-core.json），由门禁真实执行；
+        // 断言不得退化成「出现这个词就算」：required 是写入方法与规则判据。
+        assertSourceContractHolds("#attunement-consumer", "theLifecycleIsTheOnlyProducerOfSeasonAttuned");
     }
 
     @Test
@@ -298,19 +300,6 @@ final class SeasonAttunementSettlementWiringTest {
             return (Map<?, ?>) new org.yaml.snakeyaml.Yaml(
                     new org.yaml.snakeyaml.constructor.SafeConstructor(options)).load(input);
         }
-    }
-
-    private static List<String> productionReferences(String identifier) throws Exception {
-        List<String> hits = new ArrayList<>();
-        try (var files = Files.walk(repositoryRoot().resolve("plugins/rpg-core/src/main"))) {
-            for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
-                if (Files.readString(file, StandardCharsets.UTF_8).contains(identifier)) {
-                    hits.add(file.getFileName().toString());
-                }
-            }
-        }
-        Collections.sort(hits);
-        return hits;
     }
 
     private static Path repositoryRoot() {
