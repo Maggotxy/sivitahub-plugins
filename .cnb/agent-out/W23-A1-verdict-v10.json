@@ -10,7 +10,7 @@
   "doc/cnb/gap-registry.md",
   ".cnb/agent-out/W23-A1-verdict-v10.json"
  ],
- "pr_url": "PENDING（提交后回填）",
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/74",
  "evidence": {
   "basis": {
    "cmd": "git rev-parse HEAD; git rev-parse origin/main; [ \"$(git rev-parse HEAD)\" = \"$(git rev-parse origin/main)\" ] && echo EQUAL || echo DIFFERENT",
@@ -189,6 +189,13 @@
    "matrix_head20": "> basis: 1ace5ab\n> verdict: done=true remaining=0\n> basis-substring: 1ace5ab",
    "verdict_json": "{\"done\": true, \"impossible\": false, \"basis\": \"1ace5ab\", \"remaining\": 0, \"remaining_ids\": []}",
    "diff_check": "done / remaining / basis 三项逐字一致；basis 出现在矩阵前 20 行内（第 3 行）"
+  },
+  "pr": {
+   "number": "74",
+   "url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/74",
+   "base": "main",
+   "head": "agent/W23-A1-verdict-v10",
+   "commit": "b60ad26"
   }
  },
  "risks": [
