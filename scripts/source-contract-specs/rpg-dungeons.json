@@ -1,0 +1,40 @@
+{
+ "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonTimeoutLifecycleContractTest.java": {
+  "files": [
+   "plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonManager.java"
+  ],
+  "checks": [
+   {
+    "method": "recycledWorldsCancelOldTimeoutsAndFenceLateCallbacksBySessionId",
+    "required": [
+     "DungeonSessionRules.isCurrentSession(instanceSessions.get(worldName), sessionId)"
+    ],
+    "forbidden": [],
+    "ordered": [
+     "private void assignInstance(",
+     "cancelInstanceTimeout(worldName)",
+     "instanceSessions.put(worldName, sessionId)",
+     "timeoutSession(worldName, sessionId)"
+    ]
+   },
+   {
+    "method": "recyclingAnInstanceCancelsItsActiveTimeoutTask",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "private void releaseInstance(World world)",
+     "cancelInstanceTimeout(name)"
+    ]
+   },
+   {
+    "method": "aLateScheduledCallbackMustStillOwnTheCurrentSession",
+    "required": [],
+    "forbidden": [],
+    "ordered": [
+     "private void timeoutSession(String worldName, UUID sessionId)",
+     "DungeonSessionRules.isCurrentSession"
+    ]
+   }
+  ]
+ }
+}

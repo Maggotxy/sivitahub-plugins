@@ -1,536 +1,572 @@
 {
-  "_comment": "G-302 分批替换清单：除 rpg-core（已由 W4-A4 处理）外，其余用 Files.readString 读源码/源码字符串顺序的测试类。orchestrator 可按 tasks[] 逐任务派发（建议按模块聚合，rpg-dungeons 单独一批）。",
-  "_basis": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/'（W16-A1 实测 _count=46；含 indexOf 的类 2 个）",
-  "_count": 46,
-  "_indexOf_count": 2,
-  "_by_module": {
-    "rpg-admin": 1,
-    "rpg-ai-npc": 1,
-    "rpg-api": 1,
-    "rpg-classes": 2,
-    "rpg-commerce": 1,
-    "rpg-community": 1,
-    "rpg-cosmetics": 1,
-    "rpg-dungeons": 7,
-    "rpg-economy": 2,
-    "rpg-enhancement": 3,
-    "rpg-guide": 4,
-    "rpg-hub": 3,
-    "rpg-items": 8,
-    "rpg-market": 2,
-    "rpg-mobs": 3,
-    "rpg-performance": 1,
-    "rpg-pets": 1,
-    "rpg-skills": 1,
-    "rpg-story": 3,
-    "rpg-world": 2
+ "_comment": "G-302 分批替换清单：除 rpg-core（已由 W4-A4 处理）外，其余用 Files.readString 读源码/源码字符串顺序的测试类。orchestrator 可按 tasks[] 逐任务派发（建议按模块聚合，rpg-dungeons 单独一批）。",
+ "_basis": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/'（W16-A1 实测 _count=46；含 indexOf 的类 2 个）",
+ "_count": 46,
+ "_indexOf_count": 2,
+ "_by_module": {
+  "rpg-admin": 1,
+  "rpg-ai-npc": 1,
+  "rpg-api": 1,
+  "rpg-classes": 2,
+  "rpg-commerce": 1,
+  "rpg-community": 1,
+  "rpg-cosmetics": 1,
+  "rpg-dungeons": 7,
+  "rpg-economy": 2,
+  "rpg-enhancement": 3,
+  "rpg-guide": 4,
+  "rpg-hub": 3,
+  "rpg-items": 8,
+  "rpg-market": 2,
+  "rpg-mobs": 3,
+  "rpg-performance": 1,
+  "rpg-pets": 1,
+  "rpg-skills": 1,
+  "rpg-story": 3,
+  "rpg-world": 2
+ },
+ "_policy": [
+  "不得删除测试、不得 @Disabled、不得改成恒真断言",
+  "替换后必须做负向对照：删掉生产调用点断言变红，再恢复",
+  "确实只能靠「源码里存在某字面量」或「运维侧部署产物」保证的保留，但必须加中文注释说明理由并列入豁免清单",
+  "reads=deployment-artifacts 的条目对应本仓不存在的 server/ 与 resource-pack/，只能保留 env 标签豁免"
+ ],
+ "tasks": [
+  {
+   "module": "rpg-admin",
+   "test_class": "AdminSnapshotLifecycleContractTest",
+   "path": "plugins/rpg-admin/src/test/java/cn/originalrpg/admin/AdminSnapshotLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读 RpgAdminPlugin.java 源码断言方法体调用顺序（导出快照/关闭顺序）。行为化方向：把快照导出与关闭顺序做成可注入协作者，用假实现断言调用序列。",
+   "exempt": false
   },
-  "_policy": [
-    "不得删除测试、不得 @Disabled、不得改成恒真断言",
-    "替换后必须做负向对照：删掉生产调用点断言变红，再恢复",
-    "确实只能靠「源码里存在某字面量」或「运维侧部署产物」保证的保留，但必须加中文注释说明理由并列入豁免清单",
-    "reads=deployment-artifacts 的条目对应本仓不存在的 server/ 与 resource-pack/，只能保留 env 标签豁免"
-  ],
-  "tasks": [
-    {
-      "module": "rpg-admin",
-      "test_class": "AdminSnapshotLifecycleContractTest",
-      "path": "plugins/rpg-admin/src/test/java/cn/originalrpg/admin/AdminSnapshotLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读 RpgAdminPlugin.java 源码断言方法体调用顺序（导出快照/关闭顺序）。行为化方向：把快照导出与关闭顺序做成可注入协作者，用假实现断言调用序列。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-ai-npc",
-      "test_class": "AiAsyncLifecycleContractTest",
-      "path": "plugins/rpg-ai-npc/src/test/java/cn/originalrpg/ainpc/AiAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 AiProviderClient/AiNpcController 源码断言实现细节。行为化方向：假 HTTP 客户端断言 queued/outstanding 被取消、回调必须校验登录代际与 Player 身份。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-api",
-      "test_class": "OptionalServiceLifecycleContractTest",
-      "path": "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 14 个消费方源码断言「只用 OptionalServices.enabled(...)」。行为化方向：把可选服务解析抽成可注入 resolver，用假 Plugin/ServicesManager 断言启用/未启用分支。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-classes",
-      "test_class": "ClassAsyncLifecycleContractTest",
-      "path": "plugins/rpg-classes/src/test/java/cn/originalrpg/classes/ClassAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读源码断言异步生命周期与隐藏路线鉴权调用点。行为化方向：假数据源 + 假玩家句柄，断言旧会话/旧登录代际下回调不生效。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-classes",
-      "test_class": "HiddenPathAuthenticationContractTest",
-      "path": "plugins/rpg-classes/src/test/java/cn/originalrpg/classes/HiddenPathAuthenticationContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读源码断言异步生命周期与隐藏路线鉴权调用点。行为化方向：假数据源 + 假玩家句柄，断言旧会话/旧登录代际下回调不生效。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-commerce",
-      "test_class": "AsyncPlayerSessionContractTest",
-      "path": "plugins/rpg-commerce/src/test/java/cn/originalrpg/commerce/AsyncPlayerSessionContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读源码 + indexOf 断言充值会话异步回调顺序。行为化方向：假事务仓储断言先落账本再回执、幂等键唯一。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-community",
-      "test_class": "CommunityAsyncLifecycleContractTest",
-      "path": "plugins/rpg-community/src/test/java/cn/originalrpg/community/CommunityAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读源码断言社区异步生命周期调用点。行为化方向：接 H2 真表断言治理动作前置判定与幂等。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-cosmetics",
-      "test_class": "PerformanceLifecycleContractTest",
-      "path": "plugins/rpg-cosmetics/src/test/java/cn/originalrpg/cosmetics/PerformanceLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读源码断言 PerformanceLifecycle 接线。行为化方向：反射断言监听器注册 + 假 PerformanceService 断言启停副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-dungeons",
-      "test_class": "DungeonCompletionExitSessionContractTest",
-      "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonCompletionExitSessionContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-dungeons",
-      "test_class": "DungeonCompletionRecoveryContractTest",
-      "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonCompletionRecoveryContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-dungeons",
-      "test_class": "DungeonEntryCommitAmbiguityContractTest",
-      "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonEntryCommitAmbiguityContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-dungeons",
-      "test_class": "DungeonReturnSessionContractTest",
-      "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonReturnSessionContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-dungeons",
-      "test_class": "DungeonRewardWorldHoldContractTest",
-      "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonRewardWorldHoldContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-dungeons",
-      "test_class": "DungeonTimeoutLifecycleContractTest",
-      "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonTimeoutLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-dungeons",
-      "test_class": "DungeonWorldChangeLifecycleContractTest",
-      "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonWorldChangeLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-economy",
-      "test_class": "EconomicActivityAsyncLifecycleContractTest",
-      "path": "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/EconomicActivityAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读源码 + indexOf 断言回执生命周期与经济活动异步顺序。行为化方向：H2 真表断言净值守恒与重复回执被拒。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-economy",
-      "test_class": "EconomyReceiptLifecycleContractTest",
-      "path": "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/EconomyReceiptLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读源码 + indexOf 断言回执生命周期与经济活动异步顺序。行为化方向：H2 真表断言净值守恒与重复回执被拒。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-enhancement",
-      "test_class": "EnhancementFallbackContractTest",
-      "path": "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/EnhancementFallbackContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 RefineCommand/LimitBreakCommand/MutationCommand 源码断言「缺配置时的默认价格字面量」。行为化方向：直接构造命令对象，断言配置缺失时报错关闭而不是静默套用旧折扣价。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-enhancement",
-      "test_class": "EquipmentOperationIntegrationContractTest",
-      "path": "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/EquipmentOperationIntegrationContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读 RefineCommand/LimitBreakCommand/MutationCommand 源码断言「缺配置时的默认价格字面量」。行为化方向：直接构造命令对象，断言配置缺失时报错关闭而不是静默套用旧折扣价。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-enhancement",
-      "test_class": "MutationAsyncLifecycleContractTest",
-      "path": "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/MutationAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 RefineCommand/LimitBreakCommand/MutationCommand 源码断言「缺配置时的默认价格字面量」。行为化方向：直接构造命令对象，断言配置缺失时报错关闭而不是静默套用旧折扣价。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-guide",
-      "test_class": "DungeonEvidenceRetryContractTest",
-      "path": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/DungeonEvidenceRetryContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 GuideTracker/对话产物断言完成写入顺序。行为化方向：GuideCompletionPolicy 输入输出断言 + 假玩家句柄断言过期回调不落 PDC。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-guide",
-      "test_class": "GuideAsyncLifecycleContractTest",
-      "path": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 GuideTracker/对话产物断言完成写入顺序。行为化方向：GuideCompletionPolicy 输入输出断言 + 假玩家句柄断言过期回调不落 PDC。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-guide",
-      "test_class": "GuidePlayerActionContractTest",
-      "path": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuidePlayerActionContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 GuideTracker/对话产物断言完成写入顺序。行为化方向：GuideCompletionPolicy 输入输出断言 + 假玩家句柄断言过期回调不落 PDC。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-guide",
-      "test_class": "GuideRewardSessionContractTest",
-      "path": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideRewardSessionContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读 GuideTracker/对话产物断言完成写入顺序。行为化方向：GuideCompletionPolicy 输入输出断言 + 假玩家句柄断言过期回调不落 PDC。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-hub",
-      "test_class": "HubMapLifecycleContractTest",
-      "path": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/HubMapLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 RpgHubPlugin 源码断言 squaremap 重试上限与取消调用。行为化方向：注入假 Squaremap 集成 + 假调度器，断言重试用尽后取消注册。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-hub",
-      "test_class": "TravelDisableLifecycleContractTest",
-      "path": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/TravelDisableLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读 RpgHubPlugin 源码断言 squaremap 重试上限与取消调用。行为化方向：注入假 Squaremap 集成 + 假调度器，断言重试用尽后取消注册。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-hub",
-      "test_class": "WorldTravelConfigurationContractTest",
-      "path": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/WorldTravelConfigurationContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 plugins 内 config.yml（存在），但断言的是运维侧世界边界与 hub wilderness 的一致性；建议下一波改为加载两侧配置对象后断言解析结果。",
-      "exempt": true
-    },
-    {
-      "module": "rpg-items",
-      "test_class": "DeliveryCopyWiringTest",
-      "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DeliveryCopyWiringTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-items",
-      "test_class": "EquipmentAsyncLifecycleContractTest",
-      "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-items",
-      "test_class": "EquipmentExitPathReachabilityTest",
-      "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-items",
-      "test_class": "ForgeInputBoundaryContractTest",
-      "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeInputBoundaryContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-items",
-      "test_class": "ForgeOperationIntegrationContractTest",
-      "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-items",
-      "test_class": "AuthoritativeItemProcessingContractTest",
-      "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/AuthoritativeItemProcessingContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-items",
-      "test_class": "EquipmentSigningKeyWiringContractTest",
-      "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/EquipmentSigningKeyWiringContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-items",
-      "test_class": "EquipmentSigningMaterialTest",
-      "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/EquipmentSigningMaterialTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-market",
-      "test_class": "MailboxDeliveryIntegrationContractTest",
-      "path": "plugins/rpg-market/src/test/java/cn/originalrpg/market/MailboxDeliveryIntegrationContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读 TradeRestrictionListener 源码断言 TrustedMenuHolder 标记；另有全仓正则扫描「裸 implements InventoryHolder」。行为化方向：假 InventoryView 断言信任来自标记而非命名空间前缀。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-market",
-      "test_class": "TrustedMenuBoundaryContractTest",
-      "path": "plugins/rpg-market/src/test/java/cn/originalrpg/market/TrustedMenuBoundaryContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 TradeRestrictionListener 源码断言 TrustedMenuHolder 标记；另有全仓正则扫描「裸 implements InventoryHolder」。行为化方向：假 InventoryView 断言信任来自标记而非命名空间前缀。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-mobs",
-      "test_class": "MobAppearanceLifecycleContractTest",
-      "path": "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobAppearanceLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读源码断言外观生命周期与奖励异步接线。行为化方向：假外观提供方断言启用/未启用分支。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-mobs",
-      "test_class": "MobGuideAsyncLifecycleContractTest",
-      "path": "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobGuideAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读源码断言外观生命周期与奖励异步接线。行为化方向：假外观提供方断言启用/未启用分支。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-mobs",
-      "test_class": "MobRewardAsyncLifecycleContractTest",
-      "path": "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobRewardAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读源码断言外观生命周期与奖励异步接线。行为化方向：假外观提供方断言启用/未启用分支。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-performance",
-      "test_class": "PerformanceStatusStoreTest",
-      "path": "plugins/rpg-performance/src/test/java/cn/originalrpg/performance/PerformanceStatusStoreTest.java",
-      "reads": "runtime-io",
-      "uses_indexOf": false,
-      "reason": "断言状态文件读写（status.json / generation 文件），属真实 IO，不是源码字符串断言；可改造为临时目录下的读写一致性断言。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-pets",
-      "test_class": "PetRevivalLifecycleContractTest",
-      "path": "plugins/rpg-pets/src/test/java/cn/originalrpg/pets/PetRevivalLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读源码断言复苏生命周期接线。行为化方向：H2 真表断言复苏幂等与拒绝路径。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-skills",
-      "test_class": "SkillAsyncLifecycleContractTest",
-      "path": "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/SkillAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读源码断言技能异步生命周期调用点。行为化方向：纯规则 + H2 断言技能点结算幂等。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-story",
-      "test_class": "EscortDisconnectHotPathContractTest",
-      "path": "plugins/rpg-story/src/test/java/cn/originalrpg/story/EscortDisconnectHotPathContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": true,
-      "reason": "读源码 + indexOf 断言护送断线热路径顺序。行为化方向：EscortManager 断线处理抽成可注入会话注册表断言副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-story",
-      "test_class": "StoryAsyncLifecycleContractTest",
-      "path": "plugins/rpg-story/src/test/java/cn/originalrpg/story/StoryAsyncLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读源码 + indexOf 断言护送断线热路径顺序。行为化方向：EscortManager 断线处理抽成可注入会话注册表断言副作用。",
-      "exempt": false
-    },
-    {
-      "module": "rpg-story",
-      "test_class": "StoryJourneyOrderContractTest",
-      "path": "plugins/rpg-story/src/test/java/cn/originalrpg/story/StoryJourneyOrderContractTest.java",
-      "reads": "deployment-artifacts",
-      "uses_indexOf": false,
-      "reason": "读 server/config-templates 的 BetonQuest 对话包（本仓不存在该目录），已带 env 标签；豁免。",
-      "exempt": true
-    },
-    {
-      "module": "rpg-world",
-      "test_class": "SurvivalPerformanceConfigurationContractTest",
-      "path": "plugins/rpg-world/src/test/java/cn/originalrpg/world/SurvivalPerformanceConfigurationContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读 server/config/bukkit.yml 与 spigot.yml（本仓不存在），已带 env 标签；豁免。",
-      "exempt": true
-    },
-    {
-      "module": "rpg-world",
-      "test_class": "WorldEventLifecycleContractTest",
-      "path": "plugins/rpg-world/src/test/java/cn/originalrpg/world/WorldEventLifecycleContractTest.java",
-      "reads": "main-sources",
-      "uses_indexOf": false,
-      "reason": "读源码断言世界事件生命周期调用点。行为化方向：世界边界规则已有纯规则类，改为直接断言规则输入输出。",
-      "exempt": false
-    }
-  ],
-  "_batch2_note": "W5-A2 第二批已完成：25 个测试类的断言迁移到 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh（构建/接线契约，非行为）；rpg-admin ×2 / rpg-ai-npc ×1 / rpg-items security ×2 / rpg-market TrustedMenu ×1 已真正行为化；rpg-enhancement fallback 走 scripts/check-config-fallbacks.sh。剩余项见 _remaining_after_batch2。",
-  "_remaining_after_batch2": {
-    "_comment": "第二批未处理的类：它们的断言混有『跨多文件作用域』『|| 备选』『构建文件』等语义，自动迁移会失真，留待下一波逐条人工迁移到 source-contract 规格或行为化。",
-    "classes": [
-      "（W16-A1 已全部处理；见 _w16a1_disposition 逐条处置）"
-    ],
-    "_w9a1_note": "W9-A1（本任务）完成最后 2 个纯源码字符串测试类：plugins/rpg-mobs/.../MobRewardAsyncLifecycleContractTest（含多行 forbidden 字面量与 indexOf 顺序链）与 plugins/rpg-pets/.../PetRevivalLifecycleContractTest（含 build.gradle.kts 构建契约断言）逐条迁移到 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh，测试类改为真实执行门禁的包装器；indexOf 顺序链映射为 ordered 契约，build.gradle.kts 作为被断言文件登记进规格。两个分支均无 MockBukkit/Mockito 且生产类依赖真实 Plugin/Bukkit.getScheduler()，无法行为化。\nW16-A1 追加：_remaining_after_batch2 里剩余的 10 个类已全部逐条迁移，并额外处理同判据下的 4 个类（见 _w16a1_disposition）。"
+  {
+   "module": "rpg-ai-npc",
+   "test_class": "AiAsyncLifecycleContractTest",
+   "path": "plugins/rpg-ai-npc/src/test/java/cn/originalrpg/ainpc/AiAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 AiProviderClient/AiNpcController 源码断言实现细节。行为化方向：假 HTTP 客户端断言 queued/outstanding 被取消、回调必须校验登录代际与 Player 身份。",
+   "exempt": false
   },
-  "_expected_after_w16a1": 46,
-  "_w16a1_note": "W16-A1（本任务）：GOAL.md §2 排除口径的**收口门禁**改了判据 —— 不再是「有没有 Files.readString」，而是「同一 @Test 方法体内同时读本仓生产源码（plugins/ 或 tools/ 前缀）+ contains()/indexOf() 断言」。新门禁 scripts/check-source-string-tests.sh 判据行 SOURCE_STRING_GATE=GREEN|RED，已接入 scripts/selftest-gates.sh §4d（CI 的「门禁自测」stage 每推送都跑）。W16-A1 把派单的 10 个类 + 实测同判据下的另外 4 个类（SeasonAttunementSettlementWiringTest / EquipmentExitPathReachabilityTest / EquipmentSigningMaterialTest / MigrationAdvisoryLockTest）共 14 个类逐条处理完：能行为化的行为化（真跑纯规则 / 反射签名 / 真构造 Bukkit 注册表），只能静态保证的迁进 scripts/source-contract-specs/all.json（新增 49 个 spec 键：跨文件按文件归属拆键、|| 备选展开成多条 required、ordered 链保证同文件成立）。",
-  "_w16a1_disposition": {
-    "_criterion": "同一 @Test 方法体内既有 Files.readString/readAllBytes 读 plugins|tools 生产文件、又有 .contains()/.indexOf() 断言",
-    "_counts_before": {
-      "classes": 14,
-      "methods": 34,
-      "_note": "其中派单 10 个类 + 实测同判据下另外 4 个类（season/exit-path/signing/migration-lock）"
-    },
-    "_counts_after": {
-      "classes": 3,
-      "methods": 3,
-      "_note": "3 个剩余全部只读 server/ 与 resource-pack/ 部署产物，不是本仓生产源码"
-    },
-    "行为化（真跑）：": [
-      "rpg-skills/SkillAsyncLifecycleContractTest：会话判定（在线+服务端同一句柄+已鉴权）与「新连接共享缓存不得被旧句柄驱逐」改成真跑布尔判定；「进行中的学习/技能书操作按 UUID->Player 身份键控」改成反射断言字段泛型（旧回调盲删会让它红）",
-      "rpg-items/EquipmentExitPathReachabilityTest：销毁退出路径改真跑 DestroyRules / EquipmentExitPathRules / DestroyDeliveryRules / DestroyGate 四条纯规则（终态、交付通道一致、已解绑装备必须拒绝销毁）",
-      "rpg-world/SurvivalPerformanceConfigurationContractTest：怪物生成上限按生产同口径 （缺键 56 + Math.clamp(16,70)）真跑三组输入",
-      "rpg-core/LanguageBundleContractTest：/tasks 指令改为真解析 plugin.yml 的命令表（并断言不得有别名）",
-      "rpg-api/OptionalServiceLifecycleContractTest：OptionalServices.enabled 用真构造的 Bukkit RegisteredServiceProvider + 动态代理 Server/ServicesManager 真跑「未注册/未启用/已启用」三分支"
-    ],
-    "规格化（迁进 scripts/source-contract-specs/all.json）：": [
-      "rpg-dungeons #dungeon-command / #dungeon-manager（跨文件拆键）+ DungeonRewardWorldHoldContractTest",
-      "rpg-enhancement EquipmentOperationIntegrationContractTest#refine / #limit-break（跨两文件拆键）",
-      "rpg-items ForgeOperationIntegrationContractTest（主键 + #coordinator + #security + #unbind-legacy + #unbind-legacy-chain + #legacy-chain + #legacy-blueprint，按文件归属拆 7 键）、ForgeInputBoundaryContractTest、EquipmentExitPathReachabilityTest#season-attunement / #destroy-command",
-      "rpg-market MailboxDeliveryIntegrationContractTest#market-command / #market-plugin（原 indexOf 链跨方法体，按方法切分）",
-      "rpg-skills SkillAsyncLifecycleContractTest#skills-command / #skill-book-listener（|| 备选展开）",
-      "rpg-api OptionalServiceLifecycleContractTest#<Service>|<消费方文件>（19 个消费方逐文件 23 键）",
-      "rpg-core SeasonAttunementSettlementWiringTest#command-surface / #command-dispatch、LanguageBundleContractTest#resource-pack",
-      "rpg-items EquipmentSigningMaterialTest#no-key-sink",
-      "tools/db-migration MigrationAdvisoryLockTest#rpg-core",
-      "rpg-world SurvivalPerformanceConfigurationContractTest（插件侧默认值口径）",
-      "rpg-performance？→ 并入 rpg-world 的 performance-sampler 契约（#performance-plugin）",
-      "rpg-world SurvivalPerformanceConfigurationContractTest#performance-plugin（采样器不得分配已加载区块数组）"
-    ],
-    "剩余项及理由（逐条，不含模糊）：": [
-      "rpg-core/LanguageBundleContractTest::quickActionTaskButtonUsesTheUnifiedTaskCenter（@Tag(env)）：读 server/datapacks/**/navigation.json（BetonQuest 数据包）与 resource-pack 语言文件。本仓按设计不含 server/（.cnb.yml 的 env 排除口径），断言对象是运维侧数据包内容，不是本仓源码。其中资源包语言文件那一半已迁进 all.json#resource-pack 并由同类的 quickActionsRouteToTheTrustedTaskRouterAndBothBundlesCarryTheirLabels 真执行门禁。",
-      "rpg-hub/WorldTravelConfigurationContractTest::controlledGenerationCoversTheCompleteBorderAndItsChunkMargin（@Tag(env)）：读 server/bin/maintain-world-coverage.sh。本仓不含 server/，同上。同类的 wildernessAndAuthoritativeOverworldBoundaryCannotDriftApart 已改为真加载两侧 config.yml + 真跑 WildernessTravelRules。",
-      "rpg-story/StoryJourneyOrderContractTest::qizhiConversationUsesTheExecutableFirstForgeOrder（@Tag(env)）：读 server/config-templates/BetonQuest/.../qizhi.yml。本仓不含 server/，同上。"
-    ]
+  {
+   "module": "rpg-api",
+   "test_class": "OptionalServiceLifecycleContractTest",
+   "path": "plugins/rpg-api/src/test/java/cn/originalrpg/api/service/OptionalServiceLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 14 个消费方源码断言「只用 OptionalServices.enabled(...)」。行为化方向：把可选服务解析抽成可注入 resolver，用假 Plugin/ServicesManager 断言启用/未启用分支。",
+   "exempt": false
   },
-  "_hits_after_w16a1": {
-    "_cmd": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/' | wc -l",
-    "_count": 46,
-    "_nature_breakdown": {
-      "① 已迁进声明式规格的门禁包装器（*ContractTest 里 Files.readString 只用于读 scripts/check-source-contract.sh 是否存在，不再读生产源码做断言）": 37,
-      "② 读的不是生产源码（读测试自身 / 运行期 IO / 无路径字面量）": [
-        "rpg-core/MechanismKillSwitchContractTest（反射 + 真 H2，无源码读）",
-        "rpg-core/ProgressionAnomalySchemaUpgradeTest（读 DDL 文本做结构断言，DDL 不是生产 Java 源码）",
-        "rpg-integrations/HudRailSpecTest（无 plugins/* 路径字面量）",
-        "rpg-performance/PerformanceStatusStoreTest（@TempDir 下真实读写 status.json，真实 IO 行为测试）"
-      ],
-      "③ 只读 server/ 或 resource-pack/ 部署产物（本仓按设计不含 server/，已 @Tag(env) 显式分类）": [
-        "rpg-core/LanguageBundleContractTest（数据包部分）",
-        "rpg-hub/WorldTravelConfigurationContractTest（运维维护脚本）",
-        "rpg-story/StoryJourneyOrderContractTest（BetonQuest 对话包）"
-      ]
-    },
-    "_note": "三类都不是 GOAL.md §2 排除的「读本仓生产源码 + 源码字符串断言」；判据由 scripts/check-source-string-tests.sh 机械复核（SOURCE_STRING_GATE=GREEN）。"
+  {
+   "module": "rpg-classes",
+   "test_class": "ClassAsyncLifecycleContractTest",
+   "path": "plugins/rpg-classes/src/test/java/cn/originalrpg/classes/ClassAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读源码断言异步生命周期与隐藏路线鉴权调用点。行为化方向：假数据源 + 假玩家句柄，断言旧会话/旧登录代际下回调不生效。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-classes",
+   "test_class": "HiddenPathAuthenticationContractTest",
+   "path": "plugins/rpg-classes/src/test/java/cn/originalrpg/classes/HiddenPathAuthenticationContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读源码断言异步生命周期与隐藏路线鉴权调用点。行为化方向：假数据源 + 假玩家句柄，断言旧会话/旧登录代际下回调不生效。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-commerce",
+   "test_class": "AsyncPlayerSessionContractTest",
+   "path": "plugins/rpg-commerce/src/test/java/cn/originalrpg/commerce/AsyncPlayerSessionContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读源码 + indexOf 断言充值会话异步回调顺序。行为化方向：假事务仓储断言先落账本再回执、幂等键唯一。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-community",
+   "test_class": "CommunityAsyncLifecycleContractTest",
+   "path": "plugins/rpg-community/src/test/java/cn/originalrpg/community/CommunityAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读源码断言社区异步生命周期调用点。行为化方向：接 H2 真表断言治理动作前置判定与幂等。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-cosmetics",
+   "test_class": "PerformanceLifecycleContractTest",
+   "path": "plugins/rpg-cosmetics/src/test/java/cn/originalrpg/cosmetics/PerformanceLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读源码断言 PerformanceLifecycle 接线。行为化方向：反射断言监听器注册 + 假 PerformanceService 断言启停副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-dungeons",
+   "test_class": "DungeonCompletionExitSessionContractTest",
+   "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonCompletionExitSessionContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-dungeons",
+   "test_class": "DungeonCompletionRecoveryContractTest",
+   "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonCompletionRecoveryContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-dungeons",
+   "test_class": "DungeonEntryCommitAmbiguityContractTest",
+   "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonEntryCommitAmbiguityContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-dungeons",
+   "test_class": "DungeonReturnSessionContractTest",
+   "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonReturnSessionContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-dungeons",
+   "test_class": "DungeonRewardWorldHoldContractTest",
+   "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonRewardWorldHoldContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-dungeons",
+   "test_class": "DungeonTimeoutLifecycleContractTest",
+   "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonTimeoutLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-dungeons",
+   "test_class": "DungeonWorldChangeLifecycleContractTest",
+   "path": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/DungeonWorldChangeLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "全部用 indexOf 断言源码字符串顺序（进入/退出/超时/世界切换/奖励持有）。行为化方向：DungeonManager 的会话回收与奖励持有抽成可注入时钟 + 假 outbox，断言「奖励意图未持久化前不回收实例」。这是剩余最大一批，建议单独一任务。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-economy",
+   "test_class": "EconomicActivityAsyncLifecycleContractTest",
+   "path": "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/EconomicActivityAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读源码 + indexOf 断言回执生命周期与经济活动异步顺序。行为化方向：H2 真表断言净值守恒与重复回执被拒。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-economy",
+   "test_class": "EconomyReceiptLifecycleContractTest",
+   "path": "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/EconomyReceiptLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读源码 + indexOf 断言回执生命周期与经济活动异步顺序。行为化方向：H2 真表断言净值守恒与重复回执被拒。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-enhancement",
+   "test_class": "EnhancementFallbackContractTest",
+   "path": "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/EnhancementFallbackContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 RefineCommand/LimitBreakCommand/MutationCommand 源码断言「缺配置时的默认价格字面量」。行为化方向：直接构造命令对象，断言配置缺失时报错关闭而不是静默套用旧折扣价。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-enhancement",
+   "test_class": "EquipmentOperationIntegrationContractTest",
+   "path": "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/EquipmentOperationIntegrationContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读 RefineCommand/LimitBreakCommand/MutationCommand 源码断言「缺配置时的默认价格字面量」。行为化方向：直接构造命令对象，断言配置缺失时报错关闭而不是静默套用旧折扣价。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-enhancement",
+   "test_class": "MutationAsyncLifecycleContractTest",
+   "path": "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/MutationAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 RefineCommand/LimitBreakCommand/MutationCommand 源码断言「缺配置时的默认价格字面量」。行为化方向：直接构造命令对象，断言配置缺失时报错关闭而不是静默套用旧折扣价。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-guide",
+   "test_class": "DungeonEvidenceRetryContractTest",
+   "path": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/DungeonEvidenceRetryContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 GuideTracker/对话产物断言完成写入顺序。行为化方向：GuideCompletionPolicy 输入输出断言 + 假玩家句柄断言过期回调不落 PDC。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-guide",
+   "test_class": "GuideAsyncLifecycleContractTest",
+   "path": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 GuideTracker/对话产物断言完成写入顺序。行为化方向：GuideCompletionPolicy 输入输出断言 + 假玩家句柄断言过期回调不落 PDC。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-guide",
+   "test_class": "GuidePlayerActionContractTest",
+   "path": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuidePlayerActionContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 GuideTracker/对话产物断言完成写入顺序。行为化方向：GuideCompletionPolicy 输入输出断言 + 假玩家句柄断言过期回调不落 PDC。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-guide",
+   "test_class": "GuideRewardSessionContractTest",
+   "path": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideRewardSessionContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读 GuideTracker/对话产物断言完成写入顺序。行为化方向：GuideCompletionPolicy 输入输出断言 + 假玩家句柄断言过期回调不落 PDC。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-hub",
+   "test_class": "HubMapLifecycleContractTest",
+   "path": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/HubMapLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 RpgHubPlugin 源码断言 squaremap 重试上限与取消调用。行为化方向：注入假 Squaremap 集成 + 假调度器，断言重试用尽后取消注册。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-hub",
+   "test_class": "TravelDisableLifecycleContractTest",
+   "path": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/TravelDisableLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读 RpgHubPlugin 源码断言 squaremap 重试上限与取消调用。行为化方向：注入假 Squaremap 集成 + 假调度器，断言重试用尽后取消注册。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-hub",
+   "test_class": "WorldTravelConfigurationContractTest",
+   "path": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/WorldTravelConfigurationContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 plugins 内 config.yml（存在），但断言的是运维侧世界边界与 hub wilderness 的一致性；建议下一波改为加载两侧配置对象后断言解析结果。",
+   "exempt": true
+  },
+  {
+   "module": "rpg-items",
+   "test_class": "DeliveryCopyWiringTest",
+   "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/DeliveryCopyWiringTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-items",
+   "test_class": "EquipmentAsyncLifecycleContractTest",
+   "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-items",
+   "test_class": "EquipmentExitPathReachabilityTest",
+   "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-items",
+   "test_class": "ForgeInputBoundaryContractTest",
+   "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeInputBoundaryContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-items",
+   "test_class": "ForgeOperationIntegrationContractTest",
+   "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeOperationIntegrationContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-items",
+   "test_class": "AuthoritativeItemProcessingContractTest",
+   "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/AuthoritativeItemProcessingContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-items",
+   "test_class": "EquipmentSigningKeyWiringContractTest",
+   "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/EquipmentSigningKeyWiringContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-items",
+   "test_class": "EquipmentSigningMaterialTest",
+   "path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/security/EquipmentSigningMaterialTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 forge/security 源码断言 escrow 顺序与标记语义。行为化方向：直接跑 DeliveryCopyRules / EquipmentOperationMarker 等纯规则，用假仓储断言副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-market",
+   "test_class": "MailboxDeliveryIntegrationContractTest",
+   "path": "plugins/rpg-market/src/test/java/cn/originalrpg/market/MailboxDeliveryIntegrationContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读 TradeRestrictionListener 源码断言 TrustedMenuHolder 标记；另有全仓正则扫描「裸 implements InventoryHolder」。行为化方向：假 InventoryView 断言信任来自标记而非命名空间前缀。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-market",
+   "test_class": "TrustedMenuBoundaryContractTest",
+   "path": "plugins/rpg-market/src/test/java/cn/originalrpg/market/TrustedMenuBoundaryContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 TradeRestrictionListener 源码断言 TrustedMenuHolder 标记；另有全仓正则扫描「裸 implements InventoryHolder」。行为化方向：假 InventoryView 断言信任来自标记而非命名空间前缀。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-mobs",
+   "test_class": "MobAppearanceLifecycleContractTest",
+   "path": "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobAppearanceLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读源码断言外观生命周期与奖励异步接线。行为化方向：假外观提供方断言启用/未启用分支。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-mobs",
+   "test_class": "MobGuideAsyncLifecycleContractTest",
+   "path": "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobGuideAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读源码断言外观生命周期与奖励异步接线。行为化方向：假外观提供方断言启用/未启用分支。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-mobs",
+   "test_class": "MobRewardAsyncLifecycleContractTest",
+   "path": "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobRewardAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读源码断言外观生命周期与奖励异步接线。行为化方向：假外观提供方断言启用/未启用分支。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-performance",
+   "test_class": "PerformanceStatusStoreTest",
+   "path": "plugins/rpg-performance/src/test/java/cn/originalrpg/performance/PerformanceStatusStoreTest.java",
+   "reads": "runtime-io",
+   "uses_indexOf": false,
+   "reason": "断言状态文件读写（status.json / generation 文件），属真实 IO，不是源码字符串断言；可改造为临时目录下的读写一致性断言。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-pets",
+   "test_class": "PetRevivalLifecycleContractTest",
+   "path": "plugins/rpg-pets/src/test/java/cn/originalrpg/pets/PetRevivalLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读源码断言复苏生命周期接线。行为化方向：H2 真表断言复苏幂等与拒绝路径。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-skills",
+   "test_class": "SkillAsyncLifecycleContractTest",
+   "path": "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/SkillAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读源码断言技能异步生命周期调用点。行为化方向：纯规则 + H2 断言技能点结算幂等。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-story",
+   "test_class": "EscortDisconnectHotPathContractTest",
+   "path": "plugins/rpg-story/src/test/java/cn/originalrpg/story/EscortDisconnectHotPathContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": true,
+   "reason": "读源码 + indexOf 断言护送断线热路径顺序。行为化方向：EscortManager 断线处理抽成可注入会话注册表断言副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-story",
+   "test_class": "StoryAsyncLifecycleContractTest",
+   "path": "plugins/rpg-story/src/test/java/cn/originalrpg/story/StoryAsyncLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读源码 + indexOf 断言护送断线热路径顺序。行为化方向：EscortManager 断线处理抽成可注入会话注册表断言副作用。",
+   "exempt": false
+  },
+  {
+   "module": "rpg-story",
+   "test_class": "StoryJourneyOrderContractTest",
+   "path": "plugins/rpg-story/src/test/java/cn/originalrpg/story/StoryJourneyOrderContractTest.java",
+   "reads": "deployment-artifacts",
+   "uses_indexOf": false,
+   "reason": "读 server/config-templates 的 BetonQuest 对话包（本仓不存在该目录），已带 env 标签；豁免。",
+   "exempt": true
+  },
+  {
+   "module": "rpg-world",
+   "test_class": "SurvivalPerformanceConfigurationContractTest",
+   "path": "plugins/rpg-world/src/test/java/cn/originalrpg/world/SurvivalPerformanceConfigurationContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读 server/config/bukkit.yml 与 spigot.yml（本仓不存在），已带 env 标签；豁免。",
+   "exempt": true
+  },
+  {
+   "module": "rpg-world",
+   "test_class": "WorldEventLifecycleContractTest",
+   "path": "plugins/rpg-world/src/test/java/cn/originalrpg/world/WorldEventLifecycleContractTest.java",
+   "reads": "main-sources",
+   "uses_indexOf": false,
+   "reason": "读源码断言世界事件生命周期调用点。行为化方向：世界边界规则已有纯规则类，改为直接断言规则输入输出。",
+   "exempt": false
   }
+ ],
+ "_batch2_note": "W5-A2 第二批已完成：25 个测试类的断言迁移到 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh（构建/接线契约，非行为）；rpg-admin ×2 / rpg-ai-npc ×1 / rpg-items security ×2 / rpg-market TrustedMenu ×1 已真正行为化；rpg-enhancement fallback 走 scripts/check-config-fallbacks.sh。剩余项见 _remaining_after_batch2。",
+ "_remaining_after_batch2": {
+  "_comment": "第二批未处理的类：它们的断言混有『跨多文件作用域』『|| 备选』『构建文件』等语义，自动迁移会失真，留待下一波逐条人工迁移到 source-contract 规格或行为化。",
+  "classes": [
+   "（W16-A1 已全部处理；见 _w16a1_disposition 逐条处置）"
+  ],
+  "_w9a1_note": "W9-A1（本任务）完成最后 2 个纯源码字符串测试类：plugins/rpg-mobs/.../MobRewardAsyncLifecycleContractTest（含多行 forbidden 字面量与 indexOf 顺序链）与 plugins/rpg-pets/.../PetRevivalLifecycleContractTest（含 build.gradle.kts 构建契约断言）逐条迁移到 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh，测试类改为真实执行门禁的包装器；indexOf 顺序链映射为 ordered 契约，build.gradle.kts 作为被断言文件登记进规格。两个分支均无 MockBukkit/Mockito 且生产类依赖真实 Plugin/Bukkit.getScheduler()，无法行为化。\nW16-A1 追加：_remaining_after_batch2 里剩余的 10 个类已全部逐条迁移，并额外处理同判据下的 4 个类（见 _w16a1_disposition）。"
+ },
+ "_expected_after_w16a1": 46,
+ "_w16a1_note": "W16-A1（本任务）：GOAL.md §2 排除口径的**收口门禁**改了判据 —— 不再是「有没有 Files.readString」，而是「同一 @Test 方法体内同时读本仓生产源码（plugins/ 或 tools/ 前缀）+ contains()/indexOf() 断言」。新门禁 scripts/check-source-string-tests.sh 判据行 SOURCE_STRING_GATE=GREEN|RED，已接入 scripts/selftest-gates.sh §4d（CI 的「门禁自测」stage 每推送都跑）。W16-A1 把派单的 10 个类 + 实测同判据下的另外 4 个类（SeasonAttunementSettlementWiringTest / EquipmentExitPathReachabilityTest / EquipmentSigningMaterialTest / MigrationAdvisoryLockTest）共 14 个类逐条处理完：能行为化的行为化（真跑纯规则 / 反射签名 / 真构造 Bukkit 注册表），只能静态保证的迁进 scripts/source-contract-specs/all.json（新增 49 个 spec 键：跨文件按文件归属拆键、|| 备选展开成多条 required、ordered 链保证同文件成立）。",
+ "_w16a1_disposition": {
+  "_criterion": "同一 @Test 方法体内既有 Files.readString/readAllBytes 读 plugins|tools 生产文件、又有 .contains()/.indexOf() 断言",
+  "_counts_before": {
+   "classes": 14,
+   "methods": 34,
+   "_note": "其中派单 10 个类 + 实测同判据下另外 4 个类（season/exit-path/signing/migration-lock）"
+  },
+  "_counts_after": {
+   "classes": 3,
+   "methods": 3,
+   "_note": "3 个剩余全部只读 server/ 与 resource-pack/ 部署产物，不是本仓生产源码"
+  },
+  "行为化（真跑）：": [
+   "rpg-skills/SkillAsyncLifecycleContractTest：会话判定（在线+服务端同一句柄+已鉴权）与「新连接共享缓存不得被旧句柄驱逐」改成真跑布尔判定；「进行中的学习/技能书操作按 UUID->Player 身份键控」改成反射断言字段泛型（旧回调盲删会让它红）",
+   "rpg-items/EquipmentExitPathReachabilityTest：销毁退出路径改真跑 DestroyRules / EquipmentExitPathRules / DestroyDeliveryRules / DestroyGate 四条纯规则（终态、交付通道一致、已解绑装备必须拒绝销毁）",
+   "rpg-world/SurvivalPerformanceConfigurationContractTest：怪物生成上限按生产同口径 （缺键 56 + Math.clamp(16,70)）真跑三组输入",
+   "rpg-core/LanguageBundleContractTest：/tasks 指令改为真解析 plugin.yml 的命令表（并断言不得有别名）",
+   "rpg-api/OptionalServiceLifecycleContractTest：OptionalServices.enabled 用真构造的 Bukkit RegisteredServiceProvider + 动态代理 Server/ServicesManager 真跑「未注册/未启用/已启用」三分支"
+  ],
+  "规格化（迁进 scripts/source-contract-specs/all.json）：": [
+   "rpg-dungeons #dungeon-command / #dungeon-manager（跨文件拆键）+ DungeonRewardWorldHoldContractTest",
+   "rpg-enhancement EquipmentOperationIntegrationContractTest#refine / #limit-break（跨两文件拆键）",
+   "rpg-items ForgeOperationIntegrationContractTest（主键 + #coordinator + #security + #unbind-legacy + #unbind-legacy-chain + #legacy-chain + #legacy-blueprint，按文件归属拆 7 键）、ForgeInputBoundaryContractTest、EquipmentExitPathReachabilityTest#season-attunement / #destroy-command",
+   "rpg-market MailboxDeliveryIntegrationContractTest#market-command / #market-plugin（原 indexOf 链跨方法体，按方法切分）",
+   "rpg-skills SkillAsyncLifecycleContractTest#skills-command / #skill-book-listener（|| 备选展开）",
+   "rpg-api OptionalServiceLifecycleContractTest#<Service>|<消费方文件>（19 个消费方逐文件 23 键）",
+   "rpg-core SeasonAttunementSettlementWiringTest#command-surface / #command-dispatch、LanguageBundleContractTest#resource-pack",
+   "rpg-items EquipmentSigningMaterialTest#no-key-sink",
+   "tools/db-migration MigrationAdvisoryLockTest#rpg-core",
+   "rpg-world SurvivalPerformanceConfigurationContractTest（插件侧默认值口径）",
+   "rpg-performance？→ 并入 rpg-world 的 performance-sampler 契约（#performance-plugin）",
+   "rpg-world SurvivalPerformanceConfigurationContractTest#performance-plugin（采样器不得分配已加载区块数组）"
+  ],
+  "剩余项及理由（逐条，不含模糊）：": [
+   "rpg-core/LanguageBundleContractTest::quickActionTaskButtonUsesTheUnifiedTaskCenter（@Tag(env)）：读 server/datapacks/**/navigation.json（BetonQuest 数据包）与 resource-pack 语言文件。本仓按设计不含 server/（.cnb.yml 的 env 排除口径），断言对象是运维侧数据包内容，不是本仓源码。其中资源包语言文件那一半已迁进 all.json#resource-pack 并由同类的 quickActionsRouteToTheTrustedTaskRouterAndBothBundlesCarryTheirLabels 真执行门禁。",
+   "rpg-hub/WorldTravelConfigurationContractTest::controlledGenerationCoversTheCompleteBorderAndItsChunkMargin（@Tag(env)）：读 server/bin/maintain-world-coverage.sh。本仓不含 server/，同上。同类的 wildernessAndAuthoritativeOverworldBoundaryCannotDriftApart 已改为真加载两侧 config.yml + 真跑 WildernessTravelRules。",
+   "rpg-story/StoryJourneyOrderContractTest::qizhiConversationUsesTheExecutableFirstForgeOrder（@Tag(env)）：读 server/config-templates/BetonQuest/.../qizhi.yml。本仓不含 server/，同上。"
+  ]
+ },
+ "_hits_after_w16a1": {
+  "_cmd": "grep -rl --include=*.java 'Files.readString' plugins tools | grep '/src/test/' | wc -l",
+  "_count": 46,
+  "_nature_breakdown": {
+   "① 已迁进声明式规格的门禁包装器（*ContractTest 里 Files.readString 只用于读 scripts/check-source-contract.sh 是否存在，不再读生产源码做断言）": 37,
+   "② 读的不是生产源码（读测试自身 / 运行期 IO / 无路径字面量）": [
+    "rpg-core/MechanismKillSwitchContractTest（反射 + 真 H2，无源码读）",
+    "rpg-core/ProgressionAnomalySchemaUpgradeTest（读 DDL 文本做结构断言，DDL 不是生产 Java 源码）",
+    "rpg-integrations/HudRailSpecTest（无 plugins/* 路径字面量）",
+    "rpg-performance/PerformanceStatusStoreTest（@TempDir 下真实读写 status.json，真实 IO 行为测试）"
+   ],
+   "③ 只读 server/ 或 resource-pack/ 部署产物（本仓按设计不含 server/，已 @Tag(env) 显式分类）": [
+    "rpg-core/LanguageBundleContractTest（数据包部分）",
+    "rpg-hub/WorldTravelConfigurationContractTest（运维维护脚本）",
+    "rpg-story/StoryJourneyOrderContractTest（BetonQuest 对话包）"
+   ]
+  },
+  "_note": "三类都不是 GOAL.md §2 排除的「读本仓生产源码 + 源码字符串断言」；判据由 scripts/check-source-string-tests.sh 机械复核（SOURCE_STRING_GATE=GREEN）。"
+ },
+ "_w18a1_note": {
+  "_what": "W18-A1（G-302-RESIDUAL-2）修 rpg-dungeons/DungeonTimeoutLifecycleContractTest（8 处 indexOf → 迁进新建的 scripts/source-contract-specs/rpg-dungeons.json，类改成真实执行门禁的包装器），并把 scripts/check-source-string-tests.sh 的判据从「同一方法体内直接出现」扩到间接形态。",
+  "_criterion_after": "类里存在 Files.readString/readAllBytes 读 plugins|tools/src/main 下的生产源码，且（一行式 readString(...).contains(...) 或 读结果变量上有 contains/indexOf/lastIndexOf/startsWith 或 assertTrue/assertFalse(... a < b ...) 先后比较）。helper 里的 readString + 调用方实参里的生产路径/常量路径都算（覆盖 W17 指出的三种间接形态）。",
+  "_why_w16_missed_this_class": "W16 判据要求 readString 与 plugins|tools 路径字面量出现在同一 @Test 方法体内；本类把 readString 藏在 source(...) helper、路径字面量在调用方实参上，因此不被判为命中。",
+  "_newly_surfaced_gap": {
+   "_class": "rpg-items/EquipmentExitPathReachabilityTest",
+   "_path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
+   "_shape": "private productionReferences(identifier) 用 Files.walk(plugins/*/src/main) + Files.readString(file).contains(identifier)，两个 @Test 方法直接依赖其结果（destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin / everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired）。",
+   "_why_w16_missed": "W16-A1 的 _counts_after 只统计了「同一方法体内直接出现」的 3 个剩余类；本类因为 readString 在遍历循环里（helper/私有方法内），readString 与 contains 都不在同一 @Test 方法体里 → 同样被旧判据漏掉。",
+   "_status": "W18-A1 无权修改（allowed_paths 只含 plugins/rpg-dungeons/src/test/**、scripts/**、plan/source-string-tests-remaining.json、.cnb/agent-out/**），因此 SOURCE_STRING_GATE 在真实仓库上保持 RED，并把本条交接给 rpg-items 批次。",
+   "_action": "按本类同样的方式处理：两个 @Test 的「哪些文件引用某标识符」断言迁进 scripts/source-contract-specs/rpg-items.json 的声明式条目，或改真跑纯规则（EquipmentLifecycle / DestroyRules 等）。"
+  }
+ },
+ "_hits_after_w18a1": {
+  "_cmd": "sh scripts/check-source-string-tests.sh",
+  "_count": 1,
+  "_note": "新判据下的唯一命中是 rpg-items/EquipmentExitPathReachabilityTest，属于 W16 漏判的同类残留（不在 W18-A1 的 allowed_paths 内）。"
+ },
+ "_w18a1_note": {
+  "_what": "W18-A1（G-302-RESIDUAL-2）修 rpg-dungeons/DungeonTimeoutLifecycleContractTest（8 处 indexOf → 迁进新建的 scripts/source-contract-specs/rpg-dungeons.json，类改成真实执行门禁的包装器），并把 scripts/check-source-string-tests.sh 的判据从「同一方法体内直接出现」扩到间接形态。",
+  "_criterion_after": "类里存在 Files.readString/readAllBytes 读 plugins|tools/src/main 下的生产源码，且（一行式 readString(...).contains(...) 或 读结果变量上有 contains/indexOf/lastIndexOf/startsWith 或 assertTrue/assertFalse(... a < b ...) 先后比较）。helper 里的 readString + 调用方实参里的生产路径/常量路径都算（覆盖 W17 指出的三种间接形态）。",
+  "_why_w16_missed_this_class": "W16 判据要求 readString 与 plugins|tools 路径字面量出现在同一 @Test 方法体内；本类把 readString 藏在 source(...) helper、路径字面量在调用方实参上，因此不被判为命中。",
+  "_newly_surfaced_gap": {
+   "_class": "rpg-items/EquipmentExitPathReachabilityTest",
+   "_path": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentExitPathReachabilityTest.java",
+   "_shape": "private productionReferences(identifier) 用 Files.walk(plugins/*/src/main) + Files.readString(file).contains(identifier)；两个 @Test 直接依赖其结果（destroyedHasAProductionEntryPointAndSeasonAttunementStaysOutOfTheEquipmentPlugin / everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired）。",
+   "_why_w16_missed": "W16-A1 的 _counts_after 只统计了「同一方法体内直接出现」的 3 个剩余类；本类 readString 在遍历循环里，与 contains 都不在同一 @Test 方法体内 → 旧判据漏判（与本次修的那个类同形）。",
+   "_status": "W18-A1 无权修改（allowed_paths 只含 plugins/rpg-dungeons/src/test/**、scripts/**、plan/source-string-tests-remaining.json、.cnb/agent-out/**），因此 SOURCE_STRING_GATE 在真实仓库上保持 RED；本条交接给 rpg-items 批次。",
+   "_action": "按本类同样方式处理：两个 @Test 的「哪些文件引用某标识符」断言迁进 scripts/source-contract-specs/rpg-items.json，或改真跑纯规则。"
+  }
+ },
+ "_hits_after_w18a1": {
+  "_cmd": "sh scripts/check-source-string-tests.sh",
+  "_count": 1,
+  "_note": "新判据下唯一命中是 rpg-items/EquipmentExitPathReachabilityTest（W16 漏判的同类残留，不在 W18-A1 的 allowed_paths 内）。"
+ }
 }
