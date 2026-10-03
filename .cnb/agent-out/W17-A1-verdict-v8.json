@@ -147,13 +147,19 @@
       "step": "产出物校验",
       "cmd": "python3 -c \"import json;[json.load(open(f)) for f in ['plan/world-state.json','state/world-state.json','plan/verdict-v8.json','plan/tasks-w17.json']];print('all json valid')\"; git status --short",
       "out": "all json valid\n M plan/world-state.json\n M state/world-state.json\n?? plan/gap-matrix-v8.md\n?? plan/tasks-w17.json\n?? plan/verdict-v8.json"
+    },
+    {
+      "step": "创建 PR",
+      "cmd": "cnb pulls post-pull --repo xzqkjmnbvc2026/sivitahub --base main --head agent/W17-A1-verdict-v8 --title '[agent/W17-A1-verdict-v8] feat(plan): W17 复验当前 main，判 done=false（G-302-RESIDUAL-2）' --body '…'",
+      "out": "PR #65 state=open / base=refs/heads/main / head=refs/heads/agent/W17-A1-verdict-v8\nhttps://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/65"
     }
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/65",
   "risks": [
     "W16 的判据脚本有形态边界：readString 藏在同文件 helper 时它报 0（DungeonTimeoutLifecycleContractTest 就是这一类）。本任务已把「补判据形态覆盖 + 加夹具负向对照」写进 W17-A1 的 required 项，但如果只做该类本身而不补判据覆盖，同类缺口会第三次漏过来。",
     "basis 77112113 自身触发的 3 个构建在本轮采样时 status=pending，本轮采信的是 f580ab6（W16 合入后）的构建。依据是 git diff --name-only f580ab69 HEAD 只含 plan/ 与 .cnb/agent-out/（无构建输入）；若后续有人在 basis 上合入了构建输入，需要以届时 HEAD 重新查构建。",
-    "「十门」在 CI 里是 9 个业务 stage + Prepare/BeforeEnd/End 的结构；本任务按项目口径把 DDL 门的两个方向（消费者 / 登记反向）计为两门，故判据行共 11 条（项目历轮同口径）。"
+    "「十门」在 CI 里是 9 个业务 stage + Prepare/BeforeEnd/End 的结构；本任务按项目口径把 DDL 门的两个方向（消费者 / 登记反向）计为两门，故判据行共 11 条（项目历轮同口径）。",
+    "附带观察到 W16b 的 PR#64（agent/W16b-A1-spec-directory，契约门禁支持规格目录合并）state=closed 且 f580ab6 只落地了 all.json 单文件方案；本轮 check-source-contract.sh 仍只读单个 SPEC 文件（SOURCE_CONTRACT_SPEC 默认 scripts/source-contract-specs/all.json，目录下只有 all.json）。不影响本轮判定，但 W17-A1 若要「追加到 scripts/source-contract-specs/rpg-dungeons.json」需先确认目录加载能力是否要单独补回。"
   ],
   "next_steps": [
     "派 W17-A1（G-302-RESIDUAL-2）：DungeonTimeoutLifecycleContractTest 的 8 处 indexOf 断言二选一处置（行为化优先 / 迁进 scripts/source-contract-specs/ 并改成门禁包装器），并顺手让 check-source-string-tests.sh 覆盖「readString 藏在 helper」的形态 + 在 selftest §4d 加对应夹具负向对照。",
