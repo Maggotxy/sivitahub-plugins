@@ -19,7 +19,8 @@
   "negative_control_3_mutation_rpg_items": "把 EquipmentLifecycle 的 `case SALVAGE -> State.SALVAGED;` 改成 `-> State.SACRIFICED;` → ./gradlew :plugins:rpg-items:test --tests '*EquipmentExitPathReachabilityTest*' → EquipmentExitPathReachabilityTest > everyDeclaredExitPathIsEitherWiredOrExplicitlyUnwired() FAILED / BUILD FAILED；还原后全绿",
   "negative_control_4_selftest_fixtures": "selftest §4d：夹具④（遍历式源码扫描 walk src/main + readString + contains 聚合成列表）→ 期望 1，通过；夹具④b（遍历目录 + 真解析 YAML，不 readString/不 contains）→ 期望 0，通过（防误报）",
   "tests": "export JAVA_HOME=/opt/jdk25; ./gradlew --no-daemon test -PexcludeTags=env → BUILD SUCCESSFUL；python3 scripts/dump-test-results.py → SUM tests=1101 failed=0 errors=0 skipped=2 modules=26 / SUMMARY_GATE=GREEN（覆盖 :plugins:rpg-items 103 与 :plugins:rpg-core 318）",
-  "jdk": "本机无 JDK，已自取 Temurin 25（清华 Adoptium 镜像 · OpenJDK25U-jdk_x64_linux_hotspot_25.0.4.1_1.tar.gz）解压到 /opt/jdk25"
+  "jdk": "本机无 JDK，已自取 Temurin 25（清华 Adoptium 镜像 · OpenJDK25U-jdk_x64_linux_hotspot_25.0.4.1_1.tar.gz）解压到 /opt/jdk25",
+  "pr_chain": "PR #66 已合并（其描述无法再改），已在其下追加评论记录「W19 追加」；本轮新提交走 PR #69。"
  },
  "risks": [
   "本轮实际改动：① scripts/check-source-string-tests.sh 判据**收紧**（新增形态④，撤掉 W18 对 productionReferences 形态的整体豁免）；② scripts/selftest-gates.sh §4d 把「夹具④：过滤谓词 + 文件列表断言 → 0」改判为「→ 1」，并新增夹具④b（真解析 YAML → 0）防误报；③ 修了第 2 个同类残留 rpg-core/SeasonAttunementSettlementWiringTest（不是 rpg-items 那个，那个上一轮已修）；④ plan 清单加一条并重数。",
@@ -33,6 +34,6 @@
   "若调度器不接受改动 rpg-core 测试（越界），请回退该文件并另派包含 plugins/rpg-core/src/test/** 的任务；届时 SOURCE_STRING_GATE 会保持 RED 直到该项被处理。",
   "后续新批次可用「形态④」当回归网：任何新出现的遍历式源码扫描会被 sh scripts/check-source-string-tests.sh 直接判红。"
  ],
- "pr_url": "",
- "commit": ""
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/69",
+ "commit": "0867af1 (merge 2e66103)"
 }
