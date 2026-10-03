@@ -59,7 +59,7 @@
   ],
   "criterion_line": "SOURCE_CONTRACT_GATE=GREEN"
  },
- "pr_url": "PLACEHOLDER",
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/64",
  "risks": [
   "0 个 *.json 的规格目录会 RED（空目录是配置错误，不静默变合法）。",
   "SOURCE_CONTRACT_SPECS_DIR 只给自测用；CI 不设置它，因此 CI 永远加载 scripts/source-contract-specs 全目录。",
