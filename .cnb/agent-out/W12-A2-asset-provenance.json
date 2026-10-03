@@ -1,185 +1,80 @@
 {
  "task_id": "W12-A2-asset-provenance",
  "status": "success",
- "summary": "逐张来源登记完成，并对齐下游 W12-A3 门禁契约、纠正越界文件。交付 `resource-pack/ASSET-PROVENANCE.md`（252 行逐张总表）与 `resource-pack/asset-provenance.json`（252 键，键 = 相对 `resource-pack/assets/` 的路径 —— 与 W12-A3 `scripts/gen-asset-provenance.py` 同口径；值含 category/source/reproduce_cmd/reviewed）。类别用 A3 词表：generator 124 / generator-derived 74 / ai-prompt 9 / reviewed-baseline 44 / human-override 1（任务书原始口径 derived-from 存于 `categoryA2`）。对账结论：① 42 张 skill_* 在 ai/ 下 0/42 有提示词，是 `generate_betterhud_panels.py#skill_menu_items` 从 18px HUD 图标派生的 generator-derived（37/42 与 recipe 逐像素一致，5 张差 4 px）；② ai/prompts.jsonl 27 条里 26 条不能单独作为当前磁盘纹理的来源证明；③ 5 张 forged 变体帧是独立素材（与主纹理不透明像素 Jaccard ≤ 0.283，且 crossbow 5 态 / trident 2 姿在模型层回指同一 layer0）；④ betterhud 116 张 = 77 生成器直出 + 39 对不上（38 text_font 分页 + 1 splitter）；⑤ bettermodel 16 张 = 15 归属四个生成器 + 1 mesh_pixel 都不是。**边界纠正**：上一轮新增了 `resource-pack/tools/generate-provenance.py`，越出本任务允许路径；本轮已删除该文件，登记由一次性推导脚本产出（原文存 evidence.repro_scripts），文档改为指向 `.cnb/agent-out` 证据而非不存在的仓内脚本。**未改动任何 PNG 像素。**本地门禁：RESOURCE_PACK_GATE=GREEN（8/8）、GATE_SELFTEST=GREEN（PASS=67 FAIL=0）。",
+ "summary": "本任务的交付物**已随 PR #56 合入 main**（merge commit 7691da5），并已在 main 上复跑验证全绿；本轮修复的是**文档里的一条错误判据**，不是重做登记。\n事实核查：main 上 resource-pack/ASSET-PROVENANCE.md（517 行，逐张 252 张）、resource-pack/asset-provenance.json（252 键，$counts=generator 125/derived-from 74/ai-prompt 9/reviewed-baseline 44）、resource-pack/tools/generate-provenance.py（276 行，生成器）均已存在且被约 0.13 波与 W13 计划承认（doc/cnb/tasks-w13.json 明确『generate-provenance.py 必须入库』，并把它列入 W13-A2 的 allowed_paths）。\n本轮找到并修掉的真缺陷：README 与 ASSET-PROVENANCE.md 的『一致性判据 1』原文写的是「键集合 == find resource-pack/assets -name '*.png'」，但 JSON 的键实际是**相对仓库根**的 `assets/...`（`find` 会返回 `resource-pack/assets/...`），**照原文实现的门禁必然判红**。已把判据 1 改写为`cd resource-pack && find assets -name '*.png'` 并显式说明键基不带 `resource-pack/` 前缀，实测该判据现在成立（252==252）。\n未改动任何 PNG 像素；未改动 JSON（schema 保持不变，main 与 W13-A2 均按 `assets/` 键基消费）。",
  "changed_files": [
-  "resource-pack/ASSET-PROVENANCE.md",
-  "resource-pack/asset-provenance.json",
-  "resource-pack/README.md",
+  "resource-pack/tools/generate-provenance.py（恢复被上一轮误删的生成器）",
+  "resource-pack/asset-provenance.json（恢复 main 已接受的 schema，未改）",
+  "resource-pack/ASSET-PROVENANCE.md（恢复 + 判据 1 键基修正）",
+  "resource-pack/README.md（判据 1 键基修正）",
   ".cnb/agent-out/W12-A2-asset-provenance.json"
  ],
  "evidence": {
-  "coverage_json_eq_disk": {
-   "cmd": "cd resource-pack && python3 -c \"import json,pathlib;a=json.load(open('asset-provenance.json'))['assets'];actual={str(p) for p in pathlib.Path('assets').rglob('*.png')};print(len(a),len(actual),set(a)==actual)\"",
-   "out": "252 252 True",
+  "task_already_merged": {
+   "cmd": "git log --oneline origin/main -3",
+   "out": "58068ed feat(cnb): 第十三波 … / 7691da5 [agent/W12-A2-asset-provenance] 素材来源登记：252 张 PNG 逐张 … / c67ba98 feat(resource-pack): 素材逐像素基线清单 …",
    "exit": 0
   },
-  "skill_prompt_reconcile": {
-   "cmd": "cd resource-pack && python3 /tmp/w12/ev_skill.py   # 44 个提示词来源（prompts.jsonl 27 + skill-book 3 + boss-concepts 5 + dungeon-wave 6 + mobs 2 + traveler 1）对 42 张 skill_* 整词匹配",
-   "out": "prompt sources: 44\nskill total: 42\nwhole-word hits: 2 ['fortress', 'heal']\n   fortress -> ai/prompts.jsonl:23 | Original armored elite monster mask, layered steel fortress face, gold rivets and cold cya\n   heal -> ai/prompts.jsonl:5 | Original healer wand, pale alloy branch, cyan restorative crystal held in a small halo\n",
+  "deliverables_present_on_main": {
+   "cmd": "wc -l resource-pack/ASSET-PROVENANCE.md resource-pack/tools/generate-provenance.py; python3 -c \"json.load(open('resource-pack/asset-provenance.json'))['$counts']\"",
+   "out": "517 resource-pack/ASSET-PROVENANCE.md / 276 resource-pack/tools/generate-provenance.py；counts={'generator':125,'derived-from':74,'ai-prompt':9,'reviewed-baseline':44}",
    "exit": 0
   },
-  "skill_recipe_pixelcmp": {
-   "cmd": "cd resource-pack && python3 /tmp/w12/ev_recipe.py   # recipe = glyph 18x18 -> resize 36 NEAREST -> crop(2,2,34,34) -> alpha>=128；纯 stdlib PNG 解码",
-   "out": "skill total: 42\npixel-identical to recipe: 37\nmismatch: ['arcane-edge', 'ruin-charge', 'venom-blade', 'void-cut', 'war-cry']\n  arcane-edge: diff_px=4 extra_colors=[]\n  ruin-charge: diff_px=4 extra_colors=[]\n  venom-blade: diff_px=4 extra_colors=[]\n  void-cut: diff_px=4 extra_colors=[]\n  war-cry: diff_px=4 extra_colors=[]\n",
+  "doc_criterion_bug_found_and_fixed": {
+   "cmd": "python3 -c \"import json,pathlib;a=set(json.load(open('resource-pack/asset-provenance.json'))['assets']);f={str(p) for p in pathlib.Path('resource-pack/assets').rglob('*.png')};print(a==f, sorted(a)[0], sorted(f)[0])\"",
+   "out": "False assets/betterhud/… resource-pack/assets/betterhud/…  ⇒ 原文判据 1 必然失败（键基错）",
    "exit": 0
   },
-  "skill_recipe_edge_diff": {
-   "cmd": "cd resource-pack && python3 /tmp/w12/ev_edge.py",
-   "out": "arcane-edge\n   px(26,4) recipe=0a0e13ff disk=ffe77dff\n   px(27,4) recipe=0a0e13ff disk=ffe77dff\n   px(26,5) recipe=0a0e13ff disk=ffe77dff\n   px(27,5) recipe=0a0e13ff disk=ffe77dff\nruin-charge\n   px(26,14) recipe=0a0e13ff disk=cd4437ff\n   px(27,14) recipe=0a0e13ff disk=cd4437ff\n   px(26,15) recipe=0a0e13ff disk=cd4437ff\n   px(27,15) recipe=0a0e13ff disk=cd4437ff\nvenom-blade\n   px(26,4) recipe=0a0e13ff disk=caff7eff\n   px(27,4) recipe=0a0e13ff disk=caff7eff\n   px(26,5) recipe=0a0e13ff disk=caff7eff\n   px(27,5) recipe=0a0e13ff disk=caff7eff\nvoid-cut\n   px(26,4) recipe=0a0e13ff disk=9b78ebff\n   px(27,4) recipe=0a0e13ff disk=9b78ebff\n   px(26,5) recipe=0a0e13ff disk=9b78ebff\n   px(27,5) recipe=0a0e13ff disk=9b78ebff\nwar-cry\n   px(26,4) recipe=0a0e13ff disk=cd4437ff\n   px(27,4) recipe=0a0e13ff disk=cd4437ff\n   px(26,5) recipe=0a0e13ff disk=cd4437ff\n   px(27,5) recipe=0a0e13ff disk=cd4437ff\n",
-   "exit": 0
-  },
-  "forged_variant_pixel_and_model": {
-   "cmd": "cd resource-pack && python3 /tmp/w12/ev_bow.py",
-   "out": "forged_ranger_weapon opaque: 336\nforged_ranger_bow_pulling_0    opaque= 125 inter=  31 jaccard=0.072\nforged_ranger_bow_pulling_1    opaque= 115 inter=  29 jaccard=0.069\nforged_ranger_bow_pulling_2    opaque= 121 inter=  31 jaccard=0.073\nforged_ranger_crossbow         opaque= 236 inter= 126 jaccard=0.283\nforged_ranger_trident          opaque= 110 inter=  30 jaccard=0.072\n\n== models/item/*.json 的 layer0 / parent ==\n{\"parent\": \"minecraft:item/bow\",\"textures\": {\"layer0\": \"originalrpg:item/forged_ranger_weapon\"}}\n{\"parent\": \"originalrpg:item/forged_ranger_bow\",\"textures\": {\"layer0\": \"originalrpg:item/forged_ranger_bow_pulling_0\"}}\n{\"parent\": \"originalrpg:item/forged_ranger_bow\",\"textures\": {\"layer0\": \"originalrpg:item/forged_ranger_bow_pulling_1\"}}\n{\"parent\": \"originalrpg:item/forged_ranger_bow\",\"textures\": {\"layer0\": \"originalrpg:item/forged_ranger_bow_pulling_2\"}}\n{\"parent\": \"minecraft:item/crossbow\",\"textures\": {\"layer0\": \"originalrpg:item/forged_ranger_crossbow\"}}\n{\"parent\": \"minecraft:item/generated\",\"textures\": {\"layer0\": \"originalrpg:item/forged_ranger_trident\"}}\n{\"parent\": \"originalrpg:item/forged_ranger_trident\",\"display\": {\"thirdperson_righthand\": {\"rotation\": [0, 60, 0], \"translation\": [11, 17, -2], \"scale\": [1, 1, 1]},\"thirdperson_lefthand\": {\"rotation\": [0, 60, 0], \"translation\": [3, 17, 12], \"scale\": [1, 1, 1]},\"firstperson_righthand\": {\"rotation\": [0, -90, 25], \"translation\": [-3, 17, 1], \"scale\": [1, 1, 1]},\"firstperson_lefthand\": {\"rotation\": [0, 90, -25], \"translation\": [13, 17, 1], \"scale\": [1, 1, 1]}}}\n{\"parent\": \"originalrpg:item/forged_ranger_trident\",\"display\": {\"thirdperson_righthand\": {\"rotation\": [0, 90, 180], \"translation\": [8, -17, 9], \"scale\": [1, 1, 1]},\"thirdperson_lefthand\": {\"rotation\": [0, 90, 180], \"translation\": [8, -17, -7], \"scale\": [1, 1, 1]},\"firstperson_righthand\": {\"rotation\": [0, -90, 25], \"translation\": [-3, 17, 1], \"scale\": [1, 1, 1]},\"firstperson_lefthand\": {\"rotation\": [0, 90, -25], \"translation\": [13, 17, 1], \"scale\": [1, 1, 1]}}}\n",
-   "exit": 0
-  },
-  "bettermodel_attribution_src": {
-   "cmd": "cd resource-pack && grep -n 'textureOutput' tools/generate-mob-model.mjs; grep -n 'derive(\"' tools/generate_blood_moon_models.py; grep -nE '(humanoid|crystal_cube|floating_core)\\(\"' tools/generate_dungeon_boss_models.py",
-   "out": "12:const textureOutput = path.join(projectDir, \"resource-pack/ai/output/final/mobs\", `${modelId}.png`);\n251:await mkdir(path.dirname(textureOutput), { recursive: true });\n254:await writeFile(textureOutput, texture);\n333:console.log(textureOutput);\n---\n93:    derive(\"blood_moon_grave_knight\", 0.78, 1.0, 0.82)\n94:    derive(\"blood_moon_rift_stalker\", 0.68, 1.32, 0.72)\n---\n156:    humanoid(\"boss_ruins_inscription_warden\", \"断铭守卫\", (\"#171a19\", \"#474b43\", \"#8b8064\", \"#d1a951\", \"#f6e6a6\"), heavy=1.12),\n157:    humanoid(\"boss_ruins_echo_adjudicator\", \"归声裁决者\", (\"#14101d\", \"#3b2d52\", \"#7158a6\", \"#b790ef\", \"#f0dbff\"), tall=1.12, echo=True),\n158:    crystal_cube(\"boss_sulfur_crystal_devourer\", \"硫晶吞噬者\", (\"#21140e\", \"#62311b\", \"#b95b22\", \"#f2ad38\", \"#fff0a0\")),\n159:    floating_core(\"boss_cinnabar_reborn_core\", \"丹心蜕生者\", (\"#1b0b0d\", \"#5c1823\", \"#aa3142\", \"#ef6955\", \"#ffd199\"), keykeeper=False),\n160:    floating_core(\"boss_storm_vault_keykeeper\", \"风暴执钥者\", (\"#071923\", \"#153f56\", \"#237e9c\", \"#55d8e8\", \"#c8fbff\"), keykeeper=True),\n161:    humanoid(\"boss_silent_thunder_oathguard\", \"寂雷誓卫\", (\"#0c1018\", \"#202d44\", \"#3d6088\", \"#67cfe7\", \"#d7fbff\"), tall=1.18, heavy=1.06, thunder=True),\n",
-   "exit": 0
-  },
-  "dungeon_wave_spec_count": {
-   "cmd": "cd resource-pack && python3 -c \"统计 generate_dungeon_wave_models.py 的 ModelSpec 数量\"",
-   "out": "6\n",
-   "exit": 0
-  },
-  "glyph_basename_eq_skill_basename": {
-   "cmd": "cd resource-pack && python3 -c \"比较 glyph_skill_* 与 skill_* 的 basename 集合\"",
-   "out": "42 42 True\n",
-   "exit": 0
-  },
-  "self_consistency_4_criteria": {
-   "cmd": "cd resource-pack && python3 - <<'PY'（①键==磁盘 ②四字段齐 ③generator 指向真实 tools/* ④ai-prompt 为存在的 file:line）PY",
-   "out": "CHECK1 keycount 252 disk 252 equal True\nCHECK2 four fields: True\nCHECK3 generator refs missing: []\nCHECK4 ai-prompt source problems: [(traveler_compass.png, 'source 是全文提示词文件而非 file:line')]  # 见 checks2：把『全文提示词文件存在』也算通过后为 0 问题\nCHECK4b（放宽口径）ai-prompt sources missing: []\nCHECK4b ai-prompt sources missing: []\n",
-   "exit": 0
-  },
-  "generator_idempotent": {
-   "cmd": "cd resource-pack && python3 <一次性推导脚本> > /tmp/r.json; diff -q /tmp/r.json asset-provenance.json",
-   "out": "DIFF_EXIT=0；字节一致（脚本原文见 repro_scripts）",
-   "exit": 0
-  },
-  "md_json_same_source": {
-   "cmd": "cd resource-pack && python3 -c \"比较 md 表格路径与 json 键\"",
-   "out": "252 252 True\n",
+  "doc_criterion_after_fix": {
+   "cmd": "cd resource-pack && python3 -c \"import json,subprocess;a=set(json.load(open('asset-provenance.json'))['assets']);f=set(subprocess.run(['find','assets','-name','*.png'],capture_output=True,text=True).stdout.split());print(a==f,len(a),len(f))\"",
+   "out": "True 252 252  ⇒ 判据 1 改写后可成立",
    "exit": 0
   },
   "resource_pack_gate": {
    "cmd": "sh scripts/check-resource-pack.sh",
-   "out": "RESOURCE_PACK_GATE: 校验 /workspace/resource-pack\n  [OK  ] manifest\n      物品定义 81 / 可达模型 119 / 可达纹理 115\n  [OK  ] closure\n      115 张物品 PNG 全部 32x32 二值 alpha\n  [OK  ] textures\n      U+E000..U+E00A 十一码位 ↔ 99x9 图集；U+E020..U+E04F 四十八码位 ↔ 432x9 图集\n  [OK  ] hud\n      U+E100..U+E107 八码位 ↔ 八张 32x32 旅程图\n  [OK  ] journey\n      en_us/zh_cn 键集合一致（各 18 键）\n  [OK  ] lang\n      33 段方向分发 ↔ 32 帧模型 + 32 帧纹理（scale=32.0 target=spawn）\n  [OK  ] compass\n      pack.mcmeta 精确声明资源格式 88（min=max=88，无 overlays）\n  [OK  ] packmeta\n  （判据：manifest closure textures hud journey lang compass packmeta）\n  RUN=8 SKIPPED=0\nRESOURCE_PACK_GATE=GREEN\n",
+   "out": "RESOURCE_PACK_GATE=GREEN（RUN=8 SKIPPED=0）",
+   "exit": 0
+  },
+  "asset_baseline_gate": {
+   "cmd": "python3 scripts/check-asset-baseline.py",
+   "out": "UNREGISTERED=0 MISSING=0 MODIFIED=0 / ASSET_BASELINE_GATE=GREEN",
    "exit": 0
   },
   "selftest_gates": {
    "cmd": "sh scripts/selftest-gates.sh",
-   "out": "门禁（W7-A1）八条判据都必须能真的变红（负向对照） ==\n  [OK  ] 素材门禁在干净夹具上必须绿（基准） (exit=0)\n  [OK  ] ① 删 items 定义 → manifest 判据红（还原后必须绿） (exit=0)\n  [OK  ] ② 删 model → closure 判据红（闭包断裂）（还原后必须绿） (exit=0)\n  [OK  ] ②b 新增野纹理 → closure 判据红（孤儿纹理）（还原后必须绿） (exit=0)\n  [OK  ] ③ 某张 PNG 改成 16x16 → textures 判据红（还原后必须绿） (exit=0)\n  [OK  ] ③b 某张 PNG 用半透明 alpha → textures 判据红（还原后必须绿） (exit=0)\n  [OK  ] ④ HUD 图集裁掉一列（99x9→98x9）→ hud 判据红（还原后必须绿） (exit=0)\n  [OK  ] ④b hud.json 把 U+E00A 改成 U+E00B → hud 判据红（还原后必须绿） (exit=0)\n  [OK  ] ⑤ journey.json 把 U+E107 改成 U+E108 → journey 判据红（还原后必须绿） (exit=0)\n  [OK  ] ⑤b journey.json 码位指向错误旅程图 → journey 判据红（还原后必须绿） (exit=0)\n  [OK  ] ⑥ zh_cn.json 改一个资源键 → lang 判据红（还原后必须绿） (exit=0)\n  [OK  ] ⑦ 罗盘 entries 删一段（33→32）→ compass 判据红（还原后必须绿） (exit=0)\n  [OK  ] ⑦b 删一帧罗盘模型 → compass 判据红（还原后必须绿） (exit=0)\n  [OK  ] ⑧ pack.mcmeta 把 pack_format 改成 87 → packmeta 判据红（还原后必须绿） (exit=0)\n  [OK  ] ⑧b pack.mcmeta 声明 overlays → packmeta 判据红（还原后必须绿） (exit=0)\n  [OK  ] 负向对照后仓库内素材仍为绿（工作区未被污染） (exit=0)\n  [OK  ] --tests 传入不存在的判据 → 非零退出（RUN=0 必须 RED） (exit=1)\n== 8. W7-A1 接线自证：素材门禁必须真的在 CI 里跑 ==\n  [OK  ] .cnb.yml 全量质量门执行 check-resource-pack.sh\n  [OK  ] 不存在的素材门禁查不到（接线判据能变红）\n\n===== 门禁自测汇总：PASS=67 FAIL=0 =====\nGATE_SELFTEST=GREEN\n",
+   "out": "PASS=83 FAIL=0 / GATE_SELFTEST=GREEN",
+   "exit": 0
+  },
+  "md_json_same_source": {
+   "cmd": "python3 - 比较 md 附录表路径 与 json 键",
+   "out": "appendix rows: 252 json keys: 252 equal: True",
    "exit": 0
   },
   "no_pixel_change": {
-   "cmd": "git status --porcelain -- resource-pack/assets; git diff --stat -- resource-pack/assets",
-   "out": "--- git diff --stat:\n",
+   "cmd": "git status --porcelain -- resource-pack/assets",
+   "out": "无输出 ⇒ 未改动任何 PNG 像素",
    "exit": 0
   },
   "changed_files_git_status": {
    "cmd": "git status --porcelain",
-   "out": " M resource-pack/README.md\n?? resource-pack/ASSET-PROVENANCE.md\n?? resource-pack/asset-provenance.json\n?? resource-pack/tools/generate-provenance.py\n",
+   "out": " M resource-pack/ASSET-PROVENANCE.md / M resource-pack/README.md",
    "exit": 0
   },
-  "repro_scripts": {
-   "note": "取证脚本（cd resource-pack 后执行；纯 stdlib，不用 Pillow / JDK / node）",
-   "skill_prompt_reconcile.py": "# 42 张 skill_* 与 ai/ 下全部提示词来源的整词匹配\nimport json, pathlib\nprompts = {}\nfor f in ['ai/prompts.jsonl', 'ai/skill-book-prompts.jsonl',\n          'ai/boss-concepts.jsonl', 'ai/dungeon-wave-concepts.jsonl']:\n    for i, l in enumerate(pathlib.Path(f).read_text().splitlines(), 1):\n        d = json.loads(l)\n        prompts[f'{f}:{i}'] = d['prompt']\nfor p in sorted(pathlib.Path('ai/prompts').rglob('*.txt')):\n    prompts[str(p)] = p.read_text()\nprint(\"prompt sources:\", len(prompts))\nskills = sorted(p.name[len('skill_'):-4] for p in pathlib.Path('assets/originalrpg/textures/item').glob('skill_*.png'))\nhit = [s for s in skills if any(s in v for v in prompts.values())]\nprint(\"skill total:\", len(skills))\nprint(\"whole-word hits:\", len(hit), hit)\nfor s in hit:\n    for k, v in prompts.items():\n        if s in v:\n            print(\"  \", s, \"->\", k, \"|\", [l for l in v.splitlines() if s in l][0][:90])\n",
-   "skill_recipe_pixelcmp.py": "# ③' 42 张 skill_* 与生成器 recipe 的逐像素比对（纯 stdlib PNG 解码）\nimport zlib, struct, pathlib\ndef dec(p):\n    d=pathlib.Path(p).read_bytes(); pos=8; idat=b''\n    while pos < len(d):\n        ln=struct.unpack('>I',d[pos:pos+4])[0]; t=d[pos+4:pos+8]; b=d[pos+8:pos+8+ln]\n        if t==b'IHDR': w,h,bd,ct,_,_,il=struct.unpack('>IIBBBBB',b)\n        if t==b'IDAT': idat+=b\n        pos+=12+ln\n    raw=zlib.decompress(idat); st=w*4; rows=[]; prev=bytearray(st)\n    for y in range(h):\n        f=raw[y*(st+1)]; line=bytearray(raw[y*(st+1)+1:(y+1)*(st+1)])\n        if f==1:\n            for i in range(4,st): line[i]=(line[i]+line[i-4])&255\n        elif f==2:\n            for i in range(st): line[i]=(line[i]+prev[i])&255\n        elif f==3:\n            for i in range(st):\n                a=line[i-4] if i>=4 else 0; line[i]=(line[i]+((a+prev[i])>>1))&255\n        elif f==4:\n            for i in range(st):\n                a=line[i-4] if i>=4 else 0; c=prev[i-4] if i>=4 else 0; bb=prev[i]\n                pp=a+bb-c; pa=abs(pp-a); pb=abs(pp-bb); pc=abs(pp-c)\n                pr=a if (pa<=pb and pa<=pc) else (bb if pb<=pc else c); line[i]=(line[i]+pr)&255\n        rows.append(bytes(line)); prev=line\n    return w,h,rows\ndef recipe(rows,w,h):   # skill_menu_items: resize 36 NEAREST -> crop(2,2,34,34) -> alpha 二值\n    out=[]\n    for y in range(2,34):\n        r=bytearray()\n        for x in range(2,34):\n            p4=rows[y//2][(x//2)*4:(x//2)*4+4]\n            r+=p4[:3]+bytes((255 if p4[3]>=128 else 0,))\n        out.append(bytes(r))\n    return out\nok=[];bad=[]\nfor p in sorted(pathlib.Path('assets/originalrpg/textures/item').glob('skill_*.png')):\n    name=p.name[len('skill_'):-4]\n    g=pathlib.Path(f'assets/betterhud/textures/glyph_skill_{name}.png')\n    w,h,rows=dec(g)\n    w2,h2,disk=dec(p)\n    (ok if disk==recipe(rows,w,h) else bad).append(name)\nprint(\"skill total:\", len(ok)+len(bad))\nprint(\"pixel-identical to recipe:\", len(ok))\nprint(\"mismatch:\", bad)\n# 对失配项给出差异像素数与\"多出的颜色\"\nfor n in bad:\n    w,h,rows=dec(f'assets/betterhud/textures/glyph_skill_{n}.png')\n    w2,h2,disk=dec(f'assets/originalrpg/textures/item/skill_{n}.png')\n    rec=recipe(rows,w,h)\n    diff=sum(1 for y in range(32) for x in range(32) if rec[y][x*4:x*4+4]!=disk[y][x*4:x*4+4])\n    extra={disk[y][x*4:x*4+4] for y in range(32) for x in range(32)} - {rec[y][x*4:x*4+4] for y in range(32) for x in range(32)}\n    print(f\"  {n}: diff_px={diff} extra_colors={sorted(c.hex() for c in extra)}\")\n",
-   "skill_recipe_edge_diff.py": "# 逐像素打印 5 张失配 skill_* 的坐标与色值\nimport zlib, struct, pathlib\ndef dec(p):\n    d = pathlib.Path(p).read_bytes(); pos = 8; idat = b''\n    while pos < len(d):\n        ln = struct.unpack('>I', d[pos:pos+4])[0]; t = d[pos+4:pos+8]; b = d[pos+8:pos+8+ln]\n        if t == b'IHDR': w, h, bd, ct, _, _, il = struct.unpack('>IIBBBBB', b)\n        if t == b'IDAT': idat += b\n        pos += 12 + ln\n    raw = zlib.decompress(idat); st = w * 4; rows = []; prev = bytearray(st)\n    for y in range(h):\n        f = raw[y*(st+1)]; line = bytearray(raw[y*(st+1)+1:(y+1)*(st+1)])\n        if f == 1:\n            for i in range(4, st): line[i] = (line[i] + line[i-4]) & 255\n        elif f == 2:\n            for i in range(st): line[i] = (line[i] + prev[i]) & 255\n        elif f == 3:\n            for i in range(st):\n                a = line[i-4] if i >= 4 else 0; line[i] = (line[i] + ((a + prev[i]) >> 1)) & 255\n        elif f == 4:\n            for i in range(st):\n                a = line[i-4] if i >= 4 else 0; c = prev[i-4] if i >= 4 else 0; bb = prev[i]\n                pp = a + bb - c; pa = abs(pp-a); pb = abs(pp-bb); pc = abs(pp-c)\n                pr = a if (pa <= pb and pa <= pc) else (bb if pb <= pc else c); line[i] = (line[i] + pr) & 255\n        rows.append(bytes(line)); prev = line\n    return w, h, rows\ndef recipe(rows, w, h):\n    out = []\n    for y in range(2, 34):\n        r = bytearray()\n        for x in range(2, 34):\n            p4 = rows[y//2][(x//2)*4:(x//2)*4+4]\n            r += p4[:3] + bytes((255 if p4[3] >= 128 else 0,))\n        out.append(bytes(r))\n    return out\nfor n in ['arcane-edge', 'ruin-charge', 'venom-blade', 'void-cut', 'war-cry']:\n    w, h, rows = dec(f'assets/betterhud/textures/glyph_skill_{n}.png')\n    w2, h2, disk = dec(f'assets/originalrpg/textures/item/skill_{n}.png')\n    rec = recipe(rows, w, h)\n    print(n)\n    for y in range(32):\n        for x in range(32):\n            a = rec[y][x*4:x*4+4]; b = disk[y][x*4:x*4+4]\n            if a != b:\n                print(f\"   px({x},{y}) recipe={a.hex()} disk={b.hex()}\")\n",
-   "forged_variant_pixel_and_model.py": "# 5 张 forged 变体帧与主纹理的像素 Jaccard + 模型 layer0 指向\nimport zlib, struct, pathlib\ndef dec(p):\n    d = pathlib.Path(p).read_bytes(); pos = 8; idat = b''\n    while pos < len(d):\n        ln = struct.unpack('>I', d[pos:pos+4])[0]; t = d[pos+4:pos+8]; b = d[pos+8:pos+8+ln]\n        if t == b'IHDR': w, h, bd, ct, _, _, il = struct.unpack('>IIBBBBB', b)\n        if t == b'IDAT': idat += b\n        pos += 12 + ln\n    raw = zlib.decompress(idat); st = w * 4; rows = []; prev = bytearray(st)\n    for y in range(h):\n        f = raw[y*(st+1)]; line = bytearray(raw[y*(st+1)+1:(y+1)*(st+1)])\n        if f == 1:\n            for i in range(4, st): line[i] = (line[i] + line[i-4]) & 255\n        elif f == 2:\n            for i in range(st): line[i] = (line[i] + prev[i]) & 255\n        elif f == 3:\n            for i in range(st):\n                a = line[i-4] if i >= 4 else 0; line[i] = (line[i] + ((a + prev[i]) >> 1)) & 255\n        elif f == 4:\n            for i in range(st):\n                a = line[i-4] if i >= 4 else 0; c = prev[i-4] if i >= 4 else 0; bb = prev[i]\n                pp = a + bb - c; pa = abs(pp-a); pb = abs(pp-bb); pc = abs(pp-c)\n                pr = a if (pa <= pb and pa <= pc) else (bb if pb <= pc else c); line[i] = (line[i] + pr) & 255\n        rows.append(bytes(line)); prev = line\n    return w, h, rows\ndef opaque(p):\n    w, h, r = dec(p)\n    return {(x, y) for y in range(h) for x in range(w) if r[y][x*4+3] > 0}\nbase = opaque('assets/originalrpg/textures/item/forged_ranger_weapon.png')\nprint(\"forged_ranger_weapon opaque:\", len(base))\nfor n in ['forged_ranger_bow_pulling_0', 'forged_ranger_bow_pulling_1', 'forged_ranger_bow_pulling_2',\n          'forged_ranger_crossbow', 'forged_ranger_trident']:\n    s = opaque(f'assets/originalrpg/textures/item/{n}.png')\n    print(f\"{n:30s} opaque={len(s):4d} inter={len(base & s):4d} jaccard={len(base & s)/len(base | s):.3f}\")\nprint()\nprint(\"== models/item/*.json 的 layer0 / parent ==\")\nfor m in ['forged_ranger_bow', 'forged_ranger_bow_pulling_0', 'forged_ranger_bow_pulling_1',\n          'forged_ranger_bow_pulling_2', 'forged_ranger_crossbow', 'forged_ranger_trident',\n          'forged_ranger_trident_in_hand', 'forged_ranger_trident_throwing']:\n    print(pathlib.Path(f'assets/originalrpg/models/item/{m}.json').read_text().replace('\\n', '').replace('  ', ''))\n"
-  },
-  "push_and_pr": {
-   "push_cmd": "git push origin agent/W12-A2-asset-provenance",
-   "push_out": "b0a540d..4fab81e  agent/W12-A2-asset-provenance -> agent/W12-A2-asset-provenance  (exit=0)",
-   "pr_cmd": "cnb pulls post-pull --repo xzqkjmnbvc2026/sivitahub --base main --head agent/W12-A2-asset-provenance --title '[agent/W12-A2-asset-provenance] ...' --body-file /tmp/w12/pr-body.md",
-   "pr_out": "PR #56 created; cnb pulls list-pulls --state open => number 56 / title 以 [agent/W12-A2-asset-provenance] 开头 / refs/heads/agent/W12-A2-asset-provenance",
-   "pr_sha_verified": "cnb pulls list-commits --number 56 => total 1, sha 4fab81e4（与本分支 HEAD 一致）",
-   "exit": 0
-  },
-  "retry_round_reverify": {
-   "note": "本轮为实质修复（schema 对齐 A3 契据 + 复跑取证）。以下命令均为本轮实际执行。",
-   "gate_criteria_after_fix": {
-    "cmd": "cd resource-pack && python3 内联脚本：①键集==find assets ②四字段齐 ③generator.source->tools/* ④ai-prompt file:line 存在",
-    "out": "C1 keys==find(assets) 252 True / C2 four fields True / C3 generator->tools/* [] / C4 ai-prompt file:line []",
-    "exit": 0
-   },
-   "a3_gate_contract_simulated": {
-    "cmd": "python3 内联：模拟 A3 check-asset-reproducible.py 的 provenance.get('assets') 与 rel in human_override",
-    "out": "A3 lookup hit: True（originalrpg/textures/item/ancient_echo_skill_book.png）；sample key has no assets/ prefix: True",
-    "exit": 0
-   },
-   "new_category_vocab": {
-    "cmd": "python3 -c \"json.load(asset-provenance.json)['$counts']\"",
-    "out": "{'ai-prompt': 9, 'generator': 124, 'generator-derived': 74, 'human-override': 1, 'reviewed-baseline': 44}",
-    "exit": 0
-   },
-   "generator_idempotent_after_fix": {
-    "cmd": "cd resource-pack && python3 tools/generate-provenance.py > /tmp/r.json; diff -q /tmp/r.json asset-provenance.json",
-    "out": "gen_exit=0；IDENTICAL（字节一致）",
-    "exit": 0
-   },
-   "md_json_same_source_after_fix": {
-    "cmd": "python3 内联：比较 md 附录表路径 与 json 键",
-    "out": "appendix rows: 252 json keys: 252 equal: True",
-    "exit": 0
-   },
-   "resource_pack_gate": {
-    "cmd": "sh scripts/check-resource-pack.sh",
-    "out": "RESOURCE_PACK_GATE=GREEN（RUN=8 SKIPPED=0）",
-    "exit": 0
-   },
-   "selftest_gates": {
-    "cmd": "sh scripts/selftest-gates.sh",
-    "out": "GATE_SELFTEST=GREEN（PASS=67 FAIL=0）",
-    "exit": 0
-   },
-   "no_pixel_change": {
-    "cmd": "git status --porcelain -- resource-pack/assets",
-    "out": "无输出 ⇒ assets 下无任何改动",
-    "exit": 0
-   },
-   "changed_files_this_round": {
-    "cmd": "git status --porcelain",
-    "out": " M resource-pack/ASSET-PROVENANCE.md / M resource-pack/asset-provenance.json / M resource-pack/tools/generate-provenance.py",
-    "exit": 0
-   }
-  },
-  "generator_idempotent_retry": {
-   "cmd": "cd resource-pack && python3 /tmp/gen.py > /tmp/r.json 2>&1; echo $?; diff -q /tmp/r.json asset-provenance.json",
-   "out": "gen_exit=0；IDENTICAL",
-   "exit": 0
-  },
-  "generator_idempotent_after_fix": {
-   "cmd": "cd resource-pack && python3 <一次性推导脚本> > /tmp/r.json; diff -q /tmp/r.json asset-provenance.json",
-   "out": "gen_exit=0；IDENTICAL（字节一致）",
-   "exit": 0
-  },
-  "boundary_fix": {
-   "note": "本轮删除越界新增的 resource-pack/tools/generate-provenance.py",
-   "cmd": "cd /workspace && git rm -qf resource-pack/tools/generate-provenance.py; git status --porcelain",
-   "out": " M .cnb/agent-out/W12-A2-asset-provenance.json / M resource-pack/ASSET-PROVENANCE.md / M resource-pack/README.md / M resource-pack/asset-provenance.json / D  resource-pack/tools/generate-provenance.py",
-   "exit": 0
-  },
-  "no_ref_to_removed_script": {
-   "cmd": "grep -rn 'generate-provenance' README.md ASSET-PROVENANCE.md asset-provenance.json",
-   "out": "无输出（CLEAN）⇒ 文档与 JSON 不再指向已删除的仓内脚本",
-   "exit": 1
+  "no_pipe_exitcode": {
+   "note": "所有退出码均用 `cmd > 文件 2>&1; echo $?` 取，未走管道。"
   }
  },
- "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/56",
+ "pr_url": "",
  "risks": [
-  "重试轮修复两点：① **越界文件**——上一轮新增 `resource-pack/tools/generate-provenance.py`，不在本任务允许路径内，本轮已 `git rm` 删除；登记改为一次性推导脚本产出（未入库，原文在 evidence.repro_scripts），文档不再指向仓内脚本。② **下游契约不兼容**——asset-provenance.json 的键基与类别词表已对齐 W12-A3 门禁（键=相对 assets/；新增 generator-derived / human-override；ancient_echo_skill_book=human-override），否则 A3 的 human-override 反向断言会静默失效。",
-  "asset-provenance.json 里 44 张 reviewed-baseline 中有 6 组仍无来源证据（38 张 BetterHud 字库分页 / 20 张法力帧切分 / 4 张上游占位贴图 / sulfur_resonance_imprint / 5 张 skill 的 4 px 差异）；登记只记录事实，未替人工决策（见 json.$needsHumanDecision）。",
-  "betterhud/bettermodel 的 91 张 generator 项在**本仓无法逐张复现**：生成器输出目录写的是 ROOT/server/config-templates/...，assets/betterhud|bettermodel 是下游拷贝，本仓没有 server/。标注为 generator 依据入库形态（build.sh 每轮重跑生成器后 cp），不是本仓可自证的逐张复现。",
-  "本分支与 W12-A3 分支都对 resource-pack/asset-provenance.json 与 ASSET-PROVENANCE.md 有产出、解释器不同（本任务未入库推导脚本 vs A3 的 scripts/gen-asset-provenance.py）。本轮已对齐键基与词表，但 15 张 bettermodel 等分类仍有差异；合流时须二选一作为权威生成器，否则出现『同一文件两个生成器』的漂移。",
-  "ASSET-PROVENANCE.md 的逐张总表由 asset-provenance.json 派生（未单独维护第二份手工表），两者路径集合已实测一致；若后续有人手改 md 表格，需重跑对比。"
+  "本轮把上一轮越界删除的 resource-pack/tools/generate-provenance.py **恢复**（编排器在 doc/cnb/tasks-w13.json 已裁决『必须入库』，并列入 W13-A2 allowed_paths）；同时把 asset-provenance.json / ASSET-PROVENANCE.md 恢复成 main 已接受的 schema，避免与 W13-A2 冲突。",
+  "重试轮纠正了上一轮的**误判**：上一轮我删除 resource-pack/tools/generate-provenance.py 被判为『越界』，但编排器在 doc/cnb/tasks-w13.json 里明确裁决『generate-provenance.py 必须入库（它是 provenance 的生成器）』，并把该路径列入 W13-A2 的 allowed_paths。故该文件是**被授权**的，不应删除。本轮已把分支重置到 main（含该脚本），不做删除。",
+  "本轮唯一的实质改动是文档判据 1 的键基错误（原文 `find resource-pack/assets` vs 实际键 `assets/...`）。若已有下游门禁按原文实现，需同步改为 `cd resource-pack && find assets -name '*.png'`。",
+  "asset-provenance.json 的 6 条 $needsHumanDecision（38 张 BetterHud 字体图集 / 5 张上游占位贴图 / sulfur_resonance_imprint / generate-provenance.py 是否入库 / 5 张 skill 差 4px / 20 帧 mana_fill）已由编排器在 W13 逐条裁决，由 W13-A1 / W13-A2 落地；本任务不再擅自改动 JSON schema，避免与 W13-A2 的 allowed_paths 冲突。",
+  "本任务与 W13-A2 都会碰 resource-pack/asset-provenance.json 与 ASSET-PROVENANCE.md；本分支已重置到 main 且不对 JSON 做 schema 变更，合流风险低，但 ASSET-PROVENANCE.md 若 W13-A2 也改，需做文本合并。"
  ],
  "next_steps": [
-  "W12-A3 合流注意：本分支与 W12-A3 都对 resource-pack/asset-provenance.json 与 ASSET-PROVENANCE.md 有产出。本轮已对齐键基（相对 assets/）与类别词表（含 human-override），A3 门禁的 key 查询已实测命中；但两分支解释器不同，合流须二选一作为权威生成器。",
-  "本任务未入库推导脚本（越界）；若需长期可重跑，应由后续获 `resource-pack/tools/**` 授权的任务把 evidence.repro_scripts 落库，或统一改用 A3 的 scripts/gen-asset-provenance.py。",
-  "需人工拍板的 6 组（见 json.$needsHumanDecision）：① 是否把 20 帧 mana 切分移进 generate_betterhud_panels.py；② 38 张 text_font* 是否保留 reviewed-baseline、是否把 BetterHud font 编译纳入 build.sh；③ 4 张上游占位贴图是否在门禁里豁免；④ sulfur_resonance_imprint 是补 ai/prompts.jsonl 条目还是保留 reviewed-baseline；⑤ 5 张 skill 的 4 px 差异是重跑生成器覆盖还是登记为人工覆盖；⑥ 是否为 bow_pulling_*/crossbow/trident 补 5 条逐帧提示词。"
+  "W13-A2 落地 6 条裁决时应保留本轮的键基说明（键 = 相对仓库根的 `assets/...`），避免判据再次写错。",
+  "W13-A1 建 ASSET_REPRO_GATE 时，human-override 反向断言的对象是 assets/originalrpg/textures/item/ancient_echo_skill_book.png（W12-A3 已实测：与生成器差 587 像素）。",
+  "若需把键基统一改成『相对 resource-pack/assets/』（不带 assets/ 前缀），应由 W13-A2 一次性改 JSON + 文档 + 门禁三处，本任务不擅自变更 main 已接受的 schema。"
  ]
 }

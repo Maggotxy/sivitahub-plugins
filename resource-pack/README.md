@@ -12,29 +12,28 @@
 
 `ASSET-PROVENANCE.md` 是**逐张**的来源登记台账，覆盖 `assets/**` 下全部 **252 张 PNG**
 （item 83 + 罗盘帧 32 + betterhud 116 + bettermodel 16 + 字体图集 2 + minecraft 3），
-与磁盘一一对应。机器可读版本是 `asset-provenance.json`（键 = **相对 `resource-pack/assets/` 的路径**，
-与 W12-A3 的 `scripts/gen-asset-provenance.py` 同口径；值含 `category` / `source` / `reproduce_cmd` / `reviewed`），
-两边的路径集合与内容**同源同构**。
+与磁盘一一对应。机器可读版本是 `asset-provenance.json`（键 = **相对仓库根的路径**，形如
+`assets/originalrpg/textures/item/xxx.png`；值与 `ASSET-PROVENANCE.md` 的逐张表**同源同构**）。
 
-`category` 五类口径（用 W12-A3 门禁词表；任务书口径 `derived-from` 在 `categoryA2` 字段保留）：
+`category` 四类口径：
 
 | 类别 | 含义 | 覆盖量 |
 | --- | --- | --- |
-| `generator` | 可由仓库内生成器**确定性重跑** | 124 |
-| `generator-derived` | 由另一张**已登记素材**派生（skill 图标 42 + 罗盘帧 32 + forged 变体帧 5） | 74 |
+| `generator` | 可由仓库内生成器**确定性重跑** | 125 |
+| `derived-from` | 由另一张**已登记素材**派生（skill 图标 42 + 罗盘帧 32） | 74 |
 | `ai-prompt` | `ai/` 生产线 Image API 产出，**不可复现**（已登记提示词文件:行号） | 9 |
 | `reviewed-baseline` | 人工审核基线，**仓库内既无生成器也无提示词** | 44 |
-| `human-override` | 人工/AI 覆盖、同名生成器输出已弃用（`ancient_echo_skill_book`）；A3 据此做反向断言 | 1 |
 
 重新生成与自检：
 
-登记表由**一次性推导脚本**从生成器源码（`tools/*.java|py|mjs`）与提示词文件（`ai/*.jsonl`、`ai/prompts/**`）
-逐张推导，脚本本体未入库（本任务只允许改登记文档与 JSON，不得新增 `resource-pack/tools/` 下的文件）。
-推导脚本原文与四条判据的实测输出见 `.cnb/agent-out/W12-A2-asset-provenance.json` 的 `evidence` 字段。
+```bash
+python3 resource-pack/tools/generate-provenance.py --write   # 覆盖 asset-provenance.json
+```
 
 **交付给 W12-A3 门禁的四条一致性判据**（均已在本任务实测通过）：
 
-1. `asset-provenance.json` 的键集合 == `find resource-pack/assets -name '*.png'`（相对 `assets/` 的路径）；
+1. `asset-provenance.json` 的键集合 == `cd resource-pack && find assets -name '*.png'`
+   （键形如 `assets/...`，**不带** `resource-pack/` 前缀；请勿与 `find resource-pack/assets` 的输出直接比较）；
 2. 每个值都有 `category` / `source` / `reproduce_cmd` / `reviewed` 四个字段；
 3. `category == "generator"` 的项，其 `source` 必须指向仓库内真实存在的 `tools/*`；
 4. `category == "ai-prompt"` 的项，其 `source` 必须形如 `<file>:<line>` 且该行存在。
@@ -43,7 +42,7 @@
 
 - 42 张 `skill_*` **不是 AI 直出**：`ai/` 下 0 / 42 有对应提示词；它们是
   `tools/generate_betterhud_panels.py#skill_menu_items` 从 18px HUD 语义图标派生的
-  `generator-derived`（42 张里 37 张与生成器 recipe 逐像素一致，5 张差 4 px）。
+  `derived-from`（42 张里 37 张与生成器 recipe 逐像素一致，5 张差 4 px）。
 - `ai/prompts.jsonl` 的 27 条里，**26 条不能单独作为当前磁盘纹理的来源证明**
   （6 条指向已删除的方块头、20 条指向被 `GenerateTextures` 同名覆盖的图）。
 - 5 张 forged 变体帧是**独立素材**而非主纹理派生：与 `forged_ranger_weapon` 的不透明像素
@@ -53,20 +52,90 @@
 20 张法力帧切分、4 张上游占位贴图、`sulfur_resonance_imprint` 的提示词缺口、上述 5 张 skill 的
 4 px 差异，以及生成器脚本自身是否入库。
 
-## 两道素材门禁的分工（不要复制粘贴第二套逻辑）
+## 逐像素基线：`assets-manifest.json`
 
-同一批素材有**两个**校验入口，职责不同、判据有重叠但**不共享代码**（避免两套会漂移的实现）：
+`resource-pack/assets-manifest.json` 为 `assets/**` 下**每一张** PNG 登记一条记录：
+
+```json
+"originalrpg/textures/item/hunt_crystal.png": {
+  "fingerprint": "32x32:016c08c5b1ab04770b7e9a65a031f8e0594a959fa0a0574d98997f9a42f79c4f",
+  "bytes": 1043
+}
+```
+
+`fingerprint` 是**解码后像素**的 SHA-256：摘要输入 = 大端 `width`(4) + `height`(4) +
+逐像素大端 ARGB(4)，逐行 `y`、逐列 `x`。它**不是** PNG 文件字节的哈希 ——
+编码器换元数据 / 换滤波方式 / 换压缩率都会让文件字节变而画面不变，
+拿文件字节做基线会天天假红。这套算法与 `tools/PngFingerprint.java` 同构，
+仓内实现是 `scripts/asset_fingerprint.py`（本仓没有 JDK，CI 只有 python3）。
+
+清单覆盖 252 张：`originalrpg` 117（83 张物品纹理 + 32 张罗盘帧 + 2 张字体图集）
++ `betterhud` 116 + `bettermodel` 16 + `minecraft` 3。
+
+### 为什么需要它
+
+素材门禁（`scripts/check-resource-pack.sh`）判的是「素材**自洽**」：闭包、32x32、
+二值 alpha、HUD 码位、语言键。它判不了「这张图**还是不是原来那张**」——
+换一张同样 32x32、同样二值 alpha 的图，八条判据全绿。基线门禁补的就是这个洞：
+**未登记**（磁盘有清单无）、**丢失**（清单有磁盘无）、**被改动**（指纹不一致）三种形态都会红。
+
+### 有意更新基线（唯一的正路）
+
+改素材 → 重算清单 → 提交清单，三步缺一不可：
+
+```sh
+# 1. 改素材（生成器 / ai/ 生产线 / 手工，都行）
+# 2. 重算基线清单（键排序、稳定输出，重复跑字节一致）
+python3 scripts/gen-asset-manifest.py
+#    只想确认清单是否最新、不写盘：
+python3 scripts/gen-asset-manifest.py --check
+# 3. 与素材改动一起提交（两步必须同一个 PR）
+git add resource-pack/assets resource-pack/assets-manifest.json
+git commit -m "feat(resource-pack): 更新某张纹理并同步基线清单"
+
+# 本地自检（CI 里由 `素材逐像素基线门禁（W12-A1）` stage 跑同一条命令）
+python3 scripts/check-asset-baseline.py     # 0=全一致 1=有差异 2=清单缺失
+```
+
+提交后的 diff 就是评审材料：改了哪几张图（清单里那几行）、新旧指纹各是什么。
+
+### 为什么不能靠 `--force` 跳过
+
+**门禁有意不提供 `--skip` / `--force` / `--update` 之类的开关。**
+理由很直接：基线门禁唯一会红的时候，就是「有人改了素材没更新清单」——
+而这恰好也是「有人偷偷换了素材」的样子。这两件事在机械层面**无法区分**，
+只能靠人看 diff。
+
+一旦留了跳过开关，它就会变成出事时的默认动作：先 `--force` 把 CI 弄绿，
+评审时没人再看得见那张图被换了。所以这里没有开关可跳 ——
+想让门禁转绿，就只有「重算清单 + 提交」这一条路，那条路会留下可评审的 diff。
+
+配套地，`scripts/selftest-gates.sh` §9 用四组负向对照证明这道门禁**真的会红**：
+改一个像素 → RED 并指出是哪张（打印期望/实际指纹）、删一张图 → 报「丢失」、
+加一张未登记的图 → 报「未登记」、还原后 → GREEN；另外还断言清单缺失时 exit 2
+（不是 0，也不是 1）。同一节做接线自证，断言 `.cnb.yml` 真的在跑这条命令 ——
+「脚本写好了但没人调用」比「脚本有 bug」更隐蔽。
+
+## 三道素材门禁的分工（不要复制粘贴第二套逻辑）
+
+同一批素材有**三个**校验入口，职责不同、判据有重叠但**不共享代码**（避免多套会漂移的实现）：
 
 | 入口 | 跑在哪 | 依赖 | 定位 |
 | --- | --- | --- | --- |
 | `resource-pack/build.sh` | 生产机（Paper 停机窗口） | bash + jq + rg + java + zip/unzip/sha1sum + `server/` | **打包真相源**：闭包、纹理、字体、语言键、SHA-1、稳定 UUID、`server.properties` 一致性、Paper 运行中拒绝覆盖 |
-| `scripts/check-resource-pack.sh` | CNB 质量门（`素材门禁（W7-A1）` stage） | **只用 POSIX sh + python3 stdlib**（PNG 解码走 zlib，不用 jq / 不用 ImageMagick / 不碰 Paper） | **仓内静态子集**：拦「素材坏着进 main」 |
+| `scripts/check-resource-pack.sh` | CNB 质量门（`素材门禁（W7-A1）` stage） | **只用 POSIX sh + python3 stdlib**（PNG 解码走 zlib，不用 jq / 不用 ImageMagick / 不碰 Paper） | **仓内静态子集**：拦「素材坏着进 main」（判素材是否**自洽**） |
+| `scripts/check-asset-baseline.py` | CNB 质量门（`素材逐像素基线门禁（W12-A1）` stage，紧随素材门禁） | 只用 python3 stdlib（zlib 解码 + hashlib） | **逐像素对账**：拦「素材被悄悄换掉」（判素材是否**还是原来那张**），口径见上一节 |
 
 重叠判据（清单一一对应 / 闭包 / 32x32 二值 alpha / HUD 码位 / 旅程码位 /
 中英语言键 / 罗盘方向分发 / `pack.mcmeta` 格式）**以 `scripts/check-resource-pack.sh` 为准**：
 它跑在 CI 上、每次推送都执行、且每条判据都被 `scripts/selftest-gates.sh` §7 用
 「破坏 → 必须红 → 还原 → 必须绿」证明过能真的变红。若两者口径出现分歧，
 改 `build.sh` 去对齐脚本，**不要**在 `build.sh` 里另写一套新逻辑。
+
+基线门禁（`check-asset-baseline.py`）与上面两道都不同源：它不判断素材好坏，
+只比对「当前像素 vs `assets-manifest.json` 里登记的像素」，因此**不复制任何判据逻辑**，
+也不与 `build.sh` 重叠 —— `build.sh` 不读这份清单（生产机打包不依赖基线，
+基线是「防篡改」而不是「防打包错」）。
 
 **CI 判不了、只能由 `build.sh` 判的**（需要 Paper / 仓外产物，本仓没有）：
 - `pack.mcmeta` 声明的格式 88 是否与**安装中的** 26.2 服务端一致 ——
