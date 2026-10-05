@@ -57,6 +57,21 @@ $ git status --porcelain
 ⇒ `HEAD == origin/main == c2419799d93c751c5c5e486db6cb12dbe5f721dc`，两者**相等**（`EQUAL=true`）。
 `basis` 取实测短 sha **`c241979`**（7 位）。
 
+**口径澄清（防误读）**：上表的 `EQUAL=true` 是**分叉那一刻**的实测（本分支的**起点**）。
+本分支提交交付物后，分支 `HEAD` 自然前移（`fba63b1` → `129629a`），因此**事后**再跑
+`git rev-parse HEAD` 会得到分支自己的 HEAD（≠ `origin/main`），这是**预期**的、不是矛盾。
+可机械核验分叉点：
+
+```
+$ git merge-base HEAD origin/main            # 本分支分叉点
+c2419799d93c751c5c5e486db6cb12dbe5f721dc
+$ git rev-parse fba63b1^                     # 本分支第一个提交的父
+c2419799d93c751c5c5e486db6cb12dbe5f721dc
+$ git rev-parse origin/main                  # 交付后 origin/main 未变
+c2419799d93c751c5c5e486db6cb12dbe5f721dc
+```
+⇒ 三者一致 ⇒ `basis: c241979` **字面等于本矩阵分叉时的 main HEAD**。
+
 ### 1.2 与 v14 的差别（为什么必须有这一轮）
 
 - v14 的 basis = `7c23a35a`；本轮 basis = `c241979`（= 分叉时的 main HEAD）。
