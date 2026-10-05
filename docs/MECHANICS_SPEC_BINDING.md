@@ -1,4 +1,4 @@
-# 玩法规格 ↔ 代码 机械绑定（W28-A1）
+# 玩法规格 ↔ 代码 机械绑定（W28-A1 框架 + W28-A2 全量）
 
 `docs/GAME_DESIGN.md`（标题即「完整玩法规格」）是唯一真相源的一半（另一半是代码，
 见 `doc/cnb/GOAL.md` §0）。但规格与代码之间长期**没有机械判据**，漂移只能靠人工审计发现。
@@ -11,6 +11,12 @@
 | G-209 | 文档承诺主动能力预警 0.4–0.8 秒，`config.yml` 是 20 tick ≈ 1.0 秒 | 文档承诺本身不可达 |
 
 本任务把这类漂移变成**门禁红灯**。
+
+> W28-A1 建立框架并覆盖 `docs/GAME_DESIGN.md` 前 8 节；W28-A2 把剩余 7 节
+> （强化与精炼 / 市场与交易限制 / 游戏内黑心商人 / 菜单、帮助与新手引导 /
+> 任务与剧情 / 原版主城、地图与 NPC / 商城、会员与累计奖励）一并纳入，
+> 并新增可重生成的**全量汇总报告**（见 §7）。两波共用同一份 spec 与同一个门禁，
+> 不另起一套。
 
 ## 1. 声明式规格
 
@@ -64,6 +70,8 @@ MECHANICS_SPEC_WEAK=<n>
 | 负②（behavior） | `M-EQP-007` 指向不存在的测试方法 | RED（exit=1） |
 | 负③（java-const） | `LOCAL_LEVEL_CAP` 30→25 | RED（exit=1） |
 | 负④（weak） | `M-CORE-001` 去掉 `behavior_ref` | 仍 GREEN，但 `MECHANICS_SPEC_WEAK` 变 1 |
+| 负⑤（后 8 节 config） | `refinement.success-rate` 0.65→0.55 | RED（exit=1），点名 `M-REF-001` |
+| 负⑥（报告陈旧） | 把报告节里的 `MECHANICS_SPEC_ENTRIES` 改掉 | `--check` 报 `MECHANICS_SPEC_REPORT=STALE`（exit=1） |
 
 每条破坏后**还原必须 GREEN**，且收尾断言夹具未在真实仓库留残留。
 
@@ -91,12 +99,17 @@ MECHANICS_SPEC_WEAK=<n>
 
 ## 5. 覆盖范围
 
-本波登记 `docs/GAME_DESIGN.md` 前 8 节：
-`核心循环` / `角色成长` / `装备自制与槽位` / `原版生存共鸣` / `26.2 硫灵锻纹` /
-`动态怪物与原版世界` / `副本` / `战斗与技能限制`。
+W28-A2 结束后，`docs/GAME_DESIGN.md` 的**每一个 `##` 节**都至少登记了一条可机械核对断言：
+`角色成长` / `装备自制与槽位` / `原版生存共鸣` / `26.2 硫灵锻纹` / `动态怪物与原版世界` /
+`副本` / `战斗与技能限制`（A1）＋ `强化与精炼` / `市场与交易限制` / `游戏内黑心商人` /
+`菜单、帮助与新手引导` / `任务与剧情` / `原版主城、地图与 NPC` / `商城、会员与累计奖励`（A2）。
 
-**未发现需要改文档或改代码的漂移**：G-202 / G-209 在此前波次已把文档改成与代码一致
-（历史先例：代码是 shipped 玩法，文档是规格，默认改文档）。本次登记不改变任何一侧取值。
+唯一没有条目的是 `核心循环`（:3）—— 它是一段总览，全部数值都已在其余各节逐条登记，
+不存在只属于该节的可核对断言。
+
+**未发现需要改文档或改代码的漂移**：G-202 / G-209 / G-106 / G-208 在此前波次已处理
+（历史先例：代码是 shipped 玩法，文档是规格，默认改文档）。A2 逐条核对后 8 节，
+文档与代码一致，未发现新的漂移，因此 `_inconsistencies` 为空数组。
 
 ## 6. 用法
 
@@ -104,4 +117,18 @@ MECHANICS_SPEC_WEAK=<n>
 sh scripts/check-mechanics-spec.sh              # 退出码 0 = GREEN
 sh scripts/check-mechanics-spec.sh --spec <path>  # 指定 spec（自测夹具用）
 sh scripts/selftest-gates.sh                    # §12 / §12b 负向对照
+
+# 全量汇总报告（数字由脚本生成，禁止手写）
+python3 scripts/gen-mechanics-spec-report.py            # 打印报告节
+python3 scripts/gen-mechanics-spec-report.py --write    # 写进 docs/GAME_DESIGN.md 末尾
+python3 scripts/gen-mechanics-spec-report.py --check    # 只校验（陈旧即退出 1）
 ```
+
+## 7. 全量汇总报告
+
+`scripts/gen-mechanics-spec-report.py` 从 `scripts/mechanics-spec.json` **与门禁的真实判据行**
+生成 `docs/GAME_DESIGN.md` 末尾的 `## 规格机械化状态（W28 自动核对）` 一节，内容含：
+总条数 / 按节分布 / 按载体分布 / weak 清单 / 本轮不一致清单 / 不可机械核对清单 / 一句话结论。
+
+生成器**自己跑门禁**拿判据行，因此报告里的条数不可能与门禁独立漂移；
+`--check` 会在报告陈旧时退出 1，保证「报告由脚本生成」这句话本身也是可核对的。

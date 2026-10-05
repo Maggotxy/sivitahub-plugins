@@ -37,6 +37,9 @@
 #      正夹具真实仓库必须 GREEN；负夹具证明三类载体（config/behavior/java-const）
 #      改坏任一类都会 RED，还原后 GREEN —— 见 docs/GAME_DESIGN.md 的 3 次实测漂移
 #      （G-106 血契转数 / G-202 槽上限公式 / G-209 预警窗口）
+#      W28-A2 补：⑤ 改坏一条**后 8 节**新登记的 config 条目也必须 RED
+#      （锁住「登记了但没进判据」）；⑥ 报告节与 spec 不一致时
+#      gen-mechanics-spec-report.py --check 必须报 STALE（锁住「报告由脚本生成」）
 #
 # 用法：sh scripts/selftest-gates.sh     （退出码 0 = 全部通过）
 #
@@ -1689,6 +1692,10 @@ SPEC_FIXTURE="$TMP/mechanics-spec-ws"
 mkdir -p "$SPEC_FIXTURE/scripts"
 cp "$ROOT/scripts/check-mechanics-spec.sh" "$ROOT/scripts/mechanics-spec.json" \
   "$SPEC_FIXTURE/scripts/"
+# W28-A2 起 config 载体也指向 datapacks/（G 快捷操作八动作的 tag 成员），必须一起带进夹具，
+# 否则干净夹具会因为「文件不存在」而恒红，下面所有负向对照就变成假红。
+mkdir -p "$SPEC_FIXTURE/datapacks"
+cp -R "$ROOT/datapacks/." "$SPEC_FIXTURE/datapacks/"
 mkdir -p "$SPEC_FIXTURE/plugins"
 for plugin_dir in "$ROOT"/plugins/*/; do
   plugin_name=$(basename "$plugin_dir")
@@ -1815,6 +1822,82 @@ else
 fi
 cp "$ROOT/scripts/mechanics-spec.json" "$SPEC_FIXTURE/scripts/mechanics-spec.json"
 check "负夹具④：还原后必须 GREEN/WEAK 回 0" 0 "$(run_spec_gate "$TMP/spec-weak-restore.txt")"
+
+# ---- 负夹具⑤（W28-A2）：改坏一条**后 8 节**的 config 条目 ----
+# 动机：W28-A2 一口气登记了 71 条后 8 节条目（强化与精炼 / 市场与交易限制 / 黑心商人 /
+# 菜单帮助引导 / 任务与剧情 / 主城地图 NPC / 商城会员累计奖励）。它们最危险的失效形态
+# 是「登记了但没进判据」—— 报告里的条数很好看，门禁其实没读它们。
+# 这里直接改坏一条**只属于后 8 节**的条目（M-REF-001 精炼成功率 0.65，config 载体），
+# 证明这些新登记的条目真的在被检查。
+sed -i 's/^  success-rate: 0.65$/  success-rate: 0.55/' \
+  "$SPEC_FIXTURE/plugins/rpg-enhancement/src/main/resources/config.yml"
+spec_rest_cfg_rc=$(run_spec_gate "$TMP/spec-neg-rest-config.txt")
+check "负夹具⑤：后 8 节 config 值改坏（refinement.success-rate 0.65→0.55）→ 1（RED）" 1 "$spec_rest_cfg_rc"
+if grep -q '^MECHANICS_SPEC_GATE=RED$' "$TMP/spec-neg-rest-config.txt" \
+   && grep -q 'M-REF-001' "$TMP/spec-neg-rest-config.txt" \
+   && grep -q '0.65' "$TMP/spec-neg-rest-config.txt" \
+   && grep -q '0.55' "$TMP/spec-neg-rest-config.txt"; then
+  echo "  [OK  ] ⑤ 判据行 RED 且点名 M-REF-001（新条目不是只登记不检查）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] ⑤ RED 了但不可归因（缺 id 或期望/实际）" >&2
+  sed 's/^/    /' "$TMP/spec-neg-rest-config.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+# 还原：从真实仓库取回原始文件（夹具里的已被改坏）
+cp "$ROOT/plugins/rpg-enhancement/src/main/resources/config.yml" \
+  "$SPEC_FIXTURE/plugins/rpg-enhancement/src/main/resources/config.yml"
+check "负夹具⑤：还原后必须 GREEN" 0 "$(run_spec_gate "$TMP/spec-neg-rest-config-restore.txt")"
+
+# ---- 判据 12c（W28-A2）：报告节必须可重生成且与 spec 一致 ----
+# 「报告里的数字必须由脚本生成」这句承诺本身也要有判据：如果报告节与当前 spec/门禁不符，
+# --check 必须退出 1。这里做两件事：① 真实仓库必须 FRESH；② 打乱报告节的一个数字（夹具副本，
+# 不动仓库）后必须 STALE —— 证明 --check 不是恒绿。
+set +e
+(cd "$ROOT" && python3 scripts/gen-mechanics-spec-report.py --check > "$TMP/spec-report-fresh.txt" 2>&1)
+spec_report_rc=$?
+set -e
+check "报告节与 spec 一致（gen-mechanics-spec-report.py --check → 0）" 0 "$spec_report_rc"
+if grep -q '^MECHANICS_SPEC_REPORT=FRESH$' "$TMP/spec-report-fresh.txt"; then
+  echo "  [OK  ] 判据行 MECHANICS_SPEC_REPORT=FRESH"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 报告节不是 FRESH（重跑 --write）" >&2
+  sed 's/^/    /' "$TMP/spec-report-fresh.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 负向：把**夹具副本**里的报告数字改掉 -> --check 必须 STALE（exit 1）
+REPORT_FIXTURE="$TMP/mechanics-report-ws"
+mkdir -p "$REPORT_FIXTURE/scripts" "$REPORT_FIXTURE/docs"
+cp "$ROOT/scripts/gen-mechanics-spec-report.py" "$ROOT/scripts/mechanics-spec.json" \
+  "$REPORT_FIXTURE/scripts/"
+cp "$ROOT/scripts/check-mechanics-spec.sh" "$REPORT_FIXTURE/scripts/"
+cp "$ROOT/docs/GAME_DESIGN.md" "$REPORT_FIXTURE/docs/"
+# 生成器会真实跑门禁拿判据行，所以夹具必须带齐门禁读到的载体（plugins/ + datapacks/）。
+# 不带就会因为「文件不存在」而拿到 RED 判据行，负向对照变成在测别的东西。
+cp -R "$ROOT/datapacks/." "$REPORT_FIXTURE/datapacks/" 2>/dev/null || true
+mkdir -p "$REPORT_FIXTURE/plugins"
+for plugin_dir in "$ROOT"/plugins/*/; do
+  plugin_name=$(basename "$plugin_dir")
+  mkdir -p "$REPORT_FIXTURE/plugins/$plugin_name"
+  cp -R "$plugin_dir/src" "$REPORT_FIXTURE/plugins/$plugin_name/" 2>/dev/null || true
+done
+sed -i 's/^MECHANICS_SPEC_ENTRIES=137$/MECHANICS_SPEC_ENTRIES=1/' "$REPORT_FIXTURE/docs/GAME_DESIGN.md"
+set +e
+python3 "$REPORT_FIXTURE/scripts/gen-mechanics-spec-report.py" --check \
+  > "$TMP/spec-report-stale.txt" 2>&1
+spec_report_stale_rc=$?
+set -e
+check "负夹具⑥：把报告节里的 entries 数改掉 → --check 报 STALE（1）" 1 "$spec_report_stale_rc"
+if grep -q '^MECHANICS_SPEC_REPORT=STALE$' "$TMP/spec-report-stale.txt"; then
+  echo "  [OK  ] ⑥ 报告陈旧能被判出来（--check 不是恒绿）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] ⑥ --check 没判出被改坏的报告节" >&2
+  sed 's/^/    /' "$TMP/spec-report-stale.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
 
 # 自证：负向对照没有污染真实仓库（§12 全程只动 $TMP 里的夹具）
 set +e

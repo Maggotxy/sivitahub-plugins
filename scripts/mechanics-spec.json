@@ -926,6 +926,975 @@
         "expect": 1.5
       },
       "note": "借用冷却乘区在 config.yml 配置。"
+    },
+    {
+      "id": "M-REF-001",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "113",
+      "claim": "装备属性精炼基础成功率 65%，幸运符额外 +12 个百分点",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-enhancement/src/main/resources/config.yml",
+        "key": "refinement.success-rate",
+        "expect": 0.65
+      },
+      "note": "精炼成功率在 config.yml 配置。"
+    },
+    {
+      "id": "M-REF-002",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "113",
+      "claim": "精炼幸运符加成 +12%（0.65 -> 0.77）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-enhancement/src/main/resources/config.yml",
+        "key": "refinement.lucky-charm-bonus",
+        "expect": 0.12
+      },
+      "note": "幸运符加成在 config.yml 配置。"
+    },
+    {
+      "id": "M-REF-003",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "113",
+      "claim": "正式 UI 显示可能区间：精炼单槽产出区间 -5 ~ +18",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-enhancement/src/main/resources/config.yml",
+        "key": "refinement.minimum-roll",
+        "expect": -5
+      },
+      "note": "区间下限在 config.yml 配置；上限见 M-REF-004。"
+    },
+    {
+      "id": "M-REF-004",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "113",
+      "claim": "精炼单槽产出区间上限 +18",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-enhancement/src/main/resources/config.yml",
+        "key": "refinement.maximum-roll",
+        "expect": 18
+      },
+      "note": "区间上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-REF-005",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "113",
+      "claim": "精炼幸运符不能突破概率上界：successRate 被 clamp 到 [0,1]（0.95+0.20 -> 1.0）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/RefinementRulesTest.java#luckyBonusIsVisibleAndCannotBypassProbabilityBounds",
+        "asserts": "0.65/0.12 无幸运符=0.65，有=0.77；1.0 封顶；负基础值夹到 0.0"
+      },
+      "note": "概率夹取是公式，走行为级测试。"
+    },
+    {
+      "id": "M-REF-006",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "113",
+      "claim": "精炼每次只覆盖一个已揭示槽（未揭示槽不可选）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-enhancement/src/test/java/cn/originalrpg/enhancement/RefinementRulesTest.java#onlyRevealedSlotButtonsCanBeSelected",
+        "asserts": "8 个槽按钮只在前 revealedSlots 个内有效，越界返回 -1"
+      },
+      "note": "槽选择规则是行为，走行为级测试。"
+    },
+    {
+      "id": "M-REF-007",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "113",
+      "claim": "正式 UI 显示锁定槽成本：精炼单次 400 金币",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-enhancement/src/main/resources/config.yml",
+        "key": "refinement.price",
+        "expect": "400.00"
+      },
+      "note": "精炼定价在 config.yml 配置（金币账本量纲）。"
+    },
+    {
+      "id": "M-REF-008",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "113",
+      "claim": "装备上限强化（突破）基础价格 1200 金币",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-enhancement/src/main/resources/config.yml",
+        "key": "limit-break.base-price",
+        "expect": "1200.00"
+      },
+      "note": "突破基础价在 config.yml 配置；与玩家面契约（MutationConfigurationContractTest）双向锁定。"
+    },
+    {
+      "id": "M-REF-009",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "113",
+      "claim": "装备上限强化每级成功率的下降步长 6%",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-enhancement/src/main/resources/config.yml",
+        "key": "limit-break.rate-loss-per-level",
+        "expect": 0.06
+      },
+      "note": "每级衰减在 config.yml 配置。"
+    },
+    {
+      "id": "M-REF-010",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "115",
+      "claim": "不满意可支付 900 金币把技能变异恢复原式",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-enhancement/src/main/resources/config.yml",
+        "key": "mutations.*.restore-price",
+        "expect": "900.00"
+      },
+      "note": "六个基础职业的恢复价在 config.yml 逐条配置（* 通配全覆盖，命中多条须全部相等）。"
+    },
+    {
+      "id": "M-REF-011",
+      "section": "强化与精炼",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "115",
+      "claim": "技能变异先预览再确认：确认按钮 60 秒过期，旧聊天动作不能事后扣款",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-enhancement/src/main/resources/config.yml",
+        "key": "mutation-preview-seconds",
+        "expect": 60
+      },
+      "note": "预览有效期在 config.yml 配置。"
+    },
+    {
+      "id": "M-MKT-001",
+      "section": "市场与交易限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "121",
+      "claim": "普通物品市场手续费率 5%",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-market/src/main/resources/config.yml",
+        "key": "fees.normal",
+        "expect": "0.05"
+      },
+      "note": "费率在 config.yml 配置，且被 MarketConfigPolicy 设了下限（不能调成 0 销毁点）。"
+    },
+    {
+      "id": "M-MKT-002",
+      "section": "市场与交易限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "121",
+      "claim": "自制装备市场手续费率 10%",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-market/src/main/resources/config.yml",
+        "key": "fees.custom-equipment",
+        "expect": "0.10"
+      },
+      "note": "费率在 config.yml 配置；低于普通费率即 fail-closed。"
+    },
+    {
+      "id": "M-MKT-003",
+      "section": "市场与交易限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "123",
+      "claim": "高额转账/高频成交/同设备关联账号进入风控队列，但不自动封禁",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-market/src/test/java/cn/originalrpg/market/MarketConfigPolicyTest.java#configurationCannotRemoveTheSinkOrMakeEquipmentCheaperToTrade",
+        "asserts": "费率低于下限/自制装备比普通更便宜时 validate 抛异常（策略层拒绝），不引入封禁动作"
+      },
+      "note": "风控当前落在费率与产出策略层，没有「自动封禁」这一行为可断言，故只登记可核对的一半。"
+    },
+    {
+      "id": "M-MKT-004",
+      "section": "市场与交易限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "126",
+      "claim": "公开市场按数据库分页，每页最多 45 件",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-market/src/main/resources/config.yml",
+        "key": "stalls.maximum-visible-listings",
+        "expect": 45
+      },
+      "note": "分页页大小在 config.yml 配置，并被 MarketCommand 以编译期 PAGE_SIZE=45 再夹一次（上界）。"
+    },
+    {
+      "id": "M-MKT-005",
+      "section": "市场与交易限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "126",
+      "claim": "挂牌 168 小时后自动过期（过期只返还一次）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-market/src/main/resources/config.yml",
+        "key": "listing.expiry-hours",
+        "expect": 168
+      },
+      "note": "过期小时数在 config.yml 配置。"
+    },
+    {
+      "id": "M-MKT-006",
+      "section": "市场与交易限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "124",
+      "claim": "购买确认页的价格输入有明确上下界（1.00 ~ 10000000.00）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-market/src/main/resources/config.yml",
+        "key": "listing.minimum-price",
+        "expect": "1.00"
+      },
+      "note": "价格下限在 config.yml 配置；上限见 M-MKT-007。"
+    },
+    {
+      "id": "M-MKT-007",
+      "section": "市场与交易限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "124",
+      "claim": "价格输入上限 10000000.00（系统不强制固定价）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-market/src/main/resources/config.yml",
+        "key": "listing.maximum-price",
+        "expect": "10000000.00"
+      },
+      "note": "价格上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-MKT-008",
+      "section": "市场与交易限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "122",
+      "claim": "取消、过期或成交只能有一个结果：领取对同一在线玩家只允许一个异步流程",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-market/src/test/java/cn/originalrpg/market/MailboxClaimGateTest.java#onlyOneConcurrentClaimCanOwnAPlayer",
+        "asserts": "同一玩家并发 claim 只有一个拿到闸门，其余被拒（一次交付只有一个结果）"
+      },
+      "note": "「只能有一个结果」是行为，走行为级测试。"
+    },
+    {
+      "id": "M-MKT-009",
+      "section": "市场与交易限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "127",
+      "claim": "数据库失败时重试识别原恢复标记而不是再生成一件（不复制物品）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-market/src/test/java/cn/originalrpg/market/DeliveryReceiptRulesTest.java#malformedReceiptCanBeUnfrozenButDuplicateRemainsQuarantined",
+        "asserts": "坏回执可解冻重投，而重复件继续隔离 —— 识别原标记而不是再生成一件"
+      },
+      "note": "幂等重放是行为，走行为级测试。"
+    },
+    {
+      "id": "M-MKT-010",
+      "section": "市场与交易限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "128",
+      "claim": "不增加第二个面对面交易状态源：容器/丢弃路径只放行白名单普通物品",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-market/src/test/java/cn/originalrpg/market/ContainerTransferPolicyTest.java#protectedItemsStillCannotEnterExternalBackpacks",
+        "asserts": "受保护物品不得进入外部背包；普通物品不受影响（同一策略的另一用例）"
+      },
+      "note": "「第二套状态源」的防线是容器策略，走行为级测试。"
+    },
+    {
+      "id": "M-MER-001",
+      "section": "游戏内黑心商人",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "133",
+      "claim": "黑心商人每两周从有上下限的价格区间刷新收购与出售",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "black-market.refresh-days",
+        "expect": 14
+      },
+      "note": "刷新周期在 config.yml 配置；所有分片由同一确定性轮换推出同一套商品。"
+    },
+    {
+      "id": "M-MER-002",
+      "section": "游戏内黑心商人",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "133",
+      "claim": "每期只暴露确定性的一部分商品：可见 3 条",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "black-market.visible-offers",
+        "expect": 3
+      },
+      "note": "可见条数在 config.yml 配置。"
+    },
+    {
+      "id": "M-MER-003",
+      "section": "游戏内黑心商人",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "133",
+      "claim": "回收价与卖价有清晰公式：单件售价 = 基准价 × [min,max] 倍率，回收价 = 售价 × buyback-ratio",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/MerchantPricingTest.java#everyConfiguredOfferShapeMaintainsItsLossFloor",
+        "asserts": "每种已配置商品形态都以 base-price × [min,max] 倍率定价，并保住往返损耗下限"
+      },
+      "note": "定价公式是行为，走行为级测试。"
+    },
+    {
+      "id": "M-MER-004",
+      "section": "游戏内黑心商人",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "133",
+      "claim": "禁止通过商人无风险套利：任意两期之间往返净损耗至少 10%",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "black-market.minimum-roundtrip-loss",
+        "expect": 0.1
+      },
+      "note": "净损耗下限在 config.yml 配置；低于 0.10 插件拒绝启动（G-208 承诺值，不是默认值）。"
+    },
+    {
+      "id": "M-MER-005",
+      "section": "游戏内黑心商人",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "133",
+      "claim": "所谓「20 折」必须显示原价、实际价与刷新时间，不能使用误导性文案",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/MerchantPricingTest.java#anyHistoricalLowPurchaseLosesAtLeastTenPercentAgainstAnyFutureHighBuyback",
+        "asserts": "任何历史低价买入对上任何未来高价回收，净损耗都 ≥10%（文案改不了这个上界）"
+      },
+      "note": "文案本身不可机械核对；可核对的是「显示的价格不能构成套利」这一数值上界。"
+    },
+    {
+      "id": "M-UI-001",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "141",
+      "claim": "G 快捷操作只保留八个高频动作（继续当前目标/导航/技能/任务/主城/荒野/床家园/全部系统）",
+      "carrier": {
+        "kind": "config",
+        "path": "datapacks/sivita-navigation/data/minecraft/tags/function/quick_actions.json",
+        "key": "values",
+        "expect": [
+          "sivita:quick/current_objective",
+          "sivita:quick/objective_navigation",
+          "sivita:quick/skills",
+          "sivita:quick/tasks",
+          "sivita:quick/hub",
+          "sivita:quick/wilderness",
+          "sivita:quick/home",
+          "sivita:quick/all_systems"
+        ]
+      },
+      "note": "八动作真相在数据包 tag 成员，逐个列出（不用 expect_count，因为 values 是单层叶子数组）。"
+    },
+    {
+      "id": "M-UI-002",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "141",
+      "claim": "「任务与旅程中心」调用 /tasks，复用统一任务菜单而不是第二套状态",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideFreeplayMenuPolicyTest.java#secondScreenContainsExactlyFiveBoundedAlternativeIntents",
+        "asserts": "自由旅程第二屏恰好五个有界意图，tasks 路由到 help:tasks（唯一入口）"
+      },
+      "note": "入口唯一性是行为，走行为级测试。"
+    },
+    {
+      "id": "M-UI-003",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "141",
+      "claim": "数据包注册到 #minecraft:quick_actions，资源包翻译键随客户端语言切换",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java#quickActionsRouteToTheTrustedTaskRouterAndBothBundlesCarryTheirLabels",
+        "asserts": "zh_cn/en_us 两套资源包语言文件都含快捷操作标签，且 /tasks 是唯一任务入口（无别名）",
+        "note": "测试类与行为标签按源码逐字核对；资源包字面量那一半由声明式契约门禁 all.json#resource-pack 执行。"
+      },
+      "note": "「标签已注册」由 M-UI-001 的 config 载体承担；这里是翻译键双语存在性。"
+    },
+    {
+      "id": "M-UI-004",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "143",
+      "claim": "八步各有独立原创资源包图标，客户端未确认加载时回退原版图标",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java#everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack",
+        "asserts": "帮助主题引用的每个自定义模型都在 resource-pack/runtime-item-models.txt 里声明"
+      },
+      "note": "「模型有声明」是行为，走行为级测试（env 标签，部署环境执行）。"
+    },
+    {
+      "id": "M-UI-005",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "143",
+      "claim": "18 个主题百科只作为二级查询",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java#everyVisibleTopicHasTrustedActionsAndAHubLocator",
+        "asserts": "HelpTopic.ordered() 恰好 18 条且 id 唯一、每条都有受信动作与主城定位"
+      },
+      "note": "条数是行为，走行为级测试。"
+    },
+    {
+      "id": "M-UI-006",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "143",
+      "claim": "/rpghelp 不带参数时打开「当前目标」上下文入口，/rpghelp home 打开问题导向首页",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpCommandRouteTest.java#noArgumentUsesTheContextualOnboardingEntry",
+        "asserts": "无参 -> CONTEXTUAL；home/menu -> HOME（不先要求新人理解帮助分类）"
+      },
+      "note": "路由是行为，走行为级测试。"
+    },
+    {
+      "id": "M-UI-007",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "143",
+      "claim": "职业、等级与最多两个技能状态放在按住 TAB 的摘要（战斗轨可 /guidehud on|off）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/TabHudPolicyTest.java#clampsSingleLineSkillSummaryToTwoEntries",
+        "asserts": "TAB 摘要技能条数硬上限为 2（0->1，2->2，4->2，99->2）"
+      },
+      "note": "上限是行为，走行为级测试；config.yml tab-hud.max-skills 为 2 但被行为夹取兜底。"
+    },
+    {
+      "id": "M-UI-008",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "145",
+      "claim": "新手目标依次为认识主城、选择职业、分配属性并学习首技、完成保底首铸、完成非配方的原版进度、击杀动态野怪、确认装备槽位结果和合法通关副本",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideJourneyPolicyTest.java#firstForgePrecedesWildernessCombatInTheExecutableJourney",
+        "asserts": "GuideTracker.STEPS == [HUB, CLASS, ATTRIBUTE, FORGE, EXPLORE, HUNT, REVEAL, DUNGEON] 且顺序固定"
+      },
+      "note": "八步顺序是行为，走行为级测试。"
+    },
+    {
+      "id": "M-UI-009",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "145",
+      "claim": "原版进度只认可 minecraft 命名空间且排除 recipes/",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideCompletionPolicyTest.java#explorationRequiresARealNonRecipeVanillaAdvancement",
+        "asserts": "namespace=minecraft 且 key 不以 recipes/ 开头才成立；自定义命名空间与配方成就都判否"
+      },
+      "note": "判定规则是行为，走行为级测试。"
+    },
+    {
+      "id": "M-UI-010",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "139",
+      "claim": "玩家入口分四层（G 快捷操作 / 旅者罗盘 / /menu / 情境 NPC）但只指向一套命令与服务",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideNpcTargetTest.java#everyVisibleNpcHasUniqueTrustedVisitAndWalkingActions",
+        "asserts": "11 个可见 NPC 各有唯一受信 visit/walk 动作，没有第二套目的地词汇"
+      },
+      "note": "「一套命令与服务」的防线是唯一目的地清单，走行为级测试。"
+    },
+    {
+      "id": "M-QST-001",
+      "section": "任务与剧情",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "151",
+      "claim": "序章「共鸣巡路」用玩家私有的 Citizens 回声带玩家走主城动线",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-story/src/main/resources/config.yml",
+        "key": "actor.citizens-id",
+        "expect": 9101
+      },
+      "note": "回声 NPC 身份在 config.yml 配置（固定 id + 固定 uuid）。"
+    },
+    {
+      "id": "M-QST-002",
+      "section": "任务与剧情",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "151",
+      "claim": "序章完成后通过统一金币账本发放一次性 300 金币",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-story/src/main/resources/config.yml",
+        "key": "rewards.prologue-escort.gold",
+        "expect": "300.00"
+      },
+      "note": "一次性奖励额在 config.yml 配置；发放走统一金币账本（不是记忆补偿）。"
+    },
+    {
+      "id": "M-QST-003",
+      "section": "任务与剧情",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "151",
+      "claim": "护送回声有并发与超时上界，不会无限堆积实体",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-story/src/main/resources/config.yml",
+        "key": "escort.maximum-concurrent",
+        "expect": 12
+      },
+      "note": "并发上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-QST-004",
+      "section": "任务与剧情",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "152",
+      "claim": "职业晋升/隐藏职业/隐藏副本的条件支线最终必须重新读取真实状态，不能只看剧情标签",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/HiddenPathReachabilityTest.java#bloodpactIsThreeAscensionAndTalismanIsTwo",
+        "asserts": "隐藏路线资格由转数/等级等真实档案状态判定，不由剧情标签授予"
+      },
+      "note": "资格判定是行为，走行为级测试（同 A1 的 M-CBT-012）。"
+    },
+    {
+      "id": "M-QST-005",
+      "section": "任务与剧情",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "147",
+      "claim": "任务本身不再生成第二套等级、货币、日常清单或无限重复奖励",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideFreeplayMenuPolicyTest.java#arbitraryCommandsCannotEnterTheAlternativeDispatcher",
+        "asserts": "自由旅程只放行受信动作前缀，任意命令（含 admin 类）不得进入分发器"
+      },
+      "note": "「不许旁路入口」是行为，走行为级测试。"
+    },
+    {
+      "id": "M-HUB-001",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "160",
+      "claim": "主城位于独立虚空世界 sivita_hub",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-hub/src/main/resources/config.yml",
+        "key": "hub.world",
+        "expect": "sivita_hub"
+      },
+      "note": "世界名在 config.yml 配置；create-isolated-world 同段开启。"
+    },
+    {
+      "id": "M-HUB-002",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "160",
+      "claim": "52 格建造圆内有中央共鸣树、十字主路、环形道路、四个城门和八个功能亭",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-hub/src/main/resources/config.yml",
+        "key": "hub.radius",
+        "expect": 52
+      },
+      "note": "建造半径在 config.yml 配置；内部构件几何由 HubGeometryTest 覆盖（M-HUB-003）。"
+    },
+    {
+      "id": "M-HUB-003",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "160",
+      "claim": "环形道路与四个城门的位置是确定性的（可复现，不随重启变化）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/HubGeometryTest.java#ringAndGatesRemainDeterministic",
+        "asserts": "onRing / gateOpening 对固定坐标给出固定结果（含边界与越界）"
+      },
+      "note": "几何是行为，走行为级测试。"
+    },
+    {
+      "id": "M-HUB-004",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "160",
+      "claim": "60 格安全区禁止破坏、放置、PVP、怪物生成、爆炸、火焰与活塞侵入",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-hub/src/main/resources/config.yml",
+        "key": "hub.protection-radius",
+        "expect": 60
+      },
+      "note": "保护半径在 config.yml 配置；圆形包含判据由 HubGeometryTest#circularProtectionUsesInclusiveBoundaryWithoutOverflow 覆盖（M-HUB-005）。"
+    },
+    {
+      "id": "M-HUB-005",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "160",
+      "claim": "安全区边界按圆判定且包含边界点，越界一点即不再受保护",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/HubGeometryTest.java#circularProtectionUsesInclusiveBoundaryWithoutOverflow",
+        "asserts": "半径 60 时 (60,0) 在内、(61,0) 不在，且极端整数不溢出"
+      },
+      "note": "圆判定是行为，走行为级测试。"
+    },
+    {
+      "id": "M-HUB-006",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "162",
+      "claim": "11 名功能 NPC 分别承接新手、任务、问答、职业、技能、锻造、精炼、副本、市场、经济和拓荒",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/GuideNpcTargetTest.java#everyVisibleNpcHasUniqueTrustedVisitAndWalkingActions",
+        "asserts": "GuideNpcTarget.ordered() 恰好 11 个角色，id 唯一且各有 visit/navigation 命令"
+      },
+      "note": "角色数是行为，走行为级测试。"
+    },
+    {
+      "id": "M-HUB-007",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "162",
+      "claim": "共享低频任务只让 6 格内 NPC 注视玩家",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/HubNpcFacingPolicyTest.java#yawComparisonUsesTheShortestPathAcrossTheWrapBoundary",
+        "asserts": "朝向比较走最短角距（179/-179 -> 2.0），是注视半径生效后的唯一决策口径"
+      },
+      "note": "半径 6.0 是 HubNpcManager 里的调用实参，无 config 键；本条目登记可核对的一半（朝向决策），半径本身列入不可机械核对清单。"
+    },
+    {
+      "id": "M-HUB-008",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "162",
+      "claim": "固定 NPC 无寻路 AI；共享任务不产生「假玩家数据包轮询」",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/HubNpcFacingPolicyTest.java#suppressesSubPixelIdleAndTrackingJitter",
+        "asserts": "亚像素抖动不写旋转（空闲世界不产生持续写包）"
+      },
+      "note": "「无寻路 AI」不可机械核对；可核对的是「不做无意义写包」这一上界。"
+    },
+    {
+      "id": "M-HUB-009",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "164",
+      "claim": "squaremap 公开主城边界和 11 个 NPC 地标",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/HubMapLifecycleContractTest.java#delayedSquaremapWorldReadinessUsesABoundedCancellableRetry",
+        "asserts": "squaremap 图层注册有界可取消重试（声明式契约：attempts>=30 + 取消 + worldReady）"
+      },
+      "note": "「11 个地标」的条数在 SquaremapHubIntegration 由 HubRole.values().length+1 派生（无 config 键）；这里登记图层注册的可核对一半。"
+    },
+    {
+      "id": "M-HUB-010",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "160",
+      "claim": "拓荒向导和 /wild 承担通往原版主世界的明确出口",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-hub/src/main/resources/config.yml",
+        "key": "hub.wilderness.world",
+        "expect": "world"
+      },
+      "note": "出口世界在 config.yml 配置。"
+    },
+    {
+      "id": "M-HUB-011",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "164",
+      "claim": "/wild 只能从主城发起并异步寻找 650-1600 格外的安全地面",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-hub/src/main/resources/config.yml",
+        "key": "hub.wilderness.minimum-radius",
+        "expect": 650
+      },
+      "note": "最近搜索半径在 config.yml 配置；上界见 M-HUB-012。"
+    },
+    {
+      "id": "M-HUB-012",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "164",
+      "claim": "/wild 搜索最远 1600 格",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-hub/src/main/resources/config.yml",
+        "key": "hub.wilderness.maximum-radius",
+        "expect": 1600
+      },
+      "note": "最远搜索半径在 config.yml 配置。"
+    },
+    {
+      "id": "M-HUB-013",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "164",
+      "claim": "/hub 有短暂防连点等待",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-hub/src/main/resources/config.yml",
+        "key": "hub.return-cooldown-seconds",
+        "expect": 15
+      },
+      "note": "回城冷却在 config.yml 配置。"
+    },
+    {
+      "id": "M-HUB-014",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "164",
+      "claim": "主城蓝图按 tick 限额写入，正常重启不会重复施工（版本与坐标存世界 PDC）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-hub/src/main/resources/config.yml",
+        "key": "hub.blocks-per-tick",
+        "expect": 8000
+      },
+      "note": "写入限额在 config.yml 配置；版本号 hub.build-version 与幂等重建由 HubBlueprint 契约测试覆盖。"
+    },
+    {
+      "id": "M-HUB-015",
+      "section": "原版主城、地图与 NPC",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "164",
+      "claim": "玩家实时坐标、资源点、隐藏 Boss、隐藏路线和动态副本永不进入公共标记层",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/WorldTravelConfigurationContractTest.java#mapsAndClaimsFailClosedForDynamicWorlds",
+        "asserts": "动态世界在地图与领地上 fail-closed（玩家坐标不进公共标记层）"
+      },
+      "note": "「不进公共标记层」的防线是 player-tracker 默认关，走行为级测试（env 标签）。"
+    },
+    {
+      "id": "M-STORE-001",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "170",
+      "claim": "会员单次按 3-30 天延长",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-commerce/src/main/resources/config.yml",
+        "key": "products.membership-3-days.membership-days",
+        "expect": 3
+      },
+      "note": "单次天数在 config.yml 配置；上界的 30 由 M-STORE-002 承载。"
+    },
+    {
+      "id": "M-STORE-002",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "170",
+      "claim": "任意时刻最多保有未来 30 天会员（越界整笔拒绝，不做部分流水）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java#membershipRemainingValidityNeverExceedsThirtyDaysUnderConcurrency",
+        "asserts": "并发 20 次购买 3 天会员，恰好 10 次成功、10 次 MEMBERSHIP_LIMIT_REACHED，到期时间 == now+30 天"
+      },
+      "note": "30 天上界是编译期常量 MAX_MEMBERSHIP_DAYS（JdbcCommerceService），无 config 键；这里用行为测试锁住。"
+    },
+    {
+      "id": "M-STORE-003",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "170",
+      "claim": "会员越界（单次或累计 >30 天）整笔拒绝且不留下部分流水",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java#paymentMembershipRejectsSingleOrAccumulatedTimeBeyondThirtyDaysWithoutPartialLedger",
+        "asserts": "31 天 -> INVALID；30 天后追加 3 天 -> MEMBERSHIP_LIMIT_REACHED；重放同订单号 -> DUPLICATE；账本仍只有 1 行"
+      },
+      "note": "事务性越界拒绝是行为，走行为级测试。"
+    },
+    {
+      "id": "M-STORE-004",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "170",
+      "claim": "玩家可用 90 星辉每周兑换一次 3 天会员（不是充值专属）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-commerce/src/main/resources/config.yml",
+        "key": "products.membership-3-days.points",
+        "expect": 90
+      },
+      "note": "星辉价在 config.yml 配置；每周一次 = weekly-limit 1（同段）。"
+    },
+    {
+      "id": "M-STORE-005",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "168",
+      "claim": "商业商城只出售时装/外观/保护石/幸运符/便利权益，不直接出售等级或毕业装备",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-commerce/src/test/java/cn/originalrpg/commerce/CommerceCatalogPolicyTest.java#yamlCannotAddPowerOrLowerPriceAndThroughputGates",
+        "asserts": "未复核的商品 id（如 hidden-class）一律拒；价格/周限低于复核值也拒（加了 power 的 YAML 直接失败）"
+      },
+      "note": "「不能卖力量」的防线是代码复核白名单，走行为级测试。"
+    },
+    {
+      "id": "M-STORE-006",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "168",
+      "claim": "保护石与幸运符同时保留副本/活动/金币获取路径，付费不是唯一来源",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "earned-shop.protection-stone.gold",
+        "expect": "4500.00"
+      },
+      "note": "同款保护石可用游戏金币购买（额度受 lifetime-limit/daily 约束），证明非付费专属。"
+    },
+    {
+      "id": "M-STORE-007",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "172",
+      "claim": "外部订单号在数据库中唯一，重复回调不会重复累计",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java#lifetimeSupportLimitHasAnAccurateRetryableResult",
+        "asserts": "同一 external_reference 重放给出可重试状态且不新增账本行；跨过 lifetime 上限前后行为一致"
+      },
+      "note": "订单号唯一 + 重放不重复累计是行为，走行为级测试。"
+    },
+    {
+      "id": "M-STORE-008",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "172",
+      "claim": "当前只实现了受权限保护的审计入账命令，没有连接支付机构",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-commerce/src/test/java/cn/originalrpg/commerce/SupplyCatalogPolicyTest.java#reviewedConvenienceSupplyIsAccepted",
+        "asserts": "供货商品必须在代码复核 allow-list 内（torches/TORCH/64/480/456/2）才会被接受"
+      },
+      "note": "「没有支付回调入口」不可机械核对（缺席断言）；登记可核对的一半：商品目录由源码白名单而非外部订单驱动。"
+    },
+    {
+      "id": "M-STORE-009",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "170",
+      "claim": "会员权益是原版旅途补给 5% 折扣（不能倒货或取代采集者）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-commerce/src/main/resources/config.yml",
+        "key": "supply-shop.products.torches.member-price",
+        "expect": "456.00"
+      },
+      "note": "会员价为公共价 480.00 的 95%；折扣深度上界由 SupplyCatalogPolicy.MAXIMUM_MEMBER_DISCOUNT=0.05 强制（M-STORE-010）。"
+    },
+    {
+      "id": "M-STORE-010",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "170",
+      "claim": "会员折扣深度不超过 5%",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-commerce/src/test/java/cn/originalrpg/commerce/SupplyCatalogPolicyTest.java#excessiveDiscountOrThroughputFailsClosed",
+        "asserts": "member-price 低于公共价 ×0.95（或日限超标）一律拒绝"
+      },
+      "note": "折扣上界是行为，走行为级测试。"
+    },
+    {
+      "id": "M-STORE-011",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "170",
+      "claim": "每个补给商品还有数据库日限（不能靠会员无限倒货）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-commerce/src/main/resources/config.yml",
+        "key": "supply-shop.products.torches.daily-limit",
+        "expect": 2
+      },
+      "note": "日限在 config.yml 配置；跨分片由数据库额度强制。"
+    },
+    {
+      "id": "M-STORE-012",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "170",
+      "claim": "累计奖励按服务端配置发放并进入持久化物品邮箱",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-commerce/src/main/resources/config.yml",
+        "key": "rewards.veteran-support.required-lifetime",
+        "expect": "100.00"
+      },
+      "note": "累计门槛在 config.yml 配置；「进持久邮箱」由 JdbcServicesTest 的 pendingDeliveries 断言覆盖。"
+    },
+    {
+      "id": "M-STORE-013",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "174",
+      "claim": "support_credit 有独立账本且与金币/功勋/星辉物理隔离（C-012）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSupportCreditServiceTest.java#grantThenSpendMovesBalanceAndWritesOneAuditRowPerMovement",
+        "asserts": "support_credit 余额与流水表独立（rpg_support_credit_accounts/ledger），每次变动一审计行"
+      },
+      "note": "物理隔离是行为，走行为级测试。"
+    },
+    {
+      "id": "M-STORE-014",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "174",
+      "claim": "现实付费积分不得用于装备/材料/强化辅助物/经验/体力/掉率/赛季调谐/战力",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSupportCreditServiceTest.java#forbiddenTargetIsRejectedBeforeAnyLedgerWrite",
+        "asserts": "被禁目标在任何账本写入之前就被拒绝（消费通道只允许外观与便利）"
+      },
+      "note": "禁用通道是行为，走行为级测试（宪法 C-012 的机械防线）。"
+    },
+    {
+      "id": "M-STORE-015",
+      "section": "商城、会员与累计奖励",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "174",
+      "claim": "每笔 support_credit 变动带幂等键与审计流水，同事务提交",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSupportCreditServiceTest.java#replayingTheSameIdempotencyKeyNeverCreditsTwice",
+        "asserts": "同幂等键重放不会二次入账"
+      },
+      "note": "幂等是行为，走行为级测试。"
     }
   ],
   "unverifiable": [
@@ -972,6 +1941,157 @@
     {
       "claim": "守护波次、时间限制、Boss 技能节奏（:88）",
       "reason": "每副本独立配置的多组区间值，无跨副本统一锚点。"
+    }
+  ],
+  "_inconsistencies": [],
+  "_unverifiable": [
+    {
+      "claim": "每件装备最多一个稀有特性（docs/GAME_DESIGN.md:44/:102）",
+      "reason": "唯一性由签名 schema / PDC 结构强制，没有单点数值或配置键"
+    },
+    {
+      "claim": "纸+硫磺+朱砂合成空白锻纹（:67）",
+      "reason": "材料清单是 RpgSulfurPlugin.registerRecipe 的调用序列，没有数值断言点"
+    },
+    {
+      "claim": "66% 与 33% 生命进入新阶段（:94）",
+      "reason": "是 DungeonManager.bossPhase 的战斗循环常量，无配置键；阶段缩短 tick 各副本族 16-20 不同，没有跨副本统一锚点"
+    },
+    {
+      "claim": "副本世界名以 dungeon_ 开头（:82/:88）",
+      "reason": "是命名约定，不是数值/公式/枚举"
+    },
+    {
+      "claim": "血契属性门槛 敏捷 32 / 耐力 18（:106）",
+      "reason": "属性门槛不在任何代码载体中：HiddenPathRules 只有 archetype/minimumAscension/minimumLevel/requiredSkill/requiredDungeon/requiredSkillBook/capacity，没有属性门槛字段，config.yml 也没有对应键"
+    },
+    {
+      "claim": "符箓属性门槛 智力 18 / 力量 13 / 敏捷 9 / 耐力 6（:107）",
+      "reason": "同上，属性门槛无代码载体"
+    },
+    {
+      "claim": "五维枚举 防御/力量/敏捷/智力/耐力（:13）",
+      "reason": "声明性文案，没有行为级断言；枚举值集合本身不构成公式或阈值"
+    },
+    {
+      "claim": "主动能力形状/颜色预警（:78）",
+      "reason": "表现层主观判断，门禁只核对 telegraph-ticks 数值（M-MOB-005）"
+    },
+    {
+      "claim": "粒子/声音服从 /visuals 与压力降级（:78）",
+      "reason": "纯表现层降级策略，没有单点阈值；降级本身是运行时分支不可在 JUnit 里构造"
+    },
+    {
+      "claim": "精英行为特性语义（迅捷闪避、狂暴暴走等，:78）",
+      "reason": "需要真人主观判断「算不算迅捷」；每种特性数值分散且非单一语义锚点"
+    },
+    {
+      "claim": "守护波次、时间限制、Boss 技能节奏（:88）",
+      "reason": "每副本独立配置的多组区间值，没有跨副本统一锚点"
+    },
+    {
+      "claim": "精炼可无限进行（:113）",
+      "reason": "「无限」是缺席断言（没有次数上限），无法用任何正向判据核对；能核对的只有单次成本与概率（M-REF-005/007）"
+    },
+    {
+      "claim": "精炼可能正向、负向或不变（:113）",
+      "reason": "同一区间 [-5,+18] 已由 M-REF-003/004 锁定；「可能出现 0」不是独立的数值或枚举断言"
+    },
+    {
+      "claim": "保护石/幸运符的效果与毕业上限「两条路径相同」（:115）",
+      "reason": "需要比对两条获取路径在长时间运行后的分布，属真人长期验证 [H] 范畴，没有单点阈值"
+    },
+    {
+      "claim": "系统不强制固定价（:124）「成熟期只有积累足够同类成交样本后才增加异常价提示」（:124）",
+      "reason": "「足够样本」是一个没有具体数值的运营调参，代码里没有对应常量或配置键；任何写死的阈值都会是发明而不是核对"
+    },
+    {
+      "claim": "高额转账 / 短时高频成交 / 同设备关联账号对敲进入风控队列（:123）",
+      "reason": "「高额/短时高频」的门槛值不在代码载体中（config.yml 与 MarketConfigPolicy 都没有对应键），风控队列本身也没有可构造的 JUnit 入口"
+    },
+    {
+      "claim": "黑心商人「20 折」必须显示原价、实际价和刷新时间（:133）",
+      "reason": "文案合规性是表现层判断；可核对的一半（不能构成套利的价格上界）已由 M-MER-005 登记"
+    },
+    {
+      "claim": "玩家入口分四层但只指向一套命令与服务（:139）",
+      "reason": "「四层」是入口形态计数，没有单一枚举载体；「只指向一套服务」由 M-UI-010 的唯一目的地清单承载"
+    },
+    {
+      "claim": "快捷操作导航在目标属于主城 NPC 时开启步行路线，实战目标回到具体行动卡（:141）",
+      "reason": "这是 GuideJourneyPolicy 的分支语义，已被 M-UI-008（八步顺序）与 M-HUB-007（注视）部分覆盖；「不把玩家错误拉回主城」是主观可用性判断"
+    },
+    {
+      "claim": "「任务与旅程中心」不会误开成可选序章或建立第二套状态（:141）",
+      "reason": "缺席断言；可核对的一半是唯一入口与受信动作白名单（M-UI-002 / M-QST-005）"
+    },
+    {
+      "claim": "数据包或快捷键不可用时，罗盘、命令与 NPC 仍可进入全部核心玩法（:141）",
+      "reason": "降级路径可用性需要真实客户端验证（[R]/[H]），本仓无 Paper 运行环境"
+    },
+    {
+      "claim": "原地打开对应系统与「为什么做/其它方式」依次降为次按钮、二级说明页（:143）",
+      "reason": "是第一屏的信息层级判断，属表现层；没有数值/枚举锚点"
+    },
+    {
+      "claim": "完成八步后 /rpghelp 与罗盘给出一条可执行自由旅程路线（:143）",
+      "reason": "推荐算法输出是运行时状态相关，无单点阈值；可核对的邻近断言已由 M-UI-002 登记"
+    },
+    {
+      "claim": "18 个主题百科中「任务、委托与活动」与「灵契伙伴」的说明覆盖度（:143）",
+      "reason": "「完整说明」是文案覆盖度判断，不可机械核对；条数本身已由 M-UI-005 锁定"
+    },
+    {
+      "claim": "0 槽白板也是合法随机结果，会直接确认槽位结果；有槽装备仍须实战揭示至少一槽（:145）",
+      "reason": "「至少一槽」的可核对一半是 slotLowerBound 与揭示阈值（A1 的 M-EQP-006/010）；「0 槽是合法结果」是品质-槽位分布的性质，需仿真而非单点断言"
+    },
+    {
+      "claim": "目标从真实档案、装备签名或不可变完成事件判断，并使用固定幂等键只发一次绑定功勋（:145）",
+      "reason": "「固定幂等键」的具体键值散落在多个调用点，没有单一语义锚点；幂等行为的一半由 A1 的装备/奖励结算测试覆盖"
+    },
+    {
+      "claim": "任务的价值判断三问（校验了哪个真实玩法状态 / 完成后改变了什么 / 删掉对白后是否仍有独特交互价值）（:156）",
+      "reason": "是立项评审流程要求，不是可核对的数值/公式/阈值/枚举"
+    },
+    {
+      "claim": "动态 NPC 只用于护送、跟随、巡逻和演出；固定交易/锻造/市场/问答使用无寻路 AI 的原生 NPC（:156）",
+      "reason": "「是否使用无寻路 AI」需要在真实 Paper 上观察实体行为（[R]），本仓无法机械核对"
+    },
+    {
+      "claim": "主城内部构件布局：中央共鸣树、十字主路、环形道路、四个城门和八个功能亭（:160）",
+      "reason": "构件计数需要解析 HubBlueprint 的坐标集合；可核对的一半是半径（M-HUB-002）与环形/城门的确定性（M-HUB-003）"
+    },
+    {
+      "claim": "60 格安全区「允许玩家使用工作台和右键 NPC」（:160）",
+      "reason": "允许项是运行时事件白名单，没有可断言的单一配置键或常量"
+    },
+    {
+      "claim": "交互时挥手，右键对话先解释职责和当前建议，再调用公开服务或已有玩家命令（:162）",
+      "reason": "交互流程顺序属运行时行为，需要真实服务端；本仓没有 MockBukkit/Mockito"
+    },
+    {
+      "claim": "委托官只汇总真实状态、不另建任务账本；闻见者只生成说明文本（:162）",
+      "reason": "「不另建账本」是缺席断言；能核对的邻近断言是隐藏路线资格复核（M-QST-004）"
+    },
+    {
+      "claim": "squaremap 公开主城边界和 11 个 NPC 地标（:164）",
+      "reason": "地标条数由 HubRole.values().length + 1 在运行时派生，没有 config 键或可断言的常量；图层注册的可核对一半已由 M-HUB-009 登记"
+    },
+    {
+      "claim": "领地内飞行和圈地折扣尚未启用（:170）",
+      "reason": "「尚未启用」是缺席断言（权益不存在），无法用正向判据核对"
+    },
+    {
+      "claim": "会员不提供不可追赶的基础战斗倍率（:170）",
+      "reason": "缺席断言；可核对的防线是商品白名单与折扣上界（M-STORE-005/010）"
+    },
+    {
+      "claim": "接真实支付时必须由独立 Web 后端验签回调后调用内部接口，浏览器提交金额或游戏内命令都不能作为支付成功依据（:172）",
+      "reason": "「没有支付回调入口」是缺席断言；当前仓库确实没有支付机构集成，无法用判据证明「未来接线会正确」"
+    },
+    {
+      "claim": "「/rpg」单独一行展示 support_credit 余额，不与金币/功勋合并展示（:174）",
+      "reason": "单行展示是表现层排版判断，没有数值/枚举锚点"
     }
   ]
 }

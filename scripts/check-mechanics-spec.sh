@@ -230,6 +230,11 @@ for entry in entries:
             failures.append((eid, claim, "carrier 缺少 path/key", "path+key"))
             continue
         values, misses = resolve_config(rel, key)
+        if values is None:
+            # 载体文件不存在/为空：必须 RED，不能因为 len(None) 抛异常而被 set -eu 之外的形式
+            # 静默放过（实测：缺文件时 python 抛 TypeError，退出码被吞成 0 ⇒ 假绿）。
+            failures.append((eid, claim, misses[0] if misses else "config 文件缺失", rel))
+            continue
         if "expect_count" in carrier:
             want = carrier["expect_count"]
             if len(values) != want:

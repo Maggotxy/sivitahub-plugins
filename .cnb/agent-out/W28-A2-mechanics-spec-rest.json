@@ -1,0 +1,262 @@
+{
+  "task_id": "W28-A2-mechanics-spec-rest",
+  "status": "success",
+  "summary": "把 docs/GAME_DESIGN.md 后 7 节（强化与精炼 / 市场与交易限制 / 游戏内黑心商人 / 菜单、帮助与新手引导 / 任务与剧情 / 原版主城、地图与 NPC / 商城、会员与累计奖励）纳入 A1 的 mechanics-spec.json（66 -> 137 条，新增 71 条：config 36 / behavior 35 / java-const 0），并新增可重生成的全量汇总报告 scripts/gen-mechanics-spec-report.py，把 `## 规格机械化状态（W28 自动核对）` 写到 docs/GAME_DESIGN.md 末尾；selftest-gates.sh §12 补负夹具⑤（改坏一条后 8 节新条目必须 RED）与⑥（报告陈旧必须 STALE）。逐条核对结果：文档与代码一致，未发现需要改一侧的漂移。顺带修掉门禁一个真实假绿：载体文件缺失时 resolve_config 返回 None，len(None) 抛异常被吞成 exit 0（缺失文件曾经是 GREEN）。",
+  "changed_files": [
+    "scripts/mechanics-spec.json",
+    "scripts/check-mechanics-spec.sh",
+    "scripts/gen-mechanics-spec-report.py",
+    "scripts/selftest-gates.sh",
+    "docs/GAME_DESIGN.md",
+    "docs/MECHANICS_SPEC_BINDING.md",
+    ".cnb/agent-out/W28-A2-mechanics-spec-rest.json"
+  ],
+  "pr_url": "",
+  "evidence": {
+    "gate_positive": {
+      "cmd": "sh scripts/check-mechanics-spec.sh",
+      "exit": 0,
+      "output": [
+        "MECHANICS_SPEC_GATE=GREEN",
+        "MECHANICS_SPEC_ENTRIES=137",
+        "MECHANICS_SPEC_BY_KIND=config:78,behavior:56,java-const:3",
+        "MECHANICS_SPEC_WEAK=0"
+      ],
+      "a1_baseline": {
+        "entries": 66,
+        "by_kind": "config:42,behavior:21,java-const:3"
+      },
+      "a2": {
+        "entries": 137,
+        "by_kind": "config:78,behavior:56,java-const:3"
+      },
+      "ordering": "137 > 66（要求 n 必须大于 A1 结束时的值）"
+    },
+    "selftest_gates": {
+      "cmd": "sh scripts/selftest-gates.sh",
+      "exit": 0,
+      "tail": "===== 门禁自测汇总：PASS=157 FAIL=0 =====\nGATE_SELFTEST=GREEN",
+      "a1_baseline": "PASS=150 FAIL=0",
+      "a2": "PASS=157 FAIL=0（+7）"
+    },
+    "new_negative_fixtures": [
+      {
+        "fixture": "负夹具⑤（后 8 节 config 条目改坏）",
+        "break": "sed -i 's/^  success-rate: 0.65$/  success-rate: 0.55/' <fixture>/plugins/rpg-enhancement/src/main/resources/config.yml",
+        "red_exit": 1,
+        "red_output": [
+          "MECHANICS_SPEC_GATE=RED",
+          "[FAIL] M-REF-001",
+          "期望: 0.65",
+          "实际: ['0.55']"
+        ],
+        "restore_green_exit": 0,
+        "why": "M-REF-001 只属于后 8 节（强化与精炼），改坏它必须 RED ⇒ 新登记的条目真的进了判据"
+      },
+      {
+        "fixture": "负夹具⑥（报告节与 spec 不一致）",
+        "break": "把 docs/GAME_DESIGN.md 报告节里的 MECHANICS_SPEC_ENTRIES=137 改成 1（夹具副本）",
+        "red_exit": 1,
+        "red_output": [
+          "MECHANICS_SPEC_REPORT=STALE"
+        ],
+        "fresh_green_exit": 0,
+        "why": "锁住「报告由脚本生成」这句承诺本身；未改动报告节时判据行是 MECHANICS_SPEC_REPORT=FRESH"
+      }
+    ],
+    "per_section_coverage": [
+      {
+        "section": "角色成长",
+        "entries": 7,
+        "config": 4,
+        "behavior": 2,
+        "java_const": 1,
+        "wave": "W28-A1"
+      },
+      {
+        "section": "装备自制与槽位",
+        "entries": 12,
+        "config": 6,
+        "behavior": 6,
+        "java_const": 0,
+        "wave": "W28-A1"
+      },
+      {
+        "section": "原版生存共鸣",
+        "entries": 10,
+        "config": 8,
+        "behavior": 2,
+        "java_const": 0,
+        "wave": "W28-A1"
+      },
+      {
+        "section": "26.2 硫灵锻纹",
+        "entries": 4,
+        "config": 2,
+        "behavior": 2,
+        "java_const": 0,
+        "wave": "W28-A1"
+      },
+      {
+        "section": "动态怪物与原版世界",
+        "entries": 14,
+        "config": 10,
+        "behavior": 4,
+        "java_const": 0,
+        "wave": "W28-A1"
+      },
+      {
+        "section": "副本",
+        "entries": 3,
+        "config": 3,
+        "behavior": 0,
+        "java_const": 0,
+        "wave": "W28-A1"
+      },
+      {
+        "section": "战斗与技能限制",
+        "entries": 16,
+        "config": 9,
+        "behavior": 5,
+        "java_const": 2,
+        "wave": "W28-A1"
+      },
+      {
+        "section": "强化与精炼",
+        "entries": 11,
+        "config": 9,
+        "behavior": 2,
+        "java_const": 0,
+        "wave": "W28-A2"
+      },
+      {
+        "section": "市场与交易限制",
+        "entries": 10,
+        "config": 6,
+        "behavior": 4,
+        "java_const": 0,
+        "wave": "W28-A2"
+      },
+      {
+        "section": "游戏内黑心商人",
+        "entries": 5,
+        "config": 3,
+        "behavior": 2,
+        "java_const": 0,
+        "wave": "W28-A2"
+      },
+      {
+        "section": "菜单、帮助与新手引导",
+        "entries": 10,
+        "config": 1,
+        "behavior": 9,
+        "java_const": 0,
+        "wave": "W28-A2"
+      },
+      {
+        "section": "任务与剧情",
+        "entries": 5,
+        "config": 3,
+        "behavior": 2,
+        "java_const": 0,
+        "wave": "W28-A2"
+      },
+      {
+        "section": "原版主城、地图与 NPC",
+        "entries": 15,
+        "config": 8,
+        "behavior": 7,
+        "java_const": 0,
+        "wave": "W28-A2"
+      },
+      {
+        "section": "商城、会员与累计奖励",
+        "entries": 15,
+        "config": 6,
+        "behavior": 9,
+        "java_const": 0,
+        "wave": "W28-A2"
+      },
+      {
+        "section": "核心循环",
+        "entries": 0,
+        "config": 0,
+        "behavior": 0,
+        "java_const": 0,
+        "wave": "无",
+        "note": "总览段，全部数值已在其余各节逐条登记"
+      }
+    ],
+    "report_regeneration": {
+      "generator": "scripts/gen-mechanics-spec-report.py",
+      "commands": {
+        "print": "python3 scripts/gen-mechanics-spec-report.py",
+        "write": "python3 scripts/gen-mechanics-spec-report.py --write",
+        "check": "python3 scripts/gen-mechanics-spec-report.py --check"
+      },
+      "check_output": "MECHANICS_SPEC_REPORT=FRESH",
+      "written_into": "docs/GAME_DESIGN.md#规格机械化状态（W28 自动核对）",
+      "report_output_head": [
+        "<!-- BEGIN mechanics-spec-report (generated) -->",
+        "## 规格机械化状态（W28 自动核对）",
+        "",
+        "> 本节由 `scripts/gen-mechanics-spec-report.py` 从 `scripts/mechanics-spec.json` 与门禁判据行生成，**禁止手写数字**。",
+        "> 重生成命令：`python3 scripts/gen-mechanics-spec-report.py --write`",
+        "> 只校验不写：`python3 scripts/gen-mechanics-spec-report.py --check`",
+        "",
+        "### 门禁判据行（脚本原样输出）",
+        "",
+        "```",
+        "MECHANICS_SPEC_GATE=GREEN",
+        "MECHANICS_SPEC_ENTRIES=137",
+        "MECHANICS_SPEC_BY_KIND=config:78,behavior:56,java-const:3",
+        "MECHANICS_SPEC_WEAK=0",
+        "```",
+        "",
+        "### 全量：按节分布 × 载体分布",
+        "",
+        "| 节 | 登记条数 | config | behavior | java-const |",
+        "|---|---:|---:|---:|---:|",
+        "| 角色成长 | 7 | 4 | 2 | 1 |",
+        "| 装备自制与槽位 | 12 | 6 | 6 | 0 |",
+        "| 原版生存共鸣 | 10 | 8 | 2 | 0 |",
+        "| 26.2 硫灵锻纹 | 4 | 2 | 2 | 0 |"
+      ]
+    },
+    "other_gates_still_green": {
+      "check-source-string-tests.sh": "SOURCE_STRING_GATE=GREEN",
+      "check-source-contract.sh --all": "SOURCE_CONTRACT_GATE=GREEN"
+    },
+    "gate_bug_fixed": {
+      "file": "scripts/check-mechanics-spec.sh",
+      "symptom": "config 载体路径不存在时 resolve_config 返回 (None, misses)，len(values) 抛 TypeError，python 退出码被吞成 0 ⇒ 判据行缺失但整体 exit=0（缺失文件曾经是假绿）",
+      "repro_before": "在只有 scripts/ 的临时目录跑门禁 -> Traceback + exit=0",
+      "after": "MECHANICS_SPEC_GATE=RED + [FAIL] <id> 实际: java 文件不存在 / config 文件缺失",
+      "caught_by": "本波把 config 载体扩到 datapacks/ 后，干净夹具副本先变红而暴露"
+    },
+    "fixture_no_residue": {
+      "cmd": "git status --porcelain",
+      "output": "仅本次任务新增/修改的 6 个受控文件；无夹具残留、无 PNG 改动"
+    }
+  },
+  "no_inconsistencies": {
+    "found": [],
+    "note": "后 7 节逐条核对全部一致 ⇒ 无需改文档或改代码；spec 的 _inconsistencies 为空数组。A1 已处理的历史漂移（G-106/G-202/G-209/G-208）不重复计入本轮。"
+  },
+  "unverifiable_count": 37,
+  "unverifiable_note": "37 条判定为不可机械核对并逐条给出理由（A1 的 11 条 + A2 新增 26 条），写入 spec 的 _unverifiable 并由报告生成器输出为表格。宁可少而真，不硬凑成 config 条目。",
+  "gradle_runs": 0,
+  "risks": [
+    "behavior 载体只断言「测试方法存在」，其 PASS 由 test 门禁保证；若某条行为测试被改写成恒真，本门禁不会变红（由 check-source-string-tests.sh 的另一条门禁承担）。",
+    "config 载体的 expect 是从现值登记的；未来玩法调参必须同 PR 更新 spec，否则 RED —— 这正是期望效果。",
+    "M-UI-004 / M-HUB-015 指向 @Tag(env) 的部署环境测试；本仓普通 test 任务不跑它们，若 env 标签被摘掉，本门禁仍绿（载体存在），但覆盖会缩水。",
+    "M-HUB-007 登记的是朝向决策而不是 6 格半径本身（半径是 HubNpcManager 的调用实参、无 config 键）；半径改动不会被本门禁拦下，已在不可机械核对清单里点名。",
+    "本轮修掉的「缺失载体文件 → exit 0 假绿」是 A1 遗留缺陷；修法是让缺失文件 RED。若未来某条目的载体被有意重命名，门禁会先红再修，这是可接受的噪声。"
+  ],
+  "next_steps": [
+    "把 gen-mechanics-spec-report.py --check 加进 .cnb.yml（本任务白名单不含 CI 配置，只能在脚本内自证）。",
+    "调参流程加「改 plugins/*/config.yml 必须同 PR 更新 mechanics-spec.json」的评审规则。",
+    "把 M-HUB-007 的 6 格半径提成 config 键后可从不可机械核对清单移入登记项。",
+    "进一步把 M-UI-004 的 env 测试在 CI 的部署环境 stage 里真实执行，避免「载体存在但从不运行」的窗口。"
+  ]
+}
