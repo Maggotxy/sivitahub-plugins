@@ -1072,6 +1072,61 @@ class JdbcServicesTest {
                 "读缓存不得被晚到的旧快照回滚（实际缓存值见左）");
     }
 
+    /**
+     * 永久回归（W24-A1）：提交版本号必须在**仍持锁时**取得，否则「先提交、后取号」会倒置。
+     *
+     * <p>残余窗口：{@code connection.commit()} 一返回，行锁就释放了。若取号点在 commit 之后，
+     * 会出现：T1 提交（放锁）后被抢占且尚未取号 → T2 拿到锁、提交、取到**较小**的号 →
+     * T1 恢复取到**较大**的号。于是 T1 拿更大的号去发布**更旧的**快照，{@code publish()}
+     * 判它「更新」，读缓存被再次回滚。</p>
+     *
+     * <p>构造与 #73 的 {@code readCacheIsNotRolledBackByALateCommit} 同形，但延迟打在
+     * **commit 返回之后**（#73 打的是 close），这正是本任务的窗口。断言是「缓存 == 数据库」，
+     * 不是放宽期望值。</p>
+     */
+    @Test
+    void lateCommitStampCannotRollBackTheReadCache() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger commits = new java.util.concurrent.atomic.AtomicInteger();
+        javax.sql.DataSource delayed = (javax.sql.DataSource) java.lang.reflect.Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[]{javax.sql.DataSource.class},
+                (proxy, method, args) -> {
+                    Object value = method.invoke(dataSource, args);
+                    if (!(value instanceof Connection connection)) return value;
+                    return (Connection) java.lang.reflect.Proxy.newProxyInstance(
+                            getClass().getClassLoader(), new Class<?>[]{Connection.class},
+                            (cProxy, cMethod, cArgs) -> {
+                                Object result = cMethod.invoke(connection, cArgs);
+                                // 只拖最后一次 commit：这一次的取号被推到后续提交之后，
+                                // 版本号顺序与提交顺序倒置，旧快照带更大的号回到缓存。
+                                if (cMethod.getName().equals("commit") && commits.incrementAndGet() == 20) {
+                                    Thread.sleep(200);
+                                }
+                                return result;
+                            });
+                });
+        JdbcProfileService profiles = new JdbcProfileService(delayed, executor, 100, 2);
+        UUID playerId = UUID.randomUUID();
+        profiles.get(playerId).toCompletableFuture().join();
+
+        List<CompletableFuture<cn.originalrpg.api.model.PlayerProfile>> grants = new ArrayList<>();
+        for (int index = 0; index < 20; index++) {
+            grants.add(profiles.grantExperience(playerId, 1).toCompletableFuture());
+        }
+        CompletableFuture.allOf(grants.toArray(CompletableFuture[]::new)).join();
+
+        long fromDb;
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement();
+             var result = statement.executeQuery(
+                     "SELECT experience FROM rpg_profiles WHERE player_uuid = '" + playerId + "'")) {
+            result.next();
+            fromDb = result.getLong(1);
+            connection.rollback();
+        }
+        assertEquals(20, fromDb, "数据库里 20 次授予必须全部落账");
+        assertEquals(fromDb, profiles.get(playerId).toCompletableFuture().join().experience(),
+                "取号必须在 commit 之前（持锁时），缓存不得被倒置的版本号回滚（实际缓存值见左）");
+    }
+
     @Test
     void concurrentExperienceGrantsPreserveEveryMutation() {
         JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);

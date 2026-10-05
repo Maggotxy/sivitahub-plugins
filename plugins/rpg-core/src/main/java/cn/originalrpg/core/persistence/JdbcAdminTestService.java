@@ -286,16 +286,18 @@ public final class JdbcAdminTestService implements AdminTestService {
     }
 
     /**
-     * @param versionStamp 出参：写入本次事务**提交成功后**取得的提交版本号
-     *                     （{@link JdbcProfileService#nextCommitVersion()}）。调用方在
-     *                     {@code thenApply} 里用它发布读缓存，使发布判定基于提交顺序。
+     * @param versionStamp 出参：提交成功后回填「**持锁时（commit 之前）**」取得的提交版本号
+     *                     （{@link JdbcProfileService#nextCommitVersion()}）。取号必须在 commit
+     *                     之前 —— commit 一返回行锁就释放，之后再取号会与提交顺序倒置。
      */
     private <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
         try (Connection connection = dataSource.getConnection()) {
+            long version;
             try {
+                version = profiles.nextCommitVersion();
                 T result = operation.apply(connection);
                 connection.commit();
-                versionStamp[0] = profiles.nextCommitVersion();
+                versionStamp[0] = version;
                 return result;
             } catch (Exception exception) {
                 connection.rollback();
