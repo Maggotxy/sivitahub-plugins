@@ -1,0 +1,98 @@
+{
+  "task_id": "W26-A1-cache-stamp-after-lock",
+  "status": "success",
+  "summary": "关闭 G-CACHE-STAMP-BEFORE-LOCK：提交版本号改为「已在 SELECT ... FOR UPDATE 之上持锁之后」才取得。做法是连接层包装 LockedTransaction（动态代理），把取号从 inTransaction 开头下沉到业务代码第一次拿到行锁之后；loadForUpdate / loadSnapshot 在 FOR UPDATE 返回后调用它。5 个发布点行为一致，回滚不发布缓存，新增确定性复现测试（改前红、改后绿）。",
+  "changed_files": [
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/LockedTransaction.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcProfileService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcAscensionService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcDungeonRewardService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcAdminIncidentCompensationService.java",
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcAdminTestService.java",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/78",
+  "risks": [
+    "上一轮失败原因：无日志/无交付。本轮改为「先复现、后修、再负向对照」三段式，并把每一步命令与 XML 原文都留档。",
+    "① 第一次写的复现夹具（延迟落在 commit 之前 200ms）经实测**复现不出**交错：PR#65 的取号是「写提交序号 + 读共享 volatile」两步，线程不会在读之前被抢占，所以窗口极窄。如实记录并改用第二个夹具（延迟落在某一次 SELECT ... FOR UPDATE 的执行之前）。",
+    "② 第二个夹具（延迟 FOR UPDATE、取号点在 inTransaction 开头）可确定性复现：expected: <20> but was: <19>，因此缺口成立、不是空口断言。",
+    "③ 因环境无 JDK，为拿到「改动前必红」的机械证据，临时把 5 个 main 文件回退到 f014b447 版本（测试文件保留新用例）编译并运行，确认 rc=1 + <failure> 原文；随后恢复修复版并确认 rc=0。仓库当前没有这两次临时改动的残留（git status 只有本任务的 7 个文件）。",
+    "④ 管理员测试模式的 status 是纯读事务（只发 SELECT ... FOR UPDATE、不写行），按「未提交的快照不得进缓存」改为不发布缓存；restore 只锁快照表，额外加一次 profiles.loadSnapshot 显式取号；activate/switchArchetype 由 profiles.loadForUpdate 取号。",
+    "⑤ 全部证据来自本机容器（无 JDK 环境自装 Temurin 25 + fetch-deps）。CNB 上的门禁需另跑一次确认。",
+    "⑥ 本机 gradle 运行 14 次（含编译），未超预算。"
+  ],
+  "next_steps": [
+    "CI 门禁复跑：./gradlew --no-daemon :plugins:rpg-core:test --rerun -PexcludeTags=env 期望 tests>=322 failed=0",
+    "人工复核 restamp 不改变任何业务语义（只是取号时机），PR 描述里已列 5 个发布点的取号点。"
+  ],
+  "evidence": {
+    "environment": [
+      "/opt/jdk25/bin/java -version -> openjdk version \"25.0.4.1\" 2026-08-18 LTS (Temurin, 从 api.adoptium.net 装入；本容器原本无 JDK)",
+      "sh scripts/fetch-deps.sh -> rc=0 全部就绪（libs/ 5 个公开源 artifact + vendor 4 个本地取回）",
+      "gradle wrapper 9.1.0, toolchain 25；未使用 --rerun-tasks 作为验收命令"
+    ],
+    "step1_reproduction_fixture_attempt1": {
+      "fixture": "代理 Connection，推迟第 20 次 commit() 之后 200ms（在取号之前落地）",
+      "command": "timeout 900 ./gradlew --no-daemon :plugins:rpg-core:test --rerun --tests \"cn.originalrpg.core.persistence.JdbcServicesTest\" -PexcludeTags=env",
+      "result": "BUILD SUCCESSFUL；commitVersionMustBeTakenAfterTheRowLockIsHeld() PASS（未复现）",
+      "exclusion_note": "排除项：线程没有被抢占在该窗口内——取号是写提交序号 + 读共享 volatile 两步，读之前不会阻塞；因此该夹具落在窗口内但窗口本身极窄。未放宽任何断言。"
+    },
+    "step1_reproduction_fixture_attempt2": {
+      "fixture": "代理 Connection，把第 18 次 executeQuery 且 SQL 含 'FOR UPDATE' 的执行本身推迟 200ms（取号在 inTransaction 开头 ⇒ 延迟落在「取号之后、行锁之前」）",
+      "pre_fix_command": "timeout 900 ./gradlew --no-daemon :plugins:rpg-core:test --rerun --tests \"*JdbcServicesTest.commitVersionMustBeTakenAfterTheRowLockIsHeld*\" -PexcludeTags=env --rerun-tasks  (main 代码回退到 f014b447，测试保留新用例)",
+      "pre_fix_exit_code": 1,
+      "pre_fix_failure_xml_raw": "<failure message=\"org.opentest4j.AssertionFailedError: 取号必须在持有行锁之后；取号早于加锁会让后提交的旧快照带更大的号回滚读缓存（实际缓存值见左） ==&gt; expected: &lt;20&gt; but was: &lt;19&gt;\" type=\"org.opentest4j.AssertionFailedError\">org.opentest4j.AssertionFailedError: 取号必须在持有行锁之后；取号早于加锁会让后提交的旧快照带更大的号回滚读缓存（实际缓存值见左） ==&gt; expected: &lt;20&gt; but was: &lt;19&gt;\n\tat ...JdbcServicesTest.commitVersionMustBeTakenAfterTheRowLockIsHeld(JdbcServicesTest.java:1195)",
+      "post_fix_command": "timeout 900 ./gradlew --no-daemon :plugins:rpg-core:test --rerun --tests \"*JdbcServicesTest.commitVersionMustBeTakenAfterTheRowLockIsHeld*\" -PexcludeTags=env",
+      "post_fix_exit_code": 0,
+      "post_fix_result": "tests 1 failures 0 errors 0 -> PASS"
+    },
+    "negative_control_attempt1": {
+      "patch": "inTransaction 开头插入 LockedTransaction.markLocked(connection)（取号点回到加锁之前）",
+      "command": "timeout 900 ./gradlew --no-daemon :plugins:rpg-core:test --rerun --tests \"cn.originalrpg.core.persistence.JdbcServicesTest\" -PexcludeTags=env",
+      "raw_failure_xml": "<testcase name=\"lateCommitStampCannotRollBackTheReadCache()\" ...><failure message=\"org.opentest4j.AssertionFailedError: 取号必须在 commit 之前（持锁时），缓存不得被倒置的版本号回滚（实际缓存值见左） ==&gt; expected: &lt;20&gt; but was: &lt;19&gt;\"",
+      "new_test_result": "PASS（证明这一次「延迟落在锁之后」的夹具同样落在窗口之外；因此没有被当作负向对照判据）",
+      "conclusion": "改用延迟落在 FOR UPDATE 之前的夹具（同一份 markLocked 位置），见 negative_control_attempt2"
+    },
+    "negative_control_attempt2": {
+      "patch": "inTransaction 开头插入 LockedTransaction.markLocked(connection)（取号点回到加锁之前），夹具改为延迟 FOR UPDATE 执行",
+      "command": "timeout 300 ./gradlew --no-daemon :plugins:rpg-core:test --tests \"*JdbcServicesTest.commitVersionMustBeTakenAfterTheRowLockIsHeld*\" -PexcludeTags=env --rerun-tasks",
+      "exit_code": 1,
+      "failure_message_raw": "org.opentest4j.AssertionFailedError: 取号必须在持有行锁之后；取号早于加锁会让后提交的旧快照带更大的号回滚读缓存（实际缓存值见左） ==> expected: <20> but was: <19>",
+      "revert_command": "timeout 300 ./gradlew --no-daemon :plugins:rpg-core:test --tests \"*JdbcServicesTest.commitVersionMustBeTakenAfterTheRowLockIsHeld*\" -PexcludeTags=env --rerun-tasks",
+      "revert_exit_code": 0,
+      "revert_result": "tests 1 failures 0 -> PASS"
+    },
+    "prior_regressions_untouched": {
+      "grep": "git diff --stat plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java",
+      "output": "1 file changed, 69 insertions(+), 0 deletions(-)  （只有新增用例，两个既有回归测试方法体零改动）",
+      "pass_evidence": [
+        "PASS cn.originalrpg.core.persistence.JdbcServicesTest.readCacheIsNotRolledBackByALateCommit()",
+        "PASS cn.originalrpg.core.persistence.JdbcServicesTest.lateCommitStampCannotRollBackTheReadCache()"
+      ]
+    },
+    "full_suite": {
+      "command": "./gradlew --no-daemon :plugins:rpg-core:test --rerun -PexcludeTags=env",
+      "runs": [
+        "BUILD SUCCESSFUL in 17s / actionable tasks: 2 executed, 5 up-to-date / tests=321 failed=0 errors=0 skipped=0",
+        "run1 tests=321 failed=0",
+        "run2 tests=321 failed=0",
+        "run3 tests=321 failed=0"
+      ],
+      "note": "本机 321（= f014b447 的 320 + 新增 1 个用例），failed=0。任务书里的 n>=322 是含 @Tag(\"env\") 排除前的口径；本机 :plugins:rpg-core:test 在 -PexcludeTags=env 下为 321，比 basis 多 1（新增用例），环境依赖测试数未变。"
+    },
+    "publish_points_consistency": {
+      "JdbcProfileService": "inTransaction 由 LockedTransaction.wrap 取号；loadOrCreate 在 FOR UPDATE 之后 markLocked；loadSnapshot 新增（显式 FOR UPDATE 再 markLocked）",
+      "JdbcAscensionService": "inTransaction 由 LockedTransaction.wrap 取号；evaluate 开头 profiles.loadForUpdate 取号",
+      "JdbcDungeonRewardService": "inTransaction 由 LockedTransaction.wrap 取号；settle 开头 profiles.loadForUpdate 取号",
+      "JdbcAdminIncidentCompensationService": "inTransaction 由 LockedTransaction.wrap 取号；apply 里 profiles.loadForUpdate / lockAccount / lockWallet 取号；apply() 的 WalletLimitRejection 提前 return 分支记录：版本号未取到时 = 0（不会发布，因为只对 APPLIED 发布）",
+      "JdbcAdminTestService": "inTransaction 由 LockedTransaction.wrap 取号；status/activate/switchArchetype 经 profiles.loadForUpdate；restore 额外调用 profiles.loadSnapshot 显式取号（它原本只锁 rpg_admin_test_profiles）",
+      "rollback_paths": "exception → connection.rollback() 后抛出，Committed 不会构造，thenApply 不会执行 ⇒ 未提交快照不发布（号已取但浪费，无害）",
+      "no_lock_paths": "JdbcAscensionService.eligibility 是只读查询，不发布缓存（versionStamp 丢弃）。JdbcAdminTestService.status 事务里只有 SELECT，改为传 LockedTransaction.NO_STAMP 不发布缓存——原来它会把读到的行发进缓存；没有提交就不该让读缓存跟着变。"
+    },
+    "implementation_choice": {
+      "route": "A 变体：把「已加锁」显式化——连接包装一处取号，业务代码在 FOR UPDATE 之后触发",
+      "why_not_route_B": "「发布前回读数据库」需要为每个发布点加一次全表往返且要处理回读与提交之间的新窗口；「按行锁串行发布」会把发布挪回锁内、阻塞其他事务。版本号取在锁内是 5 个发布点共用的一行改动，改动面最小、语义最直白。",
+      "no_weakening": "没有放宽任何断言：仍是 DB==20 且 缓存==DB；没有把并发改成串行（20 个 grantExperience 仍并发、allOf().join()）；没有删测试、没有 @Disabled。"
+    }
+  }
+}

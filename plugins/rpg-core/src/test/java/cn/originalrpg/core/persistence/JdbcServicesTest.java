@@ -1127,6 +1127,75 @@ class JdbcServicesTest {
                 "取号必须在 commit 之前（持锁时），缓存不得被倒置的版本号回滚（实际缓存值见左）");
     }
 
+    /** 复现用常量：第几次 {@code SELECT ... FOR UPDATE} 的执行被推迟，以及推迟多久。 */
+    private static final int FOR_UPDATE_DELAY_AT = 18;
+    private static final long FOR_UPDATE_DELAY_MILLIS = 200L;
+
+    /**
+     * 确定性复现（W26-A1）：提交版本号必须在**已经持有 {@code SELECT ... FOR UPDATE} 行锁之后**取得。
+     *
+     * <p>PR#73 把取号点从「{@code commit()} 之后」挪到「{@code inTransaction} 开头」之后仍然可达：
+     * 事务开头还没加锁，于是有 —— T1 取号 v1、尚未加锁被抢占；T2 取号 v2、加锁、更新、提交；
+     * T1 恢复、加锁、读到 T2 的值、更新并提交（快照**更新**，但它的号 v1 **更小**）
+     * ⇒ {@code publish()} 保留号更大的 T2 的**旧**快照，读缓存被回滚。
+     *
+     * <p>夹具与 #73/#75 同形：代理连接，只把第 {@link #FOR_UPDATE_DELAY_AT} 次
+     * {@code SELECT ... FOR UPDATE} 的**执行本身**推迟 {@link #FOR_UPDATE_DELAY_MILLIS} 毫秒
+     * （延迟正好落在「取号之后、行锁之前」，因为行锁是这条语句返回时才到手的）。
+     * 取号在锁外时，被推迟的这笔会拿着更小的号、带着最新快照最后发布，缓存被回滚；
+     * 取号在锁内时，后拿到锁的事务只能取到更大的号，倒置窗口为 0。
+     *
+     * <p>断言是「缓存 == 数据库」「数据库 == 20」，没有放宽期望值，也没有把并发改成串行。
+     */
+    @Test
+    void commitVersionMustBeTakenAfterTheRowLockIsHeld() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger locks =
+                new java.util.concurrent.atomic.AtomicInteger();
+        javax.sql.DataSource delayed = (javax.sql.DataSource) java.lang.reflect.Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[]{javax.sql.DataSource.class},
+                (proxy, method, args) -> {
+                    Object value = method.invoke(dataSource, args);
+                    if (!(value instanceof Connection connection)) return value;
+                    return (Connection) java.lang.reflect.Proxy.newProxyInstance(
+                            getClass().getClassLoader(), new Class<?>[]{Connection.class},
+                            (cProxy, cMethod, cArgs) -> {
+                                // 被推迟的这条 FOR UPDATE 在这里才真正执行：行锁到手的时间点被推到
+                                // 后续事务取号 + 提交之后。若取号点在 FOR UPDATE 之前，被推迟的这笔
+                                // 会拿着更小的号、带着更新后的快照最后发布 —— publish() 判它「更旧」，
+                                // 读缓存被回滚。
+                                if (cMethod.getName().equals("executeQuery") && cArgs != null
+                                        && cArgs.length == 1 && cArgs[0] instanceof String sql
+                                        && sql.contains("FOR UPDATE")) {
+                                    if (locks.incrementAndGet() == FOR_UPDATE_DELAY_AT) {
+                                        Thread.sleep(FOR_UPDATE_DELAY_MILLIS);
+                                    }
+                                }
+                                return cMethod.invoke(connection, cArgs);
+                            });
+                });
+        JdbcProfileService profiles = new JdbcProfileService(delayed, executor, 100, 2);
+        UUID playerId = UUID.randomUUID();
+        profiles.get(playerId).toCompletableFuture().join();
+
+        List<CompletableFuture<cn.originalrpg.api.model.PlayerProfile>> grants = new ArrayList<>();
+        for (int index = 0; index < 20; index++) {
+            grants.add(profiles.grantExperience(playerId, 1).toCompletableFuture());
+        }
+        CompletableFuture.allOf(grants.toArray(CompletableFuture[]::new)).join();
+
+        long fromDb;
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement();
+             var result = statement.executeQuery(
+                     "SELECT experience FROM rpg_profiles WHERE player_uuid = '" + playerId + "'")) {
+            result.next();
+            fromDb = result.getLong(1);
+            connection.rollback();
+        }
+        assertEquals(20, fromDb, "数据库里 20 次授予必须全部落账");
+        assertEquals(fromDb, profiles.get(playerId).toCompletableFuture().join().experience(),
+                "取号必须在持有行锁之后；取号早于加锁会让后提交的旧快照带更大的号回滚读缓存（实际缓存值见左）");
+    }
+
     @Test
     void concurrentExperienceGrantsPreserveEveryMutation() {
         JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);

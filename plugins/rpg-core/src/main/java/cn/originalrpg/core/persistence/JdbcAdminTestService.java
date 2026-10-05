@@ -46,17 +46,15 @@ public final class JdbcAdminTestService implements AdminTestService {
 
     @Override
     public CompletionStage<AdminTestState> status(UUID playerId) {
+        // 纯读、事务里只有 SELECT（不写任何行），因此不发布读缓存：没有提交就不该
+        // 让读缓存跟着变。锁仍按原样持有（读一致性不变）。
         return AsyncJdbc.supply(executor, () -> {
-            long[] version = new long[1];
             AdminTestState state = inTransaction(connection -> {
                 PlayerProfile profile = profiles.loadForUpdate(connection, playerId);
                 return new AdminTestState(hasSnapshot(connection, playerId), profile,
                         skillCount(connection, playerId));
-            }, version);
-            return new Committed<>(state, version[0]);
-        }).thenApply(committed -> {
-            profiles.cacheCommitted(committed.value().profile(), committed.version());
-            return committed.value();
+            }, LockedTransaction.NO_STAMP);
+            return state;
         });
     }
 
@@ -121,6 +119,9 @@ public final class JdbcAdminTestService implements AdminTestService {
             AdminTestState state = inTransaction(connection -> {
                 PlayerProfile snapshot = loadSnapshot(connection, playerId);
                 if (snapshot == null) throw new IllegalStateException("Administrator test mode is not active");
+                // 快照行（rpg_admin_test_profiles）已 FOR UPDATE，但档案行的锁要单独取：
+                // 取号必须在 update 之前、且必须有一次行锁在手，否则发布顺序会倒置。
+                profiles.loadSnapshot(connection, playerId);
                 profiles.updateInTransaction(connection, snapshot);
                 restoreSkills(connection, playerId);
                 int restoredSkills = skillCount(connection, playerId);
@@ -287,17 +288,17 @@ public final class JdbcAdminTestService implements AdminTestService {
 
     /**
      * @param versionStamp 出参：提交成功后回填「**持锁时（commit 之前）**」取得的提交版本号
-     *                     （{@link JdbcProfileService#nextCommitVersion()}）。取号必须在 commit
-     *                     之前 —— commit 一返回行锁就释放，之后再取号会与提交顺序倒置。
+     *                     （{@link JdbcProfileService#nextCommitVersion()}）。取号由
+     *                     {@link LockedTransaction} 在业务代码第一次持锁之后完成，因此
+     *                     取号顺序 == 加锁顺序 == 提交顺序。
      */
     private <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
-        try (Connection connection = dataSource.getConnection()) {
-            long version;
+        try (Connection raw = dataSource.getConnection()) {
+            Connection connection = LockedTransaction.wrap(raw, profiles::nextCommitVersion);
             try {
-                version = profiles.nextCommitVersion();
                 T result = operation.apply(connection);
                 connection.commit();
-                versionStamp[0] = version;
+                versionStamp[0] = LockedTransaction.versionOf(connection);
                 return result;
             } catch (Exception exception) {
                 connection.rollback();

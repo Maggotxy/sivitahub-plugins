@@ -25,6 +25,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 import java.util.regex.Pattern;
 
 public final class JdbcProfileService implements ProfileService {
@@ -81,6 +82,8 @@ public final class JdbcProfileService implements ProfileService {
                     connection -> loadOrCreate(connection, playerId, true), version);
             return new Committed<>(profile, version[0]);
         }).thenApply(committed -> {
+            // 缓存未命中才回填。号在 FOR UPDATE 之后（见 loadOrCreate），
+            // 因此这里的快照不会把更新的快照盖掉。
             publish(committed.value(), committed.version());
             return committed.value();
         });
@@ -469,6 +472,26 @@ public final class JdbcProfileService implements ProfileService {
         return loadOrCreate(connection, playerId, true);
     }
 
+    /**
+     * Package-private transaction bridge：读一行 {@code FOR UPDATE} 只是为了持锁。
+     *
+     * <p>用于「锁的行不是档案表本身」的发布点（管理员测试模式的还原：锁定并删除
+     * 的是 {@code rpg_admin_test_profiles} 快照行）。取号跟着这次 FOR UPDATE，
+     * 保证取号顺序 == 加锁顺序。
+     */
+    void loadSnapshot(Connection connection, UUID playerId) throws SQLException {
+        try (PreparedStatement query = connection.prepareStatement(
+                "SELECT player_uuid FROM rpg_profiles WHERE player_uuid = ? FOR UPDATE")) {
+            query.setString(1, playerId.toString());
+            try (ResultSet result = query.executeQuery()) {
+                if (!result.next()) {
+                    throw new SQLException("Missing profile row for lock acquisition");
+                }
+            }
+        }
+        markLocked(connection, true);
+    }
+
     /** Package-private transaction bridge used by compound persistence services. */
     void updateInTransaction(Connection connection, PlayerProfile profile) throws SQLException {
         update(connection, profile);
@@ -607,6 +630,7 @@ public final class JdbcProfileService implements ProfileService {
             // 读不懂的档案（老口径 level>30、越界转数、负经验）必须留下一行人工复核记录，
             // 否则这类档案会静默被 ceil 成合法值，后面再也查不出原始证据。
             recordAnomalyIfUninterpretable(connection, existing);
+            markLocked(connection, lock);
             return existing;
         }
         try (PreparedStatement insert = connection.prepareStatement("""
@@ -620,7 +644,23 @@ public final class JdbcProfileService implements ProfileService {
             insert.setInt(3, startingEnergy);
             insert.executeUpdate();
         }
-        return select(connection, playerId, lock);
+        PlayerProfile created = select(connection, playerId, lock);
+        // 新建行的 FOR UPDATE（第二次 select）已经持有行锁，取号点在其之后。
+        markLocked(connection, lock);
+        return created;
+    }
+
+    /**
+     * 行锁到手后登记「本事务已经持锁」并按需取提交版本号。
+     *
+     * <p>取号纪律：**版本号必须在 {@code SELECT ... FOR UPDATE} 之后取**。顺序
+     * 「取号 → 加锁」会留下这样的交错：T1 取号 v1、尚未加锁被抢占 → T2 取号
+     * v2、加锁、提交 → T1 恢复、加锁、读到 T2 的值、提交（快照更新但号 v1 更小）
+     * ⇒ {@code publish()} 保留号更大的 T2，读缓存被回滚。号在持锁时取，则记号的
+     * 先后等于加锁先后、也就是提交先后。
+     */
+    private static void markLocked(Connection connection, boolean locked) {
+        if (locked) LockedTransaction.markLocked(connection);
     }
 
     private PlayerProfile select(Connection connection, UUID playerId, boolean lock) throws SQLException {
@@ -771,32 +811,38 @@ public final class JdbcProfileService implements ProfileService {
         );
     }
 
-    private <T> T inTransaction(SqlOperation<T> operation) {
-        return inTransaction(operation, new long[1]);
+    <T> T inTransaction(SqlOperation<T> operation) {
+        return inTransaction(operation, NO_VERSION);
     }
 
+    /** 不发布读缓存的路径（事务结束即丢弃版本号）。 */
+    private static final long[] NO_VERSION = new long[1];
+
     /**
-     * 在**仍持有 {@code SELECT ... FOR UPDATE} 行锁时**取提交版本号，再提交。
+     * 提交版本号必须在**已经持有 {@code SELECT ... FOR UPDATE} 行锁之后**取得。
      *
-     * <p>取号点必须在 commit 之前：{@code commit()} 一返回行锁就释放，此时取号会出现
-     * 「T1 提交后未取号被抢占 → T2 提交并取到较小的号 → T1 取到较大的号」，于是更旧的
-     * 快照带着更大的号发布，读缓存被再次回滚。取号顺序 == 加锁顺序 == 提交顺序之后，
-     * 倒置窗口为 0。
+     * <p>只把取号点从「{@code commit()} 之后」挪到「事务开头」并不够：事务开头还没加锁，
+     * 会出现 —— T1 取号 v1、尚未加锁被抢占；T2 取号 v2、加锁、提交；T1 恢复、加锁、
+     * 读到 T2 的值、提交。T1 的快照更新，但它的号 v1 更小，于是 {@code publish()} 保留
+     * 号更大的 T2 的旧快照，读缓存被回滚。
      *
-     * <p>回滚路径不发布缓存（号已取但调用方不会走到 publish），取号浪费无害；
-     * 号不必严格连号，无法提交的事务占一个号不影响顺序。
+     * <p>做法：连接包一层 {@link LockedTransaction}，由它在收到
+     * {@link LockedTransaction#markLocked(Connection)} 时才取号（{@link #loadForUpdate} /
+     * {@link #loadSnapshot} 在 {@code FOR UPDATE} 之后调用它）。提交顺序因此与
+     * 「取号顺序 == 加锁顺序」一致：后来的锁只能拿到更晚的号。
      *
-     * @param versionStamp 出参：提交成功后回填「持锁时取得的号」，调用方在
-     *                     {@code thenApply} 里用它发布读缓存
+     * <p>回滚路径不发布缓存（号已取但调用方不会走到 publish），取号浪费无害。
+     *
+     * @param versionStamp 出参：提交成功后回填持锁时取得的号；不需要发布的路径传
+     *                     {@link #NO_VERSION}
      */
-    private <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
-        try (Connection connection = dataSource.getConnection()) {
-            long version;
+    <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
+        try (Connection raw = dataSource.getConnection()) {
+            Connection connection = LockedTransaction.wrap(raw, this::nextCommitVersion);
             try {
-                version = nextCommitVersion();
                 T result = operation.apply(connection);
                 connection.commit();
-                versionStamp[0] = version;
+                versionStamp[0] = LockedTransaction.versionOf(connection);
                 return result;
             } catch (Exception exception) {
                 connection.rollback();

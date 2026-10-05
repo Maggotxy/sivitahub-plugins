@@ -712,21 +712,23 @@ public final class JdbcAdminIncidentCompensationService implements AdminIncident
 
     /**
      * @param versionStamp 出参：提交成功后回填「**持锁时（commit 之前）**」取得的提交版本号
-     *                     （{@link JdbcProfileService#nextCommitVersion()}）。取号必须在 commit
-     *                     之前 —— commit 一返回行锁就释放，之后再取号会与提交顺序倒置。
+     *                     （{@link JdbcProfileService#nextCommitVersion()}）。取号由
+     *                     {@link LockedTransaction} 在业务代码第一次 {@code FOR UPDATE}
+     *                     之后完成（本服务是 {@code lockAccount} / {@code lockWallet}，
+     *                     以及提前 return 的路径上的 {@code loadForUpdate}），因此
+     *                     取号顺序 == 加锁顺序 == 提交顺序。
      */
     private <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
-        try (Connection connection = dataSource.getConnection()) {
-            long version;
+        try (Connection raw = dataSource.getConnection()) {
+            Connection connection = LockedTransaction.wrap(raw, profiles::nextCommitVersion);
             try {
                 // Production Hikari is configured this way. Enforce the same
                 // contract for tests and any future direct DataSource so an
                 // incident can never degrade into per-statement autocommit.
                 if (connection.getAutoCommit()) connection.setAutoCommit(false);
-                version = profiles.nextCommitVersion();
                 T value = operation.apply(connection);
                 connection.commit();
-                versionStamp[0] = version;
+                versionStamp[0] = LockedTransaction.versionOf(connection);
                 return value;
             } catch (Exception exception) {
                 connection.rollback();
