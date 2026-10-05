@@ -228,15 +228,19 @@
           export GRADLE_USER_HOME=/root/.gradle
           test_start=$(date +%s)
           set +e
-          # W22-A1：去掉 -Dorg.gradle.parallel=true，workers.max 收敛到 2。
-          # 原因：parallel=true + workers.max=4 在 26 个模块上并行跑测试，本身就制造
-          # CPU 争抢；实测同一 commit 上「先红后绿」——本容器在 8x CPU hog 下用
-          # parallel=true/workers=4 复现到与门禁逐字一致的失败
-          # （JdbcServicesTest > concurrentExperienceGrantsPreserveEveryMutation()
-          #  org.opentest4j.AssertionFailedError: expected: <20> but was: <19>），
-          # 改 workers.max=2 后同一 commit 全绿。
-          # 这里**没有**放宽断言、没有删 -PexcludeTags=env、没有删 --continue、
-          # 也没有 -x test —— 只是不再让门禁自己跟自己抢 CPU。
+          # ⚠️ 并行度与假红（2026-10-03 实测）：`workers.max=4` 会在 26 个模块上同时起 4 个
+          # 测试 JVM，本身就是一份 CPU 争抢。实测同一个 commit 上质量门「先红后绿」两次
+          # （sn=cnb-d93-1k41bqhbe RED / sn=cnb-esl-1k41cpau5 GREEN；更早 sn=cnb-tn4-1k4141s0e
+          # RED / sn=cnb-h3n-1k414popl GREEN），失败的都是**时序/并发敏感**的用例
+          # （AnomalyReviewCommandTest 的 30ms 静默窗口、JdbcServicesTest 的 20 路并发授予），
+          # 且两次假红都发生在**平台上另有构建在跑**的时候 ⇒ 判定为「CPU 争抢把测试饿出假红」。
+          # 因此把并行度收敛到 2 并去掉 parallel（不是跳过任何测试），减少门禁自伤。
+          # W22-A1 补充了**决定性证据**：在 8x CPU hog 下用 parallel=true/workers=4 复现到与门禁
+          # 逐字一致的失败 —— `JdbcServicesTest > concurrentExperienceGrantsPreserveEveryMutation()`
+          # `org.opentest4j.AssertionFailedError: expected: <20> but was: <19>`，
+          # 且随后查明**真因不是负载本身**，而是 rpg-core 读缓存被「晚到的旧快照」回滚
+          # （行锁保证数据库是 20，但 get() 只读缓存，读到 19）—— 见 #73 的修复与
+          # `readCacheIsNotRolledBackByALateCommit()` 这个确定性回归测试。
           ./gradlew --no-daemon --continue \
             -Dorg.gradle.workers.max=2 \
             -Dorg.gradle.internal.http.connectionTimeout=60000 \
@@ -249,6 +253,36 @@
 
           echo "===== 测试日志错误段（失败时上下文）====="
           grep -nE "FAILED|SKIPPED|tests completed|execution failed" /tmp/test.log | head -200 || true
+          echo "-----"
+
+          # 失败时把失败断言的 message 原文抄出来。
+          # 为什么必须有这一段：旧的错误段只 echo `grep -nE "FAILED"` 的**行号**，拿不到
+          # <failure message> / <error message>，于是**诊断一次假红就要另起一次构建**
+          # 去容器里循环跑并把 XML 抄出来（2026-10-03 实测，为此多花了一次完整构建）。
+          # 有了这一段，日志里直接能看到「实际值是多少」还是「抛了什么异常」——
+          # 这两者性质完全不同：实际值 19 = 真丢更新（生产代码 bug）；锁超时 = 夹具脆弱性。
+          echo "===== 失败断言的 message 原文（从 test-results XML 抄）====="
+          python3 - <<'PY' || true
+          import glob, xml.etree.ElementTree as ET
+          n = 0
+          paths = (glob.glob('plugins/**/build/test-results/test/*.xml', recursive=True)
+                   + glob.glob('tools/**/build/test-results/test/*.xml', recursive=True))
+          for path in paths:
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception:
+                  continue
+              for case in root.iter('testcase'):
+                  for kind in ('failure', 'error'):
+                      node = case.find(kind)
+                      if node is None:
+                          continue
+                      n += 1
+                      msg = (node.get('message') or '').strip().replace('\n', ' ')
+                      print('%s %s#%s' % (kind.upper(), case.get('classname'), case.get('name')))
+                      print('   message: %s' % msg[:600])
+          print('FAILURE_XML_COUNT=%d' % n)
+          PY
           echo "-----"
 
           # 按模块结果：直接读 build/test-results/test/*.xml。

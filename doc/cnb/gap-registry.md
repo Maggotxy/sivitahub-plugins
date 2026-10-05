@@ -129,6 +129,23 @@
 | G-VERDICT-MATRIX-SPLIT | **verdict 与矩阵结论自相矛盾**：`plan/gap-matrix-v8.md` §0 写「G-302-RESIDUAL 清零（0 个类 / 0 个方法）/ done=true / remaining=0」，同轮 `plan/verdict-v8.json` 写 `done=false` / `remaining=1`（`remaining_ids=["G-302-RESIDUAL-2"]`） | `plan/gap-matrix-v8.md` §0 结论表（原文行保留）vs `plan/verdict-v8.json` 的 `done`/`remaining`/`remaining_ids`；两文件同属 W17-A1 交付。危害：审阅者只读矩阵会得出「已清零」的相反结论。 | **DONE** W21-A2：**不改历史结论原文**，只补 `> verdict: done=false remaining=1` 机器行 + `> basis-substring: 77112113` + §0 旁勘误（以 JSON 为准）；门禁 `VERDICT_MATRIX_CONSISTENCY_GATE`（`scripts/selftest-gates.sh` §11 判据 2，三态夹具：缺结论行 RED / 数值不一致 RED / basis 不在头部 RED / 一致 GREEN） |
 | G-FLAKY-GATE | **门禁假红（flaky）**：同一 sha `b6d38bff562ed59268ff5381847154a5e6976982` 上两次 `api_trigger_gate` 先红后绿 —— sn=`cnb-tn4-1k4141s0e`（stage test=error，`rpg-admin` `failed=1`）vs sn=`cnb-h3n-1k414popl`（全绿） | 失败用例 `cn.originalrpg.admin.AnomalyReviewCommandTest#acknowledgeWithoutConfirmOrSignatureIsRefusedAndWritesNothing`，断言消息 `[] ==> expected: <true> but was: <false>`；根因 = `awaitQuiet()` 用「连续 15 轮 × 2ms = 30ms 无新消息」当异步链收尾判据（时间启发式），CI 高负载下两跳异步链某一跳 >30ms 才落地即提前返回。 | **DONE** W21-A1（本分支前序任务）：`awaitChainSettled()` 确定性等待「在飞任务归零」+ 硬超时，仅改 `plugins/rpg-admin/src/test/**`；证据 `.cnb/agent-out/W21-A1-fix-flaky-test-gate.json`（含 6× CPU hog 下 30/30 绿、负向对照真变红、`tests=1101 failed=0 modules=26`） |
 
+### I.3 W23 最终复验（v10）—— 三条已登记缺陷的闭环与 G-302-RESIDUAL 系列清零
+
+> context：`plan/gap-matrix-v10.md` + `plan/verdict-v10.json`，basis=**实测** `1ace5ab`（= origin/main）。
+> 结论：**done=true / remaining=0**。
+
+| id | v10 判定 | 证据（命令 / sn / 文件:行号） |
+|---|---|---|
+| `G-FLAKY-GATE` | **闭环** | `plugins/rpg-admin/.../AnomalyReviewCommandTest.java`：`grep awaitQuiet` 只剩 `:283` **注释**；`:239` `awaitChainSettled()`（`observer.onIdle().await(...)` 在飞归零 + `:246` `isBusy()` 复位静默计数 + `:264` 硬超时 `throw new AssertionError("异步链未收尾…")`）；`:294` 永久回归测试 `slowAsyncHopStillYieldsTheExpectedBroadcast`（每跳 `LockSupport.parkNanos(100ms)`），`:322` 断言仍是 `admin.anomaly-not-pending`（未删断言、未放宽期望、未把异步改同步）。`.cnb/agent-out/W21-A1-fix-flaky-test-gate.json`：`post_fix_30_runs`=6 hog 下 30/30 rc=0（落盘 `.cnb/agent-out/evidence/post-fix-30runs.txt` 收尾 `FAILS=0 TOTAL=30`）；`negative_control.sabotage_rc=1` 且实际值**非空** ⇒ 断言没被『等没了』。**假红缓解的直接证据**：同 sha `1ace5ab` 两次连续全绿（`cnb-785-1k41j43k2` + `cnb-q65-1k41k0gtr`），改前为「先红后绿」（`b6d38bf`：`cnb-tn4-1k4141s0e` stage-7 error `SUM tests=1101 failed=1` vs `cnb-h3n-1k414popl` success；`334fb54`：`cnb-d93-1k41bqhbe` error vs `cnb-esl-1k41cpau5` success） |
+| `G-DUP-WORLDSTATE` | **闭环** | `test ! -e plan/world-state.json` 成立；`git ls-files | grep world-state` 只有 `state/world-state.json`；`cnb-785-1k41j43k2` stage-1 判据行 `SINGLE_SOURCE_OF_TRUTH_GATE=GREEN` / `WORLD_STATE_FILES=1`；负向夹具 RED（`两份账本内容不一致：state=48679B plan=45B`），`state` 缺失亦 RED |
+| `G-VERDICT-MATRIX-SPLIT` | **闭环（本轮自身即判据对象）** | `plan/gap-matrix-v10.md` 前 20 行内 `> verdict: done=true remaining=0` + `> basis: 1ace5ab`，与 `plan/verdict-v10.json` 的 `done`/`remaining`/`basis` **逐字一致**（按 `selftest-gates.sh` §11 `vmc_gate` 同口径自查通过）；CI stage-1 `VERDICT_MATRIX_CONSISTENCY_GATE=GREEN`（改前打印 `N=8 done=false remaining=1 basis=77112113` ⇒ 门禁真的在数版本，不是恒绿） |
+| **`G-302-RESIDUAL-2`** | **闭环** | `DungeonTimeoutLifecycleContractTest`：`grep -n 'readString|readAllBytes|Files\.'` 只命中 `:19`（注释）；3 个 `@Test` 用 `DungeonBukkitTestHarness.newManager(scheduler)` 真构造 `DungeonManager`，断言 `scheduler.callbacks/cancelled`、`instanceSessions` 代际、`instanceTimeouts.containsKey` 等可观察状态 |
+| **`G-302-RESIDUAL-3`**（判据反向失效①） | **闭环**（#67） | 夹具⑤ `assertTrue(Files.readString(Path.of("plugins/.../X.java")).contains("x"))` → `EXIT=1` RED；夹具⑥ `Files.readString(Path.of(<常量>))` → `EXIT=1` RED；删除后 GREEN |
+| **`G-302-RESIDUAL-4`**（判据反向失效②） | **闭环**（#69） | 豁免已撤：`reads_production_source_via_traversal()` 在（`scripts/check-source-string-tests.sh:217`），`productionReferences` helper 已删除（全仓只剩 3 处注释）；夹具⑦ `Files.walk(root.resolve("plugins/rpg-core/src/main"))`+`readString(f).contains(id)` 聚合成列表 `anyMatch` → `EXIT=1` RED；夹具⑧ `resolve` 拼接变体 → RED |
+| **`G-302-RESIDUAL`**（总） | **清零** | `sh scripts/check-source-string-tests.sh`（重定向取码）→ `SOURCE_STRING_TESTS=0` / `SOURCE_STRING_GATE=GREEN` / `EXIT=0`；`--json` → `{"hits": [], "count": 0}`。**判据未放宽**：独立复核 4 个类方法体（读的是测试夹具/源规格 JSON/进程 stdout/配置解析，不是生产源码正文）；反例 `LanguageBundleContractTest`（`Files.newInputStream` + SnakeYAML 真解析）**未**被判红；规格规模 `CHECKS=469 SPECS=79 SPEC_FILES=3` ≥ v8 的 `462/78/2`（`SPEC_FILES` 上升因 #69 新建 `rpg-core.json`） |
+
+⇒ 「声明未接线」= 0 条；「可派工的实现缺口」= 0 条。剩余问题**只有** `REQUIRES_HUMAN`（H-001 / U-003 / W7-A2 四条 `[R]`）。
+
 ### I.1 两条新门禁的负向对照（现场造、现场删、断言退出码）
 
 | 判据 | 夹具 | 命令与退出码 |
