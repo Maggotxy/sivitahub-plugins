@@ -645,7 +645,7 @@
   "W26": "DONE：PR#78（commit 14b67f2）把提交版本号改为「已在 SELECT ... FOR UPDATE 之上持锁之后」才取得 —— 新增 LockedTransaction（连接动态代理），5 个发布点行为一致，回滚不发布；顺带修正 JdbcAdminTestService.status 纯读路径（改传 NO_STAMP 不发布缓存）。",
   "W27": "DONE：最终复验轮 v12（gap-matrix-v12 + verdict-v12，判 **done=true / remaining=0**）。G-CACHE-STAMP-BEFORE-LOCK 闭环复核通过；G-302-RESIDUAL 系列复跑仍清零、判据未放宽；素材层四条成立；十门在权威构建 cnb-lpt-1k46f0u8b 全绿，且同 sha 两次构建连续全绿（G-FLAKY-GATE 恢复）。剩余只有 REQUIRES_HUMAN。",
   "W28": "DONE：PR#80（c74249e）把 docs/GAME_DESIGN.md 的数值/公式/阈值/枚举与代码机械绑定 —— scripts/mechanics-spec.json（137 条：config:78/behavior:56/java-const:3）+ check-mechanics-spec.sh（判据行 GATE/ENTRIES/BY_KIND/WEAK）+ gen-mechanics-spec-report.py（可重生成报告，--check 判 FRESH|STALE）+ selftest-gates.sh §12 六组负夹具；并修掉两条真实缺陷（载体缺失曾判 GREEN；依赖 PyYAML 而门禁镜像无 PyYAML/pip ⇒ 改 stdlib-only）。动因：本项目实测已漂移 3 次（G-106/G-202/G-209）。",
-  "W29": "DONE：最终复验轮 v13（gap-matrix-v13 + verdict-v13，判 **done=true / remaining=0**），basis=实测 c74249e == origin/main。PR#80 的构建输入改动已在 M12 上重判；玩法规格↔代码机械绑定层闭环（137 条 / 6 组负夹具 / 报告 FRESH / 零 import yaml / 独立负向对照 RED 并点名 M-CORE-003）；PR#80 顺带修的两条门禁缺陷独立复现确认闭环；G-CACHE-STAMP-BEFORE-LOCK 仍闭环；G-302-RESIDUAL 系列仍清零且判据未放宽；素材层四条成立；十门在 sn=cnb-cf6-1k46peo58 上全绿。剩余只有 REQUIRES_HUMAN。"
+  "W29": "DONE：最终复验轮 v13（gap-matrix-v13 + verdict-v13，判 **done=true / remaining=0**），basis=实测 c74249e == origin/main。PR#80 的构建输入改动已在 M12 上重判；玩法规格↔代码机械绑定层闭环（137 条 / 6 组负夹具 / 报告 FRESH / 零 import yaml / 独立负向对照 RED 并点名 M-CORE-003）；PR#80 顺带修的两条门禁缺陷独立复现确认闭环；G-CACHE-STAMP-BEFORE-LOCK 仍闭环；G-302-RESIDUAL 系列仍清零且判据未放宽；素材层四条成立；十门在 sn=cnb-cf6-1k46peo58 上全绿。剩余只有 REQUIRES_HUMAN。 PR=#81（https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/81）。"
  },
  "gates": {
   "evidence_sn": "cnb-cf6-1k46peo58",

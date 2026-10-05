@@ -10,7 +10,7 @@
   "doc/cnb/gap-registry.md",
   ".cnb/agent-out/W29-A1-verdict-v13.json"
  ],
- "pr_url": "",
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/81",
  "risks": [
   "G-FLAKY-GATE 本轮无同 sha 第二次构建采样：cnb build get-build-logs --sha c74249e... 只返回 1 个 main 构建（cnb-cf6-1k46peo58）。本轮无任何 RED 观测（未复发、也未证伪），但**不**声称「同 sha 连续两次全绿」。调度器在 c74249e 上再触发一次构建即可把该项从「未采样」变为「已复核」。不属 REQUIRES_HUMAN；本任务不改测试/CI 文件，不引入该风险。",
   "G-302 判据的遍历形态存在已知边界：Files.walk 的实参若只有单个内联字面量（如 Path.of(\"plugins/rpg-core/src/main\")，两段在同一字符串里）不会命中；改成 root.resolve(\"plugins\").resolve(MODULE).resolve(MAIN) 两段独立字面量即 RED。判定不构成缺口（三条理由见 gap-matrix-v13 §6.5）。改判据属构建输入，本任务不允许改。",
