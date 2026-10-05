@@ -10,7 +10,7 @@
     "doc/cnb/gap-registry.md",
     ".cnb/agent-out/W27-A1-verdict-v12.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/79",
   "risks": [
     "本容器无 JDK：素材可复现性门禁（ASSET_REPRO）与 compile/test/assemble 未本地复跑，以 M10 的 CNB 构建为证据，未声称本地跑过。",
     "「同 sha 连续两次全绿」在本轮成立（cnb-lpt-1k46f0u8b + cnb-m3o-1k46f0gvf），但该判据依赖平台负载；v11 曾在 f014b447 上先绿后红，故本结论只对 basis=14b67f2 成立。",
