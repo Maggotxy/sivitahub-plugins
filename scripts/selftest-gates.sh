@@ -33,6 +33,13 @@
 #         在同一 commit 写成两份不同内容，见 G-DUP-WORLDSTATE）
 #      b. VERDICT_MATRIX_CONSISTENCY_GATE —— 矩阵的机器可读结论行必须存在、且与
 #         同版 verdict-vN.json 的 done/remaining 严格一致、basis 必须出现在矩阵头（见 G-VERDICT-MATRIX-SPLIT）
+#  12) W28-A1 玩法规格↔代码 绑定门禁（scripts/check-mechanics-spec.sh）：
+#      正夹具真实仓库必须 GREEN；负夹具证明三类载体（config/behavior/java-const）
+#      改坏任一类都会 RED，还原后 GREEN —— 见 docs/GAME_DESIGN.md 的 3 次实测漂移
+#      （G-106 血契转数 / G-202 槽上限公式 / G-209 预警窗口）
+#      W28-A2 补：⑤ 改坏一条**后 8 节**新登记的 config 条目也必须 RED
+#      （锁住「登记了但没进判据」）；⑥ 报告节与 spec 不一致时
+#      gen-mechanics-spec-report.py --check 必须报 STALE（锁住「报告由脚本生成」）
 #
 # 用法：sh scripts/selftest-gates.sh     （退出码 0 = 全部通过）
 #
@@ -1667,6 +1674,351 @@ if [ "$fixture_left" = "0" ]; then
 else
   echo "  [FAIL] 负向夹具在真实仓库留下 $fixture_left 个残留：" >&2
   ls -d "$ROOT/plan/world-state.json" "$ROOT/plan/verdict-v99.json" "$ROOT/plan/gap-matrix-v99.md" 2>/dev/null >&2 || true
+  FAIL=$((FAIL + 1))
+fi
+
+cd "$ROOT"
+
+echo "== 12. W28-A1 玩法规格↔代码 绑定门禁（scripts/check-mechanics-spec.sh）必须能真的变红 =="
+# 失败模式：这条门禁要拦的是「玩法规格 docs/GAME_DESIGN.md 与代码载体漂移」——
+# 实测已发生 3 次（G-106 血契二转/三转、G-202 槽上限固定区间、G-209 预警 0.4-0.8s）。
+# 最危险的失效是「声明了 spec 但每条都比不出红」：spec 里的 expect 被静默放宽成代码现值，
+# 门禁就变成给漂移盖章的仪仗队。本节证明它真的会红。
+#
+# 与 §7/§9/§10 同样的纪律：**只在 $TMP 的夹具副本上破坏**，不碰真实仓库工作区。
+# 夹具必须带齐门禁实际读到的路径：scripts/（spec+脚本）、plugins/*/config.yml、
+# plugins/*/src/test/java（behavior 载体）、plugins/*/src/main/java（java-const 载体）。
+SPEC_FIXTURE="$TMP/mechanics-spec-ws"
+mkdir -p "$SPEC_FIXTURE/scripts"
+cp "$ROOT/scripts/check-mechanics-spec.sh" "$ROOT/scripts/mechanics-spec.json" \
+  "$SPEC_FIXTURE/scripts/"
+# W28-A2 起 config 载体也指向 datapacks/（G 快捷操作八动作的 tag 成员），必须一起带进夹具，
+# 否则干净夹具会因为「文件不存在」而恒红，下面所有负向对照就变成假红。
+mkdir -p "$SPEC_FIXTURE/datapacks"
+cp -R "$ROOT/datapacks/." "$SPEC_FIXTURE/datapacks/"
+mkdir -p "$SPEC_FIXTURE/plugins"
+for plugin_dir in "$ROOT"/plugins/*/; do
+  plugin_name=$(basename "$plugin_dir")
+  mkdir -p "$SPEC_FIXTURE/plugins/$plugin_name"
+  # 三类载体都要带：config.yml（config）、src/test（behavior）、src/main（java-const）。
+  # `cp -R` 失败不视为错误：部分插件只有 main 没有 test。
+  cp -R "$plugin_dir/src" "$SPEC_FIXTURE/plugins/$plugin_name/" 2>/dev/null || true
+done
+
+run_spec_gate() {
+  # 退出码打到 stdout（调用方用命令替换取，不走管道）
+  set +e
+  (cd "$SPEC_FIXTURE" && sh scripts/check-mechanics-spec.sh >"$1" 2>&1)
+  echo $?
+}
+
+# 正夹具：真实仓库（不是夹具）⇒ 必须 GREEN 且判据行完整
+set +e
+(cd "$ROOT" && sh scripts/check-mechanics-spec.sh > "$TMP/spec-real.txt" 2>&1)
+spec_real=$?
+set -e
+check "真实仓库：玩法规格↔代码绑定 → 0（GREEN）" 0 "$spec_real"
+if grep -q '^MECHANICS_SPEC_GATE=GREEN$' "$TMP/spec-real.txt" \
+   && grep -q '^MECHANICS_SPEC_ENTRIES=' "$TMP/spec-real.txt" \
+   && grep -q '^MECHANICS_SPEC_BY_KIND=' "$TMP/spec-real.txt" \
+   && grep -q '^MECHANICS_SPEC_WEAK=' "$TMP/spec-real.txt"; then
+  echo "  [OK  ] 判据行完整：GATE/ENTRIES/BY_KIND/WEAK 四行俱在"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 判据行不完整（ENTRIES/BY_KIND/WEAK 缺一即失效）" >&2
+  sed 's/^/    /' "$TMP/spec-real.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+sed 's/^/    /' "$TMP/spec-real.txt"
+
+# 正夹具（夹具自身）：干净副本必须也 GREEN —— 否则下面的负向对照可能是「夹具恒红」的假红
+check "干净夹具副本 → 0（基准，证明负向不是假红）" 0 "$(run_spec_gate "$TMP/spec-base.txt")"
+
+# ---- 负夹具①：把一条 config 条目的值改坏 ----
+# 破坏对象就用 M-EQP-002（forge.base-success-rate 0.65）。改的是**夹具副本**的 config.yml。
+sed -i 's/^  base-success-rate: 0.65$/  base-success-rate: 0.55/' \
+  "$SPEC_FIXTURE/plugins/rpg-items/src/main/resources/config.yml"
+spec_cfg_rc=$(run_spec_gate "$TMP/spec-neg-config.txt")
+check "负夹具①：config 值改坏（forge.base-success-rate 0.65→0.55）→ 1（RED）" 1 "$spec_cfg_rc"
+# 红的必须可归因：判据行 RED、打出 M-EQP-002 的 id/期望/实际
+if grep -q '^MECHANICS_SPEC_GATE=RED$' "$TMP/spec-neg-config.txt" \
+   && grep -q 'M-EQP-002' "$TMP/spec-neg-config.txt" \
+   && grep -q '0.65' "$TMP/spec-neg-config.txt" \
+   && grep -q '0.55' "$TMP/spec-neg-config.txt"; then
+  echo "  [OK  ] ① 判据行 RED 且打印 id/期望/实际（可归因）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] ① RED 了但不可归因（缺 id 或期望/实际）" >&2
+  sed 's/^/    /' "$TMP/spec-neg-config.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+# 还原：从真实仓库取回原始文件（夹具里的已被改坏）
+cp "$ROOT/plugins/rpg-items/src/main/resources/config.yml" \
+  "$SPEC_FIXTURE/plugins/rpg-items/src/main/resources/config.yml"
+check "负夹具①：还原后必须 GREEN" 0 "$(run_spec_gate "$TMP/spec-neg-config-restore.txt")"
+
+# ---- 负夹具②：把一条 behavior 条目的测试名指向不存在的测试 ----
+python3 - "$SPEC_FIXTURE/scripts/mechanics-spec.json" <<'PYSPEC'
+import json, sys
+path = sys.argv[1]
+spec = json.load(open(path, encoding='utf-8'))
+for entry in spec['entries']:
+    if entry['id'] == 'M-EQP-007':
+        entry['carrier']['test'] = (
+            'plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/'
+            'ForgeRulesTest.java#definitelyNotARealTestMethod')
+json.dump(spec, open(path, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+PYSPEC
+spec_beh_rc=$(run_spec_gate "$TMP/spec-neg-behavior.txt")
+check "负夹具②：behavior 指向不存在的测试（M-EQP-007）→ 1（RED）" 1 "$spec_beh_rc"
+if grep -q '^MECHANICS_SPEC_GATE=RED$' "$TMP/spec-neg-behavior.txt" \
+   && grep -q 'M-EQP-007' "$TMP/spec-neg-behavior.txt" \
+   && grep -q 'definitelyNotARealTestMethod' "$TMP/spec-neg-behavior.txt"; then
+  echo "  [OK  ] ② 判据行 RED 且点名不存在的测试方法"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] ② RED 了但没点名不存在的测试方法" >&2
+  sed 's/^/    /' "$TMP/spec-neg-behavior.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+# 还原：从真实仓库取回 spec
+cp "$ROOT/scripts/mechanics-spec.json" "$SPEC_FIXTURE/scripts/mechanics-spec.json"
+check "负夹具②：还原后必须 GREEN" 0 "$(run_spec_gate "$TMP/spec-neg-behavior-restore.txt")"
+
+# ---- 负夹具③：把 java-const 的值改坏（第三条 kind，锁住三类载体都会红） ----
+sed -i 's/^    public static final int LOCAL_LEVEL_CAP = 30;$/    public static final int LOCAL_LEVEL_CAP = 25;/' \
+  "$SPEC_FIXTURE/plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/ProgressionRules.java"
+spec_const_rc=$(run_spec_gate "$TMP/spec-neg-const.txt")
+check "负夹具③：java-const 值改坏（LOCAL_LEVEL_CAP 30→25）→ 1（RED）" 1 "$spec_const_rc"
+cp "$ROOT/plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/ProgressionRules.java" \
+  "$SPEC_FIXTURE/plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/ProgressionRules.java"
+check "负夹具③：还原后必须 GREEN" 0 "$(run_spec_gate "$TMP/spec-neg-const-restore.txt")"
+
+# ---- 负夹具④：java-const 条目去掉 behavior_ref ⇒ WEAK 计数必须真的变（不是恒 0） ----
+# 这条锁住的是「WEAK 判据本身能变红」：若门禁读错了 behavior_ref 的位置（条目级 vs carrier 级），
+# WEAK 会恒为 0，「没有 behavior_ref 的 java-const 单列」就变成一句空话。
+python3 - "$SPEC_FIXTURE/scripts/mechanics-spec.json" <<'PYWEAK'
+import json, sys
+path = sys.argv[1]
+spec = json.load(open(path, encoding='utf-8'))
+for entry in spec['entries']:
+    if entry['id'] == 'M-CORE-001':
+        entry.pop('behavior_ref', None)
+        entry['carrier'].pop('behavior_ref', None)
+json.dump(spec, open(path, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+PYWEAK
+set +e
+(cd "$SPEC_FIXTURE" && sh scripts/check-mechanics-spec.sh > "$TMP/spec-weak.txt" 2>&1)
+spec_weak_rc=$?
+set -e
+check "负夹具④：java-const 去掉 behavior_ref → 仍 0（仅登记为 weak，不判红）" 0 "$spec_weak_rc"
+if grep -q '^MECHANICS_SPEC_WEAK=1$' "$TMP/spec-weak.txt"; then
+  echo "  [OK  ] ④ WEAK 真的变 1（判据不是恒 0）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] ④ WEAK 没有随缺失的 behavior_ref 变化" >&2
+  sed 's/^/    /' "$TMP/spec-weak.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+cp "$ROOT/scripts/mechanics-spec.json" "$SPEC_FIXTURE/scripts/mechanics-spec.json"
+check "负夹具④：还原后必须 GREEN/WEAK 回 0" 0 "$(run_spec_gate "$TMP/spec-weak-restore.txt")"
+
+# ---- 负夹具⑤（W28-A2）：改坏一条**后 8 节**的 config 条目 ----
+# 动机：W28-A2 一口气登记了 71 条后 8 节条目（强化与精炼 / 市场与交易限制 / 黑心商人 /
+# 菜单帮助引导 / 任务与剧情 / 主城地图 NPC / 商城会员累计奖励）。它们最危险的失效形态
+# 是「登记了但没进判据」—— 报告里的条数很好看，门禁其实没读它们。
+# 这里直接改坏一条**只属于后 8 节**的条目（M-REF-001 精炼成功率 0.65，config 载体），
+# 证明这些新登记的条目真的在被检查。
+sed -i 's/^  success-rate: 0.65$/  success-rate: 0.55/' \
+  "$SPEC_FIXTURE/plugins/rpg-enhancement/src/main/resources/config.yml"
+spec_rest_cfg_rc=$(run_spec_gate "$TMP/spec-neg-rest-config.txt")
+check "负夹具⑤：后 8 节 config 值改坏（refinement.success-rate 0.65→0.55）→ 1（RED）" 1 "$spec_rest_cfg_rc"
+if grep -q '^MECHANICS_SPEC_GATE=RED$' "$TMP/spec-neg-rest-config.txt" \
+   && grep -q 'M-REF-001' "$TMP/spec-neg-rest-config.txt" \
+   && grep -q '0.65' "$TMP/spec-neg-rest-config.txt" \
+   && grep -q '0.55' "$TMP/spec-neg-rest-config.txt"; then
+  echo "  [OK  ] ⑤ 判据行 RED 且点名 M-REF-001（新条目不是只登记不检查）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] ⑤ RED 了但不可归因（缺 id 或期望/实际）" >&2
+  sed 's/^/    /' "$TMP/spec-neg-rest-config.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+# 还原：从真实仓库取回原始文件（夹具里的已被改坏）
+cp "$ROOT/plugins/rpg-enhancement/src/main/resources/config.yml" \
+  "$SPEC_FIXTURE/plugins/rpg-enhancement/src/main/resources/config.yml"
+check "负夹具⑤：还原后必须 GREEN" 0 "$(run_spec_gate "$TMP/spec-neg-rest-config-restore.txt")"
+
+# ---- 判据 12d（W28-A3）：门禁必须 stdlib-only，不得再引入 PyYAML 依赖 ----
+# 失效模式：门禁镜像（eclipse-temurin:25-jdk + apt 装 curl/python3）里既没有 PyYAML
+# 也没有 pip。脚本一旦 `import yaml`，容器里会直接打 RED「python3 缺少 PyYAML」，
+# 而且**没有 pip 可装** —— 门禁从「拦漂移」变成「恒红」。
+#
+# 这条夹具的判据是**静态**的：脚本本体不得出现 `^\s*(import|from)\s+yaml`。
+# 静态判据的理由：门禁镜像的动态条件（有多少 label / 是否 api_trigger）在自测里复现不了，
+# 而「依赖声明」这件事在源码里就是可 grep 的事实。
+spec_yaml_hits=$(grep -cE '^[[:space:]]*(import|from)[[:space:]]+yaml' "$ROOT/scripts/check-mechanics-spec.sh" || true)
+check "判据 12d：check-mechanics-spec.sh 不含 import yaml（静态零命中）" 0 "$spec_yaml_hits"
+if [ "$spec_yaml_hits" = "0" ]; then
+  echo "  [OK  ] 门禁是 stdlib-only（不含 PyYAML 依赖声明）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 门禁又引入了 PyYAML 依赖（$spec_yaml_hits 处）—— 门禁镜像没有 pip，会变成恒红" >&2
+  grep -nE '^[[:space:]]*(import|from)[[:space:]]+yaml' "$ROOT/scripts/check-mechanics-spec.sh" >&2 || true
+  FAIL=$((FAIL + 1))
+fi
+
+# 负向对照：在**夹具副本**上插入 `import yaml` ⇒ 同一判据必须变红。
+# 不做这一步，「静态判据」就只是一句没被验证过的断言（假绿风险：grep 写错成恒 0）。
+cat > "$SPEC_FIXTURE/scripts/check-mechanics-spec.sh" <<'PYDEOF'
+import yaml
+PYDEOF
+cat "$ROOT/scripts/check-mechanics-spec.sh" >> "$SPEC_FIXTURE/scripts/check-mechanics-spec.sh"
+fixture_yaml_hits=$(grep -cE '^[[:space:]]*(import|from)[[:space:]]+yaml' "$SPEC_FIXTURE/scripts/check-mechanics-spec.sh" || true)
+check "负夹具⑦：夹具脚本插入 import yaml（1 处）→ 静态判据必须报 1" 1 "$fixture_yaml_hits"
+# 还原：从真实仓库取回脚本，再确认判据回 0（证明判据不是恒红）
+cp "$ROOT/scripts/check-mechanics-spec.sh" "$SPEC_FIXTURE/scripts/check-mechanics-spec.sh"
+restored_yaml_hits=$(grep -cE '^[[:space:]]*(import|from)[[:space:]]+yaml' "$SPEC_FIXTURE/scripts/check-mechanics-spec.sh" || true)
+check "负夹具⑦：还原后静态判据回 0（不是恒红）" 0 "$restored_yaml_hits"
+# 还原后门禁本身也必须仍然可跑（不是「把脚本写坏来换绿」）
+check "负夹具⑦：还原后夹具门禁仍 GREEN" 0 "$(run_spec_gate "$TMP/spec-yaml-restore.txt")"
+
+# ---- 判据 12e（W28-A3）：无 PyYAML 解释器下门禁必须照样 GREEN ----
+# 12d 只证明「脚本没声明依赖」；这一步证明「解析真的不靠 PyYAML」——把系统里的 PyYAML
+# 从 sys.path 里移走（隔离垫片），门禁仍必须打出 4 行判据且与正常解释器**逐字一致**。
+# 垫片只在 $TMP 里，两个实现都先自证「垫片下 import yaml 真的失败」，否则这条对照是空跑。
+YAML_SHIM="$TMP/noyaml-shim"
+mkdir -p "$YAML_SHIM"
+cat > "$YAML_SHIM/sitecustomize.py" <<'PYSEOF'
+# 隔离垫片：把 dist-packages 从 sys.path 移走，让系统里的 PyYAML 不可见。
+import sys
+sys.path[:] = [p for p in sys.path if "dist-packages" not in p]
+PYSEOF
+set +e
+PYTHONPATH="$YAML_SHIM" python3 -c 'import yaml' > "$TMP/noyaml-probe.txt" 2>&1
+noyaml_probe_rc=$?
+set -e
+check "判据 12e：隔离垫片下 import yaml 必须失败（否则下面是对照空跑）" 1 "$noyaml_probe_rc"
+if grep -q "ModuleNotFoundError: No module named 'yaml'" "$TMP/noyaml-probe.txt"; then
+  echo "  [OK  ] 垫片下 PyYAML 确实不可导入（原文：ModuleNotFoundError: No module named 'yaml'）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 垫片没真的屏蔽 PyYAML —— 无 PyYAML 对照是空跑" >&2
+  sed 's/^/    /' "$TMP/noyaml-probe.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+set +e
+(cd "$ROOT" && PYTHONPATH="$YAML_SHIM" sh scripts/check-mechanics-spec.sh > "$TMP/spec-noyaml.txt" 2>&1)
+spec_noyaml_rc=$?
+set -e
+check "判据 12e：无 PyYAML 解释器下门禁 → 0（GREEN）" 0 "$spec_noyaml_rc"
+if grep -q '^MECHANICS_SPEC_GATE=GREEN$' "$TMP/spec-noyaml.txt" \
+   && grep -q '^MECHANICS_SPEC_ENTRIES=' "$TMP/spec-noyaml.txt" \
+   && grep -q '^MECHANICS_SPEC_BY_KIND=' "$TMP/spec-noyaml.txt" \
+   && grep -q '^MECHANICS_SPEC_WEAK=' "$TMP/spec-noyaml.txt"; then
+  echo "  [OK  ] 无 PyYAML 下判据行完整（GATE/ENTRIES/BY_KIND/WEAK 四行俱在）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 无 PyYAML 下判据行不完整" >&2
+  sed 's/^/    /' "$TMP/spec-noyaml.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+# 逐字一致：无 PyYAML 与有 PyYAML 的判据行必须一模一样（条数不能被 stdout 顺序掩盖）
+if diff -q "$TMP/spec-real.txt" "$TMP/spec-noyaml.txt" >/dev/null 2>&1; then
+  echo "  [OK  ] 无 PyYAML 判据行与正常解释器逐字一致（$(grep -c . "$TMP/spec-noyaml.txt") 行）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 无 PyYAML 判据行与正常解释器不一致" >&2
+  diff "$TMP/spec-real.txt" "$TMP/spec-noyaml.txt" >&2 || true
+  FAIL=$((FAIL + 1))
+fi
+
+# ---- 判据 12c（W28-A2）：报告节必须可重生成且与 spec 一致 ----
+# 「报告里的数字必须由脚本生成」这句承诺本身也要有判据：如果报告节与当前 spec/门禁不符，
+# --check 必须退出 1。这里做两件事：① 真实仓库必须 FRESH；② 打乱报告节的一个数字（夹具副本，
+# 不动仓库）后必须 STALE —— 证明 --check 不是恒绿。
+set +e
+(cd "$ROOT" && python3 scripts/gen-mechanics-spec-report.py --check > "$TMP/spec-report-fresh.txt" 2>&1)
+spec_report_rc=$?
+set -e
+check "报告节与 spec 一致（gen-mechanics-spec-report.py --check → 0）" 0 "$spec_report_rc"
+if grep -q '^MECHANICS_SPEC_REPORT=FRESH$' "$TMP/spec-report-fresh.txt"; then
+  echo "  [OK  ] 判据行 MECHANICS_SPEC_REPORT=FRESH"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 报告节不是 FRESH（重跑 --write）" >&2
+  sed 's/^/    /' "$TMP/spec-report-fresh.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 负向：把**夹具副本**里的报告数字改掉 -> --check 必须 STALE（exit 1）
+REPORT_FIXTURE="$TMP/mechanics-report-ws"
+mkdir -p "$REPORT_FIXTURE/scripts" "$REPORT_FIXTURE/docs"
+cp "$ROOT/scripts/gen-mechanics-spec-report.py" "$ROOT/scripts/mechanics-spec.json" \
+  "$REPORT_FIXTURE/scripts/"
+cp "$ROOT/scripts/check-mechanics-spec.sh" "$REPORT_FIXTURE/scripts/"
+cp "$ROOT/docs/GAME_DESIGN.md" "$REPORT_FIXTURE/docs/"
+# 生成器会真实跑门禁拿判据行，所以夹具必须带齐门禁读到的载体（plugins/ + datapacks/）。
+# 不带就会因为「文件不存在」而拿到 RED 判据行，负向对照变成在测别的东西。
+cp -R "$ROOT/datapacks/." "$REPORT_FIXTURE/datapacks/" 2>/dev/null || true
+mkdir -p "$REPORT_FIXTURE/plugins"
+for plugin_dir in "$ROOT"/plugins/*/; do
+  plugin_name=$(basename "$plugin_dir")
+  mkdir -p "$REPORT_FIXTURE/plugins/$plugin_name"
+  cp -R "$plugin_dir/src" "$REPORT_FIXTURE/plugins/$plugin_name/" 2>/dev/null || true
+done
+sed -i 's/^MECHANICS_SPEC_ENTRIES=137$/MECHANICS_SPEC_ENTRIES=1/' "$REPORT_FIXTURE/docs/GAME_DESIGN.md"
+set +e
+python3 "$REPORT_FIXTURE/scripts/gen-mechanics-spec-report.py" --check \
+  > "$TMP/spec-report-stale.txt" 2>&1
+spec_report_stale_rc=$?
+set -e
+check "负夹具⑥：把报告节里的 entries 数改掉 → --check 报 STALE（1）" 1 "$spec_report_stale_rc"
+if grep -q '^MECHANICS_SPEC_REPORT=STALE$' "$TMP/spec-report-stale.txt"; then
+  echo "  [OK  ] ⑥ 报告陈旧能被判出来（--check 不是恒绿）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] ⑥ --check 没判出被改坏的报告节" >&2
+  sed 's/^/    /' "$TMP/spec-report-stale.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 自证：负向对照没有污染真实仓库（§12 全程只动 $TMP 里的夹具）
+set +e
+(cd "$ROOT" && sh scripts/check-mechanics-spec.sh >/dev/null 2>&1)
+spec_after=$?
+set -e
+check "负向对照后仓库内玩法规格绑定仍为绿（工作区未被污染）" 0 "$spec_after"
+
+echo "== 12b. W28-A1 接线自证：玩法规格门禁必须真的在 CI 里跑 =="
+# 「脚本写好了但没有任何 CI stage 调用它」是比「脚本有 bug」更隐蔽的失败（见 §6/§8/§9b/§10b）。
+# 本任务的改动白名单**不含 .cnb.yml**，因此接线方式不能是「往 .cnb.yml 加一个 stage」，
+# 而必须是：**本脚本（selftest-gates.sh）自己调用新门禁** —— .cnb.yml 早已执行
+# `sh scripts/selftest-gates.sh`（§6 已验证该事实），于是 §12 的正/负夹具每次推送都会跑。
+# 判据因此断言「本脚本调用 check-mechanics-spec.sh」这一条可 grep 的事实（完整命令行）。
+for wired in "scripts/check-mechanics-spec.sh" "scripts/mechanics-spec.json"; do
+  set +e
+  hits=$(grep -c -F "$wired" "$ROOT/scripts/selftest-gates.sh")
+  set -e
+  if [ "$hits" -ge 1 ]; then
+    echo "  [OK  ] selftest-gates.sh 覆盖 $wired（$hits 处）"
+    PASS=$((PASS + 1))
+  else
+    echo "  [FAIL] selftest-gates.sh 没有调用 $wired —— 该门禁不在 CI 里" >&2
+    FAIL=$((FAIL + 1))
+  fi
+done
+
+# 负向对照：拼出来的假路径必须查不到（证明上面那条判据能变红，不是恒命中）
+spec_phantom="scripts/definitely-not-a-real""-mechanics-gate.sh"
+set +e
+spec_phantom_hits=$(grep -c -F "$spec_phantom" "$ROOT/scripts/selftest-gates.sh")
+set -e
+if [ "$spec_phantom_hits" = "0" ]; then
+  echo "  [OK  ] 不存在的玩法规格门禁查不到（接线判据能变红）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 不存在的玩法规格门禁竟被查到 $spec_phantom_hits 次 —— 接线判据恒绿" >&2
   FAIL=$((FAIL + 1))
 fi
 

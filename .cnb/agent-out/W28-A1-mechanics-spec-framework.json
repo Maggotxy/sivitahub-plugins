@@ -1,0 +1,95 @@
+{
+  "task_id": "W28-A1-mechanics-spec-framework",
+  "status": "success",
+  "summary": "把 docs/GAME_DESIGN.md（标题即「完整玩法规格」）的数值/公式/阈值/枚举与代码机械绑定：新增声明式规格 scripts/mechanics-spec.json（66 条）+ 门禁 scripts/check-mechanics-spec.sh（判据行 MECHANICS_SPEC_GATE / ENTRIES / BY_KIND / WEAK），并在 scripts/selftest-gates.sh 新增 §12 用 mktemp -d 临时副本做正负夹具。三类载体：config（读 plugins/*/src/main/resources/config.yml，支持 * 通配）、behavior（指向已存在的行为级 JUnit 测试 class#method）、java-const（结构化解析编译期常量）。负夹具 4 组全部证明门禁真的会红：config 值改坏→RED、behavior 指向不存在测试→RED、java-const 值改坏→RED、java-const 去掉 behavior_ref→WEAK 真的变 1。覆盖前 8 节，未发现需要改文档或改代码的漂移（G-202/G-209 此前波次已修）。",
+  "changed_files": [
+    "scripts/mechanics-spec.json",
+    "scripts/check-mechanics-spec.sh",
+    "scripts/selftest-gates.sh",
+    "docs/MECHANICS_SPEC_BINDING.md",
+    ".cnb/agent-out/W28-A1-mechanics-spec-framework.json"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/80",
+  "evidence": {
+    "gate_positive": {
+      "cmd": "sh scripts/check-mechanics-spec.sh",
+      "exit": 0,
+      "output": [
+        "MECHANICS_SPEC_GATE=GREEN",
+        "MECHANICS_SPEC_ENTRIES=66",
+        "MECHANICS_SPEC_BY_KIND=config:42,behavior:21,java-const:3",
+        "MECHANICS_SPEC_WEAK=0"
+      ]
+    },
+    "selftest_gates": {
+      "cmd": "sh scripts/selftest-gates.sh",
+      "exit": 0,
+      "tail": "===== 门禁自测汇总：PASS=150 FAIL=0 =====\\nGATE_SELFTEST=GREEN"
+    },
+    "negative_fixtures": [
+      {
+        "fixture": "负夹具①（config 值改坏）",
+        "break": "sed -i 's/^  base-success-rate: 0.65$/  base-success-rate: 0.55/' $SPEC_FIXTURE/plugins/rpg-items/src/main/resources/config.yml",
+        "red_exit": 1,
+        "red_output": "MECHANICS_SPEC_GATE=RED / [FAIL] M-EQP-002 / 期望: 0.65 / 实际: ['0.55']",
+        "restore_green_exit": 0
+      },
+      {
+        "fixture": "负夹具②（behavior 指向不存在的测试）",
+        "break": "M-EQP-007 carrier.test -> ForgeRulesTest.java#definitelyNotARealTestMethod",
+        "red_exit": 1,
+        "red_output": "MECHANICS_SPEC_GATE=RED / [FAIL] M-EQP-007 / 实际: 测试方法不存在：definitelyNotARealTestMethod",
+        "restore_green_exit": 0
+      },
+      {
+        "fixture": "负夹具③（java-const 值改坏）",
+        "break": "ProgressionRules.LOCAL_LEVEL_CAP 30 -> 25",
+        "red_exit": 1,
+        "red_output": "MECHANICS_SPEC_GATE=RED / [FAIL] M-CORE-001 / 期望: 30 / 实际: ['25']",
+        "restore_green_exit": 0
+      },
+      {
+        "fixture": "负夹具④（java-const 去掉 behavior_ref）",
+        "break": "M-CORE-001 pop behavior_ref",
+        "red_exit": 0,
+        "note": "仍 GREEN，但 MECHANICS_SPEC_WEAK 由 0 变 1（锁住 WEAK 判据不是恒 0）",
+        "restore_green_exit": 0
+      }
+    ],
+    "fixture_no_residue": {
+      "cmd": "git status --porcelain",
+      "output": "仅本次任务新增/修改的 4 个受控文件；无夹具残留、无 PNG 改动"
+    },
+    "kinds": {
+      "config": "42 条：读 plugins/<mod>/src/main/resources/config.yml 的点分键（* 通配下标 / expect_count 计条目数）",
+      "behavior": "21 条：指向已存在的行为级 JUnit 测试 class#method，门禁断言其存在",
+      "java-const": "3 条：LOCAL_LEVEL_CAP=30（ProgressionRules）、HiddenPathRules.capacity()=3、TALISMAN_MINUTE_COST=15"
+    },
+    "inconsistencies_found": [],
+    "inconsistency_note": "逐条核对前 8 节全部 66 条可机械核对断言，文档与代码一致 ⇒ 无需「改一侧」。G-106 早已在 rpg-skills config.yml 注释与 HiddenPathRules 中把血契路线门抬到三转并与文档同步；G-202 文档已改为「随胚材等级上浮」公式；G-209 文档已改为 20 tick 并注明代码下限。三者历史先例均为「改文档（代码是 shipped 玩法，文档是规格）」，已在 docs/MECHANICS_SPEC_BINDING.md 记录。"
+  },
+  "unverifiable": [
+    "每件装备最多一个稀有特性（:44/:102）—— 唯一性由签名 schema/PDC 结构强制，无单点数值或配置键",
+    "纸+硫磺+朱砂合成空白锻纹（:67）—— 材料清单是 RpgSulfurPlugin.registerRecipe 的调用序列，无数值断言",
+    "66% 与 33% 生命进入新阶段（:94）—— DungeonManager.bossPhase 的战斗循环常量，无配置键；阶段缩短 tick 各副本族 16-20 不同",
+    "副本世界名以 dungeon_ 开头（:82/:88）—— 命名约定，非数值/公式/枚举",
+    "血契属性门槛 敏捷 32/耐力 18（:106）—— 属性门槛不在代码载体中，无 config 键与行为断言",
+    "符箓属性门槛 智力 18/力量 13/敏捷 9/耐力 6（:107）—— 同上",
+    "五维枚举 防御/力量/敏捷/智力/耐力（:13）—— 声明性文案，无行为级断言",
+    "主动能力形状/颜色预警（:78）—— 表现层主观判断，门禁只核对 telegraph-ticks 数值",
+    "粒子/声音服从 /visuals 与压力降级（:78）—— 纯表现层降级策略，无单点阈值",
+    "精英行为特性语义（迅捷闪避、狂暴暴走等，:78）—— 需真人主观判断；每种特性数值分散且非单一语义锚点",
+    "守护波次、时间限制、Boss 技能节奏（:88）—— 每副本独立配置的多组区间值，无跨副本统一锚点"
+  ],
+  "risks": [
+    "behavior 载体只断言「测试方法存在」，其 PASS 由 test 门禁保证；若某条行为测试被改写成恒真，本门禁不会变红（这由 check-source-string-tests.sh 的另一条门禁承担）。",
+    "config 载体的 `expect` 是从现值登记的；若未来玩法调参，需同步更新 spec —— 这正是期望的效果（调参不同步文档/规格会 RED）。",
+    "java-const 的 HiddenPathRules.capacity 与 TALISMAN_MINUTE_COST 走「方法返回单字面量 / new BigDecimal」结构化解析分支，未来若这些常量改写为多分支表达式需同步调整解析器。",
+    "本波只覆盖前 8 节；docs/GAME_DESIGN.md 第 9 节起（市场与交易限制、黑心商人、菜单、任务、NPC、商城等）尚未登记，仍有漂移不可见的窗口。",
+    "接线方式为 selftest-gates.sh §12 调用门禁（不改 .cnb.yml，因改动白名单不含 CI 配置）；若将来 .cnb.yml 不再执行 selftest-gates.sh，门禁会失去 CI 执行点（§12b 只在脚本内自证）。"
+  ],
+  "next_steps": [
+    "后续波次把 docs/GAME_DESIGN.md 第 9 节起的可机械核对断言继续登记进 mechanics-spec.json。",
+    "可在调参流程里加「改 config.yml 必须同 PR 更新 spec」的评审规则，杜绝再次漂移。"
+  ]
+}
