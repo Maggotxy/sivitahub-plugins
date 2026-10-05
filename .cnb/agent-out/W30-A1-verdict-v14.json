@@ -1,0 +1,152 @@
+{
+ "task_id": "W30-A1-verdict-v14",
+ "status": "success",
+ "summary": "最终复验轮 v14：首要目的达成 —— plan/gap-matrix-v14.md 的 basis: 7c23a35a 字面等于它分叉时的 main HEAD（实测 git rev-parse HEAD == origin/main == 7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9，EQUAL=true），修掉 v13 的 basis=c74249e ≠ 当时 main HEAD 7c23a35 的口径偏差（两者差 6 个非构建输入文件）。素材层四条、G-302-RESIDUAL 系列、机制规格绑定层、G-CACHE-STAMP-BEFORE-LOCK 全部由本轮在自身 basis 上亲自重跑（不采信调度器结论）。结论 done=true / remaining=0，剩余只有 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）。顺带把 G-FLAKY-GATE 从 v13 的「未采样」补成「同 sha 两次 main 构建均 success（RED=0）」。",
+ "changed_files": [
+  "plan/gap-matrix-v14.md",
+  "plan/verdict-v14.json",
+  "plan/tasks-w30.json",
+  "state/world-state.json",
+  "doc/cnb/gap-registry.md",
+  ".cnb/agent-out/W30-A1-verdict-v14.json"
+ ],
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/82",
+ "risks": [
+  "任务描述里的 `sh scripts/check-asset-baseline.py` 对 Python 文件会报语法错（实测 EXIT=2：import: not found / Syntax error）；本轮按 .cnb.yml stage-4 的真实调用方式用 python3 跑，结果 GREEN。已如实说明。",
+  "G-302 常量回溯形态要求常量名 ≥3 字符；单字符常量名的夹具未命中（v13 §6.5 的同类边界）。已如实登记，判定不构成本轮缺口。",
+  "素材可复现性门禁（ASSET_REPRO）本容器无 JDK 未本地复跑（实测 JAVA=NONE / JAVAC=NONE），以 M13 stage-5 判据行为证据。"
+ ],
+ "next_steps": [
+  "合入本 PR（只含 plan/**、state/**、doc/cnb/**、.cnb/agent-out/**，无构建输入）。",
+  "如需推进，只能做 REQUIRES_HUMAN 三项：H-001（生产机写操作）/ U-003（真实 Paper + 真实客户端握手）/ W7-A2 四条 [R] 级 unproven。"
+ ],
+ "basis": {
+  "head": "7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9",
+  "origin_main": "7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9",
+  "equal": true,
+  "m13_sha": "7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9"
+ },
+ "verdict": {
+  "done": true,
+  "remaining": 0,
+  "basis": "7c23a35a"
+ },
+ "evidence": {
+  "basis_check": {
+   "commands": [
+    "cnb build get-build-status --repo xzqkjmnbvc2026/sivitahub --sn cnb-7e9-1k46rf4i2",
+    "cnb build get-build-logs --repo xzqkjmnbvc2026/sivitahub --sn cnb-7e9-1k46rf4i2",
+    "cnb build get-build-logs --repo xzqkjmnbvc2026/sivitahub --sha 7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9"
+   ],
+   "output_head": {
+    "rev_parse_HEAD": "7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9",
+    "rev_parse_origin_main": "7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9",
+    "equal": "true"
+   }
+  },
+  "vmc_gate": {
+   "cmd": ". /tmp/vmc.sh; vmc_gate \"$PWD\"   (vmc.sh = scripts/selftest-gates.sh 的 vmc_gate() 原函数)",
+   "exit": 0,
+   "output": "VERDICT_MATRIX_CONSISTENCY_GATE=GREEN\nN=14 done=true remaining=0 basis=7c23a35a"
+  },
+  "asset_zero_consumer": {
+   "cmd": "ls scripts/*.sh scripts/*.py | wc -l  → 23；逐个 grep 调用点",
+   "result": "23/23 有真实调用点；check-mechanics-spec.sh 命中 scripts/selftest-gates.sh:1711/:1717；gen-mechanics-spec-report.py 命中 scripts/selftest-gates.sh:1941/:1972",
+   "zero_consumer": 0
+  },
+  "asset_baseline": {
+   "cmd": "./scripts/check-asset-baseline.py（python3；sh 会 EXIT=2）",
+   "exit": 0,
+   "output": "ASSET_BASELINE: 校验 252 张 PNG（清单 252 条）\n  UNREGISTERED=0 MISSING=0 MODIFIED=0\nASSET_BASELINE_GATE=GREEN"
+  },
+  "asset_provenance": {
+   "cmd": "python3 归一 assets/ 前缀比较 manifest vs provenance",
+   "exit": 0,
+   "output": "MANIFEST_N= 252 PROV_N= 252 / same_set= True / manifest_only= 0 / prov_only= 0 / $needsHumanDecision= [] / $counts 合计 252（与逐条重算一致）"
+  },
+  "asset_items": {
+   "cmd": "python3 键集合比较 + for c in closure compass hud journey lang packmeta textures; do python3 scripts/resource-pack-asset-check.py --root . --check $c; done",
+   "exit": 0,
+   "output": "items_def_n= 81 / runtime_keys_n= 81 / items_only= 0 / models_only= 0 / EQUAL_SET= True；七项 CHECK EXIT=0（closure/compass/hud/journey/lang/packmeta/textures）"
+  },
+  "g302_source_string": {
+   "cmd": "bash -c 'sh scripts/check-source-string-tests.sh > /tmp/sst.txt 2>&1; echo EXIT=$?'",
+   "exit": 0,
+   "output": "SOURCE_STRING_TESTS=0\nSOURCE_STRING_GATE=GREEN 本仓生产源码已无源码字符串断言（豁免口径见脚本头部注释）"
+  },
+  "g302_json": {
+   "cmd": "sh scripts/check-source-string-tests.sh --json",
+   "exit": 0,
+   "output": "{\"hits\": [], \"count\": 0}"
+  },
+  "g302_fixtures_negative": {
+   "fixtures": [
+    "Fixture5WrappedAssertTest.java:12",
+    "Fixture6ConstPathTest.java:7",
+    "Fixture7TraversalTest.java:19"
+   ],
+   "each_alone": "EXIT=1 / SOURCE_STRING_TESTS=1 / GATE=RED",
+   "combined": "EXIT=1 / SOURCE_STRING_TESTS=3 / GATE=RED",
+   "after_delete": "EXIT=0 / SOURCE_STRING_TESTS=0 / GATE=GREEN",
+   "git_status_after": "（空）"
+  },
+  "source_contract": {
+   "cmd": "bash -c 'sh scripts/check-source-contract.sh --all > /tmp/sc.txt 2>&1; echo EXIT=$?'",
+   "exit": 0,
+   "output": "SOURCE_CONTRACT_SPEC_FILES=3\nSOURCE_CONTRACT_CHECKS=469 SPECS=79\nSOURCE_CONTRACT_GATE=GREEN  （v8 基线 466/78/2 ⇒ 未缩水）"
+  },
+  "mechanics_spec": {
+   "gate_cmd": "sh scripts/check-mechanics-spec.sh",
+   "gate_exit": 0,
+   "gate_output": "MECHANICS_SPEC_GATE=GREEN\nMECHANICS_SPEC_ENTRIES=137\nMECHANICS_SPEC_BY_KIND=config:78,behavior:56,java-const:3\nMECHANICS_SPEC_WEAK=0",
+   "report_cmd": "python3 scripts/gen-mechanics-spec-report.py --check",
+   "report_exit": 0,
+   "report_output": "MECHANICS_SPEC_REPORT=FRESH",
+   "yaml_grep": "grep -nE '^[[:space:]]*(import|from)[[:space:]]+yaml' scripts/check-mechanics-spec.sh → EXIT=1 / 0 行（零命中）",
+   "my_negative_control": {
+    "cmd": "sh scripts/check-mechanics-spec.sh --spec /tmp/mxfix14/spec.broken.json  （M-CORE-003 的 config expect 从 [2,3,4,5] 改成 [2,3,4,9]，/tmp 副本）",
+    "exit": 1,
+    "output": "MECHANICS_SPEC_GATE=RED / [FAIL] M-CORE-003 / 期望 [2, 3, 4, 9] / 实际 ['2','3','4','5']",
+    "restored_cmd": "sh scripts/check-mechanics-spec.sh --spec /tmp/mxfix14/spec.restored.json",
+    "restored_exit": 0
+   }
+  },
+  "gates_M13": {
+   "sn": "cnb-7e9-1k46rf4i2",
+   "sha": "7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9",
+   "event": "api_trigger_gate",
+   "targetRef": "main",
+   "status": "success",
+   "stages_all_success": 13,
+   "stages_skipped": 1,
+   "lines": {
+    "downloader": "DOWNLOADER=ready",
+    "gate_selftest": "GATE_SELFTEST=GREEN / PASS=167 FAIL=0",
+    "ddl": "DDL_CONSUMER_GATE=GREEN / DDL_REGISTRATION_GATE=GREEN / CMD_REFERENCE_GATE=GREEN",
+    "resource_pack": "RESOURCE_PACK_GATE=GREEN / RUN=8 SKIPPED=0",
+    "asset_baseline": "ASSET_BASELINE_GATE=GREEN / UNREGISTERED=0 MISSING=0 MODIFIED=0",
+    "asset_repro": "ASSET_REPRO_GATE=GREEN / REPRODUCIBLE=70 MISMATCH=0",
+    "compile": "COMPILE_GATE=GREEN / TASKS_DONE=28 / BUILD_EXIT=0 / SECONDS=122",
+    "test": "TEST_GATE=GREEN / TEST_EXIT=0 / SUMMARY_EXIT=0",
+    "summary": "SUMMARY_GATE=GREEN / SUM tests=1105 failed=0 errors=0 skipped=2 modules=26 / FAILURE_XML_COUNT=0",
+    "package": "PACKAGE_GATE=GREEN / JAR_COUNT=56 / JAR_CHECKED=25 / JAR_MISSING_PLUGIN_YML=0",
+    "single_source": "SINGLE_SOURCE_OF_TRUTH_GATE=GREEN / WORLD_STATE_FILES=1",
+    "verdict_matrix": "VERDICT_MATRIX_CONSISTENCY_GATE=GREEN",
+    "mechanics_spec": "MECHANICS_SPEC_GATE=GREEN / ENTRIES=137 / WEAK=0",
+    "mechanics_spec_report": "MECHANICS_SPEC_REPORT=FRESH"
+   },
+   "same_sha_second_build": {
+    "sn": "cnb-1e5-1k46rem0u",
+    "event": "push",
+    "targetRef": "main",
+    "status": "success"
+   }
+  },
+  "branch_has_no_build_inputs": {
+   "cmd": "git diff --name-only 7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9 HEAD",
+   "output": "（仅 plan/**、state/**、doc/cnb/**、.cnb/agent-out/**）",
+   "build_inputs_touched": false
+  }
+ },
+ "pr_number": 82
+}

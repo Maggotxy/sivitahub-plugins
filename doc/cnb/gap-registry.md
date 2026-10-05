@@ -293,3 +293,40 @@
 `sh scripts/selftest-gates.sh` ⇒ 每次推送都真跑（判据来自 `selftest-gates.sh` 的
 接线自证 §12b：`grep -c -F "scripts/check-mechanics-spec.sh"` ≥ 1 且
 `scripts/mechanics-spec.json` ≥ 1，CI 日志原文 `[00:09:45] [OK] selftest-gates.sh 覆盖 scripts/check-mechanics-spec.sh（17 处）`）。
+
+### I.7 W30 最终复验（v14）—— 矩阵 basis 对齐 main HEAD + 四条独立复核
+
+> context：`plan/gap-matrix-v14.md` + `plan/verdict-v14.json`，basis=**实测** `7c23a35a`（= `HEAD` = `origin/main`，两者相等）。
+> 结论：**done=true / remaining=0**。
+> 与 v13 的差别：v13 的 `basis=c74249e` **字面不等于**当时 main HEAD `7c23a35`（差 6 个非构建输入文件）。
+> 本轮把 basis 前移到分叉时的 main HEAD，并在**该 basis 上**亲自重跑四条（修掉 v13「素材层证据是在更早 basis 上核对」的缺口）。
+
+| id | v14 判定 | 证据（命令 / sn / 文件:行号） |
+|---|---|---|
+| **矩阵 basis 字面 == main HEAD**（本轮首要目的） | ✅ **达成** | `git rev-parse HEAD` == `git rev-parse origin/main` == `7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9`（`EQUAL=true`）；`plan/gap-matrix-v14.md:3` `> verdict: done=true remaining=0` + `:4` `> basis: 7c23a35a`，与 `plan/verdict-v14.json` 逐字一致；用 `scripts/selftest-gates.sh` 的 `vmc_gate()` **原函数**自查 → `VERDICT_MATRIX_CONSISTENCY_GATE=GREEN` / `N=14 done=true remaining=0 basis=7c23a35a` |
+| **素材层四条**（本轮 basis 上亲自重跑） | ✅ **成立** | (a) 23/23 脚本有真实调用点（含 `check-mechanics-spec.sh` → `scripts/selftest-gates.sh:1711/:1717`、`gen-mechanics-spec-report.py` → `:1941/:1972`）；(b) `python3 scripts/check-asset-baseline.py` → `EXIT=0` / 252↔252 / `UNREGISTERED=0 MISSING=0 MODIFIED=0` / `ASSET_BASELINE_GATE=GREEN`（⚠️ `sh <该py>` 会 `EXIT=2` 语法错，按 stage-4 真实方式用 python3）；(c) 归一 `assets/` 前缀后 `same_set=True`（`manifest-only=0`/`prov-only=0`）、`$needsHumanDecision=[]`、六类合计 252 且与逐条重算一致；(d) items 81 == runtime 去注释键 81（键集合相等），`--check {closure,compass,hud,journey,lang,packmeta,textures}` 七项全 `exit=0` |
+| **`G-302-RESIDUAL` 系列**（含 -2/-3/-4） | ✅ **仍清零（判据未放宽）** | `SOURCE_STRING_GATE=GREEN` / `SOURCE_STRING_TESTS=0` / `EXIT=0`（重定向取码）；4 类方法体抽样（`DungeonTimeoutLifecycleContractTest` 全类只命中 `:19` 注释 / `EquipmentExitPathReachabilityTest:333-340` 读规格 JSON + 进程 stdout / `SeasonAttunementSettlementWiringTest:243/:250/:299` stdout + SnakeYAML 真解析 / `DungeonEntryCommitAmbiguityContractTest:65-77` stdout + 仓库根）；三组负夹具⑤⑥⑦现场造（`:12` / `:7` / `:19`）各自 `EXIT=1`、合并 `SOURCE_STRING_TESTS=3` / `GATE=RED`，删除后 `EXIT=0` GREEN，收尾 `git status --porcelain` 为空；反例 `LanguageBundleContractTest` 未被判红；规格 `CHECKS=469 SPECS=79 SPEC_FILES=3` ≥ v8 的 `466/78/2` |
+| **机制规格绑定层** | ✅ **闭环（本轮独立负向对照）** | `MECHANICS_SPEC_GATE=GREEN` / `ENTRIES=137`（与 M13 一致）/ `WEAK=0`；`gen-mechanics-spec-report.py --check` → `MECHANICS_SPEC_REPORT=FRESH`；`grep -nE '^\s*(import\|from)\s+yaml'` **零命中**；**我的独立负向对照**：把 `M-CORE-003` 的 config 载体 `expect` 从 `[2,3,4,5]` 改成 `[2,3,4,9]` ⇒ `EXIT=1` / `GATE=RED` / `[FAIL] M-CORE-003`；还原 ⇒ `EXIT=0` GREEN |
+| **`G-CACHE-STAMP-BEFORE-LOCK`** | ✅ **仍闭环** | eager `nextCommitVersion()` 调用**为零**（只剩定义 `JdbcProfileService.java:527` + 7 处 javadoc）；`LockedTransaction.wrap:41-46` 只包装不取号；`markLocked:54-55` 惰性一次取号；5/5 发布点 `LockedTransaction.wrap`；3 个回归测试在（`JdbcServicesTest.java:1035/:1088/:1151`） |
+| **`G-FLAKY-GATE`** | ✅ **同 sha 两次构建均 success（RED=0）**（补上 v13 的「未采样」） | `7c23a35a` 上 `cnb-7e9-1k46rf4i2`(api_trigger_gate) + `cnb-1e5-1k46rem0u`(push) **两个 main 构建都 success**，判据行逐条一致（`GATE_SELFTEST=GREEN PASS=167 FAIL=0` / `BUILD_EXIT=0` / `SUM tests=1105 failed=0` / `JAR_COUNT=56`） |
+| **`G-DUP-WORLDSTATE`** | ✅ 闭环（复核） | `plan/world-state.json` 不存在；`git ls-files \| grep world-state` 只有 `state/world-state.json`（count=1）；CI stage-1 `SINGLE_SOURCE_OF_TRUTH_GATE=GREEN` / `WORLD_STATE_FILES=1` |
+| **`G-VERDICT-MATRIX-SPLIT`** | ✅ 闭环（**本轮自身即判据对象**） | `plan/gap-matrix-v14.md` 前 20 行内 `> verdict: done=true remaining=0` + `> basis: 7c23a35a`，与 `plan/verdict-v14.json` 的 `done`/`remaining`/`basis` 逐字一致；`vmc_gate()` 原函数自查 GREEN |
+
+#### I.7.1 十门在 M13 上全绿（回读核对）
+
+`sn=cnb-7e9-1k46rf4i2`（`event=api_trigger_gate`，`targetRef=main`，`sourceRef=main`，
+`sha=7c23a35a8bd7fe5c5f5f627d08bcb22e4610b7c9`，`status=success`，`pipelineSuccessCount=1 / pipelineFailCount=0`，
+13 stage success + `DebugDetection` skipped）：
+
+`DOWNLOADER=ready` / `GATE_SELFTEST=GREEN(PASS=167 FAIL=0)` / `DDL_CONSUMER_GATE=GREEN` /
+`DDL_REGISTRATION_GATE=GREEN` / `CMD_REFERENCE_GATE=GREEN` / `RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0)` /
+`ASSET_BASELINE_GATE=GREEN(UNREGISTERED=0 MISSING=0 MODIFIED=0)` / `ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0)` /
+`COMPILE_GATE=GREEN(TASKS_DONE=28 BUILD_EXIT=0 SECONDS=122)` / `TEST_GATE=GREEN(TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=59)` /
+`SUMMARY_GATE=GREEN(SUM tests=1105 failed=0 errors=0 skipped=2 modules=26)` /
+`PACKAGE_GATE=GREEN(JAR_COUNT=56，JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)` /
+`SINGLE_SOURCE_OF_TRUTH_GATE=GREEN(WORLD_STATE_FILES=1)` / `VERDICT_MATRIX_CONSISTENCY_GATE=GREEN` /
+`MECHANICS_SPEC_GATE=GREEN(ENTRIES=137 / BY_KIND=config:78,behavior:56,java-const:3 / WEAK=0)` /
+`MECHANICS_SPEC_REPORT=FRESH`。
+
+**本轮唯一未闭合项 = 0**。**REQUIRES_HUMAN 三项**：H-001（生产机写操作）/ U-003（真实 Paper + 真实客户端握手）/
+W7-A2 四条 `[R]` 级 unproven。
