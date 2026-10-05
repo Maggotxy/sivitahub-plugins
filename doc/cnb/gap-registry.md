@@ -158,3 +158,22 @@
 - `scripts/selftest-gates.sh` §11 在 `.cnb.yml` 的「门禁自测（负向对照）」stage 里被执行：`.cnb.yml:71` 原文 `sh scripts/selftest-gates.sh`（stage 声明在 `:63`，**本任务未改 `.cnb.yml`**）。
 - 判据行原文：`SINGLE_SOURCE_OF_TRUTH_GATE=GREEN` / `WORLD_STATE_FILES=1`；`VERDICT_MATRIX_CONSISTENCY_GATE=GREEN` / `N=8 done=false remaining=1 basis=77112113`。
 - 完整自测：`sh scripts/selftest-gates.sh` → `===== 门禁自测汇总：PASS=132 FAIL=0 =====` / `GATE_SELFTEST=GREEN`。
+
+### I.4 W25 最终复验（v11）—— 两条新缺陷的闭环复核：**均未闭环**
+
+> context：`plan/gap-matrix-v11.md` + `plan/verdict-v11.json`，basis=**实测** `f014b447`（= origin/main）。
+> 结论：**done=false / remaining=1 = `G-CACHE-STAMP-BEFORE-LOCK`**。
+
+| id | 登记 | v11 判定 | 证据（命令 / sn / 文件:行号） |
+|---|---|---|---|
+| **读缓存被「晚到的旧快照」回滚** | #73（`839639f`） | ❌ **未闭环** | 版本号守卫在（`Committed<T>` + `publish()` 的 `version > existing.version()`，`JdbcProfileService.java:497-500`），两条回归测试也在：`JdbcServicesTest.java:1035 readCacheIsNotRolledBackByALateCommit()` / `:1088 lateCommitStampCannotRollBackTheReadCache()`；作者证据 `.cnb/agent-out/W24-A1-cache-publish-order.json`（改前 FAIL `expected: <20> but was: <19>` / 改后 PASS / 负向对照必红）。**但**：「取号顺序 == 锁顺序」未成为代码事实 —— 5 个发布点的 `inTransaction` 都是「**先** `nextCommitVersion()` → 再 `operation.apply(connection)` → 再 `commit()` → 提交成功才写 `versionStamp`」（`JdbcProfileService.java:796/797/798/799`、`JdbcAscensionService.java:285/286/287/288`、`JdbcDungeonRewardService.java:318/319/320/321`、`JdbcAdminIncidentCompensationService.java:726/727/728/729`、`JdbcAdminTestService.java:297/298/299/300`），而 `SELECT ... FOR UPDATE` 是在 `apply` **内部**发出的（`JdbcProfileService.java:627` 由 `loadOrCreate/loadForUpdate` 调用）⇒ **取号发生在加锁之前**，`JdbcProfileService.java:779` 注释声称的「在仍持有 `SELECT ... FOR UPDATE` 行锁时取号」与代码顺序不符。 |
+| **缓存发布倒置窗口** | #75（`f014b447`） | ❌ **未闭环** | 同上一件事的另一个说法：取号点只是从 `commit()` 之后前移到 `apply()` 之前，仍在行锁之外 ⇒ 倒置窗口未归零，只是方向由「旧盖新」变为「更新的快照被更小的号挡住」（`publish` 拒绝更高版本的数据，`get()` 返回更旧值）。**实测**：同一 sha `f014b447` 的两个构建 —— `cnb-4f2-1k46ad3pv`（`api_trigger_gate`, main）`success` / `FAILURE_XML_COUNT=0` / `rpg-core tests=320 failed=0`；`cnb-ok2-1k46acmji`（`push`, main）`error` / `test stage error` / `FAILURE_XML_COUNT=1` / `SUM tests=1104 failed=1` / 失败用例 `cn.jdbc…JdbcServicesTest#lateCommitStampCannotRollBackTheReadCache()`，`message` 原文 `org.opentest4j.AssertionFailedError: 取号必须在 commit 之前（持锁时），缓存不得被倒置的版本号回滚（实际缓存值见左） ==> expected: <20> but was: <19>`。两构建 `ENV_ANNOTATIONS=8` / `EXCLUDED_TAG_SEEN_IN_LOG=26` 一致、测试总数一致（1104 / 26 模块）⇒ 非环境差异、非模块漏跑。 |
+| **`G-FLAKY-GATE`** | W21-A1 | ⚠️ **回退（复发）** | 改后**没有**取得「同 sha 连续两次全绿」：`f014b447` 上 `cnb-4f2-1k46ad3pv` GREEN、`cnb-ok2-1k46acmji` test stage RED；同 sha RED 计数 = 1。对照改前「先红后绿」（`b6d38bf`：`cnb-tn4-1k4141s0e` test error / `cnb-h3n-1k414popl` success；`334fb54`：`cnb-d93-1k41bqhbe` test error / `cnb-esl-1k41cpau5` success），本轮是「先绿后红」，形态同源。⇒ v10 在 `1ace5ab` 上的「已闭环」不可沿用到新 basis。test stage 配置本身已收敛（`.cnb.yml:245 -Dorg.gradle.workers.max=2`，同 stage 调用不含 `-Dorg.gradle.parallel=true`；`:284 print('FAILURE_XML_COUNT=%d' % n)` 段落存在）。 |
+| **`G-302-RESIDUAL` 系列**（含 -2/-3/-4） | W16/W18/W19 | ✅ **仍清零** | `sh scripts/check-source-string-tests.sh`（重定向取码）→ `SOURCE_STRING_TESTS=0` / `SOURCE_STRING_GATE=GREEN` / `EXIT=0`；`--json` → `{"hits": [], "count": 0}`。**判据未放宽**：独立复核 4 个类方法体（`DungeonTimeoutLifecycleContractTest` / `EquipmentExitPathReachabilityTest` / `SeasonAttunementSettlementWiringTest` / `DungeonEntryCommitAmbiguityContractTest`，读的是测试夹具 / 源规格 JSON / 进程 stdout / 真解析）；三组负向夹具现场造（`Fixture5WrappedAssertTest.java:11` / `Fixture6ConstPathTest.java:13` / `Fixture7TraversalTest.java:18`）各自 `EXIT=1` 变红、删除后 `EXIT=0` GREEN、`git status --porcelain` 干净；反例 `LanguageBundleContractTest`（`Files.newInputStream` + SnakeYAML 真解析）**未**被判红；规格规模 `CHECKS=469 SPECS=79 SPEC_FILES=3` ≥ v8 的 `466/78/2`。 |
+| **`G-DUP-WORLDSTATE`** | W21-A2 | ✅ 闭环（复核） | `plan/world-state.json` 不存在；`git ls-files` 只有 `state/world-state.json`；CI stage-1 `SINGLE_SOURCE_OF_TRUTH_GATE=GREEN` / `WORLD_STATE_FILES=1`，负向夹具 `=RED` / `WORLD_STATE_FILES=2`，还原后 GREEN。 |
+| **`G-VERDICT-MATRIX-SPLIT`** | W21-A2 | ✅ 闭环（本轮自身即判据对象） | `plan/gap-matrix-v11.md` 前 20 行内 `> verdict: done=false remaining=1` + `> basis: f014b447`，与 `plan/verdict-v11.json` 的 `done`/`remaining`/`basis` **逐字一致**（按 `selftest-gates.sh` §11 `vmc_gate` 同口径自查通过）；CI stage-1 `VERDICT_MATRIX_CONSISTENCY_GATE=GREEN`。 |
+
+**新增缺口 `G-CACHE-STAMP-BEFORE-LOCK`**（可派工）：读缓存发布版本号的取号点仍在行锁之外。
+修正方向：把 `nextCommitVersion()` 真正移到「已持有 `SELECT ... FOR UPDATE` 行锁之后」，
+使「取号顺序 == 锁顺序 == 提交顺序」成为代码事实；验收以两条回归测试在门禁并行度（`workers.max=2`）
+与 8x CPU hog 下稳定绿 + 负向对照必红为准。派单见 `plan/tasks-w25.json`（W25-A2）。
