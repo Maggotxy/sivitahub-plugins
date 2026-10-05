@@ -1020,6 +1020,58 @@ class JdbcServicesTest {
         assertTrue(externallyFenced.release());
     }
 
+    /**
+     * 永久回归（W22-A1）：提交顺序被打乱时，读缓存不得被晚到的旧快照回滚。
+     *
+     * <p>根因：各事务的 {@code thenApply(cache.put)} 顺序与提交顺序无关 ——
+     * 先提交的事务可能后回到主线程。行锁保证数据库正确，但 {@code get()} 只读缓存，
+     * 于是玩家读到回滚后的经验（实测 CACHED=19 / DB=20，即门禁 run1 的
+     * {@code expected: <20> but was: <19>}）。</p>
+     *
+     * <p>构造是确定性的：把最后一条连接的 close（提交后、发布缓存前）延后 200ms，
+     * 强制让一次「旧快照」晚于新快照发布。断言是「缓存 == 数据库」，并非放宽期望值。</p>
+     */
+    @Test
+    void readCacheIsNotRolledBackByALateCommit() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger closes = new java.util.concurrent.atomic.AtomicInteger();
+        javax.sql.DataSource delayed = (javax.sql.DataSource) java.lang.reflect.Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[]{javax.sql.DataSource.class},
+                (proxy, method, args) -> {
+                    Object value = method.invoke(dataSource, args);
+                    if (!(value instanceof Connection connection)) return value;
+                    return (Connection) java.lang.reflect.Proxy.newProxyInstance(
+                            getClass().getClassLoader(), new Class<?>[]{Connection.class},
+                            (cProxy, cMethod, cArgs) -> {
+                                Object result = cMethod.invoke(connection, cArgs);
+                                if (cMethod.getName().equals("close") && closes.incrementAndGet() == 20) {
+                                    Thread.sleep(200);
+                                }
+                                return result;
+                            });
+                });
+        JdbcProfileService profiles = new JdbcProfileService(delayed, executor, 100, 2);
+        UUID playerId = UUID.randomUUID();
+        profiles.get(playerId).toCompletableFuture().join();
+
+        List<CompletableFuture<cn.originalrpg.api.model.PlayerProfile>> grants = new ArrayList<>();
+        for (int index = 0; index < 20; index++) {
+            grants.add(profiles.grantExperience(playerId, 1).toCompletableFuture());
+        }
+        CompletableFuture.allOf(grants.toArray(CompletableFuture[]::new)).join();
+
+        long fromDb;
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement();
+             var result = statement.executeQuery(
+                     "SELECT experience FROM rpg_profiles WHERE player_uuid = '" + playerId + "'")) {
+            result.next();
+            fromDb = result.getLong(1);
+            connection.rollback();
+        }
+        assertEquals(20, fromDb, "数据库里 20 次授予必须全部落账");
+        assertEquals(fromDb, profiles.get(playerId).toCompletableFuture().join().experience(),
+                "读缓存不得被晚到的旧快照回滚（实际缓存值见左）");
+    }
+
     @Test
     void concurrentExperienceGrantsPreserveEveryMutation() {
         JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);

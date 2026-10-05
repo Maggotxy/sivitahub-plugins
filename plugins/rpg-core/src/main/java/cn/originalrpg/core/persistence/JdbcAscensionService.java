@@ -61,9 +61,16 @@ public final class JdbcAscensionService implements AscensionService {
         if (playerId == null || evidence == null) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Invalid ascension request"));
         }
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> evaluate(
-                connection, playerId, evidence, true))).thenApply(result -> {
-            if (result.status() == AscensionResult.Status.SUCCESS) profiles.cacheCommitted(result.profile());
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            AscensionResult result = inTransaction(
+                    connection -> evaluate(connection, playerId, evidence, true), version);
+            return new Committed<>(result, version[0]);
+        }).thenApply(committed -> {
+            AscensionResult result = committed.value();
+            if (result.status() == AscensionResult.Status.SUCCESS) {
+                profiles.cacheCommitted(result.profile(), committed.version());
+            }
             return result;
         });
     }
@@ -262,10 +269,20 @@ public final class JdbcAscensionService implements AscensionService {
     }
 
     private <T> T inTransaction(SqlOperation<T> operation) {
+        return inTransaction(operation, new long[1]);
+    }
+
+    /**
+     * @param versionStamp 出参：写入本次事务**提交成功后**取得的提交版本号
+     *                     （{@link JdbcProfileService#nextCommitVersion()}）。调用方在
+     *                     {@code thenApply} 里用它发布读缓存，使发布判定基于提交顺序。
+     */
+    private <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
         try (Connection connection = dataSource.getConnection()) {
             try {
                 T result = operation.apply(connection);
                 connection.commit();
+                versionStamp[0] = profiles.nextCommitVersion();
                 return result;
             } catch (Exception exception) {
                 connection.rollback();

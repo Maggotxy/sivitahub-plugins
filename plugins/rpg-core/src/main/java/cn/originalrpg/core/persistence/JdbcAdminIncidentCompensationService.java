@@ -69,21 +69,29 @@ public final class JdbcAdminIncidentCompensationService implements AdminIncident
         }
         NormalizedRequest normalized = normalize(request);
         return AsyncJdbc.supply(executor, () -> {
+                    long[] version = new long[1];
                     try {
-                        return inTransaction(connection -> apply(connection, normalized));
+                        IncidentCompensationResult result =
+                                inTransaction(connection -> apply(connection, normalized), version);
+                        return new Committed<>(result, version[0]);
                     } catch (WalletLimitRejection rejection) {
                         // lockAccount may have provisioned a first account row. The
                         // exception makes inTransaction roll that row back together
                         // with every other tentative write, leaving this incident key
                         // retryable after the player makes room in their wallet.
-                        return new IncidentCompensationResult(rejection.status(), Optional.empty());
+                        return new Committed<>(
+                                new IncidentCompensationResult(rejection.status(), Optional.empty()),
+                                version[0]);
                     }
                 })
-                .thenApply(result -> {
+                .thenApply(committed -> {
                     // A replay receipt may be hours old. Never put its historic
-                    // after-profile over newer progression in the live cache.
+                    // after-profile over newer progression in the live cache —— 用提交
+                    // 版本号做判据（见 JdbcProfileService.publish），晚到的旧快照不会回滚新快照。
+                    IncidentCompensationResult result = committed.value();
                     if (result.status() == IncidentCompensationResult.Status.APPLIED) {
-                        result.audit().ifPresent(audit -> profiles.cacheCommitted(audit.afterProfile()));
+                        result.audit().ifPresent(audit ->
+                                profiles.cacheCommitted(audit.afterProfile(), committed.version()));
                     }
                     return result;
                 });
@@ -699,6 +707,15 @@ public final class JdbcAdminIncidentCompensationService implements AdminIncident
     }
 
     private <T> T inTransaction(SqlOperation<T> operation) {
+        return inTransaction(operation, new long[1]);
+    }
+
+    /**
+     * @param versionStamp 出参：写入本次事务**提交成功后**取得的提交版本号
+     *                     （{@link JdbcProfileService#nextCommitVersion()}）。调用方在
+     *                     {@code thenApply} 里用它发布读缓存，使发布判定基于提交顺序。
+     */
+    private <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
         try (Connection connection = dataSource.getConnection()) {
             try {
                 // Production Hikari is configured this way. Enforce the same
@@ -707,6 +724,7 @@ public final class JdbcAdminIncidentCompensationService implements AdminIncident
                 if (connection.getAutoCommit()) connection.setAutoCommit(false);
                 T value = operation.apply(connection);
                 connection.commit();
+                versionStamp[0] = profiles.nextCommitVersion();
                 return value;
             } catch (Exception exception) {
                 connection.rollback();

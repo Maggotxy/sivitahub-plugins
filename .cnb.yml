@@ -234,9 +234,15 @@
           # RED / sn=cnb-h3n-1k414popl GREEN），失败的都是**时序/并发敏感**的用例
           # （AnomalyReviewCommandTest 的 30ms 静默窗口、JdbcServicesTest 的 20 路并发授予），
           # 且两次假红都发生在**平台上另有构建在跑**的时候 ⇒ 判定为「CPU 争抢把测试饿出假红」。
-          # 因此把并行度收敛到 2（不是关掉并行，也不是跳过任何测试），减少门禁自伤。
+          # 因此把并行度收敛到 2 并去掉 parallel（不是跳过任何测试），减少门禁自伤。
+          # W22-A1 补充了**决定性证据**：在 8x CPU hog 下用 parallel=true/workers=4 复现到与门禁
+          # 逐字一致的失败 —— `JdbcServicesTest > concurrentExperienceGrantsPreserveEveryMutation()`
+          # `org.opentest4j.AssertionFailedError: expected: <20> but was: <19>`，
+          # 且随后查明**真因不是负载本身**，而是 rpg-core 读缓存被「晚到的旧快照」回滚
+          # （行锁保证数据库是 20，但 get() 只读缓存，读到 19）—— 见 #73 的修复与
+          # `readCacheIsNotRolledBackByALateCommit()` 这个确定性回归测试。
           ./gradlew --no-daemon --continue \
-            -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=2 \
+            -Dorg.gradle.workers.max=2 \
             -Dorg.gradle.internal.http.connectionTimeout=60000 \
             -Dorg.gradle.internal.http.socketTimeout=60000 \
             -Dorg.gradle.jvmargs="-Xmx1536m -Dfile.encoding=UTF-8" \
