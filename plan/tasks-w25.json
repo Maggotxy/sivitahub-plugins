@@ -1,0 +1,38 @@
+{
+ "wave": "W25",
+ "basis": "f014b447",
+ "note": "只含真实剩余缺口（本轮实测）。done=false / remaining=1 = G-CACHE-STAMP-BEFORE-LOCK。素材层四条与 G-302-RESIDUAL 系列本轮复跑均成立/仍清零，不再派单。",
+ "tasks": [
+  {
+   "id": "W25-A2-cache-stamp-before-lock",
+   "title": "读缓存发布版本号：把取号点真正移到「已持有 SELECT ... FOR UPDATE 行锁之后」",
+   "gap": "G-CACHE-STAMP-BEFORE-LOCK",
+   "priority": "P0",
+   "requires_gradle": true,
+   "allowed_paths": [
+    "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/**",
+    "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/**",
+    ".cnb/agent-out/**"
+   ],
+   "forbidden": ["不改断言期望值", "不把并发改成串行", "不删任何既有测试", "不动 .cnb.yml"],
+   "current_facts": [
+    "5 个发布点的 inTransaction 都是「先 nextCommitVersion() → 再 operation.apply(connection) → 再 commit() → 提交成功才写 versionStamp」（JdbcProfileService:796-799 / JdbcAscensionService:285-288 / JdbcDungeonRewardService:318-321 / JdbcAdminIncidentCompensationService:726-729 / JdbcAdminTestService:297-300）",
+    "SELECT ... FOR UPDATE 是在 apply 内部发出的（JdbcProfileService.java:627，由 loadOrCreate/loadForUpdate 调用）⇒ 取号发生在加锁之前",
+    "JdbcProfileService.java:779 的注释声称「在仍持有 SELECT ... FOR UPDATE 行锁时取号」，与代码顺序不符",
+    "同 sha f014b447 的两个构建：cnb-4f2-1k46ad3pv(api_trigger_gate) success / FAILURE_XML_COUNT=0；cnb-ok2-1k46acmji(push) error / FAILURE_XML_COUNT=1，失败用例 = JdbcServicesTest#lateCommitStampCannotRollBackTheReadCache()，message 原文 org.opentest4j.AssertionFailedError: ... ==> expected: <20> but was: <19>"
+   ],
+   "goal": "让「取号顺序 == 加锁顺序 == 提交顺序」成为代码事实（而非注释声明），使读缓存不会被倒置的版本号回滚，并让 two 条回归测试在门禁并行度（workers.max=2）与负载下稳定绿。",
+   "acceptance": [
+    "lateCommitStampCannotRollBackTheReadCache() 与 readCacheIsNotRolledBackByALateCommit() 在 8x CPU hog 下循环 ≥10 次全绿（rc=0）",
+    "全量 :plugins:rpg-core:test --rerun -PexcludeTags=env 在负载下绿；python3 scripts/dump-test-results.py --min-modules 26 → SUMMARY_GATE=GREEN",
+    "negative control：把取号点改回 commit 之后（或把行锁获取移到取号之后）⇒ 两个测试必红（给出 XML <failure message> 原文），还原即绿",
+    "断言不放宽（仍断言 DB==20 且 缓存==数据库）；并发仍是 20 路虚拟线程 + 真实 FOR UPDATE 行锁，未串行化",
+    "把「取号必须在已持有行锁之后」的机械约束落到注释或文档，避免再次声明与实现不符"
+   ],
+   "notes": [
+    "路线由实现者选定（把 nextCommitVersion() 下沉进业务 lambda 在 loadForUpdate 之后取；或把「已加锁」显式化为前置条件），但验收判据以上面 4 条为准。",
+    "本任务不需要人类拍板才能开工；人类若想指定路线，见 verdict-v11.json 的 needs_human 第 4 条。"
+   ]
+  }
+ ]
+}
