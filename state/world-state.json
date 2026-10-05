@@ -609,7 +609,7 @@
  ],
  "next_action": "收口。若需继续，只能推进 REQUIRES_HUMAN 三项（H-001 生产机写操作 / U-003 真实 Paper + 真实客户端握手 / W7-A2 四条 [R] 级 unproven）—— 均需真实环境与人类操作，本仓与 CNB 无法完成。",
  "updated_by": "CNB CodeBuddy NPC（W31-A1-verdict-v15）",
- "updated_at": "2026-10-06T15:00:00Z",
+ "updated_at": "2026-10-06T15:10:00Z",
  "merged_gaps": [
   "G-001",
   "G-002",
@@ -796,5 +796,6 @@
   "素材可复现性门禁（ASSET_REPRO）本容器无 JDK 未本地复跑（实测 JAVA=NONE / JAVAC=NONE），以 M13 stage-5 判据行为证据。",
   "docs/GAME_DESIGN.md 的 15 节里「核心循环」无机械可核数值（纯叙述），该节无 spec 条目；spec 的 unverifiable 清单（11 条）显式登记不可机械核对的断言。",
   "任务描述里的 `sh scripts/check-asset-baseline.py` 对 Python 文件会报语法错（EXIT=2）；本轮按 .cnb.yml stage-4 真实方式用 python3，结果 GREEN。"
- ]
+ ],
+ "pr_w31": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/83"
 }

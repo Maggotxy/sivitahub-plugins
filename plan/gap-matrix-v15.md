@@ -29,6 +29,7 @@
 十门在 M14=`c241979` 上全绿（判据行齐全，含 `MECHANICS_SPEC_*`）；素材层四条在本轮 basis 上成立；
 剩余问题**只有** `REQUIRES_HUMAN`（H-001 / U-003 / W7-A2 四条 `[R]`）。
 ⇒ `plan/verdict-v15.json`：`done=true`、`remaining=0`（与本节 `> verdict:` 行**严格一致**，见 §10）。
+> 本轮 PR：https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/83（分支 `agent/W31-A1-verdict-v15`）。
 
 ## 1. basis 实测（本轮首要目的）
 

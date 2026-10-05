@@ -10,7 +10,7 @@
   "doc/cnb/gap-registry.md",
   ".cnb/agent-out/W31-A1-verdict-v15.json"
  ],
- "pr_url": "",
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/83",
  "evidence": {
   "budget_note": "全部为本轮 basis c241979 上的实测命令原文与输出；取退出码一律重定向后取 $?，不走管道。不需要 gradle，临时脚本只用 stdlib。",
   "basis": {
