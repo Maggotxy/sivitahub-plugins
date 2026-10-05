@@ -11,7 +11,7 @@
     "docs/MECHANICS_SPEC_BINDING.md",
     ".cnb/agent-out/W28-A2-mechanics-spec-rest.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/80",
   "evidence": {
     "gate_positive": {
       "cmd": "sh scripts/check-mechanics-spec.sh",
