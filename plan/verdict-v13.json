@@ -1,0 +1,186 @@
+{
+ "done": true,
+ "impossible": false,
+ "basis": "c74249e",
+ "reason": "✅ done=true 的四条件全部成立。① 差集矩阵「声明未接线」= 0 条（23 个 scripts 脚本逐个有真实调用点；11 条 P0 + 8 条 P2 + 81 张 DDL 表全部有真实消费者），且**可派工的实现缺口 = 0 条**：v12 的唯一 remaining G-CACHE-STAMP-BEFORE-LOCK 仍闭环 —— 独立复核代码事实：eager `nextCommitVersion()` 调用为零（grep -rn 只剩 1 个定义 JdbcProfileService.java:527 + 7 处 javadoc）；LockedTransaction.markLocked 惰性一次取号（LockedTransaction.java:54-55 `if (version == 0L) version = nextVersion.getAsLong();`）；wrap 只做代理包装不取号；5/5 发布点 LockedTransaction.wrap（JdbcProfileService:841 / JdbcAscensionService:284 / JdbcDungeonRewardService:318 / JdbcAdminIncidentCompensationService:723 / JdbcAdminTestService:297），触发点在 FOR UPDATE 之后（:484 FOR UPDATE → :492 markLocked；:667 SELECT…FOR UPDATE → :633 markLocked）；JdbcAdminTestService.status 纯读路径改传 LockedTransaction.NO_STAMP（不再把读到的行发进缓存）；三个回归测试在（JdbcServicesTest.java:1035/:1088/:1151）且断言未放宽（仍断言 DB==缓存值 + 20 路并发未串行化），CI `SUM tests=1105 failed=0 errors=0 skipped=2 modules=26`。**PR#80（M12 新合入的构建输入改动）新增的「玩法规格↔代码机械绑定」这一层已闭环**：137 条声明式绑定（config:78 / behavior:56 / java-const:3，`MECHANICS_SPEC_WEAK=0`，unverifiable 显式登记 11 条），覆盖 docs/GAME_DESIGN.md 规格正文 15 节里的 14 节（核心循环是纯叙述、无机械可核数值，已在生成报告里显式说明）；6 组负夹具（config 改坏 / behavior 指向不存在测试 / java-const 改坏 / 去掉 behavior_ref 使 WEAK 变 1 / 后 7 节新条目改坏 / 报告陈旧 STALE）在 M12 stage-1 真跑且每组都带「还原后必须 GREEN」的退出码断言；报告可重生成（`--check` → MECHANICS_SPEC_REPORT=FRESH，`--write` 幂等、git status 干净），块标记 `<!-- BEGIN mechanics-spec-report (generated) -->` 在 docs/GAME_DESIGN.md:176 / END 在 :270，数字由脚本生成。**我自己独立做了一次负向对照**（不采信 NPC）：在 /tmp 副本里把一条 config 载体的值改坏（M-CORE-003 的 expect 从 [2,3,4,5] 改成 [2,3,4,9]）⇒ `sh scripts/check-mechanics-spec.sh --spec /tmp/mxfix/spec.broken.json` → EXIT=1 / MECHANICS_SPEC_GATE=RED / [FAIL] M-CORE-003 / 期望 [2,3,4,9] / 实际 ['2','3','4','5']；还原 ⇒ EXIT=0 GREEN。**PR#80 顺带修掉的两条真实缺陷已独立复现并确认闭环**：① 门禁曾对「载体文件缺失」判 GREEN（resolve_config 返回 None ⇒ len(None) 抛 TypeError 被吞成 exit 0）—— 现脚本 :711-715 显式 failures.append；我把一条 config 载体的 path 改成不存在的文件 ⇒ EXIT=1 / GATE=RED / 「config 文件不存在或为空：…DOES-NOT-EXIST.yml」。② 门禁曾依赖 PyYAML，而真实门禁镜像（eclipse-temurin:25-jdk + apt python3）既无 PyYAML 也无 pip ⇒ NPC 容器 GREEN 而门禁容器 RED —— 现为纯 stdlib；`grep -nE '^[[:space:]]*(import|from)[[:space:]]+yaml' scripts/check-mechanics-spec.sh` 零命中（exit=1 / 0 行）；隔离垫片下 `import yaml` 失败（ModuleNotFoundError: No module named 'yaml'，探针先自证垫片有效）而门禁仍 GREEN，且 4 行判据与有 PyYAML 时 diff 逐字一致（IDENTICAL）；CI stage-1 亦有垫片探针与静态回归夹具（判据 12d / 负夹具⑦）锁住「不得再 import yaml」。② 十门在 M12=`c74249e` 上全绿：权威 sn=`cnb-cf6-1k46peo58`（event=api_trigger_gate, targetRef=main, sourceRef=main, sha=c74249e46370f2c18359373615146aa978c72618, status=success, pipelineSuccessCount=1 / pipelineFailCount=0, 13 stage success + DebugDetection skipped，每个 success stage duration 非零）：DOWNLOADER=ready / GATE_SELFTEST=GREEN(PASS=167 FAIL=0) / DDL_CONSUMER_GATE=GREEN(81 表, 豁免 0) / DDL_REGISTRATION_GATE=GREEN(551 文件, 反向豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令, 豁免 9) / RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0) / ASSET_BASELINE_GATE=GREEN(252↔252, UNREGISTERED=0 MISSING=0 MODIFIED=0) / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / COMPILE_GATE=GREEN(TASKS_DONE=28 BUILD_EXIT=0 SECONDS=120) / TEST_GATE=GREEN(TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=60) / SUMMARY_GATE=GREEN(SUM tests=1105 failed=0 errors=0 skipped=2 modules=26, NO_XML modules=0) / PACKAGE_GATE=GREEN(JAR_COUNT=56, JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0) / SINGLE_SOURCE_OF_TRUTH_GATE=GREEN(WORLD_STATE_FILES=1) / VERDICT_MATRIX_CONSISTENCY_GATE=GREEN(N=12 done=true remaining=0 basis=14b67f2) / **MECHANICS_SPEC_GATE=GREEN(ENTRIES=137 / BY_KIND=config:78,behavior:56,java-const:3 / WEAK=0)** / **MECHANICS_SPEC_REPORT=FRESH**。实测 `git rev-parse HEAD` == `git rev-parse origin/main` == c74249e46370f2c18359373615146aa978c72618（**两者相等**），且 basis 自身就是 M12 ⇒ 十门证据的构建输入与本轮判定 basis 同集合；`git diff --name-only <M12> HEAD` 只含 plan/**、state/**、doc/cnb/**、.cnb/agent-out/**，**无一个构建输入**。③ 素材层四条全部成立（零消费者=0：23 个脚本逐个给调用点原文，含本轮新增的 check-mechanics-spec.sh 与 gen-mechanics-spec-report.py；252↔252 UNREGISTERED/MISSING/MODIFIED 全 0；provenance 与 manifest 归一 assets/ 前缀后同集合（manifest-only=0 prov-only=0）、$needsHumanDecision=[]、六类 $counts 合计 252 且与逐条重算一致；items 81 == runtime-item-models 81 且**键集合相等**（items-only=[] models-only=[]），七项素材判据 closure/compass/hud/journey/lang/packmeta/textures 全 exit=0）。④ 剩余问题**只有** REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]），无实现路线取舍。G-302-RESIDUAL 系列仍清零且**判据未被放宽**（本轮独立复跑：`SOURCE_STRING_TESTS=0` / `SOURCE_STRING_GATE=GREEN` / `EXIT=0`（重定向取码，不走管道）/ `--json` hits=[]；独立抽样复核 4 个类方法体（DungeonTimeoutLifecycleContractTest / EquipmentExitPathReachabilityTest / SeasonAttunementSettlementWiringTest / DungeonEntryCommitAmbiguityContractTest），读的是测试夹具 / 源规格 JSON / 进程 stdout / 真解析而非生产源码正文；三组负向夹具⑤⑥⑦现场造在真 plugins/rpg-core/src/test/java/_gatefixture/ 下，各自 EXIT=1 变红（SOURCE_STRING_TESTS=3 / GATE=RED），删除后 EXIT=0 GREEN，收尾 git status --porcelain 为空；反例 LanguageBundleContractTest（Files.newInputStream + SnakeYAML 真解析）未被判红；规格规模 469/79/3 ≥ v8 的 466/78/2）。⚠️ 实现路线取舍（不属 REQUIRES_HUMAN，由我自己选）：① 判据的遍历形态边界（单个内联字面量 Path.of(\"plugins/rpg-core/src/main\") 不命中）—— 选择**如实登记边界而不改判据**，理由：该形态不是历史上漂移过的形态，且当前 SOURCE_STRING_TESTS=0 是方法体事实（4 类逐条复核），不依赖该边界是否可绕；改判据属构建输入，本任务不允许改。② G-FLAKY-GATE 本轮同 sha 只采到一个 main 构建 ⇒ **不作「已闭环」声明**（本轮无任何 RED 观测、未复发，但也不说「同 sha 两次全绿」），这条写进 risks 而非 needs_human —— 它不是「只能由人做的事」，调度器多触发一次构建即可复核。",
+ "remaining": 0,
+ "remaining_ids": [],
+ "needs_human": [
+  "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机 `lamb:/home/lamb/minecraft` 跑 scripts/maintain-world-coverage.sh（生产机写操作，L-006 只读）。",
+  "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
+  "W7-A2 遗留的 4 条 [R] 级 unproven：G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证。"
+ ],
+ "condition_1_no_declared_unwired": true,
+ "condition_1_note": "「声明未接线」= 0 条（23 个 scripts 脚本逐个有真实调用点；11 条 P0 / 8 条 P2 / 81 张 DDL 表全部有真实消费者；DDL 豁免 0 条、CMD 豁免 9 条为既有且可审计）。「可派工的实现缺口」= 0 条：G-CACHE-STAMP-BEFORE-LOCK 仍闭环（代码事实 + 三个回归测试 + CI PASS）；PR#80 新增层闭环；PR#80 顺带修的两条门禁缺陷已独立复现并确认闭环。",
+ "condition_2_gates_green_on_current_main": true,
+ "condition_2_note": "权威 sn=cnb-cf6-1k46peo58 在 sha=c74249e 上 13 stage success + 1 skipped（DebugDetection，设计上跳过）、判据行逐条回读齐全，含 MECHANICS_SPEC_GATE=GREEN(ENTRIES=137 / BY_KIND=config:78,behavior:56,java-const:3 / WEAK=0) 与 MECHANICS_SPEC_REPORT=FRESH。",
+ "condition_2_evidence": "basis 实测 = HEAD = origin/main = c74249e46370f2c18359373615146aa978c72618（两者相等），且 basis 自身就是 M12 ⇒ 十门证据的构建输入与本轮判定 basis 同集合。判据行见 plan/gap-matrix-v13.md §9.1。",
+ "condition_3_asset_layer_four": true,
+ "condition_3_evidence": "(a) scripts/ 下 23 个 .sh/.py 逐个查真实调用点，全部 >0（.cnb.yml stage 入口 + selftest-gates.sh / 插件 *ContractTest 经 ProcessBuilder 真跑），含本轮新增 check-mechanics-spec.sh 与 gen-mechanics-spec-report.py。(b) python3 scripts/check-asset-baseline.py → EXIT=0 / 校验 252 张 PNG（清单 252 条）/ UNREGISTERED=0 MISSING=0 MODIFIED=0 / ASSET_BASELINE_GATE=GREEN。(c) manifest 252 == provenance assets 252，归一 assets/ 前缀后 manifest-only=0 prov-only=0、同集合 True、$needsHumanDecision=[]、六类 $counts 合计 252（与逐条重算一致）。(d) items/*.json 81 == runtime-item-models 去注释键 81 且键集合相等；python3 scripts/resource-pack-asset-check.py --root . --check {closure,compass,hud,journey,lang,packmeta,textures} 七项全 exit=0。素材可复现性本地未复跑（本容器实测 JAVA=NONE / JAVAC=NONE），以 M12 stage-5 的 REPRODUCIBLE=70 MISMATCH=0 为证据，如实说明。",
+ "condition_4_only_requires_human": true,
+ "condition_4_note": "除 3 类 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）外，无其它剩余问题。实现路线的选择不属 REQUIRES_HUMAN（用户已明确授权「不需要拍板，完全由 AI 决定」）；本轮若仍有取舍见 gap-matrix-v13 §6.5 / §10。",
+ "verdict_conditions": {
+  "no_declared_unwired": true,
+  "no_dispatchable_implementation_gap": true,
+  "gates_green_on_M12": true,
+  "mechanics_spec_layer_closed": true,
+  "asset_layer_four": true,
+  "only_requires_human": true
+ },
+ "new_layer_closed": {
+  "id": "MECHANICS-SPEC-BINDING",
+  "closed_by": "PR#80 / commit c74249e（W28-A1/A2/A3）",
+  "what": "把 docs/GAME_DESIGN.md 的数值/公式/阈值/枚举与代码机械绑定，使「文档↔代码漂移」由门禁而非人工审计发现。动因：本项目实测已漂移 3 次（G-106 血契二转/三转、G-202 槽上限固定区间、G-209 预警 0.4-0.8s）。",
+  "deliverables": [
+   "scripts/mechanics-spec.json：137 条声明式绑定（config:78 / behavior:56 / java-const:3），每条含 claim（规格原话摘要）+ doc_lines 锚点 + carrier + note；unverifiable 显式登记 11 条（含理由）",
+   "scripts/check-mechanics-spec.sh：判据行 MECHANICS_SPEC_GATE / _ENTRIES / _BY_KIND / _WEAK",
+   "scripts/gen-mechanics-spec-report.py：可重生成报告（写入 docs/GAME_DESIGN.md 末节，BEGIN 标记在 :176，END 在 :270），--check 判 FRESH|STALE",
+   "scripts/selftest-gates.sh §12：6 组负夹具（config 改坏 / behavior 指向不存在测试 / java-const 改坏 / 去掉 behavior_ref 使 WEAK 变 1 / 后 7 节新条目改坏 / 报告陈旧 STALE），每组都带「还原后必须 GREEN」"
+  ],
+  "coverage": "docs/GAME_DESIGN.md 规格正文 15 节覆盖 14 节；核心循环是纯叙述（无机械可核数值），已在报告「未登记任何条目的节」显式说明。",
+  "independent_negative_control_me": {
+   "cmd_broken": "sh scripts/check-mechanics-spec.sh --spec /tmp/mxfix/spec.broken.json  （把 M-CORE-003 的 config 载体 expect 从 [2,3,4,5] 改成 [2,3,4,9]）",
+   "exit_broken": 1,
+   "output_broken": "MECHANICS_SPEC_GATE=RED / [FAIL] M-CORE-003 / 期望 [2, 3, 4, 9] / 实际 ['2','3','4','5']",
+   "cmd_restored": "sh scripts/check-mechanics-spec.sh --spec /tmp/mxfix/spec.restored.json",
+   "exit_restored": 0,
+   "note": "改坏必红且点名到具体 id；还原即 GREEN（不是恒红）。全程在 /tmp 副本上，仓库内 spec 未被改动，git status --porcelain 为空。"
+  }
+ },
+ "closed_defects_from_pr80": {
+  "carrier_missing_was_green": {
+   "what": "门禁曾对「载体文件缺失」判 GREEN：resolve_config 返回 None ⇒ 后续 len(None) 抛 TypeError 被吞成 exit 0（假绿）。",
+   "fixed_at": "scripts/check-mechanics-spec.sh:711-715 显式 failures.append(...)",
+   "my_negative_control": "把一条 config 载体的 path 改成 plugins/rpg-skills/src/main/resources/DOES-NOT-EXIST.yml ⇒ sh scripts/check-mechanics-spec.sh --spec /tmp/mxmissing/scripts/mechanics-spec.json → EXIT=1 / MECHANICS_SPEC_GATE=RED / [FAIL] M-CORE-003 / 实际：config 文件不存在或为空：…DOES-NOT-EXIST.yml",
+   "verdict": "✅ 闭环（缺载体从假绿变成 RED 且可归因）"
+  },
+  "pyyaml_dependency": {
+   "what": "门禁曾依赖 PyYAML（import yaml + yaml.safe_load），而真实门禁镜像 eclipse-temurin:25-jdk + apt python3 既无 PyYAML 也无 pip ⇒ NPC 容器 GREEN 而门禁容器 RED。",
+   "fixed_at": "改为纯 stdlib 的最小 YAML 子集解析器（re/json/os/sys），并加静态回归夹具锁住「不得再 import yaml」",
+   "my_evidence": [
+    "grep -nE '^[[:space:]]*(import|from)[[:space:]]+yaml' scripts/check-mechanics-spec.sh → GREP_YAML_EXIT=1 / 0 行（零命中）",
+    "隔离垫片（把 dist-packages/site-packages 摘出 sys.path）：PYTHONPATH=/tmp/noyaml-shim python3 -c 'import yaml' → EXIT=1 / ModuleNotFoundError: No module named 'yaml'（探针先自证垫片有效，否则对照是空跑）",
+    "同垫片下 PYTHONPATH=/tmp/noyaml-shim sh scripts/check-mechanics-spec.sh → EXIT=0 / 4 行判据齐全；与有 PyYAML 时 diff → IDENTICAL",
+    "CI stage-1（cnb-cf6-1k46peo58）：[OK] 垫片下 PyYAML 确实不可导入 / [OK] 判据 12d 不含 import yaml（exit=0）/ [OK] 负夹具⑦ 插入 import yaml → 报 1（exit=1）/ 还原后回 0（exit=0）"
+   ],
+   "npc_container_note": "本 NPC 容器有 PyYAML 6.0（python3 -c 'import yaml' 通过）⇒ 「本容器跑绿」不是证据；证据是隔离垫片对照 + 门禁镜像自己的探针 + 静态回归夹具。",
+   "verdict": "✅ 闭环（stdlib-only，且门禁容器实测无 PyYAML 仍 GREEN）"
+  }
+ },
+ "g302_residual_series": {
+  "gate_line": "SOURCE_STRING_TESTS=0 / SOURCE_STRING_GATE=GREEN / EXIT=0",
+  "take_code_discipline": "取退出码一律重定向到文件再取 $?，不走管道（sh x | tail; echo $? 拿到的是 tail 的 0）。",
+  "gate_not_weakened": {
+   "samples_reviewed": 4,
+   "sample_ids": [
+    "DungeonTimeoutLifecycleContractTest",
+    "EquipmentExitPathReachabilityTest",
+    "SeasonAttunementSettlementWiringTest",
+    "DungeonEntryCommitAmbiguityContractTest"
+   ],
+   "fixtures_negative": 3,
+   "fixture_ids": [
+    "Fixture5WrappedAssertTest",
+    "Fixture6ConstPathTest",
+    "Fixture7TraversalTest"
+   ],
+   "fixture_result": "三组各 EXIT=1 变红（SOURCE_STRING_TESTS=3 / SOURCE_STRING_GATE=RED），删除后 EXIT=0 GREEN，git status --porcelain 为空",
+   "counter_example_not_flagged": "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java（Files.newInputStream + SnakeYAML 真解析）未被判红",
+   "specs_not_shrunk": "SOURCE_CONTRACT_CHECKS=469 SPECS=79 SOURCE_CONTRACT_SPEC_FILES=3（v8 基线 466/78/2）；CI stage-1 亦有「真实规格目录已加载且未缩水（CHECKS=469≥466 SPECS=79≥2）」断言",
+   "known_boundary": "判据的遍历形态有已知边界：Files.walk 的实参若只有单个内联字面量（如 Path.of(\"plugins/rpg-core/src/main\")）而不含 plugins|tools 与 src/main 两段独立字面量，不会命中。已如实登记在 gap-matrix-v13 §6.5，判定不构成本轮缺口（理由三条，见该节）。"
+  }
+ },
+ "artifact_layer": {
+  "zero_consumer": 0,
+  "scripts_count": 23,
+  "asset_baseline": "252↔252, UNREGISTERED=0 MISSING=0 MODIFIED=0, ASSET_BASELINE_GATE=GREEN",
+  "provenance": "同集合(manifest-only=0 prov-only=0), $needsHumanDecision=[], 六类合计 252（与逐条重算一致）",
+  "items": "81 == 81 且键集合相等 (items-only=[] models-only=[]); 七项 resource-pack-asset-check 全 exit=0",
+  "asset_repro_local": "未本地复跑（本容器实测 JAVA=NONE / JAVAC=NONE）—— 以 M12 stage-5 为证据"
+ },
+ "registered_defects_status": {
+  "MECHANICS-SPEC-BINDING": "✅ 已建立并闭环（PR#80 / c74249e）：137 条 / 6 组负夹具 / 报告可重生成 / stdlib-only",
+  "carrier_missing_was_green": "✅ 闭环（PR#80 修 + 本轮独立负向对照复现）",
+  "pyyaml_dependency": "✅ 闭环（PR#80 改 stdlib-only + 本轮隔离垫片对照 + 门禁镜像探针）",
+  "G-CACHE-STAMP-BEFORE-LOCK": "✅ 仍闭环（独立复核代码事实：eager 取号为零 / 惰性一次 / 5 发布点在锁后 / 3 回归测试 + CI PASS）",
+  "G-FLAKY-GATE": "⚠️ 本轮无同 sha 第二次构建采样 —— 只采到 cnb-cf6-1k46peo58 一个 main 构建；本轮无任何 RED 观测（未复发），但不作「已闭环」声明，见 risks。",
+  "G-DUP-WORLDSTATE": "✅ 闭环（复核）：plan/world-state.json 不存在；CI stage-1 SINGLE_SOURCE_OF_TRUTH_GATE=GREEN / WORLD_STATE_FILES=1，负向夹具 RED / WORLD_STATE_FILES=2，还原后 GREEN。",
+  "G-VERDICT-MATRIX-SPLIT": "✅ 闭环（本轮自身即判据对象）：plan/gap-matrix-v13.md 前 20 行 `> verdict: done=true remaining=0` 与 `> basis: c74249e`，与 plan/verdict-v13.json 的 done/remaining/basis 逐字一致（按 selftest-gates.sh §11 vmc_gate 同口径自查通过）。"
+ },
+ "gates": {
+  "evidence_sn": "cnb-cf6-1k46peo58",
+  "evidence_sha": "c74249e",
+  "event": "api_trigger_gate",
+  "targetRef": "main",
+  "status": "success",
+  "stages_all_success": 13,
+  "stages_skipped": 1,
+  "downloader": "GREEN (DOWNLOADER=ready)",
+  "gate_selftest": "GREEN (PASS=167 FAIL=0)",
+  "ddl_consumer": "GREEN (81 张表，豁免 0)",
+  "ddl_registration": "GREEN (551 文件，反向豁免 0)",
+  "cmd_reference": "GREEN (43 指令，豁免 9)",
+  "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
+  "asset_baseline": "GREEN (UNREGISTERED=0 MISSING=0 MODIFIED=0，252↔252)",
+  "asset_repro": "GREEN (REPRODUCIBLE=70 MISMATCH=0)",
+  "compile": "GREEN (TASKS_DONE=28 BUILD_EXIT=0 SECONDS=120)",
+  "test": "GREEN (TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=60)",
+  "summary": "GREEN (SUM tests=1105 failed=0 errors=0 skipped=2 modules=26；NO_XML modules=0 期望 26)",
+  "package": "GREEN (JAR_COUNT=56，JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)",
+  "mechanics_spec": "GREEN (ENTRIES=137 / BY_KIND=config:78,behavior:56,java-const:3 / WEAK=0)",
+  "mechanics_spec_report": "FRESH",
+  "source_string": "GREEN (SOURCE_STRING_TESTS=0；stage-1 §4d 夹具各带退出码断言)",
+  "source_contract": "GREEN (CHECKS=469 SPECS=79 SPEC_FILES=3)",
+  "single_source_of_truth": "GREEN (WORLD_STATE_FILES=1)",
+  "verdict_matrix_consistency": "GREEN (N=12 done=true remaining=0 basis=14b67f2)",
+  "same_sha_second_build": "NOT_SAMPLED —— 本轮同 sha 只采到 1 个 main 构建（cnb-cf6-1k46peo58）"
+ },
+ "basis_scope": {
+  "head": "c74249e",
+  "origin_main": "c74249e",
+  "equal": true,
+  "diff_vs_M12": [
+   "plan/**",
+   "state/**",
+   "doc/cnb/**",
+   ".cnb/agent-out/**"
+  ],
+  "build_inputs_touched": false
+ },
+ "risks": [
+  "G-FLAKY-GATE 本轮无同 sha 第二次构建采样（只采到 cnb-cf6-1k46peo58 一个 main 构建）。本轮无任何 RED 观测，但也**不能**据此声称「同 sha 连续两次全绿」。建议调度器在 c74249e 上再触发一次构建即可把该项从「未采样」变为「已复核」。注意：本任务不改任何测试/CI 文件，不引入该风险。",
+  "G-302 判据的遍历形态存在已知边界（单个内联字面量 Path.of(\"plugins/rpg-core/src/main\") 不命中）。已如实登记在 plan/gap-matrix-v13.md §6.5；当前 SOURCE_STRING_TESTS=0 是方法体事实（4 类逐条复核），不依赖该边界。",
+  "素材可复现性门禁（ASSET_REPRO）本容器无 JDK 未本地复跑，以 M12 stage-5 判据行为证据。",
+  "docs/GAME_DESIGN.md 的 15 节里「核心循环」无机械可核数值（纯叙述），因此该节无 spec 条目；spec 的 unverifiable 清单（11 条）显式登记了不可机械核对的断言（含属性门槛类型，理由已写明）。"
+ ],
+ "stats": {
+  "scripts_total": 23,
+  "mechanics_spec_entries": 137,
+  "mechanics_spec_by_kind": {
+   "config": 78,
+   "behavior": 56,
+   "java-const": 3
+  },
+  "mechanics_spec_weak": 0,
+  "mechanics_spec_unverifiable": 11,
+  "mechanics_spec_sections_covered": 14,
+  "source_string_tests": 0,
+  "source_contract_checks": 469,
+  "source_contract_specs": 79,
+  "source_contract_spec_files": 3,
+  "png_total": 252,
+  "items": 81,
+  "tests_total": 1105,
+  "modules": 26,
+  "jar_count": 56
+ },
+ "artifacts": [
+  "plan/gap-matrix-v13.md",
+  "plan/verdict-v13.json",
+  "plan/tasks-w29.json",
+  "state/world-state.json",
+  ".cnb/agent-out/W29-A1-verdict-v13.json",
+  "doc/cnb/gap-registry.md"
+ ],
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/81"
+}

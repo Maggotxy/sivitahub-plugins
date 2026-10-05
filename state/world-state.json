@@ -1,732 +1,772 @@
 {
-  "project": "sivitahub",
-  "display_name": "希维塔大陆 SivitaHub",
-  "repo": "xzqkjmnbvc2026/sivitahub",
-  "source_of_truth": "本仓 main 分支",
-  "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
-  "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 27,
-  "max_round": 12,
-  "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
-  "gate": {
-    "definition_of_done": "src/main 里有真实调用点 + 行为级测试 + 全量编译门绿 + .cnb/agent-out/<id>.json 带 evidence.grep/evidence.test",
-    "excluded": [
-      "推算",
-      "应该",
-      "等价于",
-      "只有单元测试无消费者",
-      "文档已更新",
-      "已建 DDL 表",
-      "已定义枚举"
-    ],
-    "compile_gate": "每个子工程 BUILD_EXIT=0 且 SECONDS>0"
-  },
-  "evidence": [
-    {
-      "id": "E-001",
-      "fact": "本地镜像与远程 lamb 逐项对齐：Java 698 文件 / 87,886 LOC / docs 43 篇",
-      "source": "find plugins tools -name '*.java' | wc -l 本地=698；会话 e66e6e77 的同步校验门",
-      "level": "[S]"
-    },
-    {
-      "id": "E-002",
-      "fact": "五维「防御」+ 装备 defense 词条在 PVE/PVP 全部失效：defenseMultiplier() 只被 EntityDamageEvent 监听器调用，互砍走 EntityDamageByEntityEvent（Bukkit 独立 HandlerList）",
-      "source": "rpg-combat/src/main/java/.../ExecuteListener.java:212-222 被 :126 调用；:130 为主结算；DefensePolicyTest.java:25-26 断言 ENTITY_ATTACK/PROJECTILE 可防御",
-      "level": "[S]"
-    },
-    {
-      "id": "E-003",
-      "fact": "MechanismRegistry 的 isEnabled()/setEnabled() 全仓零调用点（Kill Switch 无执行器，宪法 C-005 四件套缺一腿）",
-      "source": "rpg-core/src/main/java/.../persistence/MechanismRegistry.java:82/:89；仅 RpgCorePlugin.java:101 启动播种",
-      "level": "[S]"
-    },
-    {
-      "id": "E-004",
-      "fact": "装备 HMAC 签名密钥在无 RPG_ITEM_SIGNING_KEY 时明文写入 config.yml，无轮换",
-      "source": "rpg-items/src/main/java/.../RpgItemsPlugin.java:106-124",
-      "level": "[S]"
-    },
-    {
-      "id": "E-005",
-      "fact": "迁移 advisory lock 两把 key 不同（0x5349564954414D47 vs (0x53495649,0x52504731)），离线迁移工具可与在线节点并发 DDL",
-      "source": "tools/db-migration/.../MigrationEngine.java:205 vs rpg-core/.../Database.java:1064；ARCHITECTURE.md:67 称同一把锁",
-      "level": "[S]"
-    },
-    {
-      "id": "E-006",
-      "fact": "本项目系统性失败模式 = 「声明了但没接线」：枚举 / 表 / 注册点 / 状态机存在但无消费者；75 张表约 10 张只有 DDL",
-      "source": "会话 e66e6e77 的 7 路并行核查 + 人工复核；判据 = 类名/表名全仓 grep 只有定义与自身引用",
-      "level": "[S]"
-    },
-    {
-      "id": "E-007",
-      "fact": "云上能编译本工程：CNB 流水线 eclipse-temurin:25-jdk + gradle wrapper 9.1.0 可跑 compileJava",
-      "source": "本仓 .cnb.yml 编译门（首次触发后回填实测 sn 与 BUILD_EXIT）",
-      "level": "[S]",
-      "status": "pending_first_run"
-    },
-    {
-      "id": "E-008",
-      "fact": "编译门首次真实运行：能在 CNB 上跑通 gradle wrapper 9.1.0 + paper-api 26.2（TASKS_DONE=29），但全量编译 FAIL，BUILD_EXIT=1 / SECONDS=101。首个失败点 = plugins/rpg-integrations 找不到 kr.toxicity.hud.api（BetterHud API 未在依赖里）",
-      "source": "sn=cnb-4r1-1k3tb2rk8 stage=compile 日志；COMPILE_GATE=RED",
-      "level": "[S]"
-    },
-    {
-      "id": "E-009",
-      "fact": "构建不自包含：8 处 compileOnly(files(...)) 指向 server/runtime/plugins 与 server/vendor，而这两条路径被 .gitignore 忽略 ⇒ 干净克隆必然编不过；其中 2 个 jar 是 Sivita 自改版（MyPet-4.0.0-Sivita.jar、worldguard-bukkit-7.0.18-Sivita.jar），公开源不存在",
-      "source": "grep -rn 'files(' --include=build.gradle.kts；.gitignore 的 server/runtime/ server/vendor/",
-      "level": "[S]"
-    },
-    {
-      "id": "E-010",
-      "fact": "第一波已派发：7 个 NPC 任务并行（max-inflight 7），分支 agent/W1-A0-fetch-deps、agent/W1-P1-gapmatrix、agent/W1-A1..A5 全部建出，基点 02486f1",
-      "source": "GET /xzqkjmnbvc2026/sivitahub/-/git/branches",
-      "level": "[S]"
-    },
-    {
-      "id": "E-011",
-      "fact": "W1 全部 7 个 PR 已验收并合入 main：A1(G-001 防御接线) A2(G-002 Kill Switch) A3(G-003 签名密钥) A4(G-004 迁移锁) A5(G-301 DDL 门禁) A0(G-401/402 构建自包含) P1(G-303 差集矩阵)。7 个 PR 的路径白名单越界数均为 0；承重声明已本地回读源码复核（A1 的 :197 接线、A4 的 0x53495649/0x52504731 与 Database.java:20-21 一致、A2 的 requireEnabled 调用点、A3 的密钥不再落盘）",
-      "source": "PUT /-/pulls/{n}/merge 全部 merged=true；分支文件回读",
-      "level": "[S]"
-    },
-    {
-      "id": "E-012",
-      "fact": "编译门第四验前的两个真实阻塞已定位并修：① eclipse-temurin:25-jdk 里 curl/python3/wget/sha256sum 全缺（fetch-deps 报「没有可用的下载器」）② 补 curl 后 check-file-deps.sh 又挂在 python3: not found。修法 = 新增「准备下载器」stage，curl+ca-certificates+coreutils+python3 一起装",
-      "source": "sn=cnb-n4t-1k3td2s2k / cnb-2d0-1k3td8b1k 的 compile stage 日志",
-      "level": "[S]"
-    },
-    {
-      "id": "E-013",
-      "fact": "DDL 消费者门禁已 GREEN：75 张表 / 67 张有真实消费者 / 8 张已登记豁免（含 rpg_progression_anomalies、rpg_support_credit_accounts 等）",
-      "source": "sn=cnb-n4t-1k3td2s2k stage「DDL 消费者门禁（G-301）」→ DDL_CONSUMER_GATE=GREEN",
-      "level": "[S]"
-    },
-    {
-      "id": "E-014",
-      "fact": "★ Planner 与 Executors 同轮跑导致重复规划：plan/tasks-w2.json 里 W2-A1/W2-A2/W2-C2(的 G-001 部分)/W2-D1/W2-D2 共 5 项是 W1 已经合完的工作（Planner 分支基点早于 W1 合并点）",
-      "source": "对比 plan/tasks-w2.json 与 W1 已合入 gap id",
-      "level": "[S]"
-    },
-    {
-      "id": "E-015",
-      "fact": "★ 编译门首次 GREEN：sn=cnb-slt-1k3te83u2，DDL_CONSUMER_GATE=GREEN / TASKS_DONE=28 / BUILD_EXIT=0 / SECONDS=229 / ATTEMPTS=1 / COMPILE_GATE=GREEN。26 个子工程全部编译通过。W1 的 definition_of_done（第 3 条：编译门绿）达成",
-      "source": "sn=cnb-slt-1k3te83u2 stage=compile",
-      "level": "[S]"
-    },
-    {
-      "id": "E-016",
-      "fact": "修 GREEN 路上的三个真实阻塞（全部由本地定位）：① temurin 镜像缺 curl/python3/sha256sum ② BetterHud 用了近似版本 1.14.1 而非运行时的 2.1.0-SNAPSHOT-447（API 漂移，编译报 HudPlayerJoinEvent.player() cannot find symbol）③ CNB 出网到 repo.papermc.io 间歇性 connect timeout",
-      "source": "sn=cnb-n4t-1k3td2s2k / cnb-2d0-1k3td8b1k / cnb-j08-1k3tddubk / cnb-lk2-1k3tdomfr",
-      "level": "[S]"
-    },
-    {
-      "id": "E-017",
-      "fact": "W2 全部 15 个任务合入 main（14 个直接合 + 3 个经冲突消解任务 W2-F1..F3 合入；W2-D3 状态为 blocked 但其自检产物已合入）。编译门 GREEN：sn=cnb-l7u-1k3tn45sp，DDL_CONSUMER_GATE=GREEN / TASKS_DONE=28 / BUILD_EXIT=0 / SECONDS=147 / ATTEMPTS=1",
-      "source": "api_trigger_gate sn=cnb-l7u-1k3tn45sp",
-      "level": "[S]"
-    },
-    {
-      "id": "E-018",
-      "fact": "W2 交付内容（抽检证据文件）：A1 删掉 ascend() 旁路本体+反射测试；B2 攻方增益改为单点结算（二次放大消除）；B3 新增 EquipmentExitPathRules/Gate 接到 /salvage 等路径；B4 三个 ProgressionRules 方法接到 /rpg profile 与 PlaceholderAPI；B6 新增 NodeLeaseSupervisor（fail-stop 语义）；D1 落地 C-010 换季九态事务 + 4 张表 + season_id 列；D2 选 (B) 删掉 6 个死配置键并加门禁",
-      "source": "main 分支 .cnb/agent-out/*.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-019",
-      "fact": "W2 暴露的两类残留：① W2-D3（G-106 血契）判定为「配置错」但 allowed_paths 太窄无法落地 ⇒ 只交付了可达性自检，实际修复留给 W3-A1 ② rpg-core 有 2 个既有测试失败（214 tests, 2 failed，LanguageBundle 相关）⇒ 说明编译门之外还需要测试门，W3-A2 处理",
-      "source": "W2-D3 与 W2-B6 的 evidence/unproven 字段",
-      "level": "[S]"
-    },
-    {
-      "id": "E-020",
-      "fact": "同波内 3 个 PR 因 UnbindCommand.java 同文件冲突无法自动合（W2-B7/W2-D5/W2-D4），用「派 NPC 在各自分支上 merge main 并保留双方语义」解决，全部合入。⇒ 冲突消解属实现工作，交回 CNB 是可行且正确的",
-      "source": "out-w2fix/report.json；PR#11/#16/#21 merged=true",
-      "level": "[S]"
-    },
-    {
-      "id": "E-021",
-      "fact": "★ 质量门升级并首次全绿：sn=cnb-5e4-1k3tsd1ed，FINAL_STATUS=success。五个门同时 GREEN —— COMPILE_GATE（26 子工程）、TEST_GATE（SUM tests=986 failed=0 errors=0 skipped=2 modules=26）、PACKAGE_GATE（JAR_COUNT=56 / JAR_CHECKED=25 且 JAR_MISSING_PLUGIN_YML=0 / ASSEMBLE_EXIT=0）、DDL_CONSUMER_GATE、CMD_REFERENCE_GATE",
-      "source": "sn=cnb-5e4-1k3tsd1ed 各 stage 输出",
-      "level": "[S]"
-    },
-    {
-      "id": "E-022",
-      "fact": "W3-A2 把全量测试从「948 tests / 10 failed，且 rpg-combat 因 compileTestJava 报错根本没跑」修到「26 模块 986 tests / 0 failed / 2 skipped」，其中 2 个失败是真缺陷（含 tools/db-migration 的 SchemaManifest 漏登记 rpg_session_leases / rpg_outbox）；跳过的 2 个是真实 PostgreSQL 条件测试",
-      "source": ".cnb/agent-out/W3-A2-full-test-gate.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-023",
-      "fact": "W3-A4 判定 8 张豁免表：4 条已在 W2 接线（旧豁免未删是「模糊状态」实例，已删）；剩 4 张全部为「落库先行」（PENDING），无一张废弃、无一张建议删表；门禁脚本引入 PENDING|ABANDONED 显式分类 + docs/planning/deferred-tables.md 逐条锚点",
-      "source": ".cnb/agent-out/W3-A4-exempt-tables-judgement.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-024",
-      "fact": "W3-A3 对已接线路径做独立复核 + 变异测试，发现并修掉 3 处真实缺陷（其一：C-009 交付通道判据死在 held.setAmount(0)+player.saveData() 之后 ⇒ 判据不成立时玩家物品凭空消失且无结算记录）",
-      "source": ".cnb/agent-out/W3-A3-exit-path-remaining.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-025",
-      "fact": "★ G-106（血契）是**设计裁决**，不是接线 bug：W3-A1 用 5 条一致证据证明 vanished-horizon 是三转技能（ClassBranchGraph 2/2/1 强制 + 六职业 menu-slot 31 + validateCatalog 强制技能门==分支 stage + lang/zh_cn.yml:1666 + CONTENT_DEPTH_AUDIT.md），而 5 份文档把血契钉在二转。4 种修法全部需要跨模块改动（rpg-classes 分支图 / rpg-core 行为测试 / lang 分支说明）⇒ REQUIRES_HUMAN",
-      "source": ".cnb/agent-out/W3-A1-bloodpact-fix.json 的 blockers",
-      "level": "[S]"
-    },
-    {
-      "id": "E-026",
-      "fact": "CNB 出网间歇性再次命中：sn=cnb-jvs-1k3tr78iv 里 6/7 个 jar 下载成功、EssentialsX 在 ci.ender.zone read timeout ⇒ 整门 RED 且 test/assemble 被跳过。已给 fetch-deps.sh 加 4 次退避重试 + 单次超时 180s→300s，之后同一门全绿",
-      "source": "sn=cnb-jvs-1k3tr78iv vs cnb-5e4-1k3tsd1ed",
-      "level": "[S]"
-    },
-    {
-      "id": "E-027",
-      "fact": "W4 全部 4 个任务合入（含 W4-A2 自己报出的 DDL 登记 blocker）；W4-A2 的 blocker 是「rpg_skill_point_grants 未进 Database.java/SchemaManifest ⇒ 真机任何经验授予都会 Table not found 回滚」，转 W5-A1",
-      "source": "out-w4/report.json + .cnb/agent-out/W4-A2-*.json blockers",
-      "level": "[S]"
-    },
-    {
-      "id": "E-028",
-      "fact": "★ 质量门达到六门 + 自测全绿（W5 合入后复验）：sn 见 gate_w5，门禁自测 PASS=14 FAIL=0 / CMD_REFERENCE_GATE / DDL_CONSUMER_GATE / COMPILE_GATE / TEST_GATE(SUM tests=1021 failed=0 errors=0 skipped=2 modules=26) / SUMMARY_GATE / PACKAGE_GATE 全 GREEN",
-      "source": "api_trigger_gate（W5 合入后）",
-      "level": "[S]"
-    },
-    {
-      "id": "E-029",
-      "fact": "★ 本轮修掉四处「假门禁」：① 上一轮的按模块汇总把「模块根本没跑」算成通过（rpg-combat 因 compileTestJava 失败从未执行）② 门禁自测 stage 排在工具安装之前 ⇒ 无 python3 ⇒ 全 exit=127 假红 ③ 测试门要求 Gradle 回显 INFO 级日志作证据 ⇒ 判据与实现不匹配的假红 ④ W4-A2 新增表未登记 DDL",
-      "source": "sn=cnb-l6r-1k3tucifk / cnb-8a1-1k3tv46kd 对比；W5-A1/A2 证据",
-      "level": "[S]"
-    },
-    {
-      "id": "E-030",
-      "fact": "verdict-v3（W5-A3）判 done=false，remaining=6：G-302 第二批（53 个读源码伪测试）、G-DDL-REG（rpg_skill_point_grants）、G-TEST-GATE（当时 main 测试门红）、G-109（4 张 PENDING 表）、G-110（SEASON_ATTUNED 无入口）、G-206（quick_actions 数据包不在仓）。其中 G-TEST-GATE 已由本地修复并复验 GREEN",
-      "source": "plan/verdict-v3.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-031",
-      "fact": "★ 质量门扩到七门 + 门禁自测 PASS=62 FAIL=0：RESOURCE_PACK_GATE（新增，8 条判据）/ DDL_CONSUMER / CMD_REFERENCE / COMPILE / TEST / SUMMARY / PACKAGE 全 GREEN；SUM tests=1063 failed=0 errors=0 skipped=2 modules=26。素材门禁带 14 条负向对照（删 items 定义 / 删 model 断闭包 / 加野纹理 / PNG 改 16×16 / 半透明 alpha / HUD 图集裁一列 / 改码位 等，全部能真的变红）",
-      "source": "api_trigger_gate（素材门禁接入后）",
-      "level": "[S]"
-    },
-    {
-      "id": "E-032",
-      "fact": "W6-A1 把最后 4 张 PENDING 表全部接线并**清空 DDL 门禁的 EXEMPT 清单（79 张表全部有消费者）**；W6-A2 把 SEASON_ATTUNED 接成内部调用点（由换季结算在 SETTLING 阶段调用，没有硬造玩家指令）",
-      "source": "PR#42 / PR#44 已合入；.cnb/agent-out/W6-A1|A2.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-033",
-      "fact": "★ 素材层纳入 CNB：resource-pack/ 已入库（629 文件 / 1.7M，排除 ai/.venv 与 ai/output 86M）。含 81 个物品定义、模型、纹理、字体、语言、生成器、校验器、AI 美术生产线、build.sh、runtime-item-models.txt。动机与 G-206 同源：被依赖的产物不在唯一真相源里",
-      "source": "commit ffaeacb",
-      "level": "[S]"
-    },
-    {
-      "id": "E-034",
-      "fact": "用 ImageGen 生成了 HUD 布局参考图 docs/reference/hud-layout-v2.png（按 docs/hud-imagegen-prompt-v2.md 的提示词），作为 HUD 实现的可视基准；附 README 说明只作布局基准、不参与打包",
-      "source": "commit aefb378",
-      "level": "[S]"
-    },
-    {
-      "id": "E-035",
-      "fact": "W7-A4 把 HUD 实现对齐设计基准（轨 26×91 / 4×(18×18) 图标 / 29×26 徽章 / 1×87 法力条）并加了「唯一来源 + 实现一致性」门禁；W7-A1 的素材门禁已接进质量门",
-      "source": "PR#43 / PR#41 已合入",
-      "level": "[S]"
-    },
-    {
-      "id": "E-036",
-      "fact": "★ 质量门达到 **八门全绿** + 门禁自测 PASS=67 FAIL=0：CMD_REFERENCE / COMPILE / DDL_CONSUMER / **DDL_REGISTRATION（新，来自 W5-A1/#39 的反向门禁）** / PACKAGE(56 jars,25 插件 jar 全含 plugin.yml) / RESOURCE_PACK / SUMMARY / TEST(1063 tests 0 failed 2 skipped 26 modules)",
-      "source": "api_trigger_gate（EssentialsX vendor 后）",
-      "level": "[S]"
-    },
-    {
-      "id": "E-037",
-      "fact": "★ 门禁抓到一个真实的供应链漂移：EssentialsX 原本从 ci.ender.zone 的 Jenkins artifact URL 下载并带 sha256 校验，同一天两次拿到不同内容（期望 482fe195… → 实际 125ad362…），而生产机 lamb 上那份又是第三个（46042680…）。已按「编译期必须与运行时同版本」vendor 生产机那一份入 libs/vendor/",
-      "source": "sn=质量门（W6/W7 全部合入后）的 compile stage；lamb sha256sum",
-      "level": "[S]"
-    },
-    {
-      "id": "E-038",
-      "fact": "W7-A3 用「在已存在分支上 merge main」的方式消解了 PR#39 的冲突并使其可合入；#39 合入后 #46（同一消解的副本）变为冗余，已关闭。W7-A4 二次 PR#45 也合入",
-      "source": "PR#39/#45 merged=true；#46 state=closed",
-      "level": "[S]"
-    },
-    {
-      "id": "E-039",
-      "fact": "W7-A2 交付：7 条 P2 全部落地。G-208 往返净损耗下限 0.05→0.10 且启动 fail-closed；G-207「每日最多 3 场」改成显式计数器（血月+袭击，跨日重置、重放不重复占名额）；G-209 telegraph-ticks 28–36→**20 tick**（0.4–0.8s 承诺做不到，附表现层实测依据：8 tick 仅 1 次重绘、预警文案中位 24 个中文字符需 3.5s 阅读 ⇒ 取表现层能保证的最快值并同步文档）；G-205 用 CosmeticCatalog 与 rpg-commerce 定价表逐条对账；G-202/G-203 订正文档并给公式；G-201 已订正跳过。每条都有行为级测试",
-      "source": "PR#47 已合入；.cnb/agent-out/W7-A2-*.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-040",
-      "fact": "★ W7-A2 合入后复验八门全绿：CMD_REFERENCE / COMPILE / DDL_CONSUMER / DDL_REGISTRATION / PACKAGE(56 jars, 0 missing plugin.yml) / RESOURCE_PACK / SUMMARY / TEST 全 GREEN；门禁自测 PASS=67 FAIL=0；**SUM tests=1081 failed=0 errors=0 skipped=2 modules=26**",
-      "source": "api_trigger_gate（W7-A2 合入后）",
-      "level": "[S]"
-    },
-    {
-      "id": "E-041",
-      "fact": "安装目标模式 Stop hook：项目级 `D:/Development/sivitahub/.workbuddy/settings.json` 与 `.workbuddy-ai/settings.json`，另加用户级 `~/.workbuddy-ai/settings.json`（带 cwd 门控，因为项目级 settings 改动不触发热重载，见 goal-mode §10）。用户级只增改 hooks 键，已备份。达成口径写进 hook：八门全绿 + 差集矩阵无「声明未接线」+ 只剩 REQUIRES_HUMAN；同时写明授权豁免与越权红线",
-      "source": "三个 settings.json 已写入并校验（用户级顶层键完整保留）",
-      "level": "[S]"
-    },
-    {
-      "id": "E-042",
-      "fact": "W9 全部合入：#49 在 rpg-admin 补 `/rpgadmin anomaly <list|ack>`（reviewer/review_note/reviewed_at 落库、走既有 rpg.admin 权限、真实 H2 行为级测试）；#50 把最后 2 个纯源码字符串测试类（rpg-mobs MobRewardAsyncLifecycleContractTest、rpg-pets PetRevivalLifecycleContractTest）的断言迁进声明式源码契约门禁 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh",
-      "source": "PR#49/#50 merged=true",
-      "level": "[S]"
-    },
-    {
-      "id": "E-043",
-      "fact": "★ 本地反证掉一条假缺口：verdict-v5 声称 `scripts/check-source-contract.sh` 的 `exec python3 - <<'PY'` 会从继承 stdin 读代码 ⇒ 27 个 ContractTest 假绿。本地实测 5 种形态全部 exit=1 且 RED（全量 / 单方法 / stdin=/dev/null / 空管道 / 有数据管道），包装器 ProcessBuilder 未 redirectInput 的形态已覆盖 ⇒ 假缺口。**最可能的误判来源**：`sh script | tail -5; echo $?` 取到的是 tail 的退出码（恒 0）",
-      "source": "本地实测（见 doc/cnb/tasks-w11.json 里给 Planner 的反证）",
-      "level": "[S]"
-    },
-    {
-      "id": "E-044",
-      "fact": "★★ **verdict-v6（W11-A1）判 done=true / remaining=0**：① 差集矩阵「声明未接线」= 0 条，且无可派工实现缺口；② 八门在 main@6d12e03 全绿（采信 sn=cnb-kb4-1k3uk7cro push 事件 11/11 stage）：GATE_SELFTEST PASS=67 FAIL=0 / DDL_REGISTRATION GREEN / DDL_CONSUMER GREEN（81 张表，豁免 0）/ CMD_REFERENCE GREEN（43 指令，豁免 9）/ RESOURCE_PACK GREEN（RUN=8 SKIPPED=0）/ COMPILE GREEN（BUILD_EXIT=0 SECONDS=133）/ TEST GREEN（SUM tests=1091 failed=0 errors=0 skipped=2 modules=26，NO_XML=0）/ PACKAGE GREEN（JAR_COUNT=56，JAR_MISSING_PLUGIN_YML=0）；③ 剩余只有 REQUIRES_HUMAN",
-      "source": "plan/verdict-v6.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-045",
-      "fact": "唯一剩下的三条都需要真实环境，本仓做不到：H-001（生产机写操作：跑 maintain-world-coverage.sh 补 5435 个四角区块）、U-003（真实 Paper + 真实客户端握手）、W7-A2 的 4 条 [R] 级 unproven（G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）",
-      "source": "plan/verdict-v6.json 的 needs_human",
-      "level": "[S]"
-    },
-    {
-      "id": "E-046",
-      "fact": "★ 素材层收口完成：**十门全绿**（门禁自测 PASS=99 FAIL=0）。新增三门：RESOURCE_PACK_GATE（8 判据）/ ASSET_BASELINE_GATE（252 张 PNG 逐像素对账）/ ASSET_REPRO_GATE（生成器重放逐像素比对）；其余七门不变。SUM tests=1091 failed=0 modules=26；JAR_COUNT=56",
-      "source": "api_trigger_gate（素材层收口后）",
-      "level": "[S]"
-    },
-    {
-      "id": "E-047",
-      "fact": "素材层真实缺口（不是「图不好看」）：① 252 张 PNG 原本没有任何逐像素基线 ⇒ 可被悄悄换掉；② 83 张物品纹理里 52 张没有来源登记；③ 可复现性无断言。已全部补齐：`resource-pack/assets-manifest.json`（252 条指纹）+ `resource-pack/asset-provenance.json`（252 条来源，六类：generator 129 / derived-from 69 / ai-prompt 10 / human-override 1 / upstream-betterhud 38 / upstream-vanilla 5）+ `ASSET-PROVENANCE.md`（现为生成物，--write-doc）+ `scripts/check-asset-reproducible.sh`",
-      "source": "PR#54/#56/#58/#61",
-      "level": "[S]"
-    },
-    {
-      "id": "E-048",
-      "fact": "生成器覆盖从 31 张扩到 **129 张**（generator 类），并把 20 帧 mana_fill 切分与 5 张 skill 的 2x2 强调色块补进生成器；`ancient_echo_skill_book` 判为 human-override（仓库里是 ai/skill-book-prompts.jsonl v2 的人工覆盖，生成器旧紫皮设计已弃用）并加了**反向断言**（被盖回生成器输出即 RED）",
-      "source": "PR#61（W14-A1 并集）",
-      "level": "[S]"
-    },
-    {
-      "id": "E-049",
-      "fact": "音频不是缺口：代码只用原版 `Sound.*`（64 个枚举项），无任何自定义音效引用 ⇒ 不需要 ogg 素材",
-      "source": "grep 全仓 Sound 枚举 + 自定义 namespace 引用",
-      "level": "[S]"
-    },
-    {
-      "id": "E-050",
-      "fact": "W12/W13 踩到两次「同波任务创建同名文件」的坑：W12-A3 与 A1/A2 在 9 个文件冲突；W13-A1 与 A2 各做一半（A1 有生成器同步无新类别、A2 有新类别无出清）⇒ 只能取并集重做（W14）。教训已写进 skill pitfalls §J2e：同一文件只能有一个 owner、生成物只由生成器产出、冲突时合并改动而非手工合并生成物",
-      "source": "PR#55 关闭 / #57#59#60 关闭 / #61 并集",
-      "level": "[S]"
-    },
-    {
-      "id": "E-051",
-      "fact": "★ 目标模式（Stop hook）第一次拦住我，且三条都成立：① hook 判据过时（写 31 张/九门，实际 129 张/十门）② **verdict-v6 的 basis=main@6a244ed 已过期**——之后又合入 12 个 PR（#48–#61，含 W9 的 /rpgadmin anomaly 与 W12–W14 整套素材层），verdict-v6 判 done 时素材三件套与 2 个新门禁都还不存在 ③「剩余只有 REQUIRES_HUMAN」未复验。已按 hook 指出的步骤执行",
-      "source": "Stop hook feedback + 本地核对",
-      "level": "[S]"
-    },
-    {
-      "id": "E-052",
-      "fact": "hook 判据已修正：九门→**十门**、31 张→**129 张**，并新增一条「**差集矩阵的 basis 必须等于当前 main HEAD**，旧版矩阵不得作为达成证据」。另修掉我自己埋的坑：W15 清单里写死 basis=927ce1d，而清单本身又提交一版 ⇒ 改为让 Planner 实测 git rev-parse HEAD",
-      "source": "三个 settings.json 已更新并校验",
-      "level": "[S]"
-    },
-    {
-      "id": "E-053",
-      "fact": "W15 复验结论（verdict-v7，basis=3947000）：**done=false / remaining=1**。① 差集矩阵无「声明未接线」= 0 条 ✓；② 十门在当前 main 全绿 ✓（sn=cnb-og3-1k401sol0，13 stage 全 success）；③ 素材层四条**全部成立** ✓（(a) 6 个新脚本零消费者=0 且各有真实调用点原文 (b) ASSET_BASELINE_GATE=GREEN，252↔252，UNREGISTERED/MISSING/MODIFIED 全 0 (c) provenance 与 manifest 同集合、$needsHumanDecision=[]、六类合计 252 (d) items 81 == runtime-item-models 81，插件侧 12 个 item_model 全部 ⊆ manifest，24 个 config.yml 的 143 键逐条复核都有读方）；④ **不成立** ⇒ G-302-RESIDUAL",
-      "source": "plan/verdict-v7.json（PR#62 已合入）",
-      "level": "[S]"
-    },
-    {
-      "id": "E-054",
-      "fact": "G-302-RESIDUAL（真缺口）：GOAL.md §2 明确排除「Files.readString + indexOf/contains 的源码字符串断言」，但实测仍有 **10 个测试类**含这类断言：OptionalServiceLifecycleContractTest / LanguageBundleContractTest / DungeonEntryCommitAmbiguityContractTest / EquipmentOperationIntegrationContractTest / WorldTravelConfigurationContractTest / ForgeOperationIntegrationContractTest / MailboxDeliveryIntegrationContractTest / SkillAsyncLifecycleContractTest / StoryJourneyOrderContractTest / SurvivalPerformanceConfigurationContractTest。W5-A2 的 unproven 自己承认「第二批剩余 15 个读生产源码的类未处理」⇒ 之前把 G-302 当完成是判断偏早",
-      "source": "plan/verdict-v7.json 的 reason + plan/source-string-tests-remaining.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-055",
-      "fact": "W17 复验（verdict-v8，basis=77112113 实测 = origin/main）：done=false / remaining=1 = G-302-RESIDUAL-2。G-302-RESIDUAL 的 10 个派单类里 9 个已清零（行为化或迁进声明式规格），剩 1 个逃过 W16 新门禁的行内形态判据：DungeonTimeoutLifecycleContractTest 的 readString 藏在 helper 里。",
-      "source": "plan/verdict-v8.json / plan/gap-matrix-v8.md / plan/tasks-w17.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-056",
-      "fact": "十门在 W16 合入后全绿：sn=cnb-152-1k4081ljq（sha=f580ab69，event=api_trigger_gate，targetRef=main，status=success，pipelineSuccessCount=1）；判据行：DOWNLOADER=ready / GATE_SELFTEST=GREEN(PASS=101 FAIL=0) / RESOURCE_PACK_GATE=GREEN(RUN=8) / ASSET_BASELINE_GATE=GREEN(UNREGISTERED=0 MISSING=0 MODIFIED=0) / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / DDL_CONSUMER_GATE=GREEN(81 表 豁免 0) / DDL_REGISTRATION_GATE=GREEN(549 文件 豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令 豁免 9) / COMPILE_GATE=GREEN(TASKS_DONE=28 BUILD_EXIT=0 SECONDS=120) / TEST_GATE=GREEN(SUM tests=1099 failed=0 skipped=2 modules=26) / PACKAGE_GATE=GREEN(JAR_COUNT=56 JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)。SOURCE_STRING_GATE 在「门禁自测」stage 内经 selftest-gates.sh §4d 真实执行（stage-1 两条 [OK]，夹具 exit=1 / 真实仓 exit=0）。",
-      "source": "GET https://api.cnb.cool/xzqkjmnbvc2026/sivitahub/-/build/status/cnb-152-1k4081ljq + cnb build get-build-stage 各 stage 日志",
-      "level": "[S]"
-    },
-    {
-      "id": "E-057",
-      "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-057，原事实一字未删）★ W15 复验轮（basis=3947000d3e33189f2d293d828780155c3e28c3b7）：在**当前 main** 上重跑全量差集矩阵。⑧素材层 6 个新引入物零消费者=0（逐个给出调用点原文）；⑨ assets-manifest.json 252 条 ↔ 磁盘 252 张一一对应（ASSET_BASELINE_GATE=GREEN / UNREGISTERED=0 MISSING=0 MODIFIED=0）；⑩ asset-provenance.json 252 条与 manifest 252 条归一后同集合、$needsHumanDecision=[]、六类 $counts 合计 252 且与逐条重算一致；⑪ items(81) == runtime-item-models(81) 完全相同，插件侧 12 个字面量 item_model 键全 ⊆ manifest，24 个 config.yml 的 143 个顶层键无一个「声明机制行为却无读方」",
-      "source": "plan/gap-matrix-v7.md §1-§5",
-      "level": "[S]"
-    },
-    {
-      "id": "E-058",
-      "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-058，原事实一字未删）★ 十门在当前 main 的十门形态构建上全绿：sn=cnb-og3-1k401sol0（event=api_trigger_gate，sha=2184f15，status=success，13 stage 全 success 且耗时全非零）—— GATE_SELFTEST=GREEN(PASS=99 FAIL=0) / RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0) / ASSET_BASELINE_GATE=GREEN(252 张) / ASSET_REPRO_GATE=GREEN(70 张 / 4 生成器) / DDL_CONSUMER_GATE=GREEN(81 表, 豁免 0) / DDL_REGISTRATION_GATE=GREEN(反向豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令, 豁免 9) / COMPILE_GATE=GREEN(BUILD_EXIT=0 SECONDS=124 TASKS_DONE=28) / TEST_GATE=GREEN(SUM tests=1091 failed=0 skipped=2 modules=26) / PACKAGE_GATE=GREEN(JAR_COUNT=56, JAR_MISSING_PLUGIN_YML=0)。同 sha 的 push 构建 cnb-kcs-1k401sf5q 亦 success。跨 commit 等价性：2184f15..basis 的 git diff 只含 .workbuddy/**、doc/cnb/tasks-w15.json、state/world-state.json（无构建输入）。",
-      "source": "cnb build get-build-status --sn cnb-og3-1k401sol0 + build-runner-download-log --pipelineId cnb-og3-1k401sol0-001",
-      "level": "[S]"
-    },
-    {
-      "id": "E-059",
-      "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-059，原事实一字未删）★★ **verdict-v7 判 done=false / remaining=1**：唯一 remaining 是 **G-302-RESIDUAL** —— 源码字符串伪测试仍有 10 个类。判据来源 GOAL.md §2 第 2 条（不认 Files.readString + indexOf 的源码字符串断言）。实测口径：同一 @Test 方法体内既有 Files.readString 读生产源码、又有 .contains()/.indexOf() 断言 ⇒ 纯源码断言。命中：OptionalServiceLifecycleContractTest(1 方法) / LanguageBundleContractTest(1) / DungeonEntryCommitAmbiguityContractTest(3) / EquipmentOperationIntegrationContractTest(2) / WorldTravelConfigurationContractTest(1) / ForgeOperationIntegrationContractTest(6) / MailboxDeliveryIntegrationContractTest(1) / SkillAsyncLifecycleContractTest(1) / StoryJourneyOrderContractTest(1) / SurvivalPerformanceConfigurationContractTest(2)。W5-A2 的 unproven[3] 自认「第二批剩余 15 个读生产源码的类未处理」。",
-      "source": "plan/verdict-v7.json / plan/gap-matrix-v7.md §6",
-      "level": "[S]"
-    },
-    {
-      "id": "E-060",
-      "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-060，原事实一字未删）★ 定位 v6 的覆盖盲区：verdict-v6（W11-A1）basis 是 main@6a244ed，早于之后合入的 12 个 PR（#48–#61，含 W9 的 /rpgadmin anomaly 与 W12–W14 整套素材层）。v6 只复查了 W9 迁移的最后 2 个类（MobRewardAsyncLifecycleContractTest / PetRevivalLifecycleContractTest，确已接线），**未回看 G-302 的 15 个残留**，却把矩阵里 G-302 行判成「已接线」并给出 done=true/remaining=0。本轮补上这一项。",
-      "source": "对比 plan/verdict-v6.json 的 not_a_gap/recheck 与 plan/source-string-tests-remaining.json 的 _remaining_after_batch2",
-      "level": "[S]"
-    },
-    {
-      "id": "E-061",
-      "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-061，原事实一字未删）G-302 的正确基线在 v4 的 V-21 里：『Files.readString 类从 53 降到 48；其中 25 个已改为真实执行外部门禁脚本，21 个含真行为断言，仅 2 个是纯源码字符串断言』。该「仅 2 个」的口径指 rpg-core 之外、且只看「整类所有 @Test 都是源码断言」的严格子集；本轮改用 GOOS §2 的「方法级」口径，把部分方法仍是源码断言的类也算进来，得到 10 个类。两种口径都如实写在 verdict-v7 的 needs_human 里请人类拍板。",
-      "source": "plan/gap-matrix-v4.md:17 / :98",
-      "level": "[S]"
-    },
-    {
-      "id": "E-062",
-      "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-062，原事实一字未删）素材可复现性门禁的覆盖率已从 W13-A1 的 70 条扩展到 129 条 generator 类（W14-A1）：generate-provenance.py 把 20 帧 mana_fill 切分与 5 张 skill 的 2x2 强调色块补进生成器，ancient_echo_skill_book 判为 human-override 并加反向断言。六类 provenance 合计 252，NEEDS_HUMAN 清空。",
-      "source": "plan/gap-matrix-v7.md §3 / .cnb/agent-out/W14-A1-merge-two-branches.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-063",
-      "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-063，原事实一字未删）本容器仍无 JDK（compile/test/assemble 不能本地复跑）。本地已复跑且全部 exit=0：check-ddl-consumers.sh（81 表/豁免 0/反向豁免 0/扫 549 文件）/ check-config-fallbacks.sh / check-trusted-menu-holders.sh / check-repo-artifacts.sh / check-file-deps.sh / check-source-contract.sh（238 checks / 27 specs）/ check-resource-pack.sh（RUN=8）/ check-asset-baseline.py（252/252）/ install-datapacks.sh --check / selftest-gates.sh（PASS=99 FAIL=0）。check-asset-reproducible.sh 本地未复跑（需现场编译 Java 生成器）。",
-      "source": "plan/gap-matrix-v7.md §8.4",
-      "level": "[S]"
-    },
-    {
-      "id": "E-064",
-      "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-064，原事实一字未删）W16（PR#63，commit f580ab6）合入：G-302-RESIDUAL 的 10 个派单类逐条处置（行为化或迁进声明式源码契约），scripts/source-contract-specs/all.json 从 27 键扩到 76 键，新增 scripts/check-source-string-tests.sh（判据行 SOURCE_STRING_GATE=GREEN|RED）并接进 scripts/selftest-gates.sh §4d ⇒ 每推送都在质量门「门禁自测」stage 里真实跑。CI 实测 sn=cnb-152-1k4081ljq stage-1 含 §4d 两条 [OK]（夹具 exit=1 / 真实仓 exit=0）；W16 之前的 sn=cnb-eqs-1k406ot2a 的 stage-1 没有 §4d（接线不是复制粘贴）。",
-      "source": "git log f580ab69；cnb build get-build-stage --sn cnb-152-1k4081ljq --stageId stage-1",
-      "level": "[S]"
-    },
-    {
-      "id": "E-065",
-      "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-065，原事实一字未删）★ W17 复验（verdict-v8，basis=77112113 实测 = origin/main）：done=false / remaining=1 = G-302-RESIDUAL-2。① 差集矩阵「声明未接线」= 0 条 ✓；② 十门在 f580ab6 全绿 ✓（sn=cnb-152-1k4081ljq，13 stage，10 门判据行齐全且耗时非零；basis 77112113 自身的 3 个构建采样时全部 pending，未采信，改用 f580ab6 并给出输入集合论证：git diff --name-only f580ab69 HEAD 只含 plan/ 与 .cnb/agent-out/）；③ 素材层四条成立 ✓（新增把 W16 的 check-source-string-tests.sh 纳入零消费者复查，=0；all.json 实测 SPECS=76 真被加载；252↔252；provenance 同集合 + $needsHumanDecision=[] + 六类合计 252；items 81==81 且 12 个 item_model 全 ⊆ manifest）；④ 不成立 ⇒ 1 个可派工缺口。",
-      "source": "plan/verdict-v8.json / plan/gap-matrix-v8.md",
-      "level": "[S]"
-    },
-    {
-      "id": "E-066",
-      "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-066，原事实一字未删）G-302-RESIDUAL 本轮**基本清零**但未完全清零，两件事必须分开说：(1) 46 个 `Files.readString` 命中**一个都没减少**（v7 也是 46）⇒ 「计数下降」这条上不发生，清零只能看方法体；按方法体逐条分类 46/46：35 个已迁进声明式源码契约（readString 只剩注释，@Test 断言 exitValue）、1 个已行为化（MechanismKillSwitchContractTest）、9 个读的不是生产源码/不是源码字符串占位断言、**1 个仍是纯源码字符串断言**。(2) 我独立复核了 W16 判据脚本本身：它不会把读夹具误判成缺口（实测 3 个读非生产源码的类均未报出），它的负向对照真能变红（我另插 ZzSstNegativeControlTest → SOURCE_STRING_TESTS=1 / RED / EXIT=1，删除后 GREEN，git status 干净）。**但它的判据有形态边界**：readString 藏在同文件 helper（helper 实参不是 Files.readString 的直接参数行）时它报 0，而 DungeonTimeoutLifecycleContractTest 正是这一类 → G-302-RESIDUAL-2。",
-      "source": "plan/gap-matrix-v8.md §6；本地实测命令原文",
-      "level": "[S]"
-    },
-    {
-      "id": "E-067",
-      "fact": "★ W23 最终复验（verdict-v10，basis=1ace5ab 实测 == origin/main == 1ace5ab89faf563b70af78cee4926330f7906187，两者相等）：**done=true / remaining=0**。四条件全部成立：① 差集矩阵「声明未接线」=0 且无「可派工的实现缺口」；② 十门在 M5=1ace5ab 上两次同 sha 连续全绿；③ 素材层四条成立；④ 剩余问题只有 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）。与 verdict-v8（done=false / remaining=1）的差别：v8 的唯一 remaining G-302-RESIDUAL-2 已在 #66（W18+W19）真跑行为化清零。",
-      "source": "plan/verdict-v10.json / plan/gap-matrix-v10.md / plan/tasks-w23.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-068",
-      "fact": "G-302-RESIDUAL 系列**全部清零**：① 残留 2（DungeonTimeoutLifecycleContractTest 8 处 indexOf）已行为化 —— 该类 grep 'readString|readAllBytes|Files\\.' 只命中 :19（注释），3 个 @Test 真跑 DungeonManager + 记录型 BukkitScheduler，断言 scheduler.callbacks/cancelled/instanceSessions 等可观察状态。② 判据反向失效①（assert 包住读取 / Files.readString(Path.of(常量)) 曾被漏判 GREEN）由 #67 修复。③ 判据反向失效②（W18 第二轮把遍历式源码扫描**整体豁免** ⇒ 原形态在真实仓判 GREEN、负向对照失效）由 #69 撤销：reads_production_source_via_traversal() 在 check-source-string-tests.sh:217，productionReferences helper 已删除（全仓只剩 3 处注释）。",
-      "source": "plan/gap-matrix-v10.md §6.2 / grep -n 'reads_production_source_via_traversal' scripts/check-source-string-tests.sh / grep -rn productionReferences plugins/",
-      "level": "[S]"
-    },
-    {
-      "id": "E-069",
-      "fact": "★ 判据本身没被放宽（不给「门禁 GREEN」当结论）：判据行 SOURCE_STRING_TESTS=0 / SOURCE_STRING_GATE=GREEN / EXIT=0（重定向到文件再取 $?，未走管道）；独立抽样复核 4 个类（DungeonTimeoutLifecycleContractTest / EquipmentExitPathReachabilityTest / SeasonAttunementSettlementWiringTest / DungeonEntryCommitAmbiguityContractTest）逐个读 @Test 方法体，确认读的是**测试夹具 / 源规格 JSON / 进程 stdout / 配置解析**而非生产源码正文；反向验证 4 组夹具（⑤ assertTrue(readString(Path.of(\"plugins/...\")).contains(x)) / ⑥ Files.readString(Path.of(常量)) / ⑦ Files.walk(root.resolve(\"plugins/rpg-core/src/main\"))+readString(f).contains(id) 聚合成列表 anyMatch / ⑧ resolve 拼接变体）各自 EXIT=1 变红，删除后 GREEN，收尾 git status --porcelain 为空；反例 LanguageBundleContractTest（Files.newInputStream + SnakeYAML 真解析）**未**被判红 —— 没有用「把反例也判红」换 GREEN。",
-      "source": "本地实测命令原文（夹具造在真 plugins/rpg-core/src/test/java/_gatefixture/ 下，跑完删除）；plan/gap-matrix-v10.md §6.1-§6.4",
-      "level": "[S]"
-    },
-    {
-      "id": "E-070",
-      "fact": "规格规模未缩水且 SPEC_FILES 按预期上升：sh scripts/check-source-contract.sh --all → SOURCE_CONTRACT_CHECKS=469 SPECS=79 SOURCE_CONTRACT_SPEC_FILES=3 / SOURCE_CONTRACT_GATE=GREEN / EXIT=0（v8 基线 462/78/2）。SPEC_FILES 2→3 正是 #69 新建 scripts/source-contract-specs/rpg-core.json（1 键 #attunement-consumer）。单个新增 spec 键真跑：CHECKS=3 SPECS=1 GREEN。",
-      "source": "plan/gap-matrix-v10.md §6.5",
-      "level": "[S]"
-    },
-    {
-      "id": "E-071",
-      "fact": "十门在 M5=1ace5ab 上两次同 sha 连续全绿（回读核对 GET /{repo}/-/build/status/{sn} + stage 日志）：权威 sn=cnb-785-1k41j43k2（event=api_trigger_gate，targetRef=main，sha=1ace5ab，status=success，pipelineSuccessCount=1/pipelineFailCount=0，13 stage 全 success）；复核 sn=cnb-q65-1k41k0gtr（同 sha 同 event，success，13 stage 全 success）。判据行：DOWNLOADER=ready / GATE_SELFTEST=GREEN(PASS=132 FAIL=0) / DDL_CONSUMER_GATE=GREEN(81 表 豁免 0) / DDL_REGISTRATION_GATE=GREEN(549 文件 反向豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令 豁免 9) / RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0) / ASSET_BASELINE_GATE=GREEN(UNREGISTERED=0 MISSING=0 MODIFIED=0) / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / COMPILE_GATE=GREEN(TASKS_DONE=28 BUILD_EXIT=0 SECONDS=122) / TEST_GATE=GREEN(SUM tests=1102 failed=0 errors=0 skipped=2 modules=26) / SUMMARY_GATE=GREEN(NO_XML modules=0 期望 26) / PACKAGE_GATE=GREEN(JAR_COUNT=56 JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0) / SINGLE_SOURCE_OF_TRUTH_GATE=GREEN(WORLD_STATE_FILES=1) / VERDICT_MATRIX_CONSISTENCY_GATE=GREEN。basis 自身就是 M5 ⇒ 十门输入 = 判定 basis，无需跨 commit 等价性论证。",
-      "source": "cnb build get-build-status/get-build-stage --sn cnb-785-1k41j43k2 与 cnb-q65-1k41k0gtr",
-      "level": "[S]"
-    },
-    {
-      "id": "E-072",
-      "fact": "★ 门禁假红（G-FLAKY-GATE）闭环：plugins/rpg-admin/.../AnomalyReviewCommandTest.java 里 grep awaitQuiet 只剩 :283 注释；:239 awaitChainSettled()（onIdle().await 在飞归零 + :246 isBusy 复位静默计数 + :264 硬超时 throw AssertionError「异步链未收尾」）；:294 永久回归测试 slowAsyncHopStillYieldsTheExpectedBroadcast（每跳 LockSupport.parkNanos(100ms)），:322 断言仍是 admin.anomaly-not-pending（未删断言、未放宽期望、未把异步改同步）。W21-A1 json：post_fix_30_runs=6 hog 下 30/30 rc=0（落盘 .cnb/agent-out/evidence/post-fix-30runs.txt 收尾 FAILS=0 TOTAL=30）；negative_control sabotage_rc=1 且实际值非空 ⇒ 断言没被『等没了』。改前同 sha 先红后绿（b6d38bf：cnb-tn4-1k4141s0e stage-7 error，AnomalyReviewCommandTest …WritesNothing FAILED / SUM tests=1101 failed=1；vs cnb-h3n-1k414popl success；334fb54：cnb-d93-1k41bqhbe error vs cnb-esl-1k41cpau5 success）⇒ 改后同 sha 连续两次全绿 = 缓解的直接证据。",
-      "source": "plan/gap-matrix-v10.md §7.1 / .cnb/agent-out/W21-A1-fix-flaky-test-gate.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-073",
-      "fact": "G-DUP-WORLDSTATE 闭环（复核）：test ! -e plan/world-state.json 成立；git ls-files | grep world-state 只有 state/world-state.json；CI stage-1 判据行 SINGLE_SOURCE_OF_TRUTH_GATE=GREEN / WORLD_STATE_FILES=1，负向夹具 RED（两份账本内容不一致：state=48679B plan=45B），state 缺失亦 RED。",
-      "source": "plan/gap-matrix-v10.md §7.2 / cnb-785-1k41j43k2 stage-1 日志",
-      "level": "[S]"
-    },
-    {
-      "id": "E-074",
-      "fact": "G-VERDICT-MATRIX-SPLIT 闭环（本轮自身即判据对象）：plan/gap-matrix-v10.md 前 20 行内 `> verdict: done=true remaining=0` 与 `> basis: 1ace5ab`，与 plan/verdict-v10.json 的 done=true / remaining=0 / basis=1ace5ab **逐字一致**（按 selftest-gates.sh §11 vmc_gate 的同一 sed/grep/python 口径自查通过）。CI stage-1 判据行 VERDICT_MATRIX_CONSISTENCY_GATE=GREEN（改前打印 N=8 done=false remaining=1 basis=77112113，证明门禁真的在数版本而不是恒绿）。",
-      "source": "plan/gap-matrix-v10.md §7.3 / 本地按 vmc_gate 口径自查",
-      "level": "[S]"
-    },
-    {
-      "id": "E-075",
-      "fact": "素材层四条复核：零消费者=0（scripts/ 下 21 个 .sh/.py 逐个给调用点原文，13 个有 .cnb.yml stage 入口，8 个由 selftest-gates.sh 或插件 *ContractTest 经 ProcessBuilder 真跑）；python3 scripts/check-asset-baseline.py → 252↔252 UNREGISTERED=0 MISSING=0 MODIFIED=0 GREEN；provenance 与 manifest 归一 assets/ 前缀后同集合（manifest-only=0 prov-only=0）、$needsHumanDecision=[]、六类合计 252；items 定义 81 == runtime-item-models 去注释键 81（diff IDENTICAL）且 resource-pack-asset-check.py 七项（closure/compass/hud/journey/lang/packmeta/textures）全 exit=0。素材可复现性未本地复跑（本容器无 JDK），以 M5 stage-5 为证据。",
-      "source": "plan/gap-matrix-v10.md §1-§5 / 本地实测命令原文",
-      "level": "[S]"
-    },
-    {
-      "id": "E-076",
-      "fact": "★ W25 最终复验（verdict-v11，basis=实测 f014b447 == origin/main == f014b447fa5ac51170fc9450009ec6c901633487，两者相等）：**done=false / remaining=1**。唯一 remaining = G-CACHE-STAMP-BEFORE-LOCK。① 「声明未接线」=0 条，但**有 1 条可派工实现缺口**：5 个发布点的 inTransaction 均「先 nextCommitVersion() → 再 operation.apply(connection) → 再 commit()」（JdbcProfileService:796-799 / JdbcAscensionService:285-288 / JdbcDungeonRewardService:318-321 / JdbcAdminIncidentCompensationService:726-729 / JdbcAdminTestService:297-300），而 SELECT ... FOR UPDATE 在 apply 内部（JdbcProfileService.java:627）⇒ 取号在加锁之前，JdbcProfileService.java:779 注释声称的「仍持有行锁时取号」与代码不符。② 同 sha f014b447 的两个构建实测：cnb-4f2-1k46ad3pv(api_trigger_gate) success / FAILURE_XML_COUNT=0 / rpg-core tests=320 failed=0；**cnb-ok2-1k46acmji(push) error / test stage error / FAILURE_XML_COUNT=1 / SUM tests=1104 failed=1 / 失败用例 JdbcServicesTest#lateCommitStampCannotRollBackTheReadCache() / message 原文 org.opentest4j.AssertionFailedError: 取号必须在 commit 之前（持锁时），缓存不得被倒置的版本号回滚 ==> expected: <20> but was: <19>**；两构建 env 排除口径一致（ENV_ANNOTATIONS=8 / EXCLUDED_TAG_SEEN_IN_LOG=26），非环境差异。③ 十门在权威构建上全绿（13 stage，PASS=132 FAIL=0 / tests=1104 failed=0 / JAR_COUNT=56 / CHECKS=469 SPECS=79 SPEC_FILES=3）。④ 素材层四条成立（21 个脚本零消费者=0；252↔252 UNREGISTERED/MISSING/MODIFIED 全 0；provenance 同集合 + $needsHumanDecision=[] + 六类合计 252；items 81==81 IDENTICAL + 七项 material check 全 exit=0）。⑤ G-302-RESIDUAL 系列仍清零且判据未放宽（SOURCE_STRING_TESTS=0/GREEN/EXIT=0；4 类方法体复核；夹具⑤⑥⑦各 EXIT=1 变红、删后 GREEN、git status 干净；反例 LanguageBundleContractTest 未被误判；规格 469/79/3 ≥ v8 的 466/78/2）。",
-      "source": "plan/verdict-v11.json / plan/gap-matrix-v11.md / .cnb/agent-out/W25-A1-verdict-v11.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-077",
-      "fact": "G-FLAKY-GATE **回退（复发）**，且这次落在 #73/#75 新增的回归测试上：改后并未取得「同 sha 连续两次全绿」——f014b447 上 cnb-4f2-1k46ad3pv(api_trigger_gate) GREEN、cnb-ok2-1k46acmji(push) test stage RED。同 sha RED 计数 = 1。对照改前（b6d38bf：cnb-tn4-1k4141s0e test error / cnb-h3n-1k414popl success；334fb54：cnb-d93-1k41bqhbe test error / cnb-esl-1k41cpau5 success）的「先红后绿」，本轮是「先绿后红」，形态同源（时序/并发敏感用例）。⇒ 不能把 v10 在 1ace5ab 上的「已闭环」直接沿用到新 basis。",
-      "source": "cnb build get-build-logs --sha f014b447…；build-runner-download-log cnb-ok2-1k46acmji-001 与 cnb-4f2-1k46ad3pv-001",
-      "level": "[S]"
-    },
-    {
-      "id": "E-078",
-      "fact": "★ W27 最终复验（verdict-v12，basis=实测 14b67f2 == origin/main == 14b67f27706861035b321c31e2b9ea1699b60a74，两者相等）：**done=true / remaining=0**。四条件全部成立。① 差集矩阵「声明未接线」=0 且**可派工实现缺口=0**：v11 的唯一 remaining G-CACHE-STAMP-BEFORE-LOCK 已由 PR#78（commit 14b67f2）闭环 —— 新增 LockedTransaction 动态代理连接，取号下沉到「已持有 SELECT ... FOR UPDATE 行锁之后」；markLocked 惰性一次取号（LockedTransaction.java:54-55 `if (version == 0L) version = nextVersion.getAsLong();`）；5 个发布点全改 LockedTransaction.wrap（JdbcProfileService:841 / JdbcAscensionService:284 / JdbcDungeonRewardService:318 / JdbcAdminIncidentCompensationService:723 / JdbcAdminTestService:297），触发点在 FOR UPDATE 之后（JdbcProfileService.java:627 select→:633 markLocked；loadSnapshot:484/486→:492）；**eager nextCommitVersion() 调用已彻底消失**（grep -rn 只剩定义 :527 + 6 处 javadoc）；三个回归测试在（JdbcServicesTest.java:1035/:1088/:1151）且 CI PASS（rpg-core tests=321 failed=0）；W26 三段证据齐全（改前 exit=1 `expected: <20> but was: <19>` / 改后 exit=0 PASS / 负向对照 exit=1 必红 + 还原 exit=0）。② 十门在 M10=14b67f2 上全绿（权威 sn=cnb-lpt-1k46f0u8b, api_trigger_gate, main, success, 13 stage 全 success；同 sha 的 push 构建 cnb-m3o-1k46f0gvf 亦 success 且判据行一致 ⇒ 同 sha 连续两次全绿）。③ 素材层四条成立。④ 剩余只有 REQUIRES_HUMAN。",
-      "source": "plan/gap-matrix-v12.md / plan/verdict-v12.json / .cnb/agent-out/W27-A1-verdict-v12.json",
-      "level": "[S]"
-    },
-    {
-      "id": "E-079",
-      "fact": "★ G-CACHE-STAMP-BEFORE-LOCK 三轮收敛史（本轮最有价值的一条方法论）：给「异步回调里发布本地读缓存」做顺序守卫需要一个提交版本号，必须满足「取号顺序 == 加锁顺序 == 提交顺序」。PR#73 取号在 connection.commit() **之后** ⇒ 「提交后、取号前」被抢占（回归测试 readCacheIsNotRolledBackByALateCommit 延迟第 20 次 Connection.close）；PR#75 取号在 inTransaction 开头（**加锁之前**）⇒ 「取号后、加锁前」被抢占（回归测试 lateCommitStampCannotRollBackTheReadCache；同 sha f014b447 的 cnb-ok2-1k46acmji test stage RED，message expected: <20> but was: <19>）；**PR#78（14b67f2）取号在已持有 SELECT ... FOR UPDATE 行锁之后** ⇒ 倒置窗口归零（新测试 commitVersionMustBeTakenAfterTheRowLockIsHeld 延迟「第 18 次含 FOR UPDATE 的 executeQuery 执行之前」⇒ 改前 expected: <20> but was: <19>，改后 PASS）。方法论：**取号在临界区之外**——无论放在 commit() 之后还是 apply() 之前——都留倒置窗口；必须移进「已持行锁」这段临界区内部，才能让「取号顺序 == 加锁顺序 == 提交顺序」成为代码事实而非注释声明。",
-      "source": "plan/gap-matrix-v12.md §0.2 / §7；doc/cnb/gap-registry.md",
-      "level": "[S]"
-    },
-    {
-      "id": "E-080",
-      "fact": "★ G-FLAKY-GATE 恢复闭环（v11 曾回退）：同一 sha 14b67f2 上两个构建**均 success** —— cnb-lpt-1k46f0u8b（api_trigger_gate, main）与 cnb-m3o-1k46f0gvf（push, main），判据行一致（GATE_SELFTEST=PASS=132 FAIL=0 / SUM tests=1105 failed=0 errors=0 skipped=2 modules=26 / JAR_COUNT=56 / BUILD_EXIT=0）。v11 在 f014b447 上是「先绿后红」（cnb-4f2-1k46ad3pv success / cnb-ok2-1k46acmji test stage error），本轮恢复为「同 sha 连续两次全绿」。",
-      "source": "cnb build get-build-logs --sha 14b67f2…；build-runner-download-log cnb-lpt-1k46f0u8b-001 与 cnb-m3o-1k46f0gvf-001",
-      "level": "[S]"
-    },
-    {
-      "id": "E-081",
-      "fact": "★ G-302-RESIDUAL 系列仍清零且判据未被放宽（本轮独立复跑，不给「门禁 GREEN」当结论）：sh scripts/check-source-string-tests.sh（重定向取码）→ SOURCE_STRING_TESTS=0 / SOURCE_STRING_GATE=GREEN / EXIT=0；独立抽样复核 4 个类方法体（DungeonTimeoutLifecycleContractTest / EquipmentExitPathReachabilityTest / SeasonAttunementSettlementWiringTest / DungeonEntryCommitAmbiguityContractTest），读的是测试夹具 / 源规格 JSON / 进程 stdout / 真解析而非生产源码正文；反向验证三组夹具（Fixture5WrappedAssertTest:11 assertTrue(readString(Path.of(\"plugins/...\")).contains(x)) / Fixture6ConstPathTest:13 Files.readString(Path.of(常量)) / Fixture7TraversalTest:16 Files.walk(root.resolve(\"plugins/rpg-core/src/main\"))+readString(f).contains(id) 聚合成列表 anyMatch）各自 EXIT=1 变红（SOURCE_STRING_TESTS=3 / GATE=RED），删除后 EXIT=0 GREEN，收尾 git status --porcelain 为空；反例 LanguageBundleContractTest（Files.newInputStream + SnakeYAML 真解析）未被判红；规格规模 469/79/3 ≥ v8 的 466/78/2。",
-      "source": "plan/gap-matrix-v12.md §6；本地实测命令原文",
-      "level": "[S]"
-    }
+ "project": "sivitahub",
+ "display_name": "希维塔大陆 SivitaHub",
+ "repo": "xzqkjmnbvc2026/sivitahub",
+ "source_of_truth": "本仓 main 分支",
+ "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
+ "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
+ "round": 28,
+ "max_round": 12,
+ "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
+ "gate": {
+  "definition_of_done": "src/main 里有真实调用点 + 行为级测试 + 全量编译门绿 + .cnb/agent-out/<id>.json 带 evidence.grep/evidence.test",
+  "excluded": [
+   "推算",
+   "应该",
+   "等价于",
+   "只有单元测试无消费者",
+   "文档已更新",
+   "已建 DDL 表",
+   "已定义枚举"
   ],
-  "unverified": [
-    {
-      "id": "U-001",
-      "claim": "paper-api:26.2.build.100-stable 能在 CNB 出网环境下从 repo.papermc.io 拉到",
-      "how_to_check": "触发一次编译门，看 gradle.log 是否出现 Could not resolve io.papermc.paper:paper-api",
-      "status": "RESOLVED_TRUE",
-      "resolution": "paper-api:26.2.build.100-stable 能从 CNB 拉到（编译跑到 29 个 task 才在源码处失败）"
-    },
-    {
-      "id": "U-002",
-      "claim": "7 个 *ContractTest 的源码字符串断言会在重构后失效",
-      "how_to_check": "对 7 个 ContractTest 各做一次等价重构，看是否变红；或直接替换为行为级测试后对比",
-      "status": "RESOLVED_TRUE",
-      "resolution": "编译门 GREEN 证明 46 个测试类里的源码字符串断言不影响编译；「重构即失效」仍需重构实验才能证（未做）"
-    },
-    {
-      "id": "U-003",
-      "claim": "原版客户端能否真握手进服（mods.toml 已把 OPAC/TACZ 降为可选，但从未验证）",
-      "how_to_check": "REQUIRES_HUMAN：在 lamb 起服务后用纯原版客户端连一次"
-    }
-  ],
-  "author_claimed_pending_verification": [],
-  "decisions_locked": [
-    "L-001",
-    "L-002",
-    "L-003",
-    "L-004",
-    "L-005",
-    "L-006",
-    "L-007",
-    "L-008"
-  ],
-  "open_questions_for_human": [
-    "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/maintain-world-coverage.sh（生产机写操作，L-006）。",
-    "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
-    "W7-A2 遗留的 4 条 [R] 级 unproven（G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）。"
-  ],
-  "next_action": "收口。若需继续，只能推进 REQUIRES_HUMAN 三项（H-001 生产机写操作 / U-003 真实 Paper + 真实客户端握手 / W7-A2 四条 [R] 级 unproven）—— 均需真实环境与人类操作，本仓与 CNB 无法完成。",
-  "updated_by": "CNB CodeBuddy NPC（W27-A1-verdict-v12）",
-  "updated_at": "2026-10-06T01:05:00Z",
-  "merged_gaps": [
-    "G-001",
-    "G-002",
-    "G-003",
-    "G-004",
-    "G-101",
-    "G-102",
-    "G-103",
-    "G-104",
-    "G-105",
-    "G-107",
-    "G-108",
-    "G-110",
-    "G-111",
-    "G-112",
-    "G-113",
-    "G-114",
-    "G-301",
-    "G-302-RESIDUAL",
-    "G-302-RESIDUAL-2",
-    "G-302-RESIDUAL-3",
-    "G-302-RESIDUAL-4",
-    "G-303",
-    "G-401",
-    "G-402",
-    "G-403",
-    "G-DUP-WORLDSTATE",
-    "G-FLAKY-GATE",
-    "G-VERDICT-MATRIX-SPLIT",
-    "G-CACHE-STAMP-BEFORE-LOCK"
-  ],
-  "authorization": {
-    "L-009": "人类授权跨 Phase 并行推进（2026-10-02 用户原话见 decisions-locked.md）"
+  "compile_gate": "每个子工程 BUILD_EXIT=0 且 SECONDS>0"
+ },
+ "evidence": [
+  {
+   "id": "E-001",
+   "fact": "本地镜像与远程 lamb 逐项对齐：Java 698 文件 / 87,886 LOC / docs 43 篇",
+   "source": "find plugins tools -name '*.java' | wc -l 本地=698；会话 e66e6e77 的同步校验门",
+   "level": "[S]"
   },
-  "wave_plan": {
-    "W1": "DONE（编译门 GREEN sn=cnb-slt-1k3te83u2）",
-    "W2": "DONE（15/15 合入，编译门 GREEN sn=cnb-l7u-1k3tn45sp）",
-    "W3+": "待 W2 合入后由 Planner 决定（prompt 必须带 merged_gaps）",
-    "W3": "DONE 2026-10-02：5/5 合入；A2/A3/A4 成功，A1（G-106）判为设计裁决需人类拍板。质量门升级为 编译→测试→打包 并首次全绿（sn=cnb-5e4-1k3tsd1ed）",
-    "W4": "DONE 2026-10-02：4/4 合入（另含 3 个后续 PR#33/#34/#36）",
-    "W5": "DONE 2026-10-02：A2（G-302 第二批 25 个伪测试收敛）、A3（差集矩阵 v3）已合入；A1（DDL 登记门禁）分支仍在跑",
-    "W6": "DONE 2026-10-02：4/4 合入（4 张 PENDING 表 / SEASON_ATTUNED 内部调用点 / quick_actions 入 VCS / G-106 血契改三转）",
-    "W7": "DONE 2026-10-02：4/4 交付（A1 素材门禁 / A2 P2 七条 / A3 冲突消解 / A4 HUD 对齐）",
-    "W8": "DONE：最终验收轮（gap-matrix-v4 + verdict-v4，判 done=false / remaining=2）",
-    "W9": "DONE：2/2 合入（/rpgadmin anomaly 入口 + G-302 最后 2 个测试类迁进声明式源码契约门禁）",
-    "W10": "DONE：收尾判定轮 v5（判 done=false / remaining=2，但两条后被复核为假缺口）",
-    "W11": "DONE：复核两条并给出 **verdict-v6：done=true / remaining=0**",
-    "W12": "DONE（部分）：#54 逐像素基线门禁 + #56 全量来源登记 252 张；#55 因与二者重复冲突而关闭",
-    "W13": "DONE（部分）：A1 可复现性门禁 + 生成器同步/扩展、A2 6 组 provenance 裁决落地；两者各做一半 ⇒ 关闭 #57/#59/#60",
-    "W14": "DONE：把 W13 两个分支合并成并集（#61）—— 六类 252 张、NEEDS_HUMAN 为空、十门全绿",
-    "W15": "DONE：在当前 main（basis=3947000）上复验，产出 gap-matrix-v7 + verdict-v7 + tasks-w15；十门在十门形态构建 sn=cnb-og3-1k401sol0 上全绿；素材层四条全成立；发现并定性 G-302-RESIDUAL（10 个类）",
-    "W16": "DONE：G-302-RESIDUAL 的 10 个派单类逐条处置（14 个类 / 34 个方法），all.json 27→76 键，新增 check-source-string-tests.sh 接入 selftest §4d（PR#63 / f580ab6）",
-    "W17": "DONE：当前 main 复验（gap-matrix-v8 + verdict-v8，判 done=false / remaining=1 = G-302-RESIDUAL-2）",
-    "W18": "DONE：G-302-RESIDUAL-2 行为化（DungeonTimeoutLifecycleContractTest 真跑 DungeonManager + 自建 DungeonBukkitTestHarness）+ EquipmentExitPathReachabilityTest 5/6 行为化、1 条迁进 rpg-items.json",
-    "W19": "DONE：两处判据反向失效修复（#67 assert 包住读取 / Path.of(常量)；#69 撤掉遍历式源码扫描豁免 + 新建 rpg-core.json）",
-    "W21": "DONE：门禁假红修复（awaitChainSettled 确定性收尾屏障 + 慢 executor 永久回归测试）+ 账本收敛为唯一真相源（plan/world-state.json 删除）+ 两条交付物级门禁（selftest §11）（#70 / 334fb54 / 1ace5ab）",
-    "W23": "DONE：最终复验轮 v10（gap-matrix-v10 + verdict-v10，判 **done=true / remaining=0**）",
-    "W25": "REMAINING：最终复验轮 v11（gap-matrix-v11 + verdict-v11，判 **done=false / remaining=1** = G-CACHE-STAMP-BEFORE-LOCK）。G-302-RESIDUAL 系列复跑仍清零、素材层四条成立、十门在权威构建 cnb-4f2-1k46ad3pv 全绿；但 #73/#75 声称闭环的「读缓存回滚 / 发布倒置窗口」被代码结构 + 同 sha 的 RED 构建证伪。",
-    "W24": "DONE（交付）：#73 读缓存版本号守卫 + #75 取号点前移（各带确定性回归测试与负向对照，作者口径成功）；**但验收未通过** —— 见 W25。",
-    "W26": "DONE：PR#78（commit 14b67f2）把提交版本号改为「已在 SELECT ... FOR UPDATE 之上持锁之后」才取得 —— 新增 LockedTransaction（连接动态代理），5 个发布点行为一致，回滚不发布；顺带修正 JdbcAdminTestService.status 纯读路径（改传 NO_STAMP 不发布缓存）。",
-    "W27": "DONE：最终复验轮 v12（gap-matrix-v12 + verdict-v12，判 **done=true / remaining=0**）。G-CACHE-STAMP-BEFORE-LOCK 闭环复核通过；G-302-RESIDUAL 系列复跑仍清零、判据未放宽；素材层四条成立；十门在权威构建 cnb-lpt-1k46f0u8b 全绿，且同 sha 两次构建连续全绿（G-FLAKY-GATE 恢复）。剩余只有 REQUIRES_HUMAN。"
+  {
+   "id": "E-002",
+   "fact": "五维「防御」+ 装备 defense 词条在 PVE/PVP 全部失效：defenseMultiplier() 只被 EntityDamageEvent 监听器调用，互砍走 EntityDamageByEntityEvent（Bukkit 独立 HandlerList）",
+   "source": "rpg-combat/src/main/java/.../ExecuteListener.java:212-222 被 :126 调用；:130 为主结算；DefensePolicyTest.java:25-26 断言 ENTITY_ATTACK/PROJECTILE 可防御",
+   "level": "[S]"
   },
-  "gates": {
-    "evidence_sn": "cnb-lpt-1k46f0u8b",
-    "evidence_sha": "14b67f2",
-    "event": "api_trigger_gate",
-    "targetRef": "main",
-    "status": "success",
-    "stages_all_success": 13,
-    "gate_selftest": "GREEN (PASS=132 FAIL=0)",
-    "downloader": "GREEN (DOWNLOADER=ready)",
-    "ddl_consumer": "GREEN (81 张表，豁免 0)",
-    "ddl_registration": "GREEN (反向豁免 0)",
-    "cmd_reference": "GREEN (43 指令，豁免 9)",
-    "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
-    "asset_baseline": "GREEN (UNREGISTERED=0 MISSING=0 MODIFIED=0，252↔252)",
-    "asset_repro": "GREEN (REPRODUCIBLE=70 MISMATCH=0)",
-    "compile": "GREEN (TASKS_DONE=28 BUILD_EXIT=0 SECONDS=108)",
-    "test": "GREEN (TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=57)",
-    "summary": "GREEN (SUM tests=1105 failed=0 errors=0 skipped=2 modules=26；NO_XML modules=0 期望 26)",
-    "package": "GREEN (JAR_COUNT=56)",
-    "source_string": "GREEN (SOURCE_STRING_TESTS=0；stage-1 §4d 真实执行)",
-    "source_contract": "GREEN (CHECKS=469 SPECS=79 SPEC_FILES=3)",
-    "single_source_of_truth": "GREEN (WORLD_STATE_FILES=1)",
-    "verdict_matrix_consistency": "GREEN",
-    "same_sha_other_build": "GREEN —— cnb-m3o-1k46f0gvf (push, main, 14b67f2) success，13 stage 全 success，判据行一致（PASS=132 / tests=1105 failed=0 / JAR_COUNT=56)",
-    "stable_green_runs_after_fix": 2,
-    "stable_green_sns": [
-      "cnb-lpt-1k46f0u8b",
-      "cnb-m3o-1k46f0gvf"
-    ]
+  {
+   "id": "E-003",
+   "fact": "MechanismRegistry 的 isEnabled()/setEnabled() 全仓零调用点（Kill Switch 无执行器，宪法 C-005 四件套缺一腿）",
+   "source": "rpg-core/src/main/java/.../persistence/MechanismRegistry.java:82/:89；仅 RpgCorePlugin.java:101 启动播种",
+   "level": "[S]"
   },
-  "decisions_by_agent": [
-    {
-      "id": "D-001",
-      "decision": "G-106 血契改三转（改 1 个常量 + 同步 5 份文档 + 同步 rpg-core 测试）",
-      "why": "不动 ClassBranchGraph 的 2/2/1 强制不变式；不需要凭空指定新前置技能；与 5 条代码级证据一致",
-      "reversible": "PR 含「如需回滚」一节",
-      "by": "WorkBuddy AI（按人类 2026-10-02 授权）"
-    },
-    {
-      "id": "D-002",
-      "decision": "P2 六条把**行为**改到文档承诺值（星弹预警 0.4–0.8s、商人净损耗下限 10%、每日事件上限显式实现 等）",
-      "why": "文档承诺值 = 设计意图；做不到的才改文档并说明",
-      "by": "WorkBuddy AI（按人类授权）"
-    },
-    {
-      "id": "D-003",
-      "decision": "素材层（resource-pack/）纳入 CNB 版本控制",
-      "why": "被依赖的产物必须在唯一真相源里，否则素材无版本控制、无门禁、NPC 改不了",
-      "by": "WorkBuddy AI"
-    }
-  ],
-  "status": "DONE —— verdict-v12 判 done=true / remaining=0（G-CACHE-STAMP-BEFORE-LOCK 已由 PR#78 闭环：取号在持行锁之后、eager 调用消失、三个回归测试 PASS、同 sha 两次构建全绿）。剩余只有 REQUIRES_HUMAN。",
-  "verdict": {
-    "done": true,
-    "impossible": false,
-    "remaining": 0,
-    "remaining_ids": [],
-    "basis": "14b67f2",
-    "decided_at": "2026-10-06",
-    "reason": "G-CACHE-STAMP-BEFORE-LOCK 已由 PR#78（14b67f2）闭环（取号在持锁之后 / eager 调用消失 / 三个回归测试在且 PASS / W26 三段证据齐全）；十门在 M10=14b67f2 上全绿且同 sha 两次构建连续全绿（G-FLAKY-GATE 恢复）；素材层四条成立；G-302-RESIDUAL 系列仍清零且判据未放宽；差集矩阵「声明未接线」=0 且可派工实现缺口=0；剩余只有 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）。"
+  {
+   "id": "E-004",
+   "fact": "装备 HMAC 签名密钥在无 RPG_ITEM_SIGNING_KEY 时明文写入 config.yml，无轮换",
+   "source": "rpg-items/src/main/java/.../RpgItemsPlugin.java:106-124",
+   "level": "[S]"
   },
-  "assets": {
-    "png_total": 252,
-    "manifest": "resource-pack/assets-manifest.json",
-    "provenance": "resource-pack/asset-provenance.json",
-    "provenance_doc": "resource-pack/ASSET-PROVENANCE.md",
-    "categories": {
-      "generator": 129,
-      "derived-from": 69,
-      "ai-prompt": 10,
-      "human-override": 1,
-      "upstream-betterhud": 38,
-      "upstream-vanilla": 5,
-      "reviewed-baseline": 0
-    },
-    "counts_sum": 252,
-    "manifest_vs_disk": "252 == 252，集合相等，UNREGISTERED=0 MISSING=0 MODIFIED=0",
-    "provenance_vs_manifest": "归一并集后同集合；needs_human_decision=[]",
-    "items_three_way": "items 81 == runtime-item-models 81；插件侧 12 个字面量 item_model 键全 ⊆ manifest",
-    "config_yml_readers": "24 个 config.yml / 143 个顶层键；无一个「声明机制行为却无读方」",
-    "needs_human_decision": [],
-    "audio": "0（代码只用原版 Sound.*，不是缺口）"
+  {
+   "id": "E-005",
+   "fact": "迁移 advisory lock 两把 key 不同（0x5349564954414D47 vs (0x53495649,0x52504731)），离线迁移工具可与在线节点并发 DDL",
+   "source": "tools/db-migration/.../MigrationEngine.java:205 vs rpg-core/.../Database.java:1064；ARCHITECTURE.md:67 称同一把锁",
+   "level": "[S]"
   },
-  "basis": "14b67f2",
-  "_ledger": {
-    "single_source_of_truth": "state/world-state.json",
-    "deprecated": "plan/world-state.json（本任务已删除；禁止再建）",
-    "merged_from": "plan/world-state.json @6500a21（40076B / md5 fbf8a434cacd8693947a5f55f2012e62）",
-    "merged_at_task": "W21-A2-ledger-and-guards",
-    "merged_fields": [
-      "assets",
-      "gates",
-      "status",
-      "next_action",
-      "open_questions_for_human",
-      "wave_plan"
-    ],
-    "plan_only_evidence_renumbered": {
-      "E-057": "plan 侧 W15 复验轮（basis=3947000）重跑差集矩阵四条",
-      "E-058": "plan 侧「十门 @2184f15 全绿」（sn=cnb-og3-1k401sol0）",
-      "E-059": "plan 侧 verdict-v7 判 done=false / remaining=1（G-302-RESIDUAL 10 个类）",
-      "E-060": "plan 侧「定位 v6 的覆盖盲区」（basis 6a244ed 早于 12 个 PR）",
-      "E-061": "plan 侧 G-302 基线（v4 V-21 口径）",
-      "E-062": "plan 侧素材可复现性覆盖 70→129"
-    },
-    "note": "同一 commit 6500a21 里两份账本被写成不同内容（plan 40076B / state 35064B，md5 fbf8a434… vs ace96648…；7 个字段不同：assets / gates / status / next_action / open_questions_for_human / wave_plan / evidence）。本任务按并集合并：字段冲突取信息更全的一侧（merged_fields），plan 侧独有的 6 条 evidence 因与 state 侧同号，顺延为 E-057..E-062 后并入，原事实一字未删。",
-    "root_cause_ref": ".cnb/agent-out/W10-A1-final-verdict-v5.json:153",
-    "superseded_state_side_values": {
-      "policy": "同名冲突取信息更全的一侧（本任务 6 处全部为 plan 侧更全）；被替换的 state 侧旧值逐条记录在此，原值不丢。",
-      "status": "REMAINING —— verdict-v8 判 done=false / remaining=1（G-302-RESIDUAL-2）",
-      "next_action": "派 W17-A1（G-302-RESIDUAL-2）→ 合入 → 触发十门 → 再派复验轮（verdict-v9，basis 必须等于届时 main HEAD）。若 done=true 则收口。",
-      "open_questions_for_human[0]": "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/maintain-world-coverage.sh（生产机写操作）。",
-      "open_questions_for_human[2]": "W7-A2 的 4 条 [R] 级 unproven：G-207 计数器是内存态（重启丢当天场次）/ G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证。",
-      "wave_plan.W15": "DONE：在当前 main 复验（gap-matrix-v7 + verdict-v7，判 done=false / remaining=1）",
-      "wave_plan.W16": "DONE：G-302-RESIDUAL 派单 10 类逐条处置（14 类/34 方法），all.json 27→76 键，新增 check-source-string-tests.sh 接入 selftest §4d（PR#63 / f580ab6）"
-    }
+  {
+   "id": "E-006",
+   "fact": "本项目系统性失败模式 = 「声明了但没接线」：枚举 / 表 / 注册点 / 状态机存在但无消费者；75 张表约 10 张只有 DDL",
+   "source": "会话 e66e6e77 的 7 路并行核查 + 人工复核；判据 = 类名/表名全仓 grep 只有定义与自身引用",
+   "level": "[S]"
+  },
+  {
+   "id": "E-007",
+   "fact": "云上能编译本工程：CNB 流水线 eclipse-temurin:25-jdk + gradle wrapper 9.1.0 可跑 compileJava",
+   "source": "本仓 .cnb.yml 编译门（首次触发后回填实测 sn 与 BUILD_EXIT）",
+   "level": "[S]",
+   "status": "pending_first_run"
+  },
+  {
+   "id": "E-008",
+   "fact": "编译门首次真实运行：能在 CNB 上跑通 gradle wrapper 9.1.0 + paper-api 26.2（TASKS_DONE=29），但全量编译 FAIL，BUILD_EXIT=1 / SECONDS=101。首个失败点 = plugins/rpg-integrations 找不到 kr.toxicity.hud.api（BetterHud API 未在依赖里）",
+   "source": "sn=cnb-4r1-1k3tb2rk8 stage=compile 日志；COMPILE_GATE=RED",
+   "level": "[S]"
+  },
+  {
+   "id": "E-009",
+   "fact": "构建不自包含：8 处 compileOnly(files(...)) 指向 server/runtime/plugins 与 server/vendor，而这两条路径被 .gitignore 忽略 ⇒ 干净克隆必然编不过；其中 2 个 jar 是 Sivita 自改版（MyPet-4.0.0-Sivita.jar、worldguard-bukkit-7.0.18-Sivita.jar），公开源不存在",
+   "source": "grep -rn 'files(' --include=build.gradle.kts；.gitignore 的 server/runtime/ server/vendor/",
+   "level": "[S]"
+  },
+  {
+   "id": "E-010",
+   "fact": "第一波已派发：7 个 NPC 任务并行（max-inflight 7），分支 agent/W1-A0-fetch-deps、agent/W1-P1-gapmatrix、agent/W1-A1..A5 全部建出，基点 02486f1",
+   "source": "GET /xzqkjmnbvc2026/sivitahub/-/git/branches",
+   "level": "[S]"
+  },
+  {
+   "id": "E-011",
+   "fact": "W1 全部 7 个 PR 已验收并合入 main：A1(G-001 防御接线) A2(G-002 Kill Switch) A3(G-003 签名密钥) A4(G-004 迁移锁) A5(G-301 DDL 门禁) A0(G-401/402 构建自包含) P1(G-303 差集矩阵)。7 个 PR 的路径白名单越界数均为 0；承重声明已本地回读源码复核（A1 的 :197 接线、A4 的 0x53495649/0x52504731 与 Database.java:20-21 一致、A2 的 requireEnabled 调用点、A3 的密钥不再落盘）",
+   "source": "PUT /-/pulls/{n}/merge 全部 merged=true；分支文件回读",
+   "level": "[S]"
+  },
+  {
+   "id": "E-012",
+   "fact": "编译门第四验前的两个真实阻塞已定位并修：① eclipse-temurin:25-jdk 里 curl/python3/wget/sha256sum 全缺（fetch-deps 报「没有可用的下载器」）② 补 curl 后 check-file-deps.sh 又挂在 python3: not found。修法 = 新增「准备下载器」stage，curl+ca-certificates+coreutils+python3 一起装",
+   "source": "sn=cnb-n4t-1k3td2s2k / cnb-2d0-1k3td8b1k 的 compile stage 日志",
+   "level": "[S]"
+  },
+  {
+   "id": "E-013",
+   "fact": "DDL 消费者门禁已 GREEN：75 张表 / 67 张有真实消费者 / 8 张已登记豁免（含 rpg_progression_anomalies、rpg_support_credit_accounts 等）",
+   "source": "sn=cnb-n4t-1k3td2s2k stage「DDL 消费者门禁（G-301）」→ DDL_CONSUMER_GATE=GREEN",
+   "level": "[S]"
+  },
+  {
+   "id": "E-014",
+   "fact": "★ Planner 与 Executors 同轮跑导致重复规划：plan/tasks-w2.json 里 W2-A1/W2-A2/W2-C2(的 G-001 部分)/W2-D1/W2-D2 共 5 项是 W1 已经合完的工作（Planner 分支基点早于 W1 合并点）",
+   "source": "对比 plan/tasks-w2.json 与 W1 已合入 gap id",
+   "level": "[S]"
+  },
+  {
+   "id": "E-015",
+   "fact": "★ 编译门首次 GREEN：sn=cnb-slt-1k3te83u2，DDL_CONSUMER_GATE=GREEN / TASKS_DONE=28 / BUILD_EXIT=0 / SECONDS=229 / ATTEMPTS=1 / COMPILE_GATE=GREEN。26 个子工程全部编译通过。W1 的 definition_of_done（第 3 条：编译门绿）达成",
+   "source": "sn=cnb-slt-1k3te83u2 stage=compile",
+   "level": "[S]"
+  },
+  {
+   "id": "E-016",
+   "fact": "修 GREEN 路上的三个真实阻塞（全部由本地定位）：① temurin 镜像缺 curl/python3/sha256sum ② BetterHud 用了近似版本 1.14.1 而非运行时的 2.1.0-SNAPSHOT-447（API 漂移，编译报 HudPlayerJoinEvent.player() cannot find symbol）③ CNB 出网到 repo.papermc.io 间歇性 connect timeout",
+   "source": "sn=cnb-n4t-1k3td2s2k / cnb-2d0-1k3td8b1k / cnb-j08-1k3tddubk / cnb-lk2-1k3tdomfr",
+   "level": "[S]"
+  },
+  {
+   "id": "E-017",
+   "fact": "W2 全部 15 个任务合入 main（14 个直接合 + 3 个经冲突消解任务 W2-F1..F3 合入；W2-D3 状态为 blocked 但其自检产物已合入）。编译门 GREEN：sn=cnb-l7u-1k3tn45sp，DDL_CONSUMER_GATE=GREEN / TASKS_DONE=28 / BUILD_EXIT=0 / SECONDS=147 / ATTEMPTS=1",
+   "source": "api_trigger_gate sn=cnb-l7u-1k3tn45sp",
+   "level": "[S]"
+  },
+  {
+   "id": "E-018",
+   "fact": "W2 交付内容（抽检证据文件）：A1 删掉 ascend() 旁路本体+反射测试；B2 攻方增益改为单点结算（二次放大消除）；B3 新增 EquipmentExitPathRules/Gate 接到 /salvage 等路径；B4 三个 ProgressionRules 方法接到 /rpg profile 与 PlaceholderAPI；B6 新增 NodeLeaseSupervisor（fail-stop 语义）；D1 落地 C-010 换季九态事务 + 4 张表 + season_id 列；D2 选 (B) 删掉 6 个死配置键并加门禁",
+   "source": "main 分支 .cnb/agent-out/*.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-019",
+   "fact": "W2 暴露的两类残留：① W2-D3（G-106 血契）判定为「配置错」但 allowed_paths 太窄无法落地 ⇒ 只交付了可达性自检，实际修复留给 W3-A1 ② rpg-core 有 2 个既有测试失败（214 tests, 2 failed，LanguageBundle 相关）⇒ 说明编译门之外还需要测试门，W3-A2 处理",
+   "source": "W2-D3 与 W2-B6 的 evidence/unproven 字段",
+   "level": "[S]"
+  },
+  {
+   "id": "E-020",
+   "fact": "同波内 3 个 PR 因 UnbindCommand.java 同文件冲突无法自动合（W2-B7/W2-D5/W2-D4），用「派 NPC 在各自分支上 merge main 并保留双方语义」解决，全部合入。⇒ 冲突消解属实现工作，交回 CNB 是可行且正确的",
+   "source": "out-w2fix/report.json；PR#11/#16/#21 merged=true",
+   "level": "[S]"
+  },
+  {
+   "id": "E-021",
+   "fact": "★ 质量门升级并首次全绿：sn=cnb-5e4-1k3tsd1ed，FINAL_STATUS=success。五个门同时 GREEN —— COMPILE_GATE（26 子工程）、TEST_GATE（SUM tests=986 failed=0 errors=0 skipped=2 modules=26）、PACKAGE_GATE（JAR_COUNT=56 / JAR_CHECKED=25 且 JAR_MISSING_PLUGIN_YML=0 / ASSEMBLE_EXIT=0）、DDL_CONSUMER_GATE、CMD_REFERENCE_GATE",
+   "source": "sn=cnb-5e4-1k3tsd1ed 各 stage 输出",
+   "level": "[S]"
+  },
+  {
+   "id": "E-022",
+   "fact": "W3-A2 把全量测试从「948 tests / 10 failed，且 rpg-combat 因 compileTestJava 报错根本没跑」修到「26 模块 986 tests / 0 failed / 2 skipped」，其中 2 个失败是真缺陷（含 tools/db-migration 的 SchemaManifest 漏登记 rpg_session_leases / rpg_outbox）；跳过的 2 个是真实 PostgreSQL 条件测试",
+   "source": ".cnb/agent-out/W3-A2-full-test-gate.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-023",
+   "fact": "W3-A4 判定 8 张豁免表：4 条已在 W2 接线（旧豁免未删是「模糊状态」实例，已删）；剩 4 张全部为「落库先行」（PENDING），无一张废弃、无一张建议删表；门禁脚本引入 PENDING|ABANDONED 显式分类 + docs/planning/deferred-tables.md 逐条锚点",
+   "source": ".cnb/agent-out/W3-A4-exempt-tables-judgement.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-024",
+   "fact": "W3-A3 对已接线路径做独立复核 + 变异测试，发现并修掉 3 处真实缺陷（其一：C-009 交付通道判据死在 held.setAmount(0)+player.saveData() 之后 ⇒ 判据不成立时玩家物品凭空消失且无结算记录）",
+   "source": ".cnb/agent-out/W3-A3-exit-path-remaining.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-025",
+   "fact": "★ G-106（血契）是**设计裁决**，不是接线 bug：W3-A1 用 5 条一致证据证明 vanished-horizon 是三转技能（ClassBranchGraph 2/2/1 强制 + 六职业 menu-slot 31 + validateCatalog 强制技能门==分支 stage + lang/zh_cn.yml:1666 + CONTENT_DEPTH_AUDIT.md），而 5 份文档把血契钉在二转。4 种修法全部需要跨模块改动（rpg-classes 分支图 / rpg-core 行为测试 / lang 分支说明）⇒ REQUIRES_HUMAN",
+   "source": ".cnb/agent-out/W3-A1-bloodpact-fix.json 的 blockers",
+   "level": "[S]"
+  },
+  {
+   "id": "E-026",
+   "fact": "CNB 出网间歇性再次命中：sn=cnb-jvs-1k3tr78iv 里 6/7 个 jar 下载成功、EssentialsX 在 ci.ender.zone read timeout ⇒ 整门 RED 且 test/assemble 被跳过。已给 fetch-deps.sh 加 4 次退避重试 + 单次超时 180s→300s，之后同一门全绿",
+   "source": "sn=cnb-jvs-1k3tr78iv vs cnb-5e4-1k3tsd1ed",
+   "level": "[S]"
+  },
+  {
+   "id": "E-027",
+   "fact": "W4 全部 4 个任务合入（含 W4-A2 自己报出的 DDL 登记 blocker）；W4-A2 的 blocker 是「rpg_skill_point_grants 未进 Database.java/SchemaManifest ⇒ 真机任何经验授予都会 Table not found 回滚」，转 W5-A1",
+   "source": "out-w4/report.json + .cnb/agent-out/W4-A2-*.json blockers",
+   "level": "[S]"
+  },
+  {
+   "id": "E-028",
+   "fact": "★ 质量门达到六门 + 自测全绿（W5 合入后复验）：sn 见 gate_w5，门禁自测 PASS=14 FAIL=0 / CMD_REFERENCE_GATE / DDL_CONSUMER_GATE / COMPILE_GATE / TEST_GATE(SUM tests=1021 failed=0 errors=0 skipped=2 modules=26) / SUMMARY_GATE / PACKAGE_GATE 全 GREEN",
+   "source": "api_trigger_gate（W5 合入后）",
+   "level": "[S]"
+  },
+  {
+   "id": "E-029",
+   "fact": "★ 本轮修掉四处「假门禁」：① 上一轮的按模块汇总把「模块根本没跑」算成通过（rpg-combat 因 compileTestJava 失败从未执行）② 门禁自测 stage 排在工具安装之前 ⇒ 无 python3 ⇒ 全 exit=127 假红 ③ 测试门要求 Gradle 回显 INFO 级日志作证据 ⇒ 判据与实现不匹配的假红 ④ W4-A2 新增表未登记 DDL",
+   "source": "sn=cnb-l6r-1k3tucifk / cnb-8a1-1k3tv46kd 对比；W5-A1/A2 证据",
+   "level": "[S]"
+  },
+  {
+   "id": "E-030",
+   "fact": "verdict-v3（W5-A3）判 done=false，remaining=6：G-302 第二批（53 个读源码伪测试）、G-DDL-REG（rpg_skill_point_grants）、G-TEST-GATE（当时 main 测试门红）、G-109（4 张 PENDING 表）、G-110（SEASON_ATTUNED 无入口）、G-206（quick_actions 数据包不在仓）。其中 G-TEST-GATE 已由本地修复并复验 GREEN",
+   "source": "plan/verdict-v3.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-031",
+   "fact": "★ 质量门扩到七门 + 门禁自测 PASS=62 FAIL=0：RESOURCE_PACK_GATE（新增，8 条判据）/ DDL_CONSUMER / CMD_REFERENCE / COMPILE / TEST / SUMMARY / PACKAGE 全 GREEN；SUM tests=1063 failed=0 errors=0 skipped=2 modules=26。素材门禁带 14 条负向对照（删 items 定义 / 删 model 断闭包 / 加野纹理 / PNG 改 16×16 / 半透明 alpha / HUD 图集裁一列 / 改码位 等，全部能真的变红）",
+   "source": "api_trigger_gate（素材门禁接入后）",
+   "level": "[S]"
+  },
+  {
+   "id": "E-032",
+   "fact": "W6-A1 把最后 4 张 PENDING 表全部接线并**清空 DDL 门禁的 EXEMPT 清单（79 张表全部有消费者）**；W6-A2 把 SEASON_ATTUNED 接成内部调用点（由换季结算在 SETTLING 阶段调用，没有硬造玩家指令）",
+   "source": "PR#42 / PR#44 已合入；.cnb/agent-out/W6-A1|A2.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-033",
+   "fact": "★ 素材层纳入 CNB：resource-pack/ 已入库（629 文件 / 1.7M，排除 ai/.venv 与 ai/output 86M）。含 81 个物品定义、模型、纹理、字体、语言、生成器、校验器、AI 美术生产线、build.sh、runtime-item-models.txt。动机与 G-206 同源：被依赖的产物不在唯一真相源里",
+   "source": "commit ffaeacb",
+   "level": "[S]"
+  },
+  {
+   "id": "E-034",
+   "fact": "用 ImageGen 生成了 HUD 布局参考图 docs/reference/hud-layout-v2.png（按 docs/hud-imagegen-prompt-v2.md 的提示词），作为 HUD 实现的可视基准；附 README 说明只作布局基准、不参与打包",
+   "source": "commit aefb378",
+   "level": "[S]"
+  },
+  {
+   "id": "E-035",
+   "fact": "W7-A4 把 HUD 实现对齐设计基准（轨 26×91 / 4×(18×18) 图标 / 29×26 徽章 / 1×87 法力条）并加了「唯一来源 + 实现一致性」门禁；W7-A1 的素材门禁已接进质量门",
+   "source": "PR#43 / PR#41 已合入",
+   "level": "[S]"
+  },
+  {
+   "id": "E-036",
+   "fact": "★ 质量门达到 **八门全绿** + 门禁自测 PASS=67 FAIL=0：CMD_REFERENCE / COMPILE / DDL_CONSUMER / **DDL_REGISTRATION（新，来自 W5-A1/#39 的反向门禁）** / PACKAGE(56 jars,25 插件 jar 全含 plugin.yml) / RESOURCE_PACK / SUMMARY / TEST(1063 tests 0 failed 2 skipped 26 modules)",
+   "source": "api_trigger_gate（EssentialsX vendor 后）",
+   "level": "[S]"
+  },
+  {
+   "id": "E-037",
+   "fact": "★ 门禁抓到一个真实的供应链漂移：EssentialsX 原本从 ci.ender.zone 的 Jenkins artifact URL 下载并带 sha256 校验，同一天两次拿到不同内容（期望 482fe195… → 实际 125ad362…），而生产机 lamb 上那份又是第三个（46042680…）。已按「编译期必须与运行时同版本」vendor 生产机那一份入 libs/vendor/",
+   "source": "sn=质量门（W6/W7 全部合入后）的 compile stage；lamb sha256sum",
+   "level": "[S]"
+  },
+  {
+   "id": "E-038",
+   "fact": "W7-A3 用「在已存在分支上 merge main」的方式消解了 PR#39 的冲突并使其可合入；#39 合入后 #46（同一消解的副本）变为冗余，已关闭。W7-A4 二次 PR#45 也合入",
+   "source": "PR#39/#45 merged=true；#46 state=closed",
+   "level": "[S]"
+  },
+  {
+   "id": "E-039",
+   "fact": "W7-A2 交付：7 条 P2 全部落地。G-208 往返净损耗下限 0.05→0.10 且启动 fail-closed；G-207「每日最多 3 场」改成显式计数器（血月+袭击，跨日重置、重放不重复占名额）；G-209 telegraph-ticks 28–36→**20 tick**（0.4–0.8s 承诺做不到，附表现层实测依据：8 tick 仅 1 次重绘、预警文案中位 24 个中文字符需 3.5s 阅读 ⇒ 取表现层能保证的最快值并同步文档）；G-205 用 CosmeticCatalog 与 rpg-commerce 定价表逐条对账；G-202/G-203 订正文档并给公式；G-201 已订正跳过。每条都有行为级测试",
+   "source": "PR#47 已合入；.cnb/agent-out/W7-A2-*.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-040",
+   "fact": "★ W7-A2 合入后复验八门全绿：CMD_REFERENCE / COMPILE / DDL_CONSUMER / DDL_REGISTRATION / PACKAGE(56 jars, 0 missing plugin.yml) / RESOURCE_PACK / SUMMARY / TEST 全 GREEN；门禁自测 PASS=67 FAIL=0；**SUM tests=1081 failed=0 errors=0 skipped=2 modules=26**",
+   "source": "api_trigger_gate（W7-A2 合入后）",
+   "level": "[S]"
+  },
+  {
+   "id": "E-041",
+   "fact": "安装目标模式 Stop hook：项目级 `D:/Development/sivitahub/.workbuddy/settings.json` 与 `.workbuddy-ai/settings.json`，另加用户级 `~/.workbuddy-ai/settings.json`（带 cwd 门控，因为项目级 settings 改动不触发热重载，见 goal-mode §10）。用户级只增改 hooks 键，已备份。达成口径写进 hook：八门全绿 + 差集矩阵无「声明未接线」+ 只剩 REQUIRES_HUMAN；同时写明授权豁免与越权红线",
+   "source": "三个 settings.json 已写入并校验（用户级顶层键完整保留）",
+   "level": "[S]"
+  },
+  {
+   "id": "E-042",
+   "fact": "W9 全部合入：#49 在 rpg-admin 补 `/rpgadmin anomaly <list|ack>`（reviewer/review_note/reviewed_at 落库、走既有 rpg.admin 权限、真实 H2 行为级测试）；#50 把最后 2 个纯源码字符串测试类（rpg-mobs MobRewardAsyncLifecycleContractTest、rpg-pets PetRevivalLifecycleContractTest）的断言迁进声明式源码契约门禁 scripts/source-contract-specs/all.json + scripts/check-source-contract.sh",
+   "source": "PR#49/#50 merged=true",
+   "level": "[S]"
+  },
+  {
+   "id": "E-043",
+   "fact": "★ 本地反证掉一条假缺口：verdict-v5 声称 `scripts/check-source-contract.sh` 的 `exec python3 - <<'PY'` 会从继承 stdin 读代码 ⇒ 27 个 ContractTest 假绿。本地实测 5 种形态全部 exit=1 且 RED（全量 / 单方法 / stdin=/dev/null / 空管道 / 有数据管道），包装器 ProcessBuilder 未 redirectInput 的形态已覆盖 ⇒ 假缺口。**最可能的误判来源**：`sh script | tail -5; echo $?` 取到的是 tail 的退出码（恒 0）",
+   "source": "本地实测（见 doc/cnb/tasks-w11.json 里给 Planner 的反证）",
+   "level": "[S]"
+  },
+  {
+   "id": "E-044",
+   "fact": "★★ **verdict-v6（W11-A1）判 done=true / remaining=0**：① 差集矩阵「声明未接线」= 0 条，且无可派工实现缺口；② 八门在 main@6d12e03 全绿（采信 sn=cnb-kb4-1k3uk7cro push 事件 11/11 stage）：GATE_SELFTEST PASS=67 FAIL=0 / DDL_REGISTRATION GREEN / DDL_CONSUMER GREEN（81 张表，豁免 0）/ CMD_REFERENCE GREEN（43 指令，豁免 9）/ RESOURCE_PACK GREEN（RUN=8 SKIPPED=0）/ COMPILE GREEN（BUILD_EXIT=0 SECONDS=133）/ TEST GREEN（SUM tests=1091 failed=0 errors=0 skipped=2 modules=26，NO_XML=0）/ PACKAGE GREEN（JAR_COUNT=56，JAR_MISSING_PLUGIN_YML=0）；③ 剩余只有 REQUIRES_HUMAN",
+   "source": "plan/verdict-v6.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-045",
+   "fact": "唯一剩下的三条都需要真实环境，本仓做不到：H-001（生产机写操作：跑 maintain-world-coverage.sh 补 5435 个四角区块）、U-003（真实 Paper + 真实客户端握手）、W7-A2 的 4 条 [R] 级 unproven（G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）",
+   "source": "plan/verdict-v6.json 的 needs_human",
+   "level": "[S]"
+  },
+  {
+   "id": "E-046",
+   "fact": "★ 素材层收口完成：**十门全绿**（门禁自测 PASS=99 FAIL=0）。新增三门：RESOURCE_PACK_GATE（8 判据）/ ASSET_BASELINE_GATE（252 张 PNG 逐像素对账）/ ASSET_REPRO_GATE（生成器重放逐像素比对）；其余七门不变。SUM tests=1091 failed=0 modules=26；JAR_COUNT=56",
+   "source": "api_trigger_gate（素材层收口后）",
+   "level": "[S]"
+  },
+  {
+   "id": "E-047",
+   "fact": "素材层真实缺口（不是「图不好看」）：① 252 张 PNG 原本没有任何逐像素基线 ⇒ 可被悄悄换掉；② 83 张物品纹理里 52 张没有来源登记；③ 可复现性无断言。已全部补齐：`resource-pack/assets-manifest.json`（252 条指纹）+ `resource-pack/asset-provenance.json`（252 条来源，六类：generator 129 / derived-from 69 / ai-prompt 10 / human-override 1 / upstream-betterhud 38 / upstream-vanilla 5）+ `ASSET-PROVENANCE.md`（现为生成物，--write-doc）+ `scripts/check-asset-reproducible.sh`",
+   "source": "PR#54/#56/#58/#61",
+   "level": "[S]"
+  },
+  {
+   "id": "E-048",
+   "fact": "生成器覆盖从 31 张扩到 **129 张**（generator 类），并把 20 帧 mana_fill 切分与 5 张 skill 的 2x2 强调色块补进生成器；`ancient_echo_skill_book` 判为 human-override（仓库里是 ai/skill-book-prompts.jsonl v2 的人工覆盖，生成器旧紫皮设计已弃用）并加了**反向断言**（被盖回生成器输出即 RED）",
+   "source": "PR#61（W14-A1 并集）",
+   "level": "[S]"
+  },
+  {
+   "id": "E-049",
+   "fact": "音频不是缺口：代码只用原版 `Sound.*`（64 个枚举项），无任何自定义音效引用 ⇒ 不需要 ogg 素材",
+   "source": "grep 全仓 Sound 枚举 + 自定义 namespace 引用",
+   "level": "[S]"
+  },
+  {
+   "id": "E-050",
+   "fact": "W12/W13 踩到两次「同波任务创建同名文件」的坑：W12-A3 与 A1/A2 在 9 个文件冲突；W13-A1 与 A2 各做一半（A1 有生成器同步无新类别、A2 有新类别无出清）⇒ 只能取并集重做（W14）。教训已写进 skill pitfalls §J2e：同一文件只能有一个 owner、生成物只由生成器产出、冲突时合并改动而非手工合并生成物",
+   "source": "PR#55 关闭 / #57#59#60 关闭 / #61 并集",
+   "level": "[S]"
+  },
+  {
+   "id": "E-051",
+   "fact": "★ 目标模式（Stop hook）第一次拦住我，且三条都成立：① hook 判据过时（写 31 张/九门，实际 129 张/十门）② **verdict-v6 的 basis=main@6a244ed 已过期**——之后又合入 12 个 PR（#48–#61，含 W9 的 /rpgadmin anomaly 与 W12–W14 整套素材层），verdict-v6 判 done 时素材三件套与 2 个新门禁都还不存在 ③「剩余只有 REQUIRES_HUMAN」未复验。已按 hook 指出的步骤执行",
+   "source": "Stop hook feedback + 本地核对",
+   "level": "[S]"
+  },
+  {
+   "id": "E-052",
+   "fact": "hook 判据已修正：九门→**十门**、31 张→**129 张**，并新增一条「**差集矩阵的 basis 必须等于当前 main HEAD**，旧版矩阵不得作为达成证据」。另修掉我自己埋的坑：W15 清单里写死 basis=927ce1d，而清单本身又提交一版 ⇒ 改为让 Planner 实测 git rev-parse HEAD",
+   "source": "三个 settings.json 已更新并校验",
+   "level": "[S]"
+  },
+  {
+   "id": "E-053",
+   "fact": "W15 复验结论（verdict-v7，basis=3947000）：**done=false / remaining=1**。① 差集矩阵无「声明未接线」= 0 条 ✓；② 十门在当前 main 全绿 ✓（sn=cnb-og3-1k401sol0，13 stage 全 success）；③ 素材层四条**全部成立** ✓（(a) 6 个新脚本零消费者=0 且各有真实调用点原文 (b) ASSET_BASELINE_GATE=GREEN，252↔252，UNREGISTERED/MISSING/MODIFIED 全 0 (c) provenance 与 manifest 同集合、$needsHumanDecision=[]、六类合计 252 (d) items 81 == runtime-item-models 81，插件侧 12 个 item_model 全部 ⊆ manifest，24 个 config.yml 的 143 键逐条复核都有读方）；④ **不成立** ⇒ G-302-RESIDUAL",
+   "source": "plan/verdict-v7.json（PR#62 已合入）",
+   "level": "[S]"
+  },
+  {
+   "id": "E-054",
+   "fact": "G-302-RESIDUAL（真缺口）：GOAL.md §2 明确排除「Files.readString + indexOf/contains 的源码字符串断言」，但实测仍有 **10 个测试类**含这类断言：OptionalServiceLifecycleContractTest / LanguageBundleContractTest / DungeonEntryCommitAmbiguityContractTest / EquipmentOperationIntegrationContractTest / WorldTravelConfigurationContractTest / ForgeOperationIntegrationContractTest / MailboxDeliveryIntegrationContractTest / SkillAsyncLifecycleContractTest / StoryJourneyOrderContractTest / SurvivalPerformanceConfigurationContractTest。W5-A2 的 unproven 自己承认「第二批剩余 15 个读生产源码的类未处理」⇒ 之前把 G-302 当完成是判断偏早",
+   "source": "plan/verdict-v7.json 的 reason + plan/source-string-tests-remaining.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-055",
+   "fact": "W17 复验（verdict-v8，basis=77112113 实测 = origin/main）：done=false / remaining=1 = G-302-RESIDUAL-2。G-302-RESIDUAL 的 10 个派单类里 9 个已清零（行为化或迁进声明式规格），剩 1 个逃过 W16 新门禁的行内形态判据：DungeonTimeoutLifecycleContractTest 的 readString 藏在 helper 里。",
+   "source": "plan/verdict-v8.json / plan/gap-matrix-v8.md / plan/tasks-w17.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-056",
+   "fact": "十门在 W16 合入后全绿：sn=cnb-152-1k4081ljq（sha=f580ab69，event=api_trigger_gate，targetRef=main，status=success，pipelineSuccessCount=1）；判据行：DOWNLOADER=ready / GATE_SELFTEST=GREEN(PASS=101 FAIL=0) / RESOURCE_PACK_GATE=GREEN(RUN=8) / ASSET_BASELINE_GATE=GREEN(UNREGISTERED=0 MISSING=0 MODIFIED=0) / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / DDL_CONSUMER_GATE=GREEN(81 表 豁免 0) / DDL_REGISTRATION_GATE=GREEN(549 文件 豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令 豁免 9) / COMPILE_GATE=GREEN(TASKS_DONE=28 BUILD_EXIT=0 SECONDS=120) / TEST_GATE=GREEN(SUM tests=1099 failed=0 skipped=2 modules=26) / PACKAGE_GATE=GREEN(JAR_COUNT=56 JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)。SOURCE_STRING_GATE 在「门禁自测」stage 内经 selftest-gates.sh §4d 真实执行（stage-1 两条 [OK]，夹具 exit=1 / 真实仓 exit=0）。",
+   "source": "GET https://api.cnb.cool/xzqkjmnbvc2026/sivitahub/-/build/status/cnb-152-1k4081ljq + cnb build get-build-stage 各 stage 日志",
+   "level": "[S]"
+  },
+  {
+   "id": "E-057",
+   "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-057，原事实一字未删）★ W15 复验轮（basis=3947000d3e33189f2d293d828780155c3e28c3b7）：在**当前 main** 上重跑全量差集矩阵。⑧素材层 6 个新引入物零消费者=0（逐个给出调用点原文）；⑨ assets-manifest.json 252 条 ↔ 磁盘 252 张一一对应（ASSET_BASELINE_GATE=GREEN / UNREGISTERED=0 MISSING=0 MODIFIED=0）；⑩ asset-provenance.json 252 条与 manifest 252 条归一后同集合、$needsHumanDecision=[]、六类 $counts 合计 252 且与逐条重算一致；⑪ items(81) == runtime-item-models(81) 完全相同，插件侧 12 个字面量 item_model 键全 ⊆ manifest，24 个 config.yml 的 143 个顶层键无一个「声明机制行为却无读方」",
+   "source": "plan/gap-matrix-v7.md §1-§5",
+   "level": "[S]"
+  },
+  {
+   "id": "E-058",
+   "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-058，原事实一字未删）★ 十门在当前 main 的十门形态构建上全绿：sn=cnb-og3-1k401sol0（event=api_trigger_gate，sha=2184f15，status=success，13 stage 全 success 且耗时全非零）—— GATE_SELFTEST=GREEN(PASS=99 FAIL=0) / RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0) / ASSET_BASELINE_GATE=GREEN(252 张) / ASSET_REPRO_GATE=GREEN(70 张 / 4 生成器) / DDL_CONSUMER_GATE=GREEN(81 表, 豁免 0) / DDL_REGISTRATION_GATE=GREEN(反向豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令, 豁免 9) / COMPILE_GATE=GREEN(BUILD_EXIT=0 SECONDS=124 TASKS_DONE=28) / TEST_GATE=GREEN(SUM tests=1091 failed=0 skipped=2 modules=26) / PACKAGE_GATE=GREEN(JAR_COUNT=56, JAR_MISSING_PLUGIN_YML=0)。同 sha 的 push 构建 cnb-kcs-1k401sf5q 亦 success。跨 commit 等价性：2184f15..basis 的 git diff 只含 .workbuddy/**、doc/cnb/tasks-w15.json、state/world-state.json（无构建输入）。",
+   "source": "cnb build get-build-status --sn cnb-og3-1k401sol0 + build-runner-download-log --pipelineId cnb-og3-1k401sol0-001",
+   "level": "[S]"
+  },
+  {
+   "id": "E-059",
+   "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-059，原事实一字未删）★★ **verdict-v7 判 done=false / remaining=1**：唯一 remaining 是 **G-302-RESIDUAL** —— 源码字符串伪测试仍有 10 个类。判据来源 GOAL.md §2 第 2 条（不认 Files.readString + indexOf 的源码字符串断言）。实测口径：同一 @Test 方法体内既有 Files.readString 读生产源码、又有 .contains()/.indexOf() 断言 ⇒ 纯源码断言。命中：OptionalServiceLifecycleContractTest(1 方法) / LanguageBundleContractTest(1) / DungeonEntryCommitAmbiguityContractTest(3) / EquipmentOperationIntegrationContractTest(2) / WorldTravelConfigurationContractTest(1) / ForgeOperationIntegrationContractTest(6) / MailboxDeliveryIntegrationContractTest(1) / SkillAsyncLifecycleContractTest(1) / StoryJourneyOrderContractTest(1) / SurvivalPerformanceConfigurationContractTest(2)。W5-A2 的 unproven[3] 自认「第二批剩余 15 个读生产源码的类未处理」。",
+   "source": "plan/verdict-v7.json / plan/gap-matrix-v7.md §6",
+   "level": "[S]"
+  },
+  {
+   "id": "E-060",
+   "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-060，原事实一字未删）★ 定位 v6 的覆盖盲区：verdict-v6（W11-A1）basis 是 main@6a244ed，早于之后合入的 12 个 PR（#48–#61，含 W9 的 /rpgadmin anomaly 与 W12–W14 整套素材层）。v6 只复查了 W9 迁移的最后 2 个类（MobRewardAsyncLifecycleContractTest / PetRevivalLifecycleContractTest，确已接线），**未回看 G-302 的 15 个残留**，却把矩阵里 G-302 行判成「已接线」并给出 done=true/remaining=0。本轮补上这一项。",
+   "source": "对比 plan/verdict-v6.json 的 not_a_gap/recheck 与 plan/source-string-tests-remaining.json 的 _remaining_after_batch2",
+   "level": "[S]"
+  },
+  {
+   "id": "E-061",
+   "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-061，原事实一字未删）G-302 的正确基线在 v4 的 V-21 里：『Files.readString 类从 53 降到 48；其中 25 个已改为真实执行外部门禁脚本，21 个含真行为断言，仅 2 个是纯源码字符串断言』。该「仅 2 个」的口径指 rpg-core 之外、且只看「整类所有 @Test 都是源码断言」的严格子集；本轮改用 GOOS §2 的「方法级」口径，把部分方法仍是源码断言的类也算进来，得到 10 个类。两种口径都如实写在 verdict-v7 的 needs_human 里请人类拍板。",
+   "source": "plan/gap-matrix-v4.md:17 / :98",
+   "level": "[S]"
+  },
+  {
+   "id": "E-062",
+   "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-062，原事实一字未删）素材可复现性门禁的覆盖率已从 W13-A1 的 70 条扩展到 129 条 generator 类（W14-A1）：generate-provenance.py 把 20 帧 mana_fill 切分与 5 张 skill 的 2x2 强调色块补进生成器，ancient_echo_skill_book 判为 human-override 并加反向断言。六类 provenance 合计 252，NEEDS_HUMAN 清空。",
+   "source": "plan/gap-matrix-v7.md §3 / .cnb/agent-out/W14-A1-merge-two-branches.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-063",
+   "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-063，原事实一字未删）本容器仍无 JDK（compile/test/assemble 不能本地复跑）。本地已复跑且全部 exit=0：check-ddl-consumers.sh（81 表/豁免 0/反向豁免 0/扫 549 文件）/ check-config-fallbacks.sh / check-trusted-menu-holders.sh / check-repo-artifacts.sh / check-file-deps.sh / check-source-contract.sh（238 checks / 27 specs）/ check-resource-pack.sh（RUN=8）/ check-asset-baseline.py（252/252）/ install-datapacks.sh --check / selftest-gates.sh（PASS=99 FAIL=0）。check-asset-reproducible.sh 本地未复跑（需现场编译 Java 生成器）。",
+   "source": "plan/gap-matrix-v7.md §8.4",
+   "level": "[S]"
+  },
+  {
+   "id": "E-064",
+   "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-064，原事实一字未删）W16（PR#63，commit f580ab6）合入：G-302-RESIDUAL 的 10 个派单类逐条处置（行为化或迁进声明式源码契约），scripts/source-contract-specs/all.json 从 27 键扩到 76 键，新增 scripts/check-source-string-tests.sh（判据行 SOURCE_STRING_GATE=GREEN|RED）并接进 scripts/selftest-gates.sh §4d ⇒ 每推送都在质量门「门禁自测」stage 里真实跑。CI 实测 sn=cnb-152-1k4081ljq stage-1 含 §4d 两条 [OK]（夹具 exit=1 / 真实仓 exit=0）；W16 之前的 sn=cnb-eqs-1k406ot2a 的 stage-1 没有 §4d（接线不是复制粘贴）。",
+   "source": "git log f580ab69；cnb build get-build-stage --sn cnb-152-1k4081ljq --stageId stage-1",
+   "level": "[S]"
+  },
+  {
+   "id": "E-065",
+   "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-065，原事实一字未删）★ W17 复验（verdict-v8，basis=77112113 实测 = origin/main）：done=false / remaining=1 = G-302-RESIDUAL-2。① 差集矩阵「声明未接线」= 0 条 ✓；② 十门在 f580ab6 全绿 ✓（sn=cnb-152-1k4081ljq，13 stage，10 门判据行齐全且耗时非零；basis 77112113 自身的 3 个构建采样时全部 pending，未采信，改用 f580ab6 并给出输入集合论证：git diff --name-only f580ab69 HEAD 只含 plan/ 与 .cnb/agent-out/）；③ 素材层四条成立 ✓（新增把 W16 的 check-source-string-tests.sh 纳入零消费者复查，=0；all.json 实测 SPECS=76 真被加载；252↔252；provenance 同集合 + $needsHumanDecision=[] + 六类合计 252；items 81==81 且 12 个 item_model 全 ⊆ manifest）；④ 不成立 ⇒ 1 个可派工缺口。",
+   "source": "plan/verdict-v8.json / plan/gap-matrix-v8.md",
+   "level": "[S]"
+  },
+  {
+   "id": "E-066",
+   "fact": "（并入自已废弃的 plan/world-state.json；在 6500a21 里它与 state 侧同号但内容不同，本条顺延为 E-066，原事实一字未删）G-302-RESIDUAL 本轮**基本清零**但未完全清零，两件事必须分开说：(1) 46 个 `Files.readString` 命中**一个都没减少**（v7 也是 46）⇒ 「计数下降」这条上不发生，清零只能看方法体；按方法体逐条分类 46/46：35 个已迁进声明式源码契约（readString 只剩注释，@Test 断言 exitValue）、1 个已行为化（MechanismKillSwitchContractTest）、9 个读的不是生产源码/不是源码字符串占位断言、**1 个仍是纯源码字符串断言**。(2) 我独立复核了 W16 判据脚本本身：它不会把读夹具误判成缺口（实测 3 个读非生产源码的类均未报出），它的负向对照真能变红（我另插 ZzSstNegativeControlTest → SOURCE_STRING_TESTS=1 / RED / EXIT=1，删除后 GREEN，git status 干净）。**但它的判据有形态边界**：readString 藏在同文件 helper（helper 实参不是 Files.readString 的直接参数行）时它报 0，而 DungeonTimeoutLifecycleContractTest 正是这一类 → G-302-RESIDUAL-2。",
+   "source": "plan/gap-matrix-v8.md §6；本地实测命令原文",
+   "level": "[S]"
+  },
+  {
+   "id": "E-067",
+   "fact": "★ W23 最终复验（verdict-v10，basis=1ace5ab 实测 == origin/main == 1ace5ab89faf563b70af78cee4926330f7906187，两者相等）：**done=true / remaining=0**。四条件全部成立：① 差集矩阵「声明未接线」=0 且无「可派工的实现缺口」；② 十门在 M5=1ace5ab 上两次同 sha 连续全绿；③ 素材层四条成立；④ 剩余问题只有 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）。与 verdict-v8（done=false / remaining=1）的差别：v8 的唯一 remaining G-302-RESIDUAL-2 已在 #66（W18+W19）真跑行为化清零。",
+   "source": "plan/verdict-v10.json / plan/gap-matrix-v10.md / plan/tasks-w23.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-068",
+   "fact": "G-302-RESIDUAL 系列**全部清零**：① 残留 2（DungeonTimeoutLifecycleContractTest 8 处 indexOf）已行为化 —— 该类 grep 'readString|readAllBytes|Files\\.' 只命中 :19（注释），3 个 @Test 真跑 DungeonManager + 记录型 BukkitScheduler，断言 scheduler.callbacks/cancelled/instanceSessions 等可观察状态。② 判据反向失效①（assert 包住读取 / Files.readString(Path.of(常量)) 曾被漏判 GREEN）由 #67 修复。③ 判据反向失效②（W18 第二轮把遍历式源码扫描**整体豁免** ⇒ 原形态在真实仓判 GREEN、负向对照失效）由 #69 撤销：reads_production_source_via_traversal() 在 check-source-string-tests.sh:217，productionReferences helper 已删除（全仓只剩 3 处注释）。",
+   "source": "plan/gap-matrix-v10.md §6.2 / grep -n 'reads_production_source_via_traversal' scripts/check-source-string-tests.sh / grep -rn productionReferences plugins/",
+   "level": "[S]"
+  },
+  {
+   "id": "E-069",
+   "fact": "★ 判据本身没被放宽（不给「门禁 GREEN」当结论）：判据行 SOURCE_STRING_TESTS=0 / SOURCE_STRING_GATE=GREEN / EXIT=0（重定向到文件再取 $?，未走管道）；独立抽样复核 4 个类（DungeonTimeoutLifecycleContractTest / EquipmentExitPathReachabilityTest / SeasonAttunementSettlementWiringTest / DungeonEntryCommitAmbiguityContractTest）逐个读 @Test 方法体，确认读的是**测试夹具 / 源规格 JSON / 进程 stdout / 配置解析**而非生产源码正文；反向验证 4 组夹具（⑤ assertTrue(readString(Path.of(\"plugins/...\")).contains(x)) / ⑥ Files.readString(Path.of(常量)) / ⑦ Files.walk(root.resolve(\"plugins/rpg-core/src/main\"))+readString(f).contains(id) 聚合成列表 anyMatch / ⑧ resolve 拼接变体）各自 EXIT=1 变红，删除后 GREEN，收尾 git status --porcelain 为空；反例 LanguageBundleContractTest（Files.newInputStream + SnakeYAML 真解析）**未**被判红 —— 没有用「把反例也判红」换 GREEN。",
+   "source": "本地实测命令原文（夹具造在真 plugins/rpg-core/src/test/java/_gatefixture/ 下，跑完删除）；plan/gap-matrix-v10.md §6.1-§6.4",
+   "level": "[S]"
+  },
+  {
+   "id": "E-070",
+   "fact": "规格规模未缩水且 SPEC_FILES 按预期上升：sh scripts/check-source-contract.sh --all → SOURCE_CONTRACT_CHECKS=469 SPECS=79 SOURCE_CONTRACT_SPEC_FILES=3 / SOURCE_CONTRACT_GATE=GREEN / EXIT=0（v8 基线 462/78/2）。SPEC_FILES 2→3 正是 #69 新建 scripts/source-contract-specs/rpg-core.json（1 键 #attunement-consumer）。单个新增 spec 键真跑：CHECKS=3 SPECS=1 GREEN。",
+   "source": "plan/gap-matrix-v10.md §6.5",
+   "level": "[S]"
+  },
+  {
+   "id": "E-071",
+   "fact": "十门在 M5=1ace5ab 上两次同 sha 连续全绿（回读核对 GET /{repo}/-/build/status/{sn} + stage 日志）：权威 sn=cnb-785-1k41j43k2（event=api_trigger_gate，targetRef=main，sha=1ace5ab，status=success，pipelineSuccessCount=1/pipelineFailCount=0，13 stage 全 success）；复核 sn=cnb-q65-1k41k0gtr（同 sha 同 event，success，13 stage 全 success）。判据行：DOWNLOADER=ready / GATE_SELFTEST=GREEN(PASS=132 FAIL=0) / DDL_CONSUMER_GATE=GREEN(81 表 豁免 0) / DDL_REGISTRATION_GATE=GREEN(549 文件 反向豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令 豁免 9) / RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0) / ASSET_BASELINE_GATE=GREEN(UNREGISTERED=0 MISSING=0 MODIFIED=0) / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / COMPILE_GATE=GREEN(TASKS_DONE=28 BUILD_EXIT=0 SECONDS=122) / TEST_GATE=GREEN(SUM tests=1102 failed=0 errors=0 skipped=2 modules=26) / SUMMARY_GATE=GREEN(NO_XML modules=0 期望 26) / PACKAGE_GATE=GREEN(JAR_COUNT=56 JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0) / SINGLE_SOURCE_OF_TRUTH_GATE=GREEN(WORLD_STATE_FILES=1) / VERDICT_MATRIX_CONSISTENCY_GATE=GREEN。basis 自身就是 M5 ⇒ 十门输入 = 判定 basis，无需跨 commit 等价性论证。",
+   "source": "cnb build get-build-status/get-build-stage --sn cnb-785-1k41j43k2 与 cnb-q65-1k41k0gtr",
+   "level": "[S]"
+  },
+  {
+   "id": "E-072",
+   "fact": "★ 门禁假红（G-FLAKY-GATE）闭环：plugins/rpg-admin/.../AnomalyReviewCommandTest.java 里 grep awaitQuiet 只剩 :283 注释；:239 awaitChainSettled()（onIdle().await 在飞归零 + :246 isBusy 复位静默计数 + :264 硬超时 throw AssertionError「异步链未收尾」）；:294 永久回归测试 slowAsyncHopStillYieldsTheExpectedBroadcast（每跳 LockSupport.parkNanos(100ms)），:322 断言仍是 admin.anomaly-not-pending（未删断言、未放宽期望、未把异步改同步）。W21-A1 json：post_fix_30_runs=6 hog 下 30/30 rc=0（落盘 .cnb/agent-out/evidence/post-fix-30runs.txt 收尾 FAILS=0 TOTAL=30）；negative_control sabotage_rc=1 且实际值非空 ⇒ 断言没被『等没了』。改前同 sha 先红后绿（b6d38bf：cnb-tn4-1k4141s0e stage-7 error，AnomalyReviewCommandTest …WritesNothing FAILED / SUM tests=1101 failed=1；vs cnb-h3n-1k414popl success；334fb54：cnb-d93-1k41bqhbe error vs cnb-esl-1k41cpau5 success）⇒ 改后同 sha 连续两次全绿 = 缓解的直接证据。",
+   "source": "plan/gap-matrix-v10.md §7.1 / .cnb/agent-out/W21-A1-fix-flaky-test-gate.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-073",
+   "fact": "G-DUP-WORLDSTATE 闭环（复核）：test ! -e plan/world-state.json 成立；git ls-files | grep world-state 只有 state/world-state.json；CI stage-1 判据行 SINGLE_SOURCE_OF_TRUTH_GATE=GREEN / WORLD_STATE_FILES=1，负向夹具 RED（两份账本内容不一致：state=48679B plan=45B），state 缺失亦 RED。",
+   "source": "plan/gap-matrix-v10.md §7.2 / cnb-785-1k41j43k2 stage-1 日志",
+   "level": "[S]"
+  },
+  {
+   "id": "E-074",
+   "fact": "G-VERDICT-MATRIX-SPLIT 闭环（本轮自身即判据对象）：plan/gap-matrix-v10.md 前 20 行内 `> verdict: done=true remaining=0` 与 `> basis: 1ace5ab`，与 plan/verdict-v10.json 的 done=true / remaining=0 / basis=1ace5ab **逐字一致**（按 selftest-gates.sh §11 vmc_gate 的同一 sed/grep/python 口径自查通过）。CI stage-1 判据行 VERDICT_MATRIX_CONSISTENCY_GATE=GREEN（改前打印 N=8 done=false remaining=1 basis=77112113，证明门禁真的在数版本而不是恒绿）。",
+   "source": "plan/gap-matrix-v10.md §7.3 / 本地按 vmc_gate 口径自查",
+   "level": "[S]"
+  },
+  {
+   "id": "E-075",
+   "fact": "素材层四条复核：零消费者=0（scripts/ 下 21 个 .sh/.py 逐个给调用点原文，13 个有 .cnb.yml stage 入口，8 个由 selftest-gates.sh 或插件 *ContractTest 经 ProcessBuilder 真跑）；python3 scripts/check-asset-baseline.py → 252↔252 UNREGISTERED=0 MISSING=0 MODIFIED=0 GREEN；provenance 与 manifest 归一 assets/ 前缀后同集合（manifest-only=0 prov-only=0）、$needsHumanDecision=[]、六类合计 252；items 定义 81 == runtime-item-models 去注释键 81（diff IDENTICAL）且 resource-pack-asset-check.py 七项（closure/compass/hud/journey/lang/packmeta/textures）全 exit=0。素材可复现性未本地复跑（本容器无 JDK），以 M5 stage-5 为证据。",
+   "source": "plan/gap-matrix-v10.md §1-§5 / 本地实测命令原文",
+   "level": "[S]"
+  },
+  {
+   "id": "E-076",
+   "fact": "★ W25 最终复验（verdict-v11，basis=实测 f014b447 == origin/main == f014b447fa5ac51170fc9450009ec6c901633487，两者相等）：**done=false / remaining=1**。唯一 remaining = G-CACHE-STAMP-BEFORE-LOCK。① 「声明未接线」=0 条，但**有 1 条可派工实现缺口**：5 个发布点的 inTransaction 均「先 nextCommitVersion() → 再 operation.apply(connection) → 再 commit()」（JdbcProfileService:796-799 / JdbcAscensionService:285-288 / JdbcDungeonRewardService:318-321 / JdbcAdminIncidentCompensationService:726-729 / JdbcAdminTestService:297-300），而 SELECT ... FOR UPDATE 在 apply 内部（JdbcProfileService.java:627）⇒ 取号在加锁之前，JdbcProfileService.java:779 注释声称的「仍持有行锁时取号」与代码不符。② 同 sha f014b447 的两个构建实测：cnb-4f2-1k46ad3pv(api_trigger_gate) success / FAILURE_XML_COUNT=0 / rpg-core tests=320 failed=0；**cnb-ok2-1k46acmji(push) error / test stage error / FAILURE_XML_COUNT=1 / SUM tests=1104 failed=1 / 失败用例 JdbcServicesTest#lateCommitStampCannotRollBackTheReadCache() / message 原文 org.opentest4j.AssertionFailedError: 取号必须在 commit 之前（持锁时），缓存不得被倒置的版本号回滚 ==> expected: <20> but was: <19>**；两构建 env 排除口径一致（ENV_ANNOTATIONS=8 / EXCLUDED_TAG_SEEN_IN_LOG=26），非环境差异。③ 十门在权威构建上全绿（13 stage，PASS=132 FAIL=0 / tests=1104 failed=0 / JAR_COUNT=56 / CHECKS=469 SPECS=79 SPEC_FILES=3）。④ 素材层四条成立（21 个脚本零消费者=0；252↔252 UNREGISTERED/MISSING/MODIFIED 全 0；provenance 同集合 + $needsHumanDecision=[] + 六类合计 252；items 81==81 IDENTICAL + 七项 material check 全 exit=0）。⑤ G-302-RESIDUAL 系列仍清零且判据未放宽（SOURCE_STRING_TESTS=0/GREEN/EXIT=0；4 类方法体复核；夹具⑤⑥⑦各 EXIT=1 变红、删后 GREEN、git status 干净；反例 LanguageBundleContractTest 未被误判；规格 469/79/3 ≥ v8 的 466/78/2）。",
+   "source": "plan/verdict-v11.json / plan/gap-matrix-v11.md / .cnb/agent-out/W25-A1-verdict-v11.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-077",
+   "fact": "G-FLAKY-GATE **回退（复发）**，且这次落在 #73/#75 新增的回归测试上：改后并未取得「同 sha 连续两次全绿」——f014b447 上 cnb-4f2-1k46ad3pv(api_trigger_gate) GREEN、cnb-ok2-1k46acmji(push) test stage RED。同 sha RED 计数 = 1。对照改前（b6d38bf：cnb-tn4-1k4141s0e test error / cnb-h3n-1k414popl success；334fb54：cnb-d93-1k41bqhbe test error / cnb-esl-1k41cpau5 success）的「先红后绿」，本轮是「先绿后红」，形态同源（时序/并发敏感用例）。⇒ 不能把 v10 在 1ace5ab 上的「已闭环」直接沿用到新 basis。",
+   "source": "cnb build get-build-logs --sha f014b447…；build-runner-download-log cnb-ok2-1k46acmji-001 与 cnb-4f2-1k46ad3pv-001",
+   "level": "[S]"
+  },
+  {
+   "id": "E-078",
+   "fact": "★ W27 最终复验（verdict-v12，basis=实测 14b67f2 == origin/main == 14b67f27706861035b321c31e2b9ea1699b60a74，两者相等）：**done=true / remaining=0**。四条件全部成立。① 差集矩阵「声明未接线」=0 且**可派工实现缺口=0**：v11 的唯一 remaining G-CACHE-STAMP-BEFORE-LOCK 已由 PR#78（commit 14b67f2）闭环 —— 新增 LockedTransaction 动态代理连接，取号下沉到「已持有 SELECT ... FOR UPDATE 行锁之后」；markLocked 惰性一次取号（LockedTransaction.java:54-55 `if (version == 0L) version = nextVersion.getAsLong();`）；5 个发布点全改 LockedTransaction.wrap（JdbcProfileService:841 / JdbcAscensionService:284 / JdbcDungeonRewardService:318 / JdbcAdminIncidentCompensationService:723 / JdbcAdminTestService:297），触发点在 FOR UPDATE 之后（JdbcProfileService.java:627 select→:633 markLocked；loadSnapshot:484/486→:492）；**eager nextCommitVersion() 调用已彻底消失**（grep -rn 只剩定义 :527 + 6 处 javadoc）；三个回归测试在（JdbcServicesTest.java:1035/:1088/:1151）且 CI PASS（rpg-core tests=321 failed=0）；W26 三段证据齐全（改前 exit=1 `expected: <20> but was: <19>` / 改后 exit=0 PASS / 负向对照 exit=1 必红 + 还原 exit=0）。② 十门在 M10=14b67f2 上全绿（权威 sn=cnb-lpt-1k46f0u8b, api_trigger_gate, main, success, 13 stage 全 success；同 sha 的 push 构建 cnb-m3o-1k46f0gvf 亦 success 且判据行一致 ⇒ 同 sha 连续两次全绿）。③ 素材层四条成立。④ 剩余只有 REQUIRES_HUMAN。",
+   "source": "plan/gap-matrix-v12.md / plan/verdict-v12.json / .cnb/agent-out/W27-A1-verdict-v12.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-079",
+   "fact": "★ G-CACHE-STAMP-BEFORE-LOCK 三轮收敛史（本轮最有价值的一条方法论）：给「异步回调里发布本地读缓存」做顺序守卫需要一个提交版本号，必须满足「取号顺序 == 加锁顺序 == 提交顺序」。PR#73 取号在 connection.commit() **之后** ⇒ 「提交后、取号前」被抢占（回归测试 readCacheIsNotRolledBackByALateCommit 延迟第 20 次 Connection.close）；PR#75 取号在 inTransaction 开头（**加锁之前**）⇒ 「取号后、加锁前」被抢占（回归测试 lateCommitStampCannotRollBackTheReadCache；同 sha f014b447 的 cnb-ok2-1k46acmji test stage RED，message expected: <20> but was: <19>）；**PR#78（14b67f2）取号在已持有 SELECT ... FOR UPDATE 行锁之后** ⇒ 倒置窗口归零（新测试 commitVersionMustBeTakenAfterTheRowLockIsHeld 延迟「第 18 次含 FOR UPDATE 的 executeQuery 执行之前」⇒ 改前 expected: <20> but was: <19>，改后 PASS）。方法论：**取号在临界区之外**——无论放在 commit() 之后还是 apply() 之前——都留倒置窗口；必须移进「已持行锁」这段临界区内部，才能让「取号顺序 == 加锁顺序 == 提交顺序」成为代码事实而非注释声明。",
+   "source": "plan/gap-matrix-v12.md §0.2 / §7；doc/cnb/gap-registry.md",
+   "level": "[S]"
+  },
+  {
+   "id": "E-080",
+   "fact": "★ G-FLAKY-GATE 恢复闭环（v11 曾回退）：同一 sha 14b67f2 上两个构建**均 success** —— cnb-lpt-1k46f0u8b（api_trigger_gate, main）与 cnb-m3o-1k46f0gvf（push, main），判据行一致（GATE_SELFTEST=PASS=132 FAIL=0 / SUM tests=1105 failed=0 errors=0 skipped=2 modules=26 / JAR_COUNT=56 / BUILD_EXIT=0）。v11 在 f014b447 上是「先绿后红」（cnb-4f2-1k46ad3pv success / cnb-ok2-1k46acmji test stage error），本轮恢复为「同 sha 连续两次全绿」。",
+   "source": "cnb build get-build-logs --sha 14b67f2…；build-runner-download-log cnb-lpt-1k46f0u8b-001 与 cnb-m3o-1k46f0gvf-001",
+   "level": "[S]"
+  },
+  {
+   "id": "E-081",
+   "fact": "★ G-302-RESIDUAL 系列仍清零且判据未被放宽（本轮独立复跑，不给「门禁 GREEN」当结论）：sh scripts/check-source-string-tests.sh（重定向取码）→ SOURCE_STRING_TESTS=0 / SOURCE_STRING_GATE=GREEN / EXIT=0；独立抽样复核 4 个类方法体（DungeonTimeoutLifecycleContractTest / EquipmentExitPathReachabilityTest / SeasonAttunementSettlementWiringTest / DungeonEntryCommitAmbiguityContractTest），读的是测试夹具 / 源规格 JSON / 进程 stdout / 真解析而非生产源码正文；反向验证三组夹具（Fixture5WrappedAssertTest:11 assertTrue(readString(Path.of(\"plugins/...\")).contains(x)) / Fixture6ConstPathTest:13 Files.readString(Path.of(常量)) / Fixture7TraversalTest:16 Files.walk(root.resolve(\"plugins/rpg-core/src/main\"))+readString(f).contains(id) 聚合成列表 anyMatch）各自 EXIT=1 变红（SOURCE_STRING_TESTS=3 / GATE=RED），删除后 EXIT=0 GREEN，收尾 git status --porcelain 为空；反例 LanguageBundleContractTest（Files.newInputStream + SnakeYAML 真解析）未被判红；规格规模 469/79/3 ≥ v8 的 466/78/2。",
+   "source": "plan/gap-matrix-v12.md §6；本地实测命令原文",
+   "level": "[S]"
+  },
+  {
+   "id": "E-082",
+   "fact": "★ W29 最终复验（verdict-v13，basis=实测 c74249e == origin/main == c74249e46370f2c18359373615146aa978c72618，两者相等）：**done=true / remaining=0**。四条件全部成立。本轮与 v12 的差别：v12 判 done 时 PR#80（构建输入改动）**还不存在**，必须在 M12=c74249e 上重判。① 差集矩阵「声明未接线」= 0（23 个 scripts 脚本逐个给调用点原文，含本轮新增的 check-mechanics-spec.sh 与 gen-mechanics-spec-report.py，两者都有 selftest-gates.sh 里真实执行的命令行原文，且该脚本由 .cnb.yml:71 在 CI 执行）；可派工实现缺口 = 0。② 十门在 M12 上全绿：权威 sn=cnb-cf6-1k46peo58（event=api_trigger_gate, targetRef=main, sourceRef=main, sha=c74249e, status=success, pipelineSuccessCount=1/pipelineFailCount=0, 13 stage success + DebugDetection skipped，每个 success stage duration 非零）：DOWNLOADER=ready / GATE_SELFTEST=GREEN(PASS=167 FAIL=0) / DDL_CONSUMER_GATE=GREEN(81 表, 豁免 0) / DDL_REGISTRATION_GATE=GREEN(551 文件, 反向豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令, 豁免 9) / RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0) / ASSET_BASELINE_GATE=GREEN(252↔252, UNREGISTERED=0 MISSING=0 MODIFIED=0) / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / COMPILE_GATE=GREEN(TASKS_DONE=28 BUILD_EXIT=0 SECONDS=120) / TEST_GATE=GREEN(TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=60) / SUMMARY_GATE=GREEN(SUM tests=1105 failed=0 errors=0 skipped=2 modules=26, NO_XML modules=0) / PACKAGE_GATE=GREEN(JAR_COUNT=56, JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0) / SINGLE_SOURCE_OF_TRUTH_GATE=GREEN(WORLD_STATE_FILES=1) / VERDICT_MATRIX_CONSISTENCY_GATE=GREEN(N=12 done=true remaining=0 basis=14b67f2) / **MECHANICS_SPEC_GATE=GREEN(ENTRIES=137 / BY_KIND=config:78,behavior:56,java-const:3 / WEAK=0)** / **MECHANICS_SPEC_REPORT=FRESH**。③ 素材层四条成立（23 脚本零消费者=0；252↔252 UNREGISTERED/MISSING/MODIFIED 全 0；provenance 与 manifest 归一 assets/ 前缀后同集合 manifest-only=0 prov-only=0、$needsHumanDecision=[]、六类合计 252 且与逐条重算一致；items 81 == runtime-item-models 81 且**键集合相等**、七项素材判据全 exit=0）。④ 剩余只有 REQUIRES_HUMAN。G-302-RESIDUAL 系列仍清零且判据未放宽（SOURCE_STRING_TESTS=0/GREEN/EXIT=0 重定向取码；4 类方法体复核；夹具⑤⑥⑦各 EXIT=1 变红、删后 GREEN、git status 干净；反例 LanguageBundleContractTest 未被判红；规格 469/79/3 ≥ v8 的 466/78/2）。本容器独立复跑 selftest-gates.sh → PASS=167 FAIL=0 / GATE_SELFTEST=GREEN，与 CI 判据行一致。",
+   "source": "plan/verdict-v13.json / plan/gap-matrix-v13.md / .cnb/agent-out/W29-A1-verdict-v13.json",
+   "level": "[S]"
+  },
+  {
+   "id": "E-083",
+   "fact": "★ PR#80（c74249e）新增的「玩法规格↔代码 机械绑定」这一层**已建立并闭环**（v13 复核）：137 条声明式绑定（config:78 / behavior:56 / java-const:3，MECHANICS_SPEC_WEAK=0，unverifiable 显式登记 11 条），覆盖 docs/GAME_DESIGN.md 规格正文 15 节里的 14 节（核心循环是纯叙述，无机械可核数值，已在生成报告「未登记任何条目的节」显式说明）。6 组负夹具在 M12 stage-1 真跑（config 改坏 / behavior 指向不存在测试 / java-const 改坏 / 去掉 behavior_ref 使 WEAK 变 1 / 后 7 节新条目改坏 / 报告陈旧 STALE），每组都带「还原后必须 GREEN」的退出码断言。报告可重生成：python3 scripts/gen-mechanics-spec-report.py --check → MECHANICS_SPEC_REPORT=FRESH；--write 幂等（git status 干净）；块标记 <!-- BEGIN mechanics-spec-report (generated) --> 在 docs/GAME_DESIGN.md:176 / END 在 :270，数字由脚本生成。**我自己独立做了一次负向对照（不采信 NPC）**：在 /tmp 副本里把一条 config 载体的值改坏（M-CORE-003 的 expect [2,3,4,5]→[2,3,4,9]）⇒ sh scripts/check-mechanics-spec.sh --spec /tmp/mxfix/spec.broken.json → EXIT=1 / MECHANICS_SPEC_GATE=RED / [FAIL] M-CORE-003 / 期望 [2,3,4,9] / 实际 ['2','3','4','5']；还原 ⇒ EXIT=0 GREEN。动因：本项目实测已漂移 3 次（G-106 血契二转/三转、G-202 槽上限固定区间、G-209 预警 0.4-0.8s）。",
+   "source": "本地实测命令原文（/tmp 副本）；plan/gap-matrix-v13.md §7；cnb-cf6-1k46peo58 stage-1 日志",
+   "level": "[S]"
+  },
+  {
+   "id": "E-084",
+   "fact": "★ PR#80 顺带修掉的两条真实门禁缺陷（v13 独立复现并确认闭环）：① **载体文件缺失曾判 GREEN** —— resolve_config 返回 None ⇒ 后续 len(None) 抛 TypeError 被吞成 exit 0（假绿）。现 scripts/check-mechanics-spec.sh:711-715 显式 failures.append。**我的负向对照**：把一条 config 载体的 path 改成 plugins/rpg-skills/src/main/resources/DOES-NOT-EXIST.yml ⇒ sh scripts/check-mechanics-spec.sh --spec /tmp/mxmissing/scripts/mechanics-spec.json → EXIT=1 / MECHANICS_SPEC_GATE=RED / [FAIL] M-CORE-003 / 实际：「config 文件不存在或为空：…DOES-NOT-EXIST.yml」。② **门禁依赖 PyYAML 而门禁镜像无 PyYAML/pip**（探针 sn=cnb-ta0-1k46mi9rr：ModuleNotFoundError: No module named 'yaml' / PYYAML=MISSING / PIP=MISSING）⇒ **NPC 容器 GREEN 而门禁容器 RED**。现改为纯 stdlib 的最小 YAML 子集解析器：grep -nE '^[[:space:]]*(import|from)[[:space:]]+yaml' scripts/check-mechanics-spec.sh 零命中（exit=1 / 0 行）；隔离垫片（把 dist-packages/site-packages 摘出 sys.path）下 python3 -c 'import yaml' → EXIT=1 / ModuleNotFoundError（探针先自证垫片有效，否则对照空跑），同垫片下门禁 → EXIT=0 且 4 行判据与有 PyYAML 时 diff **IDENTICAL**；CI stage-1 另有垫片探针与静态回归夹具（判据 12d / 负夹具⑦）锁住「不得再 import yaml」。⚠️ 本 NPC 容器**有** PyYAML 6.0 ⇒「本容器跑绿」不是证据。",
+   "source": "本地实测命令原文；plan/gap-matrix-v13.md §7.4/§7.5；cnb-cf6-1k46peo58 stage-1 日志",
+   "level": "[S]"
+  },
+  {
+   "id": "E-085",
+   "fact": "本轮**未采样**项（如实登记，不做有利假设）：G-FLAKY-GATE 本轮**无同 sha 第二次构建采样** —— cnb build get-build-logs --sha c74249e46370f2c18359373615146aa978c72618 只返回 1 个 main 构建（cnb-cf6-1k46peo58, api_trigger_gate, success）。因此 v12 在 14b67f2 上的「同 sha 连续两次全绿」不可沿用到 c74249e；本轮**不**断言「同 sha 两次全绿」，也**不**把「只采到一个 GREEN」说成有问题 —— G-FLAKY-GATE 的原始形态是「同 sha 上须有一个 RED」，本轮**没有任何 RED 观测**（未复发，也未被证伪）。处理：写进 plan/verdict-v13.json 的 risks（不是 needs_human —— 它不是「只能由人做的事」，调度器在 c74249e 上多触发一次构建即可把该项从「未采样」变为「已复核」）。本任务不改任何测试/CI 文件，不引入该风险。",
+   "source": "cnb build get-build-logs --repo xzqkjmnbvc2026/sivitahub --sha c74249e...（total=1）；plan/verdict-v13.json risks[0]",
+   "level": "[S]"
+  },
+  {
+   "id": "E-086",
+   "fact": "G-302-RESIDUAL 判据的**已知形态边界**（本轮新发现并如实登记，判定不构成缺口）：遍历形态 ④ 的命中要求「Files.walk 的实参里同时出现 plugins|tools 与 src/main」，或「类里同时有 \"plugins\"|\"tools\" 与 \"src/main\" 两个独立字面量」。我自己造的夹具⑦ 第一版写成 Path.of(\"plugins/rpg-core/src/main\")（单内联字面量，两段在同一字符串里）⇒ 判 GREEN（未命中）；改成 root.resolve(\"plugins\").resolve(MODULE).resolve(MAIN) 两段独立字面量 ⇒ EXIT=1 RED。判定不构成缺口的理由三条（机械事实）：(1) 该形态不是历史上漂移过的形态（DungeonTimeoutLifecycleContractTest / EquipmentExitPathReachabilityTest / SeasonAttunementSettlementWiringTest 三个原形态都在命中范围内）；(2) CI stage-1 §4d 的夹具①（内联）/②（helper+常量路径+indexOf）/④（遍历聚合）各带退出码断言，判据每次推送都被负向对照；(3) 当前 SOURCE_STRING_TESTS=0 是**方法体事实**（4 类逐条复核），不依赖该边界是否可绕。改判据属构建输入，本任务不允许改 ⇒ 登记在 gap-matrix-v13 §6.5 与 verdict-v13 risks。",
+   "source": "本地实测命令原文；plan/gap-matrix-v13.md §6.5",
+   "level": "[S]"
   }
+ ],
+ "unverified": [
+  {
+   "id": "U-001",
+   "claim": "paper-api:26.2.build.100-stable 能在 CNB 出网环境下从 repo.papermc.io 拉到",
+   "how_to_check": "触发一次编译门，看 gradle.log 是否出现 Could not resolve io.papermc.paper:paper-api",
+   "status": "RESOLVED_TRUE",
+   "resolution": "paper-api:26.2.build.100-stable 能从 CNB 拉到（编译跑到 29 个 task 才在源码处失败）"
+  },
+  {
+   "id": "U-002",
+   "claim": "7 个 *ContractTest 的源码字符串断言会在重构后失效",
+   "how_to_check": "对 7 个 ContractTest 各做一次等价重构，看是否变红；或直接替换为行为级测试后对比",
+   "status": "RESOLVED_TRUE",
+   "resolution": "编译门 GREEN 证明 46 个测试类里的源码字符串断言不影响编译；「重构即失效」仍需重构实验才能证（未做）"
+  },
+  {
+   "id": "U-003",
+   "claim": "原版客户端能否真握手进服（mods.toml 已把 OPAC/TACZ 降为可选，但从未验证）",
+   "how_to_check": "REQUIRES_HUMAN：在 lamb 起服务后用纯原版客户端连一次"
+  }
+ ],
+ "author_claimed_pending_verification": [],
+ "decisions_locked": [
+  "L-001",
+  "L-002",
+  "L-003",
+  "L-004",
+  "L-005",
+  "L-006",
+  "L-007",
+  "L-008"
+ ],
+ "open_questions_for_human": [
+  "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机 `lamb:/home/lamb/minecraft` 跑 scripts/maintain-world-coverage.sh（生产机写操作，L-006 只读）。",
+  "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
+  "W7-A2 遗留的 4 条 [R] 级 unproven（G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）。"
+ ],
+ "next_action": "收口。若需继续，只能推进 REQUIRES_HUMAN 三项（H-001 生产机写操作 / U-003 真实 Paper + 真实客户端握手 / W7-A2 四条 [R] 级 unproven）—— 均需真实环境与人类操作，本仓与 CNB 无法完成。另：如需把 G-FLAKY-GATE 从「未采样」变为「已复核」，调度器在 c74249e 上再触发一次构建即可（改测试/CI 文件不在本任务范围）。",
+ "updated_by": "CNB CodeBuddy NPC（W29-A1-verdict-v13）",
+ "updated_at": "2026-10-06T04:35:00Z",
+ "merged_gaps": [
+  "G-001",
+  "G-002",
+  "G-003",
+  "G-004",
+  "G-101",
+  "G-102",
+  "G-103",
+  "G-104",
+  "G-105",
+  "G-107",
+  "G-108",
+  "G-110",
+  "G-111",
+  "G-112",
+  "G-113",
+  "G-114",
+  "G-301",
+  "G-302-RESIDUAL",
+  "G-302-RESIDUAL-2",
+  "G-302-RESIDUAL-3",
+  "G-302-RESIDUAL-4",
+  "G-303",
+  "G-401",
+  "G-402",
+  "G-403",
+  "G-DUP-WORLDSTATE",
+  "G-FLAKY-GATE",
+  "G-VERDICT-MATRIX-SPLIT",
+  "G-CACHE-STAMP-BEFORE-LOCK",
+  "MECHANICS-SPEC-BINDING",
+  "G-MECHANICS-SPEC-CARRIER-MISSING-GREEN",
+  "G-MECHANICS-SPEC-PYYAML-DEPENDENCY"
+ ],
+ "authorization": {
+  "L-009": "人类授权跨 Phase 并行推进（2026-10-02 用户原话见 decisions-locked.md）"
+ },
+ "wave_plan": {
+  "W1": "DONE（编译门 GREEN sn=cnb-slt-1k3te83u2）",
+  "W2": "DONE（15/15 合入，编译门 GREEN sn=cnb-l7u-1k3tn45sp）",
+  "W3+": "待 W2 合入后由 Planner 决定（prompt 必须带 merged_gaps）",
+  "W3": "DONE 2026-10-02：5/5 合入；A2/A3/A4 成功，A1（G-106）判为设计裁决需人类拍板。质量门升级为 编译→测试→打包 并首次全绿（sn=cnb-5e4-1k3tsd1ed）",
+  "W4": "DONE 2026-10-02：4/4 合入（另含 3 个后续 PR#33/#34/#36）",
+  "W5": "DONE 2026-10-02：A2（G-302 第二批 25 个伪测试收敛）、A3（差集矩阵 v3）已合入；A1（DDL 登记门禁）分支仍在跑",
+  "W6": "DONE 2026-10-02：4/4 合入（4 张 PENDING 表 / SEASON_ATTUNED 内部调用点 / quick_actions 入 VCS / G-106 血契改三转）",
+  "W7": "DONE 2026-10-02：4/4 交付（A1 素材门禁 / A2 P2 七条 / A3 冲突消解 / A4 HUD 对齐）",
+  "W8": "DONE：最终验收轮（gap-matrix-v4 + verdict-v4，判 done=false / remaining=2）",
+  "W9": "DONE：2/2 合入（/rpgadmin anomaly 入口 + G-302 最后 2 个测试类迁进声明式源码契约门禁）",
+  "W10": "DONE：收尾判定轮 v5（判 done=false / remaining=2，但两条后被复核为假缺口）",
+  "W11": "DONE：复核两条并给出 **verdict-v6：done=true / remaining=0**",
+  "W12": "DONE（部分）：#54 逐像素基线门禁 + #56 全量来源登记 252 张；#55 因与二者重复冲突而关闭",
+  "W13": "DONE（部分）：A1 可复现性门禁 + 生成器同步/扩展、A2 6 组 provenance 裁决落地；两者各做一半 ⇒ 关闭 #57/#59/#60",
+  "W14": "DONE：把 W13 两个分支合并成并集（#61）—— 六类 252 张、NEEDS_HUMAN 为空、十门全绿",
+  "W15": "DONE：在当前 main（basis=3947000）上复验，产出 gap-matrix-v7 + verdict-v7 + tasks-w15；十门在十门形态构建 sn=cnb-og3-1k401sol0 上全绿；素材层四条全成立；发现并定性 G-302-RESIDUAL（10 个类）",
+  "W16": "DONE：G-302-RESIDUAL 的 10 个派单类逐条处置（14 个类 / 34 个方法），all.json 27→76 键，新增 check-source-string-tests.sh 接入 selftest §4d（PR#63 / f580ab6）",
+  "W17": "DONE：当前 main 复验（gap-matrix-v8 + verdict-v8，判 done=false / remaining=1 = G-302-RESIDUAL-2）",
+  "W18": "DONE：G-302-RESIDUAL-2 行为化（DungeonTimeoutLifecycleContractTest 真跑 DungeonManager + 自建 DungeonBukkitTestHarness）+ EquipmentExitPathReachabilityTest 5/6 行为化、1 条迁进 rpg-items.json",
+  "W19": "DONE：两处判据反向失效修复（#67 assert 包住读取 / Path.of(常量)；#69 撤掉遍历式源码扫描豁免 + 新建 rpg-core.json）",
+  "W21": "DONE：门禁假红修复（awaitChainSettled 确定性收尾屏障 + 慢 executor 永久回归测试）+ 账本收敛为唯一真相源（plan/world-state.json 删除）+ 两条交付物级门禁（selftest §11）（#70 / 334fb54 / 1ace5ab）",
+  "W23": "DONE：最终复验轮 v10（gap-matrix-v10 + verdict-v10，判 **done=true / remaining=0**）",
+  "W25": "REMAINING：最终复验轮 v11（gap-matrix-v11 + verdict-v11，判 **done=false / remaining=1** = G-CACHE-STAMP-BEFORE-LOCK）。G-302-RESIDUAL 系列复跑仍清零、素材层四条成立、十门在权威构建 cnb-4f2-1k46ad3pv 全绿；但 #73/#75 声称闭环的「读缓存回滚 / 发布倒置窗口」被代码结构 + 同 sha 的 RED 构建证伪。",
+  "W24": "DONE（交付）：#73 读缓存版本号守卫 + #75 取号点前移（各带确定性回归测试与负向对照，作者口径成功）；**但验收未通过** —— 见 W25。",
+  "W26": "DONE：PR#78（commit 14b67f2）把提交版本号改为「已在 SELECT ... FOR UPDATE 之上持锁之后」才取得 —— 新增 LockedTransaction（连接动态代理），5 个发布点行为一致，回滚不发布；顺带修正 JdbcAdminTestService.status 纯读路径（改传 NO_STAMP 不发布缓存）。",
+  "W27": "DONE：最终复验轮 v12（gap-matrix-v12 + verdict-v12，判 **done=true / remaining=0**）。G-CACHE-STAMP-BEFORE-LOCK 闭环复核通过；G-302-RESIDUAL 系列复跑仍清零、判据未放宽；素材层四条成立；十门在权威构建 cnb-lpt-1k46f0u8b 全绿，且同 sha 两次构建连续全绿（G-FLAKY-GATE 恢复）。剩余只有 REQUIRES_HUMAN。",
+  "W28": "DONE：PR#80（c74249e）把 docs/GAME_DESIGN.md 的数值/公式/阈值/枚举与代码机械绑定 —— scripts/mechanics-spec.json（137 条：config:78/behavior:56/java-const:3）+ check-mechanics-spec.sh（判据行 GATE/ENTRIES/BY_KIND/WEAK）+ gen-mechanics-spec-report.py（可重生成报告，--check 判 FRESH|STALE）+ selftest-gates.sh §12 六组负夹具；并修掉两条真实缺陷（载体缺失曾判 GREEN；依赖 PyYAML 而门禁镜像无 PyYAML/pip ⇒ 改 stdlib-only）。动因：本项目实测已漂移 3 次（G-106/G-202/G-209）。",
+  "W29": "DONE：最终复验轮 v13（gap-matrix-v13 + verdict-v13，判 **done=true / remaining=0**），basis=实测 c74249e == origin/main。PR#80 的构建输入改动已在 M12 上重判；玩法规格↔代码机械绑定层闭环（137 条 / 6 组负夹具 / 报告 FRESH / 零 import yaml / 独立负向对照 RED 并点名 M-CORE-003）；PR#80 顺带修的两条门禁缺陷独立复现确认闭环；G-CACHE-STAMP-BEFORE-LOCK 仍闭环；G-302-RESIDUAL 系列仍清零且判据未放宽；素材层四条成立；十门在 sn=cnb-cf6-1k46peo58 上全绿。剩余只有 REQUIRES_HUMAN。 PR=#81（https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/81）。"
+ },
+ "gates": {
+  "evidence_sn": "cnb-cf6-1k46peo58",
+  "evidence_sha": "c74249e",
+  "event": "api_trigger_gate",
+  "targetRef": "main",
+  "sourceRef": "main",
+  "status": "success",
+  "stages_all_success": 13,
+  "stages_skipped": 1,
+  "downloader": "GREEN (DOWNLOADER=ready)",
+  "gate_selftest": "GREEN (PASS=167 FAIL=0)",
+  "ddl_consumer": "GREEN (81 张表，豁免 0)",
+  "ddl_registration": "GREEN (551 文件，反向豁免 0)",
+  "cmd_reference": "GREEN (43 指令，豁免 9)",
+  "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
+  "asset_baseline": "GREEN (UNREGISTERED=0 MISSING=0 MODIFIED=0，252↔252)",
+  "asset_repro": "GREEN (REPRODUCIBLE=70 MISMATCH=0)",
+  "compile": "GREEN (TASKS_DONE=28 BUILD_EXIT=0 SECONDS=120)",
+  "test": "GREEN (TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=60)",
+  "summary": "GREEN (SUM tests=1105 failed=0 errors=0 skipped=2 modules=26；NO_XML modules=0 期望 26)",
+  "package": "GREEN (JAR_COUNT=56，JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)",
+  "mechanics_spec": "GREEN (ENTRIES=137 / BY_KIND=config:78,behavior:56,java-const:3 / WEAK=0)",
+  "mechanics_spec_report": "FRESH",
+  "source_string": "GREEN (SOURCE_STRING_TESTS=0；stage-1 §4d 夹具①-⑥ 各带退出码断言)",
+  "source_contract": "GREEN (CHECKS=469 SPECS=79 SPEC_FILES=3)",
+  "single_source_of_truth": "GREEN (WORLD_STATE_FILES=1)",
+  "verdict_matrix_consistency": "GREEN (N=12 done=true remaining=0 basis=14b67f2)",
+  "same_sha_second_build": "NOT_SAMPLED —— 本轮同 sha 只采到 1 个 main 构建（cnb-cf6-1k46peo58）；无 RED 观测，但不作「已闭环」声明（见 evidence E-085）",
+  "local_selftest_cross_check": "PASS=167 FAIL=0 / GATE_SELFTEST=GREEN（本 NPC 容器独立复跑，与 CI 判据行一致）"
+ },
+ "decisions_by_agent": [
+  {
+   "id": "D-001",
+   "decision": "G-106 血契改三转（改 1 个常量 + 同步 5 份文档 + 同步 rpg-core 测试）",
+   "why": "不动 ClassBranchGraph 的 2/2/1 强制不变式；不需要凭空指定新前置技能；与 5 条代码级证据一致",
+   "reversible": "PR 含「如需回滚」一节",
+   "by": "WorkBuddy AI（按人类 2026-10-02 授权）"
+  },
+  {
+   "id": "D-002",
+   "decision": "P2 六条把**行为**改到文档承诺值（星弹预警 0.4–0.8s、商人净损耗下限 10%、每日事件上限显式实现 等）",
+   "why": "文档承诺值 = 设计意图；做不到的才改文档并说明",
+   "by": "WorkBuddy AI（按人类授权）"
+  },
+  {
+   "id": "D-003",
+   "decision": "素材层（resource-pack/）纳入 CNB 版本控制",
+   "why": "被依赖的产物必须在唯一真相源里，否则素材无版本控制、无门禁、NPC 改不了",
+   "by": "WorkBuddy AI"
+  }
+ ],
+ "status": "DONE —— verdict-v13 判 done=true / remaining=0（PR#80 的构建输入改动已在 M12=c74249e 上重判：玩法规格↔代码机械绑定层闭环，顺带修掉的两条门禁缺陷已独立复现确认；G-CACHE-STAMP-BEFORE-LOCK 仍闭环；十门全绿）。剩余只有 REQUIRES_HUMAN。",
+ "verdict": {
+  "done": true,
+  "impossible": false,
+  "remaining": 0,
+  "remaining_ids": [],
+  "basis": "c74249e",
+  "decided_at": "2026-10-06",
+  "reason": "v12 判 done 时 PR#80（构建输入改动）还不存在 ⇒ 必须在 M12=c74249e 上重判。① 差集矩阵「声明未接线」=0、可派工实现缺口=0（G-CACHE-STAMP-BEFORE-LOCK 仍闭环；PR#80 新增的玩法规格↔代码机械绑定层闭环；PR#80 顺带修的两条门禁缺陷已独立复现并确认闭环）。② 十门在 M12 上全绿（sn=cnb-cf6-1k46peo58，13 stage success + DebugDetection skipped，含 MECHANICS_SPEC_GATE=GREEN(ENTRIES=137/BY_KIND=config:78,behavior:56,java-const:3/WEAK=0) 与 MECHANICS_SPEC_REPORT=FRESH）。③ 素材层四条成立。④ 剩余只有 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）。G-302-RESIDUAL 系列仍清零且判据未放宽。⚠️ 两项如实降级声明：G-FLAKY-GATE 本轮同 sha 只采到一个 main 构建 ⇒ 不作「已闭环」声明（无 RED 观测、未复发），写进 risks；G-302 遍历判据的已知形态边界登记在 gap-matrix-v13 §6.5（不构成缺口，理由三条）。"
+ },
+ "assets": {
+  "png_total": 252,
+  "manifest": "resource-pack/assets-manifest.json",
+  "provenance": "resource-pack/asset-provenance.json",
+  "provenance_doc": "resource-pack/ASSET-PROVENANCE.md",
+  "categories": {
+   "generator": 129,
+   "derived-from": 69,
+   "ai-prompt": 10,
+   "human-override": 1,
+   "upstream-betterhud": 38,
+   "upstream-vanilla": 5,
+   "reviewed-baseline": 0
+  },
+  "counts_sum": 252,
+  "manifest_vs_disk": "252 == 252，集合相等，UNREGISTERED=0 MISSING=0 MODIFIED=0",
+  "provenance_vs_manifest": "归一并集后同集合；needs_human_decision=[]",
+  "items_three_way": "items 81 == runtime-item-models 81；插件侧 12 个字面量 item_model 键全 ⊆ manifest",
+  "config_yml_readers": "24 个 config.yml / 143 个顶层键；无一个「声明机制行为却无读方」",
+  "needs_human_decision": [],
+  "audio": "0（代码只用原版 Sound.*，不是缺口）"
+ },
+ "basis": "c74249e",
+ "_ledger": {
+  "single_source_of_truth": "state/world-state.json",
+  "deprecated": "plan/world-state.json（本任务已删除；禁止再建）",
+  "merged_from": "plan/world-state.json @6500a21（40076B / md5 fbf8a434cacd8693947a5f55f2012e62）",
+  "merged_at_task": "W21-A2-ledger-and-guards",
+  "merged_fields": [
+   "assets",
+   "gates",
+   "status",
+   "next_action",
+   "open_questions_for_human",
+   "wave_plan"
+  ],
+  "plan_only_evidence_renumbered": {
+   "E-057": "plan 侧 W15 复验轮（basis=3947000）重跑差集矩阵四条",
+   "E-058": "plan 侧「十门 @2184f15 全绿」（sn=cnb-og3-1k401sol0）",
+   "E-059": "plan 侧 verdict-v7 判 done=false / remaining=1（G-302-RESIDUAL 10 个类）",
+   "E-060": "plan 侧「定位 v6 的覆盖盲区」（basis 6a244ed 早于 12 个 PR）",
+   "E-061": "plan 侧 G-302 基线（v4 V-21 口径）",
+   "E-062": "plan 侧素材可复现性覆盖 70→129"
+  },
+  "note": "同一 commit 6500a21 里两份账本被写成不同内容（plan 40076B / state 35064B，md5 fbf8a434… vs ace96648…；7 个字段不同：assets / gates / status / next_action / open_questions_for_human / wave_plan / evidence）。本任务按并集合并：字段冲突取信息更全的一侧（merged_fields），plan 侧独有的 6 条 evidence 因与 state 侧同号，顺延为 E-057..E-062 后并入，原事实一字未删。",
+  "root_cause_ref": ".cnb/agent-out/W10-A1-final-verdict-v5.json:153",
+  "superseded_state_side_values": {
+   "policy": "同名冲突取信息更全的一侧（本任务 6 处全部为 plan 侧更全）；被替换的 state 侧旧值逐条记录在此，原值不丢。",
+   "status": "REMAINING —— verdict-v8 判 done=false / remaining=1（G-302-RESIDUAL-2）",
+   "next_action": "派 W17-A1（G-302-RESIDUAL-2）→ 合入 → 触发十门 → 再派复验轮（verdict-v9，basis 必须等于届时 main HEAD）。若 done=true 则收口。",
+   "open_questions_for_human[0]": "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/maintain-world-coverage.sh（生产机写操作）。",
+   "open_questions_for_human[2]": "W7-A2 的 4 条 [R] 级 unproven：G-207 计数器是内存态（重启丢当天场次）/ G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证。",
+   "wave_plan.W15": "DONE：在当前 main 复验（gap-matrix-v7 + verdict-v7，判 done=false / remaining=1）",
+   "wave_plan.W16": "DONE：G-302-RESIDUAL 派单 10 类逐条处置（14 类/34 方法），all.json 27→76 键，新增 check-source-string-tests.sh 接入 selftest §4d（PR#63 / f580ab6）"
+  }
+ },
+ "risks": [
+  "G-FLAKY-GATE 本轮无同 sha 第二次构建采样（只采到 cnb-cf6-1k46peo58 一个 main 构建）⇒ 不作「已闭环」声明；调度器在 c74249e 上再触发一次构建即可复核。不是 REQUIRES_HUMAN。",
+  "G-302 判据的遍历形态存在已知边界（单个内联字面量 Path.of(\"plugins/rpg-core/src/main\") 不命中），已登记在 plan/gap-matrix-v13.md §6.5；当前 SOURCE_STRING_TESTS=0 是方法体事实。",
+  "素材可复现性门禁（ASSET_REPRO）本容器无 JDK 未本地复跑（实测 JAVA=NONE / JAVAC=NONE），以 M12 stage-5 判据行为证据。"
+ ]
 }
