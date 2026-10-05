@@ -10,7 +10,7 @@
   "doc/cnb/gap-registry.md",
   ".cnb/agent-out/W30-A1-verdict-v14.json"
  ],
- "pr_url": "",
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/82",
  "risks": [
   "任务描述里的 `sh scripts/check-asset-baseline.py` 对 Python 文件会报语法错（实测 EXIT=2：import: not found / Syntax error）；本轮按 .cnb.yml stage-4 的真实调用方式用 python3 跑，结果 GREEN。已如实说明。",
   "G-302 常量回溯形态要求常量名 ≥3 字符；单字符常量名的夹具未命中（v13 §6.5 的同类边界）。已如实登记，判定不构成本轮缺口。",
@@ -147,5 +147,6 @@
    "output": "（仅 plan/**、state/**、doc/cnb/**、.cnb/agent-out/**）",
    "build_inputs_touched": false
   }
- }
+ },
+ "pr_number": 82
 }
