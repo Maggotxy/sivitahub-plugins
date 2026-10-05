@@ -1,0 +1,252 @@
+{
+  "task_id": "W28-A3-mechanics-spec-stdlib-only",
+  "status": "success",
+  "summary": "脚本自带最小 YAML 子集解析器（纯 stdlib: re/json/os/sys），不再 import yaml；并新增静态回归夹具锁住「不得再引入 import yaml」。",
+  "changed_files": [
+    "scripts/check-mechanics-spec.sh",
+    "scripts/selftest-gates.sh",
+    "docs/MECHANICS_SPEC_BINDING.md",
+    ".cnb/agent-out/W28-A3-mechanics-spec-stdlib-only.json"
+  ],
+  "pr_url": "",
+  "evidence": {
+    "core_defect": {
+      "what": "scripts/check-mechanics-spec.sh 依赖 PyYAML（import yaml + yaml.safe_load），而门禁镜像既无 PyYAML 也无 pip ⇒ 容器里门禁恒 RED（不是拦漂移，是恒红）。",
+      "reproduced_before_fix": {
+        "cmd": "python3 -m venv --without-pip /tmp/noyaml && PATH=/tmp/noyaml/bin:$PATH sh scripts/check-mechanics-spec.sh",
+        "exit": 1,
+        "output": [
+          "MECHANICS_SPEC_GATE=RED",
+          "  python3 缺少 PyYAML —— 无法解析 config.yml"
+        ]
+      },
+      "fixed_by": "脚本自带最小 YAML 子集解析器（纯 stdlib: re/json/os/sys），不再 import yaml；并新增静态回归夹具锁住「不得再引入 import yaml」。"
+    },
+    "clean_interpreter": {
+      "method": "python3 -m venv --without-pip（默认不含系统 site-packages；--without-pip 不需要 ensurepip）",
+      "note_venv_plain": "本机实测 `python3 -m venv /tmp/noyaml`（不带 --without-pip）失败：ensurepip is not available / apt install python3.11-venv ⇒ 退一步用 --without-pip + /tmp/noyaml/bin/python3，仍是同一 venv 语义（sys.prefix=/tmp/noyaml，site-packages 在 venv 内）。",
+      "venv_create": {
+        "cmd": "python3 -m venv --without-pip /tmp/noyaml && /tmp/noyaml/bin/python3 -V",
+        "exit": 0,
+        "output": [
+          "Python 3.11.2"
+        ]
+      },
+      "import_yaml_must_fail": {
+        "cmd": "/tmp/noyaml/bin/python3 -c 'import yaml'",
+        "exit": 1,
+        "output": [
+          "Traceback (most recent call last):",
+          "  File \"<string>\", line 1, in <module>",
+          "ModuleNotFoundError: No module named 'yaml'"
+        ]
+      },
+      "second_method_shim": {
+        "why": "冗余：证明「不是恰好某条路径没装 yaml」，而是真的把 PyYAML 从 sys.path 移除。",
+        "cmd": "PYTHONPATH=/tmp/shim python3 -c 'import yaml'   # /tmp/shim/sitecustomize.py 把 dist-packages 从 sys.path 摘掉",
+        "exit": 1,
+        "output": [
+          "Traceback (most recent call last):",
+          "  File \"<string>\", line 1, in <module>",
+          "ModuleNotFoundError: No module named 'yaml'"
+        ]
+      },
+      "gate_under_clean_interpreter": {
+        "cmd": "PATH=/tmp/noyaml/bin:$PATH sh scripts/check-mechanics-spec.sh",
+        "exit": 0,
+        "output": [
+          "MECHANICS_SPEC_GATE=GREEN",
+          "MECHANICS_SPEC_ENTRIES=137",
+          "MECHANICS_SPEC_BY_KIND=config:78,behavior:56,java-const:3",
+          "MECHANICS_SPEC_WEAK=0"
+        ]
+      },
+      "gate_under_shim": {
+        "cmd": "PYTHONPATH=/tmp/shim sh scripts/check-mechanics-spec.sh",
+        "exit": 0,
+        "output": [
+          "MECHANICS_SPEC_GATE=GREEN",
+          "MECHANICS_SPEC_ENTRIES=137",
+          "MECHANICS_SPEC_BY_KIND=config:78,behavior:56,java-const:3",
+          "MECHANICS_SPEC_WEAK=0"
+        ]
+      },
+      "bytewise_identical": "三种解释器下的 4 行判据行 diff 为空（正常 python3 / venv --without-pip / 隔离垫片）。"
+    },
+    "static_self_proof": {
+      "cmd": "grep -nE '^\\s*(import|from)\\s+yaml' scripts/check-mechanics-spec.sh",
+      "exit": 1,
+      "stdout": "",
+      "meaning": "exit=1 且无输出 = 零命中。",
+      "all_imports_in_script": [
+        "import json",
+        "import os",
+        "import re",
+        "import sys"
+      ],
+      "all_imports_cmd": "grep -nE '^\\s*(import|from)\\s+' scripts/check-mechanics-spec.sh"
+    },
+    "parser_equivalence": {
+      "why": "禁止删条目/放宽 expect ⇒ 必须机械证明新解析器与 PyYAML 完全等价，而不是「跑绿了就算」。",
+      "round1_deep_compare": {
+        "cmd": "python3 /tmp/work/equiv.py",
+        "covered": "全部 24 份 plugins/*/src/main/resources/config.yml 以 yaml.safe_load 与 yaml_subset_load 各解析一次，逐层比较 dict/list/标量（含类型）",
+        "output": [
+          "files 24 bad 0"
+        ]
+      },
+      "round2_semantic_compare": {
+        "cmd": "python3 /tmp/work/equiv2.py",
+        "covered": "78 条 config 载体的 WildcardDfs 解析结果（命中值集合 + miss 集合）在新旧解析器下逐条比较",
+        "output": [
+          "config entries compared; bad = 0"
+        ]
+      }
+    },
+    "criteria_not_weakened": {
+      "entries_unchanged": "scripts/mechanics-spec.json 本任务**未改动**（git diff 不含该文件）⇒ 条目数、expect、expect_count 一条未动。",
+      "a2_baseline": {
+        "entries": 137,
+        "by_kind": "config:78,behavior:56,java-const:3",
+        "weak": 0,
+        "selftest_pass": 157
+      },
+      "after": {
+        "entries": 137,
+        "by_kind": "config:78,behavior:56,java-const:3",
+        "weak": 0,
+        "selftest_pass": 167
+      },
+      "gate_normal_interpreter": {
+        "cmd": "sh scripts/check-mechanics-spec.sh",
+        "exit": 0,
+        "output": [
+          "MECHANICS_SPEC_GATE=GREEN",
+          "MECHANICS_SPEC_ENTRIES=137",
+          "MECHANICS_SPEC_BY_KIND=config:78,behavior:56,java-const:3",
+          "MECHANICS_SPEC_WEAK=0"
+        ]
+      }
+    },
+    "negative_fixtures_still_red": {
+      "method": "mktemp -d 里做夹具副本（带齐 plugins/*/src + datapacks/），只在副本上破坏",
+      "baseline_clean_fixture": {
+        "exit": 0,
+        "line": "MECHANICS_SPEC_GATE=GREEN"
+      },
+      "neg1_config": {
+        "break": "rpg-items config.yml: forge.base-success-rate 0.65 -> 0.55",
+        "exit": 1,
+        "output": [
+          "MECHANICS_SPEC_GATE=RED",
+          "MECHANICS_SPEC_ENTRIES=137",
+          "MECHANICS_SPEC_BY_KIND=config:78,behavior:56,java-const:3",
+          "MECHANICS_SPEC_WEAK=0",
+          "  [FAIL] M-EQP-002",
+          "         claim  : 锻造基础成功率 65%，最大成功率 95%",
+          "         期望   : 0.65",
+          "         实际   : ['0.55']",
+          ""
+        ]
+      },
+      "neg2_behavior": {
+        "break": "M-EQP-007 指向 ForgeRulesTest.java#definitelyNotARealTestMethod",
+        "exit": 1,
+        "output": [
+          "MECHANICS_SPEC_GATE=RED",
+          "MECHANICS_SPEC_ENTRIES=137",
+          "MECHANICS_SPEC_BY_KIND=config:78,behavior:56,java-const:3",
+          "MECHANICS_SPEC_WEAK=0",
+          "  [FAIL] M-EQP-007",
+          "         claim  : 槽位上限随胚材等级上浮：普通 min(8, 3+胚材等级)、稀有 min(8, 5+胚材等级/2)、史诗 min(8, 7+胚材等级/3)、传说固定 8（G-202）",
+          "         期望   : plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeRulesTest.java#definitelyNotARealTestMethod",
+          "         实际   : 测试方法不存在：definitelyNotARealTestMethod",
+          ""
+        ]
+      },
+      "neg3_java_const": {
+        "break": "ProgressionRules.LOCAL_LEVEL_CAP 30 -> 25",
+        "exit": 1,
+        "output": [
+          "MECHANICS_SPEC_GATE=RED",
+          "MECHANICS_SPEC_ENTRIES=137",
+          "MECHANICS_SPEC_BY_KIND=config:78,behavior:56,java-const:3",
+          "MECHANICS_SPEC_WEAK=0",
+          "  [FAIL] M-CORE-001",
+          "         claim  : 显示等级上限：0转 30 / 1转 60 / 2转 90 / 3转 120（四段式有效等级 1-120）",
+          "         期望   : 30",
+          "         实际   : ['25']",
+          ""
+        ]
+      },
+      "restored": {
+        "exit": 0,
+        "line": "MECHANICS_SPEC_GATE=GREEN"
+      }
+    },
+    "selftest_gates": {
+      "cmd": "sh scripts/selftest-gates.sh",
+      "exit": 0,
+      "summary": "===== 门禁自测汇总：PASS=167 FAIL=0 =====",
+      "verdict": "GATE_SELFTEST=GREEN",
+      "a2_baseline": "PASS=157 FAIL=0",
+      "delta": "+10 条（12d 静态判据 +1、负夹具⑦ 3 条、12e 4 条、12e 附带的垫片自证 1 条、其它 [OK] 明细 1 条）",
+      "section_12d_12e_output": [
+        "  [OK  ] 判据 12d：check-mechanics-spec.sh 不含 import yaml（静态零命中） (exit=0)",
+        "  [OK  ] 门禁是 stdlib-only（不含 PyYAML 依赖声明）",
+        "  [OK  ] 负夹具⑦：夹具脚本插入 import yaml（1 处）→ 静态判据必须报 1 (exit=1)",
+        "  [OK  ] 负夹具⑦：还原后静态判据回 0（不是恒红） (exit=0)",
+        "  [OK  ] 负夹具⑦：还原后夹具门禁仍 GREEN (exit=0)",
+        "  [OK  ] 判据 12e：隔离垫片下 import yaml 必须失败（否则下面是对照空跑） (exit=1)",
+        "  [OK  ] 垫片下 PyYAML 确实不可导入（原文：ModuleNotFoundError: No module named 'yaml'）",
+        "  [OK  ] 判据 12e：无 PyYAML 解释器下门禁 → 0（GREEN） (exit=0)",
+        "  [OK  ] 无 PyYAML 下判据行完整（GATE/ENTRIES/BY_KIND/WEAK 四行俱在）",
+        "  [OK  ] 无 PyYAML 判据行与正常解释器逐字一致（4 行）"
+      ]
+    },
+    "new_regression_fixture": {
+      "location": "scripts/selftest-gates.sh §12d/§12e（A1/A2 已建立的自测节内，不另起一套）",
+      "criterion": "静态：脚本本体不得出现 ^[[:space:]]*(import|from)[[:space:]]+yaml",
+      "why_static": "门禁镜像的 label / event 条件在自测里复现不了，但「有没有声明依赖」在源码里就是可 grep 的事实。",
+      "positive_real_script": {
+        "grep_c_rc": 1,
+        "count": "0",
+        "verdict": "PASS(零命中)"
+      },
+      "negative_fixture_copy": {
+        "grep_c_rc": 0,
+        "count": "1",
+        "verdict": "FAIL(命中)"
+      },
+      "dynamic_companion": "§12e 另外证明「无 PyYAML 解释器下门禁真的 GREEN」且判据行与正常解释器逐字一致。"
+    },
+    "malformed_input_must_be_red": {
+      "why": "解析器覆盖不了的形态不能静默猜（静默猜会把漂移洗成绿）。",
+      "cases": [
+        "制表符缩进 -> YamlSubsetError: 不支持制表符缩进 (rc=1)",
+        "锚点 &anchor -> YamlSubsetError: 使用了不支持的 YAML 特性 (rc=1)",
+        "双引号未闭合 -> YamlSubsetError: 双引号未闭合 (rc=1)",
+        "同一键重复出现 -> MECHANICS_SPEC_GATE=RED（后者覆盖前者，与 PyYAML 同义）",
+        "裸标量后有多余内容 'key: \"a\" junk' -> YamlSubsetError: 标量后有多余内容",
+        "顶层序列 -> YamlSubsetError: 顶层序列不受支持"
+      ]
+    },
+    "not_touched": [
+      "scripts/mechanics-spec.json（条目/expect 一条未改）",
+      ".cnb.yml（禁改 CI 配置）",
+      "plugins/**（仅夹具副本里临时破坏，已还原）",
+      "任何 PNG"
+    ]
+  },
+  "risks": [
+    "最小 YAML 子集解析器只覆盖本仓 config.yml 实际用到的形态；未来有人的 config.yml 用锚点/别名/多文档/顶层序列，门禁会直接 RED 并打印「不支持的 YAML 特性」——这是**期望**的失败姿态（宁可红也不要静默猜），但需要改解析器才能恢复绿。",
+    "repeat-key 语义：同一层重复键在新解析器里是「后者覆盖前者」，与 PyYAML 一致；若未来有人靠重复键表达列表，两边都会静默丢数据（既有风险，非本次引入）。",
+    "「键存在但值为 null」（如 key: 后面什么都不写）不判 RED —— 与改动前的 yaml.safe_load 行为一致；这是 PyYAML 语义的自然结果，本任务刻意保持等价，未收紧。",
+    "§12e 的「无 PyYAML」对照用 sitecustomize 垫片实现（本机 python3 -m venv 缺 ensurepip，只能用 --without-pip 的 venv 或垫片）；垫片只作用于 sys.path，不模拟门禁镜像的 python 3.14 版本差异。"
+  ],
+  "next_steps": [
+    "把 gen-mechanics-spec-report.py --check 一并加进 .cnb.yml（本任务白名单不含 CI 配置）。",
+    "若未来 config.yml 出现锚点/别名形态，先把形态加进最小解析器并补一条等价性夹具，再改配置。",
+    "把「门禁脚本禁止依赖第三方 python 包」推广成一条仓库级静态规则（覆盖 scripts/*.py 与 *.sh 内嵌 python）。"
+  ]
+}

@@ -50,6 +50,39 @@
 ## 2. 门禁
 
 `scripts/check-mechanics-spec.sh` 逐条核对，任一条不符 ⇒ RED，打印 id / claim / 期望 / 实际。
+
+### 2.1 依赖：只用 Python 标准库（W28-A3）
+
+门禁**不得**依赖 PyYAML / pip。事实依据：
+
+- 门禁镜像（`eclipse-temurin:25-jdk` + `.cnb.yml` 里 `apt-get install -y curl ca-certificates
+  coreutils python3`）实测：`python3 -c 'import yaml'` ⇒ `ModuleNotFoundError: No module named
+  'yaml'`，且**连 pip 都没有** ⇒ 「让调用方自己装」不是可选项。
+- 本仓既有 python 工具（`resource-pack-asset-check.py` 等）没有任何一处 `import yaml`，
+  一律用 JSON 或手写解析 ⇒ 「门禁容器无 PyYAML」是**既有事实**，不是新约束。
+
+因此脚本自带一个**最小 YAML 子集解析器**（纯 `re` / `json` / `os` / `sys`），只覆盖本仓
+`config.yml` 实际用到的形态，**不需要**完整 YAML 语义：
+
+| 形态 | 支持 |
+|---|---|
+| 缩进映射（任意层级） | ✅ |
+| 标量：整数 / 浮点 / 布尔 / 引号字符串 / 裸字符串 | ✅ |
+| `"350.00"` 这类**带引号数字** | ✅ 保持 `str`（`expect` 写 `"350.00"` 才对得上） |
+| 行内映射 `{k: v, k2: v2}`（本仓 252 处） | ✅ |
+| 行内序列 `[a, b]` / 序列项 `- x` / `- {k: v}` | ✅ |
+| 注释 `#`（整行 + 行尾，`#` 前须有空白才当注释） | ✅ |
+| 块标量 `\|` / `\|-` / `>` / `>-` | ✅ |
+| 键名 `kebab-case` / `snake_case` / 数字段 / `01-x` | ✅ |
+| 锚点 `&` / 别名 `*` / 标签 `!!` / 多文档 `---` / 顶层序列 / 制表符缩进 | ❌ **显式报错**，绝不静默猜 |
+
+解析错误与「键不存在」一样是 **RED**：覆盖不了的形态不会被当成「值没对上」而蒙混过关。
+等价性已机械核对：24 份 `config.yml` 与 `yaml.safe_load` **逐层逐型完全一致**，78 条
+`config` 载体的 `WildcardDfs` 解析结果（值 + miss 集合）也完全一致。
+
+**回归夹具**：`selftest-gates.sh` §12 断言脚本本体不含 `^\s*(import|from)\s+yaml`
+（静态判据），有人再把 PyYAML 依赖加回来就当场变红。
+
 判据行：
 
 ```
@@ -72,6 +105,7 @@ MECHANICS_SPEC_WEAK=<n>
 | 负④（weak） | `M-CORE-001` 去掉 `behavior_ref` | 仍 GREEN，但 `MECHANICS_SPEC_WEAK` 变 1 |
 | 负⑤（后 8 节 config） | `refinement.success-rate` 0.65→0.55 | RED（exit=1），点名 `M-REF-001` |
 | 负⑥（报告陈旧） | 把报告节里的 `MECHANICS_SPEC_ENTRIES` 改掉 | `--check` 报 `MECHANICS_SPEC_REPORT=STALE`（exit=1） |
+| 负⑦（PyYAML 依赖回潮，W28-A3） | 往**夹具副本**的脚本里插入 `import yaml` | RED（exit=1），且未插入时必须 GREEN |
 
 每条破坏后**还原必须 GREEN**，且收尾断言夹具未在真实仓库留残留。
 

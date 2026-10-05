@@ -1849,6 +1849,90 @@ cp "$ROOT/plugins/rpg-enhancement/src/main/resources/config.yml" \
   "$SPEC_FIXTURE/plugins/rpg-enhancement/src/main/resources/config.yml"
 check "负夹具⑤：还原后必须 GREEN" 0 "$(run_spec_gate "$TMP/spec-neg-rest-config-restore.txt")"
 
+# ---- 判据 12d（W28-A3）：门禁必须 stdlib-only，不得再引入 PyYAML 依赖 ----
+# 失效模式：门禁镜像（eclipse-temurin:25-jdk + apt 装 curl/python3）里既没有 PyYAML
+# 也没有 pip。脚本一旦 `import yaml`，容器里会直接打 RED「python3 缺少 PyYAML」，
+# 而且**没有 pip 可装** —— 门禁从「拦漂移」变成「恒红」。
+#
+# 这条夹具的判据是**静态**的：脚本本体不得出现 `^\s*(import|from)\s+yaml`。
+# 静态判据的理由：门禁镜像的动态条件（有多少 label / 是否 api_trigger）在自测里复现不了，
+# 而「依赖声明」这件事在源码里就是可 grep 的事实。
+spec_yaml_hits=$(grep -cE '^[[:space:]]*(import|from)[[:space:]]+yaml' "$ROOT/scripts/check-mechanics-spec.sh" || true)
+check "判据 12d：check-mechanics-spec.sh 不含 import yaml（静态零命中）" 0 "$spec_yaml_hits"
+if [ "$spec_yaml_hits" = "0" ]; then
+  echo "  [OK  ] 门禁是 stdlib-only（不含 PyYAML 依赖声明）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 门禁又引入了 PyYAML 依赖（$spec_yaml_hits 处）—— 门禁镜像没有 pip，会变成恒红" >&2
+  grep -nE '^[[:space:]]*(import|from)[[:space:]]+yaml' "$ROOT/scripts/check-mechanics-spec.sh" >&2 || true
+  FAIL=$((FAIL + 1))
+fi
+
+# 负向对照：在**夹具副本**上插入 `import yaml` ⇒ 同一判据必须变红。
+# 不做这一步，「静态判据」就只是一句没被验证过的断言（假绿风险：grep 写错成恒 0）。
+cat > "$SPEC_FIXTURE/scripts/check-mechanics-spec.sh" <<'PYDEOF'
+import yaml
+PYDEOF
+cat "$ROOT/scripts/check-mechanics-spec.sh" >> "$SPEC_FIXTURE/scripts/check-mechanics-spec.sh"
+fixture_yaml_hits=$(grep -cE '^[[:space:]]*(import|from)[[:space:]]+yaml' "$SPEC_FIXTURE/scripts/check-mechanics-spec.sh" || true)
+check "负夹具⑦：夹具脚本插入 import yaml（1 处）→ 静态判据必须报 1" 1 "$fixture_yaml_hits"
+# 还原：从真实仓库取回脚本，再确认判据回 0（证明判据不是恒红）
+cp "$ROOT/scripts/check-mechanics-spec.sh" "$SPEC_FIXTURE/scripts/check-mechanics-spec.sh"
+restored_yaml_hits=$(grep -cE '^[[:space:]]*(import|from)[[:space:]]+yaml' "$SPEC_FIXTURE/scripts/check-mechanics-spec.sh" || true)
+check "负夹具⑦：还原后静态判据回 0（不是恒红）" 0 "$restored_yaml_hits"
+# 还原后门禁本身也必须仍然可跑（不是「把脚本写坏来换绿」）
+check "负夹具⑦：还原后夹具门禁仍 GREEN" 0 "$(run_spec_gate "$TMP/spec-yaml-restore.txt")"
+
+# ---- 判据 12e（W28-A3）：无 PyYAML 解释器下门禁必须照样 GREEN ----
+# 12d 只证明「脚本没声明依赖」；这一步证明「解析真的不靠 PyYAML」——把系统里的 PyYAML
+# 从 sys.path 里移走（隔离垫片），门禁仍必须打出 4 行判据且与正常解释器**逐字一致**。
+# 垫片只在 $TMP 里，两个实现都先自证「垫片下 import yaml 真的失败」，否则这条对照是空跑。
+YAML_SHIM="$TMP/noyaml-shim"
+mkdir -p "$YAML_SHIM"
+cat > "$YAML_SHIM/sitecustomize.py" <<'PYSEOF'
+# 隔离垫片：把 dist-packages 从 sys.path 移走，让系统里的 PyYAML 不可见。
+import sys
+sys.path[:] = [p for p in sys.path if "dist-packages" not in p]
+PYSEOF
+set +e
+PYTHONPATH="$YAML_SHIM" python3 -c 'import yaml' > "$TMP/noyaml-probe.txt" 2>&1
+noyaml_probe_rc=$?
+set -e
+check "判据 12e：隔离垫片下 import yaml 必须失败（否则下面是对照空跑）" 1 "$noyaml_probe_rc"
+if grep -q "ModuleNotFoundError: No module named 'yaml'" "$TMP/noyaml-probe.txt"; then
+  echo "  [OK  ] 垫片下 PyYAML 确实不可导入（原文：ModuleNotFoundError: No module named 'yaml'）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 垫片没真的屏蔽 PyYAML —— 无 PyYAML 对照是空跑" >&2
+  sed 's/^/    /' "$TMP/noyaml-probe.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+set +e
+(cd "$ROOT" && PYTHONPATH="$YAML_SHIM" sh scripts/check-mechanics-spec.sh > "$TMP/spec-noyaml.txt" 2>&1)
+spec_noyaml_rc=$?
+set -e
+check "判据 12e：无 PyYAML 解释器下门禁 → 0（GREEN）" 0 "$spec_noyaml_rc"
+if grep -q '^MECHANICS_SPEC_GATE=GREEN$' "$TMP/spec-noyaml.txt" \
+   && grep -q '^MECHANICS_SPEC_ENTRIES=' "$TMP/spec-noyaml.txt" \
+   && grep -q '^MECHANICS_SPEC_BY_KIND=' "$TMP/spec-noyaml.txt" \
+   && grep -q '^MECHANICS_SPEC_WEAK=' "$TMP/spec-noyaml.txt"; then
+  echo "  [OK  ] 无 PyYAML 下判据行完整（GATE/ENTRIES/BY_KIND/WEAK 四行俱在）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 无 PyYAML 下判据行不完整" >&2
+  sed 's/^/    /' "$TMP/spec-noyaml.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+# 逐字一致：无 PyYAML 与有 PyYAML 的判据行必须一模一样（条数不能被 stdout 顺序掩盖）
+if diff -q "$TMP/spec-real.txt" "$TMP/spec-noyaml.txt" >/dev/null 2>&1; then
+  echo "  [OK  ] 无 PyYAML 判据行与正常解释器逐字一致（$(grep -c . "$TMP/spec-noyaml.txt") 行）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 无 PyYAML 判据行与正常解释器不一致" >&2
+  diff "$TMP/spec-real.txt" "$TMP/spec-noyaml.txt" >&2 || true
+  FAIL=$((FAIL + 1))
+fi
+
 # ---- 判据 12c（W28-A2）：报告节必须可重生成且与 spec 一致 ----
 # 「报告里的数字必须由脚本生成」这句承诺本身也要有判据：如果报告节与当前 spec/门禁不符，
 # --check 必须退出 1。这里做两件事：① 真实仓库必须 FRESH；② 打乱报告节的一个数字（夹具副本，

@@ -9,6 +9,12 @@
 # 本门禁把这些漂移变成红灯：规格里的每条可机械核对断言都声明「由哪个代码载体承载」，
 # 任一条不符（值不同 / 载体不存在）即 RED。
 #
+# 依赖：**只用 Python 标准库**。门禁镜像（eclipse-temurin + apt 装 curl/python3）里既没有
+# PyYAML 也没有 pip，因此脚本自带 §「最小 YAML 子集解析器」，不再 `import yaml`。
+#   · 真 JAR 由 SnakeYAML 解析；本门禁只需要读 config.yml 里的标量/序列/行内映射，
+#     不需要完整 YAML 语义（锚点/别名/多文档/顶层序列一律显式报错，绝不静默猜）。
+#   · selftest-gates.sh 有一条回归夹具：脚本再出现 `import yaml` 就当场变红。
+#
 # 载体三类（scripts/mechanics-spec.json 的 carrier.kind）：
 #   config      : 读 plugins/<mod>/src/main/resources/config.yml 的点分键（支持 * 通配下标）
 #   behavior    : 解析一条已存在的行为级 JUnit 测试 `class#method`，断言该方法确实存在于源码。
@@ -47,13 +53,6 @@ if not os.path.isfile(spec_path):
     sys.exit(1)
 
 try:
-    import yaml
-except ImportError:
-    print("MECHANICS_SPEC_GATE=RED")
-    print("  python3 缺少 PyYAML —— 无法解析 config.yml")
-    sys.exit(1)
-
-try:
     spec = json.load(open(spec_path, encoding="utf-8"))
 except Exception as exc:  # noqa: BLE001
     print("MECHANICS_SPEC_GATE=RED")
@@ -67,17 +66,497 @@ if not isinstance(entries, list) or not entries:
     sys.exit(1)
 
 # ---- 载体解析 -------------------------------------------------------------------
-_yaml_cache = {}
+_doc_cache = {}
 
 
 def load_yaml(rel_path):
-    if rel_path not in _yaml_cache:
+    """按扩展名读载体：.json 用标准库 json；.yml 用下面的最小 YAML 子集解析器。"""
+    if rel_path not in _doc_cache:
         full = os.path.join(root, rel_path)
         if not os.path.isfile(full):
-            _yaml_cache[rel_path] = None
+            _doc_cache[rel_path] = None
         else:
-            _yaml_cache[rel_path] = yaml.safe_load(open(full, encoding="utf-8"))
-    return _yaml_cache[rel_path]
+            text = open(full, encoding="utf-8").read()
+            if rel_path.endswith(".json"):
+                _doc_cache[rel_path] = json.loads(text)
+            else:
+                _doc_cache[rel_path] = yaml_subset_load(text)
+    return _doc_cache[rel_path]
+
+
+# ---- 最小 YAML 子集解析器（纯标准库） -------------------------------------------------
+# 门禁镜像只有 python3 标准库（无 PyYAML、无 pip），因此这里自带一个只覆盖本仓
+# config.yml 实际形态的解析器：缩进映射 / 行内 {k: v} 映射 / 序列（块与行内）/
+# 引号标量（单引号与双引号，含 "350.00" 这类必须保持字符串语义的带引号数字）/
+# 块标量 | 与 |- / 行尾注释 / 点分键命中 null 时按 Python None 语义处理。
+# 解析不了的形态一律抛 YamlSubsetError，绝不静默猜。
+class YamlSubsetError(Exception):
+    pass
+
+
+_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "\\": "\\", "/": "/",
+            "0": "\0", "b": "\b", "f": "\f", "a": "\a", "v": "\v"}
+
+
+def _is_ws(ch):
+    return ch in " \t"
+
+
+def _decode_double(body):
+    out = []
+    i = 0
+    while i < len(body):
+        ch = body[i]
+        if ch != "\\":
+            out.append(ch)
+            i += 1
+            continue
+        i += 1
+        if i >= len(body):
+            raise YamlSubsetError("双引号字符串以反斜杠结尾")
+        esc = body[i]
+        if esc == "u" and i + 4 < len(body):
+            out.append(chr(int(body[i + 1:i + 5], 16)))
+            i += 5
+            continue
+        out.append(_ESCAPES.get(esc, esc))
+        i += 1
+    return "".join(out)
+
+
+def _next_structural(text, i):
+    """返回 >= i 的下一个**结构字符**位置，跳过空白与注释。"""
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if _is_ws(ch):
+            i += 1
+            continue
+        if ch == "#" and (i == 0 or _is_ws(text[i - 1])):
+            return n
+        return i
+    return n
+
+
+def _comment_or_end(text, i):
+    """标量结束处理：跳过空白；# 前必须有空白才是注释；还有别的字符即报错。"""
+    n = len(text)
+    j = i
+    while j < n and _is_ws(text[j]):
+        j += 1
+    if j < n and text[j] != "#":
+        raise YamlSubsetError("标量后有多余内容：%r" % text[i:].strip())
+    return
+
+
+def _split_top_level(body, offset, text):
+    """按顶层逗号切分行内集合；引号内的逗号不算分隔符。"""
+    items = []
+    depth = 0
+    buf = []
+    i = 0
+    quote = None
+    while i < len(body):
+        ch = body[i]
+        if quote:
+            buf.append(ch)
+            if quote == '"' and ch == "\\":
+                if i + 1 < len(body):
+                    buf.append(body[i + 1])
+                    i += 2
+                    continue
+            elif ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in "\"'":
+            quote = ch
+            buf.append(ch)
+            i += 1
+            continue
+        if ch in "[{":
+            depth += 1
+        elif ch in "]}":
+            depth -= 1
+            if depth < 0:
+                raise YamlSubsetError("括号不配对：%r" % text.strip())
+        if ch == "," and depth == 0:
+            items.append("".join(buf))
+            buf = []
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+    if quote:
+        raise YamlSubsetError("引号未闭合：%r" % text.strip())
+    if depth != 0:
+        raise YamlSubsetError("括号不配对：%r" % text.strip())
+    items.append("".join(buf))
+    return items
+
+
+def _find_colon(item):
+    """在行内映射成员里找分隔 `:`（跳过引号与嵌套括号）。无则返回 -1。"""
+    depth = 0
+    quote = None
+    i = 0
+    while i < len(item):
+        ch = item[i]
+        if quote:
+            if quote == '"' and ch == "\\":
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in "\"'":
+            quote = ch
+        elif ch in "[{":
+            depth += 1
+        elif ch in "]}":
+            depth -= 1
+        elif ch == ":" and depth == 0:
+            nxt = item[i + 1] if i + 1 < len(item) else " "
+            if _is_ws(nxt) or nxt in ",}]" or i + 1 == len(item):
+                return i
+        i += 1
+    return -1
+
+
+def _plain_scalar(token, line):
+    token = token.strip()
+    if token == "":
+        raise YamlSubsetError("第 %d 行的标量为空" % line)
+    if token[0] in "&*!>%@`" or token.startswith("<<"):
+        raise YamlSubsetError("第 %d 行使用了不支持的 YAML 特性：%r" % (line, token))
+    if token in ("null", "~", "Null", "NULL"):
+        return None
+    if token in ("true", "True", "TRUE", "yes", "Yes", "YES"):
+        return True
+    if token in ("false", "False", "FALSE", "no", "No", "NO"):
+        return False
+    if token in (".inf", ".Inf", ".INF"):
+        return float("inf")
+    if token in ("-.inf", "-.Inf", "-.INF"):
+        return float("-inf")
+    if token in (".nan", ".NaN", ".NAN"):
+        return float("nan")
+    try:
+        if any(c in token for c in ".eE"):
+            return float(token)
+        return int(token)
+    except ValueError:
+        return token
+
+
+def _scalar(text, i, line):
+    """解析从 i 起的标量，返回 (值, 结束位置)。"""
+    n = len(text)
+    if i >= n:
+        return None, i
+    ch = text[i]
+    if ch == '"':
+        j = i + 1
+        while j < n:
+            if text[j] == "\\":
+                j += 2
+                continue
+            if text[j] == '"':
+                break
+            j += 1
+        if j >= n:
+            raise YamlSubsetError("第 %d 行双引号未闭合" % line)
+        value = _decode_double(text[i + 1:j])
+        _comment_or_end(text, j + 1)
+        return value, n
+    if ch == "'":
+        j = i + 1
+        out = []
+        while j < n:
+            if text[j] == "'":
+                if j + 1 < n and text[j + 1] == "'":
+                    out.append("'")
+                    j += 2
+                    continue
+                break
+            out.append(text[j])
+            j += 1
+        if j >= n:
+            raise YamlSubsetError("第 %d 行单引号未闭合" % line)
+        _comment_or_end(text, j + 1)
+        return "".join(out), n
+    if ch == "[" or ch == "{":
+        return _flow(text, i, line)
+    j = i
+    while j < n:
+        c = text[j]
+        if c == "#" and _is_ws(text[j - 1]):
+            break
+        j += 1
+    value = _plain_scalar(text[i:j], line)
+    return value, n
+
+
+def _flow(text, i, line):
+    n = len(text)
+    opening = text[i]
+    closing = "]" if opening == "[" else "}"
+    depth = 1
+    quote = None
+    j = i + 1
+    while j < n:
+        c = text[j]
+        if quote:
+            if quote == '"' and c == "\\":
+                j += 2
+                continue
+            if c == quote:
+                quote = None
+            j += 1
+            continue
+        if c in "\"'":
+            quote = c
+        elif c in "[{":
+            depth += 1
+        elif c in "]}":
+            depth -= 1
+            if depth == 0:
+                break
+        j += 1
+    if j >= n:
+        raise YamlSubsetError("第 %d 行行内集合未闭合" % line)
+    body = text[i + 1:j]
+    _comment_or_end(text, j + 1)
+    items = _split_top_level(body, i, text)
+    if opening == "[":
+        return [(_scalar_value(it, line)) for it in items if it.strip() != ""], n
+    result = {}
+    for item in items:
+        if item.strip() == "":
+            continue
+        colon = _find_colon(item)
+        if colon < 0:
+            raise YamlSubsetError("第 %d 行行内映射成员缺少 ':'：%r" % (line, item))
+        key = item[:colon].strip()
+        if not key:
+            raise YamlSubsetError("第 %d 行行内映射键为空" % line)
+        result[key] = _scalar_value(item[colon + 1:], line)
+    return result, n
+
+
+def _scalar_value(fragment, line):
+    """解析一个完整的行内片段（可能又是行内集合）。"""
+    text = fragment
+    i = _next_structural(text, 0)
+    if i >= len(text):
+        raise YamlSubsetError("第 %d 行存在空的集合成员" % line)
+    value, _ = _scalar(text, i, line)
+    return value
+
+
+def _line_tokens(line):
+    """按顶格减号切出 (前导空白, 是否序列项, 项后内容起始列)。"""
+    stripped = line.lstrip(" ")
+    if stripped == "-" or stripped.startswith("- "):
+        return len(line) - len(stripped), True
+    return len(line) - len(stripped), False
+
+
+def _parse_block(lines, start, indent, out_parent, line_map):
+    """解析 [start, ...) 中缩进为 indent 的块，返回 (结果, 下一条未消费行号)。
+
+    结果落在 out_parent 里：容器由调用方按上下文决定（映射 / 序列）。
+    """
+    i = start
+    n = len(lines)
+    is_seq = None
+    while i < n:
+        raw = lines[i]
+        if raw.strip() == "" or raw.lstrip().startswith("#"):
+            i += 1
+            continue
+        stripped = raw.lstrip(" ")
+        cur_indent = len(raw) - len(stripped)
+        if cur_indent < indent:
+            break
+        if cur_indent > indent:
+            raise YamlSubsetError("第 %d 行缩进异常（%d > %d）" % (i + 1, cur_indent, indent))
+        seq_item = stripped == "-" or stripped.startswith("- ")
+        if is_seq is None:
+            is_seq = seq_item
+        elif is_seq != seq_item:
+            raise YamlSubsetError("第 %d 行映射与序列混用" % (i + 1))
+        if is_seq:
+            i = _parse_seq_item(lines, i, indent, out_parent, line_map)
+        else:
+            i = _parse_map_entry(lines, i, indent, out_parent, line_map)
+    return i
+
+
+def _parse_seq_item(lines, i, indent, out_parent, line_map):
+    raw = lines[i]
+    stripped = raw[indent:]
+    rest = stripped[1:]
+    j = 0
+    while j < len(rest) and _is_ws(rest[j]):
+        j += 1
+    inner_col = indent + 1 + j
+    if j >= len(rest) or rest[j] == "#":
+        # `-` 后为空：值在更深缩进的块里
+        values, nxt = _parse_child(lines, i + 1, indent + 1, line_map)
+        out_parent.append(values)
+        return nxt
+    item_text = raw[inner_col:]
+    colon = _mapping_colon(item_text)
+    if colon >= 0:
+        entry = {}
+        out_parent.append(entry)
+        return _parse_map_entry(lines, i, indent, entry, line_map,
+                                lead=(1 + j, colon))
+    value, _ = _scalar(item_text, 0, i + 1)
+    out_parent.append(value)
+    return i + 1
+
+
+def _mapping_colon(text):
+    """判断该行是否是 `key: ...`；返回 ':' 的位置，不是映射则 -1。"""
+    colon = _find_colon(text)
+    if colon < 0:
+        return -1
+    key = text[:colon]
+    if not key.strip():
+        return -1
+    return colon
+
+
+def _parse_map_entry(lines, i, indent, out_parent, line_map, lead=None):
+    raw = lines[i]
+    base = indent if lead is None else indent + lead[0]
+    text = raw[base:]
+    colon = _mapping_colon(text) if lead is None else lead[1]
+    if colon < 0:
+        raise YamlSubsetError("第 %d 行不是 `键: 值` 形态" % (i + 1))
+    key = _unquote_key(text[:colon].strip(), i + 1)
+    value_part = text[colon + 1:]
+    k = 0
+    while k < len(value_part) and _is_ws(value_part[k]):
+        k += 1
+    if k < len(value_part) and value_part[k] in "|>":
+        value, nxt = _parse_block_scalar(lines, i, value_part[k], line_map)
+        out_parent[key] = value
+        return nxt
+    rest = value_part[k:]
+    if rest == "" or rest.startswith("#"):
+        value, nxt = _parse_child(lines, i + 1, indent + 1, line_map)
+        out_parent[key] = value
+        return nxt
+    value, _ = _scalar(value_part, k, i + 1)
+    out_parent[key] = value
+    return i + 1
+
+
+def _parse_child(lines, start, min_indent, line_map):
+    """解析子块；空块按 YAML 规则给 None。"""
+    n = len(lines)
+    i = start
+    while i < n:
+        raw = lines[i]
+        if raw.strip() == "" or raw.lstrip().startswith("#"):
+            i += 1
+            continue
+        break
+    if i >= n:
+        return None, i
+    stripped = lines[i].lstrip(" ")
+    cur_indent = len(lines[i]) - len(stripped)
+    if cur_indent < min_indent:
+        return None, start
+    if stripped == "-" or stripped.startswith("- "):
+        container = []
+    else:
+        container = {}
+    nxt = _parse_block(lines, i, cur_indent, container, line_map)
+    return container, nxt
+
+
+def _parse_block_scalar(lines, i, style, line_map):
+    """块标量 `|` / `|-` / `>` / `>-`（本仓只用到 `|-`）。"""
+    raw = lines[i]
+    spec = raw[raw.index(style):].strip()
+    keep = spec.endswith("-")
+    folded = style == ">"
+    indent = None
+    collected = []
+    i += 1
+    n = len(lines)
+    while i < n:
+        cur = lines[i]
+        if cur.strip() == "":
+            collected.append(("", None))
+            i += 1
+            continue
+        cur_indent = len(cur) - len(cur.lstrip(" "))
+        if indent is None:
+            if cur_indent == 0:
+                break
+            indent = cur_indent
+        if cur_indent < indent:
+            break
+        collected.append((cur[indent:], cur_indent))
+        i += 1
+    while collected and collected[-1][1] is None:
+        collected.pop()
+    parts = [text for text, _ in collected]
+    if folded:
+        joined = []
+        for idx, text in enumerate(parts):
+            if text == "":
+                joined.append("\n")
+            elif idx + 1 < len(parts) and parts[idx + 1] != "":
+                joined.append(text + " ")
+            else:
+                joined.append(text)
+        value = "".join(joined)
+    else:
+        value = "\n".join(parts)
+    if not keep and parts:
+        value += "\n"
+    return value, i
+
+
+def _unquote_key(raw_key, line):
+    if raw_key.startswith('"') or raw_key.startswith("'"):
+        value, _ = _scalar(raw_key, 0, line)
+        return str(value)
+    if raw_key == "":
+        raise YamlSubsetError("第 %d 行键名为空" % line)
+    if ":" in raw_key:
+        raise YamlSubsetError("第 %d 行键名含 ':'：%r" % (line, raw_key))
+    return raw_key
+
+
+def yaml_subset_load(text):
+    """解析最小 YAML 子集，返回 Python 结构。"""
+    if "\t" in text:
+        raise YamlSubsetError("不支持制表符缩进")
+    lines = text.split("\n")
+    root = {}
+    first = None
+    for idx, raw in enumerate(lines):
+        if raw.strip() == "" or raw.lstrip().startswith("#"):
+            continue
+        if raw.startswith("%") or raw.startswith("---") or raw.startswith("..."):
+            raise YamlSubsetError("第 %d 行不支持的文档标记" % (idx + 1))
+        first = idx
+        break
+    if first is None:
+        return None
+    stripped = lines[first].lstrip(" ")
+    if stripped == "-" or stripped.startswith("- "):
+        raise YamlSubsetError("顶层序列不受支持（本仓 config.yml 顶层是映射）")
+    _parse_block(lines, first, 0, root, None)
+    return root
 
 
 class WildcardDfs:
