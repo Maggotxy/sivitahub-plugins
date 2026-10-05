@@ -1,0 +1,6 @@
+{
+ "wave": "W29",
+ "basis": "c74249e",
+ "note": "只含真实剩余缺口（本轮实测，basis=HEAD=origin/main=c74249e）。done=true / remaining=0 ⇒ 无可派工的实现缺口，tasks 为空。剩余问题只有 REQUIRES_HUMAN（见 plan/verdict-v13.json 的 needs_human：H-001 / U-003 / W7-A2 四条 [R]）。另有一条「未采样」项写进 verdict-v13.json 的 risks（G-FLAKY-GATE 本轮同 sha 只采到一个 main 构建）—— 它需调度器多触发一次构建，不属 REQUIRES_HUMAN，也不构成可派工的代码缺口。",
+ "tasks": []
+}
