@@ -12,7 +12,7 @@
     "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java",
     ".cnb/agent-out/W24-A1-cache-publish-order.json"
   ],
-  "pr_url": "PR_PLACEHOLDER",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/75",
   "risks": [
     "JdbcAdminIncidentCompensationService.apply() 的「档案不存在」分支（NOT_FOUND）在取号后才返回，会白拿一个号；该路径不提交、不发布缓存，也不写库（audit/profile/no-wallet 三种 NOT_FOUND 均走 SimpleJdbcTemplate 无写路径，已用重复调用观测 1..14 号无跳号）。号不要求连号，故不构成问题，但「NOT_FOUND 也消耗版本号」这一现象值得记录。",
     "3 个非 profile 的 inTransaction 重载（JdbcAscensionService/JdbcDungeonRewardService/JdbcAdminTestService 的 eligibility/status/audit 等只读路径）现在也会取号；这些路径不发布缓存，号只用于单调排序，浪费无害。唯一真实影响是版本号空间被读路径消耗（long 量级可忽略）。",
