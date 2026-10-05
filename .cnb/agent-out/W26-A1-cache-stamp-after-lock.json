@@ -11,7 +11,7 @@
     "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcAdminTestService.java",
     "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/78",
   "risks": [
     "上一轮失败原因：无日志/无交付。本轮改为「先复现、后修、再负向对照」三段式，并把每一步命令与 XML 原文都留档。",
     "① 第一次写的复现夹具（延迟落在 commit 之前 200ms）经实测**复现不出**交错：PR#65 的取号是「写提交序号 + 读共享 volatile」两步，线程不会在读之前被抢占，所以窗口极窄。如实记录并改用第二个夹具（延迟落在某一次 SELECT ... FOR UPDATE 的执行之前）。",
