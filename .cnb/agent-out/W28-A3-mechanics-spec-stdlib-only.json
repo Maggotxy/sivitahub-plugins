@@ -8,7 +8,7 @@
     "docs/MECHANICS_SPEC_BINDING.md",
     ".cnb/agent-out/W28-A3-mechanics-spec-stdlib-only.json"
   ],
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/80",
   "evidence": {
     "core_defect": {
       "what": "scripts/check-mechanics-spec.sh 依赖 PyYAML（import yaml + yaml.safe_load），而门禁镜像既无 PyYAML 也无 pip ⇒ 容器里门禁恒 RED（不是拦漂移，是恒红）。",
@@ -236,7 +236,15 @@
       ".cnb.yml（禁改 CI 配置）",
       "plugins/**（仅夹具副本里临时破坏，已还原）",
       "任何 PNG"
-    ]
+    ],
+    "pr": {
+      "url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/80",
+      "title": "[agent/W28-A1-mechanics-spec-framework] 玩法规格↔代码 机械绑定门禁 + 正负夹具",
+      "note": "W28-A3 沿用 A1/A2 分支 agent/W28-A1-mechanics-spec-framework 的同一个 PR #80（未新开 PR）；head 已指向 2d9b1ea。",
+      "evidence_comment_id": "2107192889280696320",
+      "branch": "agent/W28-A1-mechanics-spec-framework",
+      "commit": "2d9b1ea"
+    }
   },
   "risks": [
     "最小 YAML 子集解析器只覆盖本仓 config.yml 实际用到的形态；未来有人的 config.yml 用锚点/别名/多文档/顶层序列，门禁会直接 RED 并打印「不支持的 YAML 特性」——这是**期望**的失败姿态（宁可红也不要静默猜），但需要改解析器才能恢复绿。",
