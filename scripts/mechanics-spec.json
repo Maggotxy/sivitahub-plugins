@@ -1,0 +1,977 @@
+{
+  "_doc": "docs/GAME_DESIGN.md「完整玩法规格」的可机械核对断言 → 代码载体。一条一个对象。",
+  "_kinds": "carrier.kind ∈ {config, behavior, java-const}；config 读 plugins/<mod>/src/main/resources/config.yml；behavior 指向已存在的行为级 JUnit 测试；java-const 结构化解析编译期常量。",
+  "entries": [
+    {
+      "id": "M-CORE-001",
+      "section": "角色成长",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "15-20",
+      "claim": "显示等级上限：0转 30 / 1转 60 / 2转 90 / 3转 120（四段式有效等级 1-120）",
+      "carrier": {
+        "kind": "java-const",
+        "path": "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/ProgressionRules.java",
+        "const": "LOCAL_LEVEL_CAP",
+        "expect": 30
+      },
+      "note": "本地等级上限是各段共享的编译期契约，被 ProgressionRules.effectiveLevel 等在全仓引用；有效上限 120 由 MAX_ASCENSION*LEVELS_PER_ASCENSION+LOCAL_LEVEL_CAP 派生，不是某个插件的可调配置。",
+      "behavior_ref": "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/ProgressionRulesTest.java#stageCapsFollowTheReleasePlan"
+    },
+    {
+      "id": "M-CORE-002",
+      "section": "角色成长",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "19-20",
+      "claim": "2 转显示等级上限 90 / 3 转 120：有效等级 = 转数*30 + 本地等级，3 转满级有效 120",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/ProgressionRulesTest.java#effectiveLevelCapIsTheTerminalEffectiveCap",
+        "asserts": "effectiveLevelCap()==120 且 effectiveLevel(3,30)==最多，证明四段 30/60/90/120"
+      },
+      "note": "公式类断言必须走行为级测试，不用 Java 字符串匹配。"
+    },
+    {
+      "id": "M-CORE-003",
+      "section": "角色成长",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "28",
+      "claim": "0/1/2/3 转分别开放技能 Lv.2/3/4/5",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-skills/src/main/resources/config.yml",
+        "key": "skill-leveling.maximum-level-by-ascension",
+        "expect": [
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "note": "技能等级上限按转数在 config.yml 配置。"
+    },
+    {
+      "id": "M-CORE-004",
+      "section": "角色成长",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "28",
+      "claim": "四次升级依次消耗 2/4/6/8 点",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-skills/src/main/resources/config.yml",
+        "key": "skill-leveling.upgrade-point-costs",
+        "expect": [
+          2,
+          4,
+          6,
+          8
+        ]
+      },
+      "note": "升级点成本在 config.yml 配置。"
+    },
+    {
+      "id": "M-CORE-005",
+      "section": "角色成长",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "28",
+      "claim": "每升一级使该技能的基础冷却缩短 4%，最终最多缩短 16%",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-skills/src/main/resources/config.yml",
+        "key": "skill-leveling.cooldown-reduction-per-level",
+        "expect": 0.04
+      },
+      "note": "每级冷却缩减是 config.yml 值；4 级*4%=16% 的上限由 minimum-cooldown-multiplier 0.84 承载（M-CORE-006）。"
+    },
+    {
+      "id": "M-CORE-006",
+      "section": "角色成长",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "28",
+      "claim": "技能冷却最多缩短 16%（即冷却最低保留 0.84 倍基础值）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-skills/src/main/resources/config.yml",
+        "key": "skill-leveling.minimum-cooldown-multiplier",
+        "expect": 0.84
+      },
+      "note": "下限乘区在 config.yml 配置，行为由 SkillLevelRulesTest 覆盖。"
+    },
+    {
+      "id": "M-CORE-007",
+      "section": "角色成长",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "28",
+      "claim": "每升一级使该技能的基础冷却缩短 4%：由共享冷却管线行为承载",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/SkillLevelRulesTest.java#allFiveLevelsHaveStrictlyBetterButBoundedCooldowns",
+        "asserts": "20s 基础、每级 -4%、下限 0.84 ⇒ Lv.1=20000ms、Lv.5=16800ms（=20000*0.84），五级严格递减且不越下限"
+      },
+      "note": "公式类断言走行为级测试。"
+    },
+    {
+      "id": "M-EQP-001",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "42",
+      "claim": "锻造成功率为 min(95%, 65% + 胚材等级 × 2.5% + 催化剂数量 × 2%)",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeRulesTest.java#qualityAndCatalystImproveButNeverBypassMaximumSuccess",
+        "asserts": "base 0.65 + 胚材等级*0.025 + 催化剂*0.02，且以 0.95 封顶（NETHERITE + 99 催化剂 == 0.95）"
+      },
+      "note": "公式类断言走行为级测试。基础值/上限来自 rpg-items config.yml forge.base-success-rate / maximum-success-rate（M-EQP-002）。"
+    },
+    {
+      "id": "M-EQP-002",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "42",
+      "claim": "锻造基础成功率 65%，最大成功率 95%",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-items/src/main/resources/config.yml",
+        "key": "forge.base-success-rate",
+        "expect": 0.65
+      },
+      "note": "基础成功率在 config.yml 配置。"
+    },
+    {
+      "id": "M-EQP-003",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "42",
+      "claim": "锻造最大成功率 95%",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-items/src/main/resources/config.yml",
+        "key": "forge.maximum-success-rate",
+        "expect": 0.95
+      },
+      "note": "上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-EQP-004",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "42",
+      "claim": "催化剂最多计入并消耗 8 个",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-items/src/main/resources/config.yml",
+        "key": "forge.maximum-catalyst-cost",
+        "expect": 8
+      },
+      "note": "催化剂上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-EQP-005",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "42",
+      "claim": "锻造输入 8 个副本/野外/生存共鸣核心材料",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-items/src/main/resources/config.yml",
+        "key": "forge.core-cost",
+        "expect": 8
+      },
+      "note": "核心材料数量在 config.yml 配置。"
+    },
+    {
+      "id": "M-EQP-006",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "42",
+      "claim": "槽位下限只由品质决定：普通 0、稀有 2、史诗 4、传说 6",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeRulesTest.java#rareAndEpicSlotCeilingsRiseWithTheBaseMaterial",
+        "asserts": "slotLowerBound: LEGENDARY=6, EPIC=4, RARE=2, COMMON=0"
+      },
+      "note": "公式类断言走行为级测试。"
+    },
+    {
+      "id": "M-EQP-007",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "42",
+      "claim": "槽位上限随胚材等级上浮：普通 min(8, 3+胚材等级)、稀有 min(8, 5+胚材等级/2)、史诗 min(8, 7+胚材等级/3)、传说固定 8（G-202）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeRulesTest.java#rareAndEpicSlotCeilingsRiseWithTheBaseMaterial",
+        "asserts": "RARE: 木5/铁6/下界7；EPIC: 木7/铁7/钻8/下界8；LEGENDARY 恒 8"
+      },
+      "note": "公式类断言走行为级测试（G-202）。"
+    },
+    {
+      "id": "M-EQP-008",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "34-40",
+      "claim": "胚材等级成功率加成：0级 0% / 1级 2.5% / 2级 5% / 3级 7.5% / 4级 10%",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeRulesTest.java#vanillaMaterialTierRaisesForgeCeiling",
+        "asserts": "baseQuality: WOODEN=0, IRON=2, DIAMOND=3, NETHERITE=4 ⇒ 等级*2.5% 对应 0/2.5/5/7.5/10%"
+      },
+      "note": "胚材等级到成功率的 2.5% 步长由 ForgeRules.successChance 的行为承载，等级映射由 baseQuality 行为承载。"
+    },
+    {
+      "id": "M-EQP-009",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "44",
+      "claim": "槽位在 50/150/350/700/1200/2000/3200/5000 装备经验逐步揭示",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-items/src/main/resources/config.yml",
+        "key": "revelation-xp",
+        "expect": [
+          50,
+          150,
+          350,
+          700,
+          1200,
+          2000,
+          3200,
+          5000
+        ]
+      },
+      "note": "揭示阈值在 config.yml 配置。"
+    },
+    {
+      "id": "M-EQP-010",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "44",
+      "claim": "槽位按配置的装备经验阈值逐步揭示（含「阈值变化不能关闭已揭示槽」）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/EquipmentRevelationRulesTest.java#revealsSlotsAtConfiguredExperienceThresholds",
+        "asserts": "达到每个阈值时揭示数 +1，未达阈值不揭示"
+      },
+      "note": "揭示规则的行为承载。"
+    },
+    {
+      "id": "M-EQP-011",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "42",
+      "claim": "总槽位永远不超过 8",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-items/src/test/java/cn/originalrpg/items/forge/ForgeRulesTest.java#allSlotBoundsRemainInsideSignedSchemaLimit",
+        "asserts": "所有品质的 lower<=upper<=8"
+      },
+      "note": "上限 8 由行为断言 8。"
+    },
+    {
+      "id": "M-EQP-012",
+      "section": "装备自制与槽位",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "46",
+      "claim": "解绑费按品质、槽位和突破等级动态回收金币",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-items/src/main/resources/config.yml",
+        "key": "unbinding.per-slot-cost",
+        "expect": "350.00"
+      },
+      "note": "单槽解绑成本在 config.yml 配置。"
+    },
+    {
+      "id": "M-VNL-001",
+      "section": "原版生存共鸣",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "59",
+      "claim": "天然经验矿 5.5% 概率产出 1 个生存共鸣精华",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "vanilla-integration.essence.chance.mining",
+        "expect": 0.055
+      },
+      "note": "概率在 config.yml 配置。"
+    },
+    {
+      "id": "M-VNL-002",
+      "section": "原版生存共鸣",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "59",
+      "claim": "成熟作物 1.2% 概率产出 1 个生存共鸣精华",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "vanilla-integration.essence.chance.farming",
+        "expect": 0.012
+      },
+      "note": "概率在 config.yml 配置。"
+    },
+    {
+      "id": "M-VNL-003",
+      "section": "原版生存共鸣",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "59",
+      "claim": "真实钓鱼 8% 概率产出 1 个生存共鸣精华",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "vanilla-integration.essence.chance.fishing",
+        "expect": 0.08
+      },
+      "note": "概率在 config.yml 配置。"
+    },
+    {
+      "id": "M-VNL-004",
+      "section": "原版生存共鸣",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "59",
+      "claim": "袭击胜利固定产出 2 个生存共鸣精华",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "vanilla-integration.essence.raid-amount",
+        "expect": 2
+      },
+      "note": "数量在 config.yml 配置。"
+    },
+    {
+      "id": "M-VNL-005",
+      "section": "原版生存共鸣",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "59",
+      "claim": "每名玩家合计每日最多 12 个生存共鸣精华",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "vanilla-integration.essence.daily-cap",
+        "expect": 12
+      },
+      "note": "日上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-VNL-006",
+      "section": "原版生存共鸣",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "59-61",
+      "claim": "每日 12 个上限被截断，跨日重置",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/VanillaIntegrationRulesTest.java#dailyCapTruncatesAndNewDateResets",
+        "asserts": "当日 10/12 只能再发 2；已满 12 发 0；换日恢复 4"
+      },
+      "note": "上限截断行为断言。"
+    },
+    {
+      "id": "M-VNL-007",
+      "section": "原版生存共鸣",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "61",
+      "claim": "精准采集导致矿石不掉原版经验，因此不会产出共鸣精华（无原版经验即无精华）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-economy/src/test/java/cn/originalrpg/economy/VanillaIntegrationRulesTest.java#placedOrSilkTouchedOreCannotProduceResonanceWithoutNaturalExperience",
+        "asserts": "experienceToDrop==0 或 playerPlaced ⇒ isNaturalResonantOre=false"
+      },
+      "note": "规则行为断言。"
+    },
+    {
+      "id": "M-VNL-008",
+      "section": "原版生存共鸣",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "54-57",
+      "claim": "自制斧砍伐原木获得装备经验；采集矿石时穿戴装备及副手获得经验",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "vanilla-integration.equipment-xp.log",
+        "expect": 2
+      },
+      "note": "原版活动装备经验在 config.yml 配置。"
+    },
+    {
+      "id": "M-VNL-009",
+      "section": "原版生存共鸣",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "57",
+      "claim": "赢得村庄袭击时整套装备获得大量经验（120）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "vanilla-integration.equipment-xp.raid",
+        "expect": 120
+      },
+      "note": "袭击装备经验在 config.yml 配置。"
+    },
+    {
+      "id": "M-VNL-010",
+      "section": "原版生存共鸣",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "63",
+      "claim": "石材、木材、铁、农产、红石、鱼获和炼金七类委托",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-economy/src/main/resources/config.yml",
+        "key": "commissions.*.name",
+        "expect_count": 7
+      },
+      "note": "委托类别数以 commissions 下的子键数计（* 通配）。"
+    },
+    {
+      "id": "M-SULF-001",
+      "section": "26.2 硫灵锻纹",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "70",
+      "claim": "普通共鸣把目标属性在成功精炼时的概率从 12.5% 提高到约 26.3%",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-sulfur/src/test/java/cn/originalrpg/sulfur/ResonanceRulesTest.java#strengthChangesWeightWithoutGuaranteeingTheRoll",
+        "asserts": "biasedChance(2)==250/950≈26.3%（基线 100/800=12.5%）"
+      },
+      "note": "公式类断言走行为级测试。"
+    },
+    {
+      "id": "M-SULF-002",
+      "section": "26.2 硫灵锻纹",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "71",
+      "claim": "强共鸣提高到约 31.7%",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-sulfur/src/test/java/cn/originalrpg/sulfur/ResonanceRulesTest.java#strengthChangesWeightWithoutGuaranteeingTheRoll",
+        "asserts": "biasedChance(3)==325/1025≈31.7%"
+      },
+      "note": "公式类断言走行为级测试。"
+    },
+    {
+      "id": "M-SULF-004",
+      "section": "26.2 硫灵锻纹",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "71-72",
+      "claim": "每日提取和单生物冷却限制产量（每日 6 次，单生物冷却 300 秒）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-sulfur/src/main/resources/config.yml",
+        "key": "extraction.daily-limit",
+        "expect": 6
+      },
+      "note": "每日上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-SULF-005",
+      "section": "26.2 硫灵锻纹",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "72",
+      "claim": "单生物冷却 300 秒",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-sulfur/src/main/resources/config.yml",
+        "key": "extraction.cube-cooldown-seconds",
+        "expect": 300
+      },
+      "note": "冷却在 config.yml 配置。"
+    },
+    {
+      "id": "M-MOB-001",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "76",
+      "claim": "自然生成敌对怪在 玩家等级 -3 到 玩家等级 +6 取值",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobScalingRulesTest.java#newcomersHaveTighterVarianceAndMixedGroupsProtectTheirLowestMember",
+        "asserts": "positiveOffsetUpperBound 新手 3 / 普通 6；下界由 CombatRules.adaptiveMonsterLevel 的 -3 clamp 承载"
+      },
+      "note": "偏置换算承载于 MobScalingRules（正偏移）+ CombatRules.adaptiveMonsterLevel（负偏移）。"
+    },
+    {
+      "id": "M-MOB-002",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "76",
+      "claim": "自然生成敌对怪等级偏移上限 +6",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-mobs/src/main/resources/config.yml",
+        "key": "adaptive.maximum-positive-offset",
+        "expect": 6
+      },
+      "note": "正偏移上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-MOB-003",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "76",
+      "claim": "生命、攻击伤害与护甲分别缩放并各有硬上限（生命上限 8x、伤害上限 4x、护甲 +12）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-mobs/src/main/resources/config.yml",
+        "key": "adaptive.maximum-health-multiplier",
+        "expect": 8.0
+      },
+      "note": "生命硬上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-MOB-004",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "78",
+      "claim": "约一成合适的普通怪只携带一个青色行为特性",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-mobs/src/main/resources/config.yml",
+        "key": "normal-behaviors.base-chance",
+        "expect": 0.1
+      },
+      "note": "行为特性概率在 config.yml 配置。"
+    },
+    {
+      "id": "M-MOB-005",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "78",
+      "claim": "主动能力都先给形状/颜色预警：当前 dungeons.*.boss.abilities.telegraph-ticks 为 20 tick",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-dungeons/src/main/resources/config.yml",
+        "key": "dungeons.*.boss.abilities.telegraph-ticks",
+        "expect": 20
+      },
+      "note": "所有副本族的预警窗口统一为 20 tick（* 通配每族）。"
+    },
+    {
+      "id": "M-MOB-006",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "78",
+      "claim": "代码下限 BossAttackRules.MINIMUM_READABLE_TELEGRAPH_TICKS = 20 与 readableTelegraphTicks(...) 强制，配置调低会被抬回（G-209）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-dungeons/src/test/java/cn/originalrpg/dungeons/BossAttackRulesTest.java#telegraphWindowsBelowTheReadabilityFloorAreRaisedToIt",
+        "asserts": "readableTelegraphTicks(8/16/0/-5)==20；20→20、36→36、200→80"
+      },
+      "note": "收敛公式行为断言（G-209）。"
+    },
+    {
+      "id": "M-MOB-007",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "80",
+      "claim": "怪物和击杀者有效等级差达到 20 时，只保留原版掉落，不给自定义材料和 RPG 经验",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/ProgressionRulesTest.java#customDropsStopAtTwentyLevelDifference",
+        "asserts": "allowsCustomDrops(29,10)=true；allowsCustomDrops(30,10)=false ⇒ 差 20 停止"
+      },
+      "note": "阈值行为断言。"
+    },
+    {
+      "id": "M-MOB-008",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "82",
+      "claim": "每 7 个原版夜晚触发血月",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-world/src/main/resources/config.yml",
+        "key": "blood-moon.every-nights",
+        "expect": 7
+      },
+      "note": "血月周期在 config.yml 配置。"
+    },
+    {
+      "id": "M-MOB-009",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "82",
+      "claim": "每个生存世界每日最多计 3 场血月（显式场次上限，跨日重置）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-world/src/main/resources/config.yml",
+        "key": "blood-moon.maximum-events-per-day",
+        "expect": 3
+      },
+      "note": "场次上限在 config.yml 配置（G-207）。"
+    },
+    {
+      "id": "M-MOB-010",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "82",
+      "claim": "每日场次上限是第一类约束：第 4 场被拒、跨日恢复（G-207）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-world/src/test/java/cn/originalrpg/world/WorldEventRulesTest.java#theFourthBloodMoonOfTheSameDayIsRejectedAndTheNextDayResets",
+        "asserts": "当日第 4 场 dailyEventAllowed=false，次日=true"
+      },
+      "note": "场次上限行为断言（G-207）。"
+    },
+    {
+      "id": "M-MOB-011",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "84",
+      "claim": "连猎要求连续击杀完全相同类型、5 分钟内、128 格内",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-world/src/main/resources/config.yml",
+        "key": "hunt-chain.reset-seconds",
+        "expect": 300
+      },
+      "note": "5 分钟=300 秒在 config.yml 配置。"
+    },
+    {
+      "id": "M-MOB-012",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "84",
+      "claim": "与上次击杀点 128 格内",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-world/src/main/resources/config.yml",
+        "key": "hunt-chain.reset-distance",
+        "expect": 128.0
+      },
+      "note": "距离在 config.yml 配置。"
+    },
+    {
+      "id": "M-MOB-013",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "84",
+      "claim": "每层增加 0.2% 稀有率，最高额外 8%",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-world/src/main/resources/config.yml",
+        "key": "hunt-chain.chance-per-stack",
+        "expect": 0.002
+      },
+      "note": "每层概率在 config.yml 配置。"
+    },
+    {
+      "id": "M-MOB-014",
+      "section": "动态怪物与原版世界",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "84",
+      "claim": "连猎稀有率最高额外 8%",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-world/src/main/resources/config.yml",
+        "key": "hunt-chain.maximum-bonus-chance",
+        "expect": 0.08
+      },
+      "note": "上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-DGN-001",
+      "section": "副本",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "88",
+      "claim": "1-4 人队伍由队长发起（队伍人数上限 4）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-dungeons/src/main/resources/config.yml",
+        "key": "party.maximum-size",
+        "expect": 4
+      },
+      "note": "队伍上限在 config.yml 配置。"
+    },
+    {
+      "id": "M-DGN-002",
+      "section": "副本",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "88",
+      "claim": "成员必须同世界且在队长 24 格内",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-dungeons/src/main/resources/config.yml",
+        "key": "party.ready-distance",
+        "expect": 24.0
+      },
+      "note": "就绪距离在 config.yml 配置。"
+    },
+    {
+      "id": "M-DGN-003",
+      "section": "副本",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "88",
+      "claim": "当前有远古遗迹/守秘层、硫泉深窟/朱砂心室、风暴秘库/静电核心三族六关（6 个副本定义）",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-dungeons/src/main/resources/config.yml",
+        "key": "dungeons.*",
+        "expect_count": 6
+      },
+      "note": "副本数以 dungeons 下子键数计（* 通配）。"
+    },
+    {
+      "id": "M-CBT-001",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "100",
+      "claim": "处决阈值对普通怪可用完整值，对玩家和 Boss 减半；同时受 攻击者能力预算/目标最大生命 限制",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/ProgressionRulesTest.java#bossExecuteIsHalvedAndPowerBounded",
+        "asserts": "executeThreshold(0.10,boss=true,1000,10000)==0.05；executeThreshold(0.10,boss=false,200,10000)==0.02（能力上限 2%）"
+      },
+      "note": "公式类断言走行为级测试。"
+    },
+    {
+      "id": "M-CBT-002",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "100",
+      "claim": "即使技能写 10% 处决，实际阈值受攻击者能力预算限制",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-combat/src/main/resources/config.yml",
+        "key": "execute.base-threshold",
+        "expect": 0.1
+      },
+      "note": "基础处决阈值在 config.yml 配置。"
+    },
+    {
+      "id": "M-CBT-003",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "102",
+      "claim": "跨职借用只有 65% 输出/治疗/持续",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/EquipmentBorrowingRulesTest.java#unsafeOperatorValuesCannotCreateFreeCastsOrUnboundedMastery",
+        "asserts": "powerMultiplier(BORROWED, -9.0, 99.0)==0.25 下界；行为测试另一处覆盖 0.65（borrowedAndMasteredCostsPowerAndDurationAreBounded）"
+      },
+      "note": "借用威力乘区（0.65）在 config.yml equipment-effects.borrowed-skill.power-multiplier（M-CBT-004）。"
+    },
+    {
+      "id": "M-CBT-004",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "102",
+      "claim": "跨职借用 65% 输出/持续、1.5 倍法力与冷却",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-skills/src/main/resources/config.yml",
+        "key": "equipment-effects.borrowed-skill.power-multiplier",
+        "expect": 0.65
+      },
+      "note": "借用威力乘区在 config.yml 配置。"
+    },
+    {
+      "id": "M-CBT-005",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "102",
+      "claim": "借用后承受 3 秒虚弱和发光",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-skills/src/main/resources/config.yml",
+        "key": "equipment-effects.borrowed-skill.strain-ticks",
+        "expect": 60
+      },
+      "note": "3 秒=60 tick 在 config.yml 配置。"
+    },
+    {
+      "id": "M-CBT-006",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "102",
+      "claim": "已经学习同名技能时，符文转为最高 115% 输出/持续与 0.85 倍基础冷却的精通",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-skills/src/main/resources/config.yml",
+        "key": "equipment-effects.mastered-skill.power-multiplier",
+        "expect": 1.15
+      },
+      "note": "精通威力在 config.yml 配置。"
+    },
+    {
+      "id": "M-CBT-007",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "102",
+      "claim": "精通 0.85 倍基础冷却",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-skills/src/main/resources/config.yml",
+        "key": "equipment-effects.mastered-skill.cooldown-multiplier",
+        "expect": 0.85
+      },
+      "note": "精通冷却乘区在 config.yml 配置。"
+    },
+    {
+      "id": "M-CBT-008",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "102",
+      "claim": "投射物威力先冻结再进入 PVP 0.50、Boss 0.75 的统一缩放",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-skills/src/test/java/cn/originalrpg/skills/EquipmentBorrowingRulesTest.java#borrowedAndMasteredCostsPowerAndDurationAreBounded",
+        "asserts": "借用/精通乘区在 [0.25,1.25] 内有界（PVP/Boss 统一缩放由 DamageMultiplierRules 承载）"
+      },
+      "note": "PVP/Boss 缩放值在 rpg-combat config.yml（M-CBT-009/010）。"
+    },
+    {
+      "id": "M-CBT-009",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "102",
+      "claim": "PVP 技能统一缩放 0.50",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-combat/src/main/resources/config.yml",
+        "key": "damage.skill-pvp-multiplier",
+        "expect": 0.5
+      },
+      "note": "PVP 缩放在 config.yml 配置。"
+    },
+    {
+      "id": "M-CBT-010",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "102",
+      "claim": "Boss 技能统一缩放 0.75",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-combat/src/main/resources/config.yml",
+        "key": "damage.skill-boss-multiplier",
+        "expect": 0.75
+      },
+      "note": "Boss 缩放在 config.yml 配置。"
+    },
+    {
+      "id": "M-CBT-011",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "104",
+      "claim": "目前首发两条隐藏路线各限 3 名持有者",
+      "carrier": {
+        "kind": "java-const",
+        "path": "plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/HiddenPathRules.java",
+        "const": "capacity",
+        "expect": 3
+      },
+      "note": "隐藏路线容量是 rpg-api 的编译期契约常量（HiddenPathRules.capacity 返回值），被 JdbcHiddenPathService 等多处引用，不归某个插件 config。",
+      "behavior_ref": "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/HiddenPathReachabilityTest.java#bloodpactIsThreeAscensionAndTalismanIsTwo"
+    },
+    {
+      "id": "M-CBT-012",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "106",
+      "claim": "血契：刺客、三转（G-106 裁决：路线门与前置技能 vanished-horizon 同在三转）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/HiddenPathReachabilityTest.java#bloodpactIsThreeAscensionAndTalismanIsTwo",
+        "asserts": "HiddenPathRules.minimumAscension(BLOODPACT)==3，TALISMAN==2"
+      },
+      "note": "G-106 裁决后血契 route 门为三转，行为断言承载。属性门槛（敏捷 32/耐力 18）见「不可机械核对」清单。"
+    },
+    {
+      "id": "M-CBT-013",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "107",
+      "claim": "符箓：开启期间每分钟消耗 15 游戏金币",
+      "carrier": {
+        "kind": "java-const",
+        "path": "plugins/rpg-classes/src/main/java/cn/originalrpg/classes/HiddenPathEffects.java",
+        "const": "TALISMAN_MINUTE_COST",
+        "expect": 15
+      },
+      "note": "每分钟金币成本是 rpg-classes 内部的编译期 BigDecimal 常量（换算成金币整数 15），无 config 键；被审计流水结算引用。",
+      "behavior_ref": "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/HiddenPathReachabilityTest.java#bloodpactIsThreeAscensionAndTalismanIsTwo"
+    },
+    {
+      "id": "M-CBT-014",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "107",
+      "claim": "符箓：散人、二转（转数门）",
+      "carrier": {
+        "kind": "behavior",
+        "test": "plugins/rpg-api/src/test/java/cn/originalrpg/api/rules/HiddenPathReachabilityTest.java#bloodpactIsThreeAscensionAndTalismanIsTwo",
+        "asserts": "minimumAscension(TALISMAN)==2"
+      },
+      "note": "转数门行为断言。属性门槛（智力 18/力量 13/敏捷 9/耐力 6）见「不可机械核对」清单。"
+    },
+    {
+      "id": "M-CBT-015",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "102",
+      "claim": "跨职借用 1.5 倍法力与冷却",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-skills/src/main/resources/config.yml",
+        "key": "equipment-effects.borrowed-skill.mana-multiplier",
+        "expect": 1.5
+      },
+      "note": "借用法力乘区在 config.yml 配置。"
+    },
+    {
+      "id": "M-CBT-016",
+      "section": "战斗与技能限制",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "102",
+      "claim": "跨职借用冷却乘区 1.5 倍",
+      "carrier": {
+        "kind": "config",
+        "path": "plugins/rpg-skills/src/main/resources/config.yml",
+        "key": "equipment-effects.borrowed-skill.cooldown-multiplier",
+        "expect": 1.5
+      },
+      "note": "借用冷却乘区在 config.yml 配置。"
+    }
+  ],
+  "unverifiable": [
+    {
+      "claim": "每件装备最多一个稀有特性（docs/GAME_DESIGN.md:44/102）",
+      "reason": "唯一性由签名 schema/PDC 结构强制，无单点数值或配置键；任何 config 条目都是硬凑。"
+    },
+    {
+      "claim": "玩家用纸、硫磺和朱砂制作空白锻纹（:67）",
+      "reason": "材料清单是 RpgSulfurPlugin.registerRecipe 的调用序列，无数值断言；config 只记 sulfur-cost/cinnabar-cost 成本，不等于材料清单。"
+    },
+    {
+      "claim": "66% 与 33% 生命进入新阶段（:94）",
+      "reason": "DungeonManager.bossPhase 的战斗循环常量（ratio<=0.33/0.66），无配置键；阶段缩短 tick 各副本族 16-20 不同，不能单值核对。"
+    },
+    {
+      "claim": "副本世界名以 dungeon_ 开头（:82/88）",
+      "reason": "命名约定，非数值/公式/枚举；无行为级断言。"
+    },
+    {
+      "claim": "血契属性门槛 敏捷 32/耐力 18（:106）",
+      "reason": "属性门槛不在 HiddenPathRules 代码载体中，无 config 键与行为断言；判定逻辑依赖运行时档案。"
+    },
+    {
+      "claim": "符箓属性门槛 智力 18/力量 13/敏捷 9/耐力 6（:107）",
+      "reason": "同上。"
+    },
+    {
+      "claim": "五维为防御、力量、敏捷、智力、耐力（:13）",
+      "reason": "枚举名称，与代码 Attribute 枚举对应但无行为级断言；属声明性文案。"
+    },
+    {
+      "claim": "主动能力都先给形状/颜色预警（表现层描述，:78）",
+      "reason": "形状/颜色是表现层主观判断，门禁只核对 telegraph-ticks 数值（M-MOB-005/006）。"
+    },
+    {
+      "claim": "粒子和声音服从玩家 /visuals 与服务器压力降级（:78）",
+      "reason": "纯表现层降级策略，无单点阈值。"
+    },
+    {
+      "claim": "精英行为特性描述（迅捷闪避、狂暴暴走等，:78）",
+      "reason": "行为特性语义描述，需真人主观判断；每种特性的数值分散在 normal-behaviors.* 且非单一语义锚点。"
+    },
+    {
+      "claim": "守护波次、时间限制、Boss 技能节奏（:88）",
+      "reason": "每副本独立配置的多组区间值，无跨副本统一锚点。"
+    }
+  ]
+}
