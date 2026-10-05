@@ -39,9 +39,9 @@ public final class JdbcProfileService implements ProfileService {
     private final int energyPerStamina;
     private final IntSupplier maximumOpenAscension;
     /**
-     * 读缓存：值带一个「提交版本号」。版本号在写事务**提交成功之后、仍在 DB 线程上**取得，
-     * 因此同一玩家的版本号顺序 == 数据库提交顺序（行锁已把该玩家的写事务串行化）。
-     * 发布时只接受更高的版本号 —— 晚到的旧快照不得回滚新快照。
+     * 读缓存：值带一个「提交版本号」。版本号在写事务**仍持有行锁时（commit 之前）**取得，
+     * 因此同一玩家的版本号顺序 == 行锁顺序 == 数据库提交顺序。发布时只接受更高的版本号
+     * —— 晚到的旧快照不得回滚新快照。
      */
     private final Map<UUID, CachedProfile> cache = new ConcurrentHashMap<>();
     private final java.util.concurrent.atomic.AtomicLong commitVersion = new java.util.concurrent.atomic.AtomicLong();
@@ -477,8 +477,8 @@ public final class JdbcProfileService implements ProfileService {
     /**
      * 提交后刷新读缓存。
      *
-     * @param version 调用方事务提交成功后取得的版本号（{@link #nextCommitVersion()}）。
-     *                必须传提交时取的号，否则「谁先回调谁后写」又会把旧快照盖到新快照上。
+     * @param version 调用方事务**持锁时**取得的版本号（{@link #nextCommitVersion()}）。
+     *                必须传该号，否则「谁先回调谁后写」又会把旧快照盖到新快照上。
      */
     void cacheCommitted(PlayerProfile profile, long version) {
         publish(profile, version);
@@ -492,7 +492,7 @@ public final class JdbcProfileService implements ProfileService {
      * （实测 {@code CACHED=19 DB=20}，即门禁 {@code expected: <20> but was: <19>}）。
      * 行锁保证数据库正确，但 {@link #get} 只读缓存，玩家因此读到回滚后的经验。
      *
-     * @param version 该事务提交成功后取得的版本号（{@link #nextCommitVersion()}）
+     * @param version 该事务**持锁时（commit 之前）**取得的版本号（{@link #nextCommitVersion()}）
      */
     private void publish(PlayerProfile profile, long version) {
         cache.compute(profile.playerId(), (key, existing) ->
@@ -500,7 +500,7 @@ public final class JdbcProfileService implements ProfileService {
                         ? new CachedProfile(profile, version) : existing);
     }
 
-    /** 在写事务提交成功后取版本号（单调递增，全实例唯一）。 */
+    /** 取提交版本号（单调递增，全实例唯一）。**必须在持锁时、commit 之前调用**，见 inTransaction。 */
     long nextCommitVersion() {
         return commitVersion.incrementAndGet();
     }
@@ -776,16 +776,27 @@ public final class JdbcProfileService implements ProfileService {
     }
 
     /**
-     * @param versionStamp 出参：写入本次事务**提交成功后**取得的版本号（仍在 DB 线程上）。
-     *                     调用方在 {@code thenApply} 里用它发布读缓存，使发布判定基于
-     *                     提交顺序而非调度顺序。
+     * 在**仍持有 {@code SELECT ... FOR UPDATE} 行锁时**取提交版本号，再提交。
+     *
+     * <p>取号点必须在 commit 之前：{@code commit()} 一返回行锁就释放，此时取号会出现
+     * 「T1 提交后未取号被抢占 → T2 提交并取到较小的号 → T1 取到较大的号」，于是更旧的
+     * 快照带着更大的号发布，读缓存被再次回滚。取号顺序 == 加锁顺序 == 提交顺序之后，
+     * 倒置窗口为 0。
+     *
+     * <p>回滚路径不发布缓存（号已取但调用方不会走到 publish），取号浪费无害；
+     * 号不必严格连号，无法提交的事务占一个号不影响顺序。
+     *
+     * @param versionStamp 出参：提交成功后回填「持锁时取得的号」，调用方在
+     *                     {@code thenApply} 里用它发布读缓存
      */
     private <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
         try (Connection connection = dataSource.getConnection()) {
+            long version;
             try {
+                version = nextCommitVersion();
                 T result = operation.apply(connection);
                 connection.commit();
-                versionStamp[0] = nextCommitVersion();
+                versionStamp[0] = version;
                 return result;
             } catch (Exception exception) {
                 connection.rollback();
