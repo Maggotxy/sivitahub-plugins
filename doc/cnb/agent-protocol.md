@@ -100,3 +100,37 @@
 | 把「文档已更新」当达成 | 这个项目的审计文档系统性拔高 | 只认 src/main 里的调用点 |
 | 一次派完不等合 PR | 下游看不到上游代码 | 一波一合，合完再派下一波 |
 | 关 PR 用 PUT | 失败 | `PATCH /-/pulls/{n} {"state":"closed"}` |
+
+## 6. 复验轮（verdict / gap-matrix）的 basis 口径 —— **勿要求「字面等于合入后的 main HEAD」**
+
+### 6.1 结论
+
+复验轮产出的 `plan/gap-matrix-vN.md` 与 `plan/verdict-vN.json` 里的 `basis`，**必须等于「它自己那一轮分叉时的 main HEAD」**，
+即该轮 NPC 实测的 `git rev-parse HEAD`（= 当时的 `origin/main`）。判定「矩阵不是旧的」用两条：
+
+1. **basis 必须是它自己那一轮分叉出来的**（不是更早的 main）—— 任务书里要写死
+   「先跑 `git rev-parse HEAD` 与 `git rev-parse origin/main`，把两者是否相等写进矩阵前 20 行，
+   `basis` 写**实测**短 sha，**不要抄任务书里的数字**」。
+2. `git diff --name-only <basis> <当前 main HEAD>` **只含非构建输入**
+   （`plan/**`、`state/**`、`doc/**`、`.workbuddy/**`、`.cnb/agent-out/**`）。
+
+并且**门禁必须在「最近一次有构建输入变化的 main」上实测全绿**；若当前 main HEAD 相对那次只多了非构建输入，
+可沿用该次判据行，但**必须在日志里写明两个 sha 与 diff 清单**。
+
+### 6.2 为什么不能要求「basis 字面等于合入后的当前 main HEAD」（自引用悖论）
+
+矩阵文件本身必须落在 main 上（「产出必须落仓」）。设矩阵内容为 `C`、其中含 `basis = B`；
+把 `C` 提交为提交 `X`，则 `sha(X) = H(tree(C), parents, meta)`，而 `tree(C)` 包含 `B`
+⇒ `H` 是 `B` 的函数。要求 `B == main HEAD == H`，即 **`B = H(B)`** ——
+「内容包含自身哈希的固定点」，密码学哈希下不存在。**每合入一轮，main 前进一格，basis 必然落后一格。**
+
+唯一的绕法是「把 basis 存进不参与哈希的载体」（`git tag` / `git notes` / CI 元数据），
+但那会让 basis **从仓库正文里消失**，而 basis 的全部价值正是让下一个 agent **读文件就知道这批结论是对着哪版代码做的**；
+且 `scripts/selftest-gates.sh` §11 的 `VERDICT_MATRIX_CONSISTENCY_GATE` 要求
+`verdict-vN.json` 的 `basis` 值**作为子串出现在矩阵前 20 行**，绕法会撞门禁。
+⇒ **不要为了满足字面条件而牺牲跨 agent 可读性。**
+
+### 6.3 历史
+
+- v13（basis=`c74249e`）与 v14（basis=`7c23a35a`）两轮都因此被驳回一次；
+- v15（basis=`c241979` = 分叉时的 main HEAD = M14）按 6.1 的口径收口，并在合入所得的 M15 上重跑门禁全绿。
