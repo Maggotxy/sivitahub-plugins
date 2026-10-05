@@ -5,7 +5,7 @@
   "source_of_truth": "本仓 main 分支",
   "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
   "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
-  "round": 26,
+  "round": 27,
   "max_round": 12,
   "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
   "gate": {
@@ -484,6 +484,30 @@
       "fact": "G-FLAKY-GATE **回退（复发）**，且这次落在 #73/#75 新增的回归测试上：改后并未取得「同 sha 连续两次全绿」——f014b447 上 cnb-4f2-1k46ad3pv(api_trigger_gate) GREEN、cnb-ok2-1k46acmji(push) test stage RED。同 sha RED 计数 = 1。对照改前（b6d38bf：cnb-tn4-1k4141s0e test error / cnb-h3n-1k414popl success；334fb54：cnb-d93-1k41bqhbe test error / cnb-esl-1k41cpau5 success）的「先红后绿」，本轮是「先绿后红」，形态同源（时序/并发敏感用例）。⇒ 不能把 v10 在 1ace5ab 上的「已闭环」直接沿用到新 basis。",
       "source": "cnb build get-build-logs --sha f014b447…；build-runner-download-log cnb-ok2-1k46acmji-001 与 cnb-4f2-1k46ad3pv-001",
       "level": "[S]"
+    },
+    {
+      "id": "E-078",
+      "fact": "★ W27 最终复验（verdict-v12，basis=实测 14b67f2 == origin/main == 14b67f27706861035b321c31e2b9ea1699b60a74，两者相等）：**done=true / remaining=0**。四条件全部成立。① 差集矩阵「声明未接线」=0 且**可派工实现缺口=0**：v11 的唯一 remaining G-CACHE-STAMP-BEFORE-LOCK 已由 PR#78（commit 14b67f2）闭环 —— 新增 LockedTransaction 动态代理连接，取号下沉到「已持有 SELECT ... FOR UPDATE 行锁之后」；markLocked 惰性一次取号（LockedTransaction.java:54-55 `if (version == 0L) version = nextVersion.getAsLong();`）；5 个发布点全改 LockedTransaction.wrap（JdbcProfileService:841 / JdbcAscensionService:284 / JdbcDungeonRewardService:318 / JdbcAdminIncidentCompensationService:723 / JdbcAdminTestService:297），触发点在 FOR UPDATE 之后（JdbcProfileService.java:627 select→:633 markLocked；loadSnapshot:484/486→:492）；**eager nextCommitVersion() 调用已彻底消失**（grep -rn 只剩定义 :527 + 6 处 javadoc）；三个回归测试在（JdbcServicesTest.java:1035/:1088/:1151）且 CI PASS（rpg-core tests=321 failed=0）；W26 三段证据齐全（改前 exit=1 `expected: <20> but was: <19>` / 改后 exit=0 PASS / 负向对照 exit=1 必红 + 还原 exit=0）。② 十门在 M10=14b67f2 上全绿（权威 sn=cnb-lpt-1k46f0u8b, api_trigger_gate, main, success, 13 stage 全 success；同 sha 的 push 构建 cnb-m3o-1k46f0gvf 亦 success 且判据行一致 ⇒ 同 sha 连续两次全绿）。③ 素材层四条成立。④ 剩余只有 REQUIRES_HUMAN。",
+      "source": "plan/gap-matrix-v12.md / plan/verdict-v12.json / .cnb/agent-out/W27-A1-verdict-v12.json",
+      "level": "[S]"
+    },
+    {
+      "id": "E-079",
+      "fact": "★ G-CACHE-STAMP-BEFORE-LOCK 三轮收敛史（本轮最有价值的一条方法论）：给「异步回调里发布本地读缓存」做顺序守卫需要一个提交版本号，必须满足「取号顺序 == 加锁顺序 == 提交顺序」。PR#73 取号在 connection.commit() **之后** ⇒ 「提交后、取号前」被抢占（回归测试 readCacheIsNotRolledBackByALateCommit 延迟第 20 次 Connection.close）；PR#75 取号在 inTransaction 开头（**加锁之前**）⇒ 「取号后、加锁前」被抢占（回归测试 lateCommitStampCannotRollBackTheReadCache；同 sha f014b447 的 cnb-ok2-1k46acmji test stage RED，message expected: <20> but was: <19>）；**PR#78（14b67f2）取号在已持有 SELECT ... FOR UPDATE 行锁之后** ⇒ 倒置窗口归零（新测试 commitVersionMustBeTakenAfterTheRowLockIsHeld 延迟「第 18 次含 FOR UPDATE 的 executeQuery 执行之前」⇒ 改前 expected: <20> but was: <19>，改后 PASS）。方法论：**取号在临界区之外**——无论放在 commit() 之后还是 apply() 之前——都留倒置窗口；必须移进「已持行锁」这段临界区内部，才能让「取号顺序 == 加锁顺序 == 提交顺序」成为代码事实而非注释声明。",
+      "source": "plan/gap-matrix-v12.md §0.2 / §7；doc/cnb/gap-registry.md",
+      "level": "[S]"
+    },
+    {
+      "id": "E-080",
+      "fact": "★ G-FLAKY-GATE 恢复闭环（v11 曾回退）：同一 sha 14b67f2 上两个构建**均 success** —— cnb-lpt-1k46f0u8b（api_trigger_gate, main）与 cnb-m3o-1k46f0gvf（push, main），判据行一致（GATE_SELFTEST=PASS=132 FAIL=0 / SUM tests=1105 failed=0 errors=0 skipped=2 modules=26 / JAR_COUNT=56 / BUILD_EXIT=0）。v11 在 f014b447 上是「先绿后红」（cnb-4f2-1k46ad3pv success / cnb-ok2-1k46acmji test stage error），本轮恢复为「同 sha 连续两次全绿」。",
+      "source": "cnb build get-build-logs --sha 14b67f2…；build-runner-download-log cnb-lpt-1k46f0u8b-001 与 cnb-m3o-1k46f0gvf-001",
+      "level": "[S]"
+    },
+    {
+      "id": "E-081",
+      "fact": "★ G-302-RESIDUAL 系列仍清零且判据未被放宽（本轮独立复跑，不给「门禁 GREEN」当结论）：sh scripts/check-source-string-tests.sh（重定向取码）→ SOURCE_STRING_TESTS=0 / SOURCE_STRING_GATE=GREEN / EXIT=0；独立抽样复核 4 个类方法体（DungeonTimeoutLifecycleContractTest / EquipmentExitPathReachabilityTest / SeasonAttunementSettlementWiringTest / DungeonEntryCommitAmbiguityContractTest），读的是测试夹具 / 源规格 JSON / 进程 stdout / 真解析而非生产源码正文；反向验证三组夹具（Fixture5WrappedAssertTest:11 assertTrue(readString(Path.of(\"plugins/...\")).contains(x)) / Fixture6ConstPathTest:13 Files.readString(Path.of(常量)) / Fixture7TraversalTest:16 Files.walk(root.resolve(\"plugins/rpg-core/src/main\"))+readString(f).contains(id) 聚合成列表 anyMatch）各自 EXIT=1 变红（SOURCE_STRING_TESTS=3 / GATE=RED），删除后 EXIT=0 GREEN，收尾 git status --porcelain 为空；反例 LanguageBundleContractTest（Files.newInputStream + SnakeYAML 真解析）未被判红；规格规模 469/79/3 ≥ v8 的 466/78/2。",
+      "source": "plan/gap-matrix-v12.md §6；本地实测命令原文",
+      "level": "[S]"
     }
   ],
   "unverified": [
@@ -523,9 +547,9 @@
     "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
     "W7-A2 遗留的 4 条 [R] 级 unproven（G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）。"
   ],
-  "next_action": "派 W25-A2-cache-stamp-before-lock（G-CACHE-STAMP-BEFORE-LOCK）：把提交版本号的取号点真正移到「已持有 SELECT ... FOR UPDATE 行锁之后」，并让两条回归测试在门禁并行度 + 负载下稳定绿（含负向对照必红）。合入后触发十门，再派复验轮（verdict-v12，basis 必须等于届时 main HEAD，且须取得同 sha ≥2 次连续全绿）。",
-  "updated_by": "CNB CodeBuddy NPC（W25-A1-verdict-v11）",
-  "updated_at": "2026-10-05T16:20:00Z",
+  "next_action": "收口。若需继续，只能推进 REQUIRES_HUMAN 三项（H-001 生产机写操作 / U-003 真实 Paper + 真实客户端握手 / W7-A2 四条 [R] 级 unproven）—— 均需真实环境与人类操作，本仓与 CNB 无法完成。",
+  "updated_by": "CNB CodeBuddy NPC（W27-A1-verdict-v12）",
+  "updated_at": "2026-10-06T01:05:00Z",
   "merged_gaps": [
     "G-001",
     "G-002",
@@ -584,11 +608,13 @@
     "W21": "DONE：门禁假红修复（awaitChainSettled 确定性收尾屏障 + 慢 executor 永久回归测试）+ 账本收敛为唯一真相源（plan/world-state.json 删除）+ 两条交付物级门禁（selftest §11）（#70 / 334fb54 / 1ace5ab）",
     "W23": "DONE：最终复验轮 v10（gap-matrix-v10 + verdict-v10，判 **done=true / remaining=0**）",
     "W25": "REMAINING：最终复验轮 v11（gap-matrix-v11 + verdict-v11，判 **done=false / remaining=1** = G-CACHE-STAMP-BEFORE-LOCK）。G-302-RESIDUAL 系列复跑仍清零、素材层四条成立、十门在权威构建 cnb-4f2-1k46ad3pv 全绿；但 #73/#75 声称闭环的「读缓存回滚 / 发布倒置窗口」被代码结构 + 同 sha 的 RED 构建证伪。",
-    "W24": "DONE（交付）：#73 读缓存版本号守卫 + #75 取号点前移（各带确定性回归测试与负向对照，作者口径成功）；**但验收未通过** —— 见 W25。"
+    "W24": "DONE（交付）：#73 读缓存版本号守卫 + #75 取号点前移（各带确定性回归测试与负向对照，作者口径成功）；**但验收未通过** —— 见 W25。",
+    "W26": "DONE：PR#78（commit 14b67f2）把提交版本号改为「已在 SELECT ... FOR UPDATE 之上持锁之后」才取得 —— 新增 LockedTransaction（连接动态代理），5 个发布点行为一致，回滚不发布；顺带修正 JdbcAdminTestService.status 纯读路径（改传 NO_STAMP 不发布缓存）。",
+    "W27": "DONE：最终复验轮 v12（gap-matrix-v12 + verdict-v12，判 **done=true / remaining=0**）。G-CACHE-STAMP-BEFORE-LOCK 闭环复核通过；G-302-RESIDUAL 系列复跑仍清零、判据未放宽；素材层四条成立；十门在权威构建 cnb-lpt-1k46f0u8b 全绿，且同 sha 两次构建连续全绿（G-FLAKY-GATE 恢复）。剩余只有 REQUIRES_HUMAN。"
   },
   "gates": {
-    "evidence_sn": "cnb-4f2-1k46ad3pv",
-    "evidence_sha": "f014b447",
+    "evidence_sn": "cnb-lpt-1k46f0u8b",
+    "evidence_sha": "14b67f2",
     "event": "api_trigger_gate",
     "targetRef": "main",
     "status": "success",
@@ -598,21 +624,22 @@
     "ddl_consumer": "GREEN (81 张表，豁免 0)",
     "ddl_registration": "GREEN (反向豁免 0)",
     "cmd_reference": "GREEN (43 指令，豁免 9)",
-    "resource_pack": "GREEN",
-    "asset_baseline": "GREEN (UNREGISTERED=0 MISSING=0 MODIFIED=0)",
+    "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
+    "asset_baseline": "GREEN (UNREGISTERED=0 MISSING=0 MODIFIED=0，252↔252)",
     "asset_repro": "GREEN (REPRODUCIBLE=70 MISMATCH=0)",
-    "compile": "GREEN (TASKS_DONE=28 BUILD_EXIT=0 SECONDS=146)",
-    "test": "GREEN (SUM tests=1104 failed=0 errors=0 skipped=2 modules=26)",
-    "summary": "GREEN (NO_XML modules=0 期望模块数=26)",
-    "package": "GREEN (JAR_COUNT=56 / JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)",
+    "compile": "GREEN (TASKS_DONE=28 BUILD_EXIT=0 SECONDS=108)",
+    "test": "GREEN (TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=57)",
+    "summary": "GREEN (SUM tests=1105 failed=0 errors=0 skipped=2 modules=26；NO_XML modules=0 期望 26)",
+    "package": "GREEN (JAR_COUNT=56)",
     "source_string": "GREEN (SOURCE_STRING_TESTS=0；stage-1 §4d 真实执行)",
     "source_contract": "GREEN (CHECKS=469 SPECS=79 SPEC_FILES=3)",
     "single_source_of_truth": "GREEN (WORLD_STATE_FILES=1)",
     "verdict_matrix_consistency": "GREEN",
-    "same_sha_other_build": "RED —— cnb-ok2-1k46acmji (push, main, f014b447) status=error / test stage error / FAILURE_XML_COUNT=1 / SUM tests=1104 failed=1 / 失败用例 JdbcServicesTest#lateCommitStampCannotRollBackTheReadCache()（expected: <20> but was: <19>）",
-    "stable_green_runs_after_fix": 1,
+    "same_sha_other_build": "GREEN —— cnb-m3o-1k46f0gvf (push, main, 14b67f2) success，13 stage 全 success，判据行一致（PASS=132 / tests=1105 failed=0 / JAR_COUNT=56)",
+    "stable_green_runs_after_fix": 2,
     "stable_green_sns": [
-      "cnb-4f2-1k46ad3pv"
+      "cnb-lpt-1k46f0u8b",
+      "cnb-m3o-1k46f0gvf"
     ]
   },
   "decisions_by_agent": [
@@ -636,17 +663,15 @@
       "by": "WorkBuddy AI"
     }
   ],
-  "status": "REMAINING —— verdict-v11 判 done=false / remaining=1（G-CACHE-STAMP-BEFORE-LOCK：读缓存发布版本号取号点仍在行锁之外；#75 的回归测试在同 sha 的下游构建实测 RED）",
+  "status": "DONE —— verdict-v12 判 done=true / remaining=0（G-CACHE-STAMP-BEFORE-LOCK 已由 PR#78 闭环：取号在持行锁之后、eager 调用消失、三个回归测试 PASS、同 sha 两次构建全绿）。剩余只有 REQUIRES_HUMAN。",
   "verdict": {
-    "done": false,
+    "done": true,
     "impossible": false,
-    "remaining": 1,
-    "remaining_ids": [
-      "G-CACHE-STAMP-BEFORE-LOCK"
-    ],
-    "basis": "f014b447",
-    "decided_at": "2026-10-05",
-    "reason": "PR#73/#75 声称关闭了「读缓存被晚到的旧快照回滚 / 发布倒置窗口」，实测**未闭环**：5 个发布点的 inTransaction 都是「先 nextCommitVersion() → 再 operation.apply(connection)」，而 SELECT ... FOR UPDATE 在 apply 内部发出（JdbcProfileService.java:627）⇒ 取号在加锁之前，「取号顺序 == 锁顺序」未实现；#75 新增的回归测试 lateCommitStampCannotRollBackTheReadCache() 在**同一 sha f014b447** 的下游构建 cnb-ok2-1k46acmji 实测 FAILED（expected: <20> but was: <19>），而同 sha 的权威构建 cnb-4f2-1k46ad3pv 全绿 ⇒ 同 sha 时红时绿。G-302-RESIDUAL 系列仍清零且判据未被放宽；素材层四条成立；十门在权威构建上全绿。"
+    "remaining": 0,
+    "remaining_ids": [],
+    "basis": "14b67f2",
+    "decided_at": "2026-10-06",
+    "reason": "G-CACHE-STAMP-BEFORE-LOCK 已由 PR#78（14b67f2）闭环（取号在持锁之后 / eager 调用消失 / 三个回归测试在且 PASS / W26 三段证据齐全）；十门在 M10=14b67f2 上全绿且同 sha 两次构建连续全绿（G-FLAKY-GATE 恢复）；素材层四条成立；G-302-RESIDUAL 系列仍清零且判据未放宽；差集矩阵「声明未接线」=0 且可派工实现缺口=0；剩余只有 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）。"
   },
   "assets": {
     "png_total": 252,
@@ -670,7 +695,7 @@
     "needs_human_decision": [],
     "audio": "0（代码只用原版 Sound.*，不是缺口）"
   },
-  "basis": "f014b447",
+  "basis": "14b67f2",
   "_ledger": {
     "single_source_of_truth": "state/world-state.json",
     "deprecated": "plan/world-state.json（本任务已删除；禁止再建）",

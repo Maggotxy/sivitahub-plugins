@@ -1,0 +1,191 @@
+{
+  "task_id": "W27-A1-verdict-v12",
+  "status": "success",
+  "summary": "最终复验轮 v12：在实测 basis=14b67f2（== origin/main）上重跑全量差集矩阵，判 **done=true / remaining=0**。v11 的唯一 remaining G-CACHE-STAMP-BEFORE-LOCK 已由 PR#78（14b67f2）闭环，逐条机械复核通过（取号在持行锁之后 / eager 调用消失 / 三个回归测试 PASS / W26 三段证据齐全）。G-302-RESIDUAL 系列复跑仍清零且判据未放宽（三组负向夹具现场 RED→删除→GREEN）；素材层四条成立；十门在权威构建 cnb-lpt-1k46f0u8b 上全绿，且同 sha 两次构建连续全绿（G-FLAKY-GATE 恢复）。剩余只有 REQUIRES_HUMAN。",
+  "changed_files": [
+    "plan/gap-matrix-v12.md",
+    "plan/verdict-v12.json",
+    "plan/tasks-w27.json",
+    "state/world-state.json",
+    "doc/cnb/gap-registry.md",
+    ".cnb/agent-out/W27-A1-verdict-v12.json"
+  ],
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/79",
+  "risks": [
+    "本容器无 JDK：素材可复现性门禁（ASSET_REPRO）与 compile/test/assemble 未本地复跑，以 M10 的 CNB 构建为证据，未声称本地跑过。",
+    "「同 sha 连续两次全绿」在本轮成立（cnb-lpt-1k46f0u8b + cnb-m3o-1k46f0gvf），但该判据依赖平台负载；v11 曾在 f014b447 上先绿后红，故本结论只对 basis=14b67f2 成立。",
+    "本轮只复核「G-CACHE 闭环」所需的代码事实与 CI 证据，未重新做 39 条机制的逐条人工接线审计（沿用 v11 矩阵并复跑机械门禁）。",
+    "plan/gap-matrix-v12.md 的 basis 与 HEAD 同 sha；本任务提交后 HEAD 会前进，故十门证据的构建输入（14b67f2）与之后的分支 HEAD 存在「仅 plan/state/doc/.cnb/agent-out」差异，无构建输入。"
+  ],
+  "next_steps": [
+    "收口。剩余只能推进 REQUIRES_HUMAN：H-001 生产机写操作 / U-003 真实 Paper + 真实客户端握手 / W7-A2 四条 [R] 级 unproven。"
+  ],
+  "evidence": {
+    "basis": {
+      "git_rev_parse_HEAD": "14b67f27706861035b321c31e2b9ea1699b60a74",
+      "git_rev_parse_origin_main": "14b67f27706861035b321c31e2b9ea1699b60a74",
+      "equal": true,
+      "note": "两者相等 ⇒ basis 自身就是 M10，十门证据的构建输入与判定 basis 同集合。"
+    },
+    "condition_1_no_dispatchable_gap": {
+      "old_eager_call_points_gone": {
+        "command": "grep -rn 'nextCommitVersion()' plugins/rpg-core/src/main/java/",
+        "output": "JdbcAscensionService.java:277 / JdbcAdminIncidentCompensationService.java:715 / JdbcDungeonRewardService.java:311 / Committed.java:7 / JdbcAdminTestService.java:291 / JdbcProfileService.java:503 / JdbcProfileService.java:518（全部 javadoc）+ JdbcProfileService.java:527（定义）",
+        "verdict": "无 eager 调用；v11 的 JdbcProfileService:796 `version = nextCommitVersion();` 已不存在"
+      },
+      "mark_locked_idempotent": {
+        "file": "plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/LockedTransaction.java",
+        "lines": "54-55",
+        "code": "private void markLocked() { if (version == 0L) version = nextVersion.getAsLong(); }",
+        "verdict": "惰性一次取号"
+      },
+      "publish_points": {
+        "JdbcProfileService": "wrap :841（FOR UPDATE :627 → markLocked :633；loadSnapshot FOR UPDATE :484/486 → markLocked :492）",
+        "JdbcAscensionService": "wrap :284；loadForUpdate :81",
+        "JdbcDungeonRewardService": "wrap :318；loadForUpdate :116",
+        "JdbcAdminIncidentCompensationService": "wrap :723；loadForUpdate :127",
+        "JdbcAdminTestService": "wrap :297；loadForUpdate :53/:73/:103、loadSnapshot :120/:124；status 纯读 :56 传 NO_STAMP"
+      },
+      "regression_tests": {
+        "grep": "grep -n 'readCacheIsNotRolledBackByALateCommit|lateCommitStampCannotRollBackTheReadCache|commitVersionMustBeTakenAfterTheRowLockIsHeld' plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java",
+        "hits": [
+          "1035:readCacheIsNotRolledBackByALateCommit()",
+          "1088:lateCommitStampCannotRollBackTheReadCache()",
+          "1151:commitVersionMustBeTakenAfterTheRowLockIsHeld()"
+        ],
+        "new_fixture": "延迟第 18 次含 FOR UPDATE 的 executeQuery 执行之前（JdbcServicesTest.java:1161-1170）",
+        "assertions_intact": "assertEquals(20, fromDb, \"数据库里 20 次授予必须全部落账\")；assertEquals(fromDb, …experience())；20 路并发 grantExperience + allOf().join()"
+      }
+    },
+    "condition_2_gates": {
+      "sn": "cnb-lpt-1k46f0u8b",
+      "event": "api_trigger_gate",
+      "targetRef": "main",
+      "sha": "14b67f27706861035b321c31e2b9ea1699b60a74",
+      "status": "success",
+      "stages_all_success": 13,
+      "criterion_lines": {
+        "DOWNLOADER": "[00:00:22] DOWNLOADER=ready",
+        "GATE_SELFTEST": "[00:09:45] ===== 门禁自测汇总：PASS=132 FAIL=0 ===== / GATE_SELFTEST=GREEN",
+        "DDL_CONSUMER_GATE": "[00:11:32] DDL_CONSUMER_GATE=GREEN",
+        "DDL_REGISTRATION_GATE": "[00:11:32] DDL_REGISTRATION_GATE=GREEN",
+        "CMD_REFERENCE_GATE": "[00:11:31] CMD_REFERENCE_GATE=GREEN",
+        "RESOURCE_PACK_GATE": "[00:11:32] RESOURCE_PACK_GATE=GREEN",
+        "ASSET_BASELINE_GATE": "[00:11:32] ASSET_BASELINE_GATE=GREEN / UNREGISTERED=0 MISSING=0 MODIFIED=0",
+        "ASSET_REPRO_GATE": "[00:11:34] ASSET_REPRO_GATE=GREEN / REPRODUCIBLE=70 MISMATCH=0",
+        "COMPILE_GATE": "[00:13:58] TASKS_DONE=28 / BUILD_EXIT=0 SECONDS=108 / COMPILE_GATE=GREEN",
+        "TEST_GATE": "[00:14:55] TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=57 / TEST_GATE=GREEN",
+        "SUMMARY_GATE": "[00:14:55] SUM tests=1105 failed=0 errors=0 skipped=2 modules=26 / NO_XML modules=0 期望模块数=26 / SUMMARY_GATE=GREEN",
+        "PACKAGE_GATE": "[00:15:02] JAR_COUNT=56 / PACKAGE_GATE=GREEN",
+        "SINGLE_SOURCE_OF_TRUTH_GATE": "[00:09:45] SINGLE_SOURCE_OF_TRUTH_GATE=GREEN / WORLD_STATE_FILES=1",
+        "VERDICT_MATRIX_CONSISTENCY_GATE": "[00:09:45] VERDICT_MATRIX_CONSISTENCY_GATE=GREEN"
+      },
+      "same_sha_second_build": {
+        "sn": "cnb-m3o-1k46f0gvf",
+        "event": "push",
+        "targetRef": "main",
+        "status": "success",
+        "stages_all_success": 13,
+        "criterion_lines_sample": "[00:09:52] GATE_SELFTEST=GREEN / PASS=132 FAIL=0 ; [00:14:59] SUM tests=1105 failed=0 errors=0 skipped=2 modules=26 ; [00:15:07] JAR_COUNT=56 / PACKAGE_GATE=GREEN ; [00:14:00] BUILD_EXIT=0 SECONDS=122 / COMPILE_GATE=GREEN",
+        "verdict": "同 sha 连续两次全绿 ⇒ G-FLAKY-GATE 恢复"
+      },
+      "branch_contains_no_build_inputs": {
+        "command": "git diff --name-only 14b67f27706861035b321c31e2b9ea1699b60a74 HEAD",
+        "output": "（空）",
+        "verdict": "本分支提交后只含 plan/** state/** doc/cnb/** .cnb/agent-out/**"
+      }
+    },
+    "condition_3_asset_layer": {
+      "zero_consumer": {
+        "command": "for f in scripts/*.sh scripts/*.py; do grep -rIn --exclude-dir=.git \"$(basename $f)\" .cnb.yml scripts/ plugins/ | grep -v \"^./($f):\"; done",
+        "script_count": 21,
+        "all_have_callsite": true
+      },
+      "asset_baseline": {
+        "command": "python3 scripts/check-asset-baseline.py",
+        "exit_code": 0,
+        "output": "ASSET_BASELINE: 校验 252 张 PNG（清单 252 条） / UNREGISTERED=0 MISSING=0 MODIFIED=0 / ASSET_BASELINE_GATE=GREEN"
+      },
+      "provenance": {
+        "manifest_len": 252,
+        "prov_assets_len": 252,
+        "manifest_only": 0,
+        "prov_only": 0,
+        "same_set": true,
+        "counts": {
+          "ai-prompt": 10,
+          "derived-from": 69,
+          "generator": 129,
+          "human-override": 1,
+          "upstream-betterhud": 38,
+          "upstream-vanilla": 5
+        },
+        "counts_sum": 252,
+        "needsHumanDecision": []
+      },
+      "items": {
+        "definitions": 81,
+        "runtime_item_models": 81,
+        "diff": "IDENTICAL",
+        "checks_exit_codes": {
+          "closure": 0,
+          "compass": 0,
+          "hud": 0,
+          "journey": 0,
+          "lang": 0,
+          "packmeta": 0,
+          "textures": 0
+        }
+      },
+      "asset_repro_local": "未本地复跑（本容器无 JDK）；以 M10 stage-5 ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) 为证据"
+    },
+    "condition_4_only_requires_human": {
+      "needs_human": [
+        "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机跑 scripts/maintain-world-coverage.sh（生产机写操作，L-006）。",
+        "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
+        "W7-A2 遗留的 4 条 [R] 级 unproven（G-207 / G-205 / G-209 / G-208）。"
+      ],
+      "note": "实现路线的选择不属 REQUIRES_HUMAN（用户已授权 AI 决定）；本轮所选路线见 §7 与 gap-matrix-v12 §7。"
+    },
+    "g302_residual_series": {
+      "gate_line_command": "sh scripts/check-source-string-tests.sh > /tmp/sst.txt 2>&1; echo \"EXIT=$?\"",
+      "gate_line_exit": 0,
+      "gate_line_output": "SOURCE_STRING_TESTS=0 / SOURCE_STRING_GATE=GREEN 本仓生产源码已无源码字符串断言（豁免口径见脚本头部注释）",
+      "samples_reviewed": 4,
+      "sample_ids": [
+        "DungeonTimeoutLifecycleContractTest",
+        "EquipmentExitPathReachabilityTest",
+        "SeasonAttunementSettlementWiringTest",
+        "DungeonEntryCommitAmbiguityContractTest"
+      ],
+      "fixtures_negative": [
+        {
+          "id": "Fixture5WrappedAssertTest",
+          "file_line": "plugins/rpg-core/src/test/java/_gatefixture/Fixture5WrappedAssertTest.java:11",
+          "shape": "assertTrue(Files.readString(Path.of(\"plugins/.../LockedTransaction.java\")).contains(\"markLocked\"))",
+          "result": "EXIT=1 RED"
+        },
+        {
+          "id": "Fixture6ConstPathTest",
+          "file_line": "plugins/rpg-core/src/test/java/_gatefixture/Fixture6ConstPathTest.java:13",
+          "shape": "Files.readString(Path.of(PRODUCTION常量)) + contains",
+          "result": "EXIT=1 RED"
+        },
+        {
+          "id": "Fixture7TraversalTest",
+          "file_line": "plugins/rpg-core/src/test/java/_gatefixture/Fixture7TraversalTest.java:16",
+          "shape": "Files.walk(root.resolve(\"plugins/rpg-core/src/main\")) + readString(f).contains(id) 聚合成列表 anyMatch",
+          "result": "EXIT=1 RED"
+        }
+      ],
+      "fixture_red_line": "SOURCE_STRING_TESTS=3 / SOURCE_STRING_GATE=RED / code=1",
+      "after_delete": "rm -rf plugins/rpg-core/src/test/java/_gatefixture → EXIT=0 / SOURCE_STRING_TESTS=0 / GREEN；git status --porcelain 为空",
+      "counter_example_not_flagged": "LanguageBundleContractTest（:465 Files.newInputStream + :466 SnakeYAML 真解析）未被判红",
+      "specs_not_shrunk": "SOURCE_CONTRACT_CHECKS=469 SPECS=79 SOURCE_CONTRACT_SPEC_FILES=3（v8 基线 466/78/2）"
+    },
+    "verdict_matrix_consistency_selfcheck": {
+      "method": "从 scripts/selftest-gates.sh 抽出 vmc_gate 函数，对真实仓库跑同一口径",
+      "output": "VERDICT_MATRIX_CONSISTENCY_GATE=GREEN / N=12 done=true remaining=0 basis=14b67f2"
+    }
+  }
+}
