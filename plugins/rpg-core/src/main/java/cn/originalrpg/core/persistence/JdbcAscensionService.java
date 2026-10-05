@@ -274,18 +274,18 @@ public final class JdbcAscensionService implements AscensionService {
 
     /**
      * @param versionStamp 出参：提交成功后回填「**持锁时（commit 之前）**」取得的提交版本号
-     *                     （{@link JdbcProfileService#nextCommitVersion()}）。取号必须在 commit
-     *                     之前 —— commit 一返回行锁就释放，之后再取号会与提交顺序倒置
-     *                     （先提交的事务拿到更大的号）。调用方在 {@code thenApply} 里用它发布读缓存。
+     *                     （{@link JdbcProfileService#nextCommitVersion()}）。取号由
+     *                     {@link LockedTransaction} 在 {@code SELECT ... FOR UPDATE} 之后完成
+     *                     （见 {@link JdbcProfileService#loadForUpdate}），因此取号顺序 ==
+     *                     加锁顺序 == 提交顺序。调用方在 {@code thenApply} 里用它发布读缓存。
      */
     private <T> T inTransaction(SqlOperation<T> operation, long[] versionStamp) {
-        try (Connection connection = dataSource.getConnection()) {
-            long version;
+        try (Connection raw = dataSource.getConnection()) {
+            Connection connection = LockedTransaction.wrap(raw, profiles::nextCommitVersion);
             try {
-                version = profiles.nextCommitVersion();
                 T result = operation.apply(connection);
                 connection.commit();
-                versionStamp[0] = version;
+                versionStamp[0] = LockedTransaction.versionOf(connection);
                 return result;
             } catch (Exception exception) {
                 connection.rollback();
