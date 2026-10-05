@@ -330,3 +330,45 @@
 
 **本轮唯一未闭合项 = 0**。**REQUIRES_HUMAN 三项**：H-001（生产机写操作）/ U-003（真实 Paper + 真实客户端握手）/
 W7-A2 四条 `[R]` 级 unproven。
+
+### I.8 W31 最终复验（v15）—— 矩阵 basis 对齐 main HEAD + 四组独立重跑
+
+> context：`plan/gap-matrix-v15.md` + `plan/verdict-v15.json`，basis=**实测** `c241979`（= `HEAD` = `origin/main`，两者相等）。
+> 结论：**done=true / remaining=0**。
+> 与 v14 的差别：v14 的 basis=`7c23a35a`；本轮 basis 前移到分叉时的 main HEAD `c241979`，
+> 且 **M14 的 sha 就是本轮 basis 本身** ⇒ 十门证据的构建输入与判定 basis 同集合。
+
+| id | v15 判定 | 证据（命令 / sn / 文件:行号） |
+|---|---|---|
+| **矩阵 basis 字面 == main HEAD**（本轮首要目的） | ✅ **达成** | `git rev-parse HEAD` == `git rev-parse origin/main` == `c2419799d93c751c5c5e486db6cb12dbe5f721dc`（`EQUAL=true`）；`plan/gap-matrix-v15.md:3` `> verdict: done=true remaining=0` + `:4` `> basis: c241979`，与 `plan/verdict-v15.json` 逐字一致；`vmc_gate()` **原函数**自查 → `GREEN` / `N=15 done=true remaining=0 basis=c241979` |
+| **素材层四条**（本轮 basis 上亲自重跑） | ✅ **成立** | (a) 23/23 脚本有真实调用点（含 `check-mechanics-spec.sh` → `scripts/selftest-gates.sh:1711/:1717/:1811`、`gen-mechanics-spec-report.py` → `:1941/:1972`）；(b) `python3 scripts/check-asset-baseline.py` → `EXIT=0` / 252↔252 / `UNREGISTERED=0 MISSING=0 MODIFIED=0` / `ASSET_BASELINE_GATE=GREEN`（⚠️ `sh <该py>` 会语法错，按 stage-4 真实调用方式用 python3）；(c) 归一 `assets/` 前缀后 `same_set=True`（`manifest-only=0`/`prov-only=0`）、`$needsHumanDecision=[]`、六类合计 252 且与逐条重算一致；(d) items 81 == runtime 去注释键 81（键集合相等），`--check {closure,compass,hud,journey,lang,packmeta,textures}` 七项全 `exit=0` |
+| **`G-302-RESIDUAL` 系列**（含 -2/-3/-4） | ✅ **仍清零（判据未放宽）** | `SOURCE_STRING_GATE=GREEN` / `SOURCE_STRING_TESTS=0` / `EXIT=0`（重定向取码）；4 类方法体抽样（`DungeonTimeoutLifecycleContractTest` 全类只命中 `:19` 注释 / `EquipmentExitPathReachabilityTest:330-344` 读规格 JSON + 进程 stdout / `SeasonAttunementSettlementWiringTest:224/:242-258/:299` 真解析 + stdout / `DungeonEntryCommitAmbiguityContractTest:62-77` stdout）；三组负夹具⑤⑥⑦现场造（`:8` / `:14` / `:19`）各自 `EXIT=1`、合并 `SOURCE_STRING_TESTS=3` / `GATE=RED`，删除后 `EXIT=0` GREEN，收尾 `git status --porcelain` 为空；反例 `LanguageBundleContractTest` 未被判红；规格 `CHECKS=469 SPECS=79 SPEC_FILES=3` ≥ v8 的 `466/78/2` |
+| **机制规格绑定层** | ✅ **闭环（本轮独立负向对照）** | `MECHANICS_SPEC_GATE=GREEN` / `ENTRIES=137`（与 M14 一致）/ `WEAK=0`；`gen-mechanics-spec-report.py --check` → `MECHANICS_SPEC_REPORT=FRESH`；`grep -nE '^\s*(import\|from)\s+yaml'` **零命中**；**我的独立负向对照**：把 `M-CORE-003` 的 config 载体 `expect` 从 `[2,3,4,5]` 改成 `[2,3,4,9]` ⇒ `EXIT=1` / `GATE=RED` / `[FAIL] M-CORE-003`；还原 ⇒ `EXIT=0` GREEN |
+| **`G-CACHE-STAMP-BEFORE-LOCK`** | ✅ **仍闭环** | eager `nextCommitVersion()` 调用**为零**（只剩定义 `JdbcProfileService.java:527` + 7 处 javadoc）；`LockedTransaction.wrap:40-46` 只包装不取号；`markLocked:54-55` 惰性一次取号；5/5 发布点 `LockedTransaction.wrap`（`:841`/`:284`/`:318`/`:723`/`:297`）；3 个回归测试在（`JdbcServicesTest.java:1035/:1088/:1151`）且断言未放宽 |
+| **`G-DUP-WORLDSTATE`** | ✅ 闭环（复核） | `plan/world-state.json` 不存在；`git ls-files \| grep world-state` 只有 `state/world-state.json`（count=1）；CI stage-1 `SINGLE_SOURCE_OF_TRUTH_GATE=GREEN` |
+| **`G-VERDICT-MATRIX-SPLIT`** | ✅ 闭环（**本轮自身即判据对象**） | `plan/gap-matrix-v15.md` 前 20 行内 `> verdict: done=true remaining=0` + `> basis: c241979`，与 `plan/verdict-v15.json` 逐字一致；`vmc_gate()` 原函数自查 GREEN |
+| **`G-FLAKY-GATE`** | ⚠️ **本轮单点采样（无 RED，不断言两点全绿）** | `c241979` 上权威构建 `cnb-jpu-1k46t3ft2`（`api_trigger_gate`, main）`success`，`pipelineSuccessCount=1 / pipelineFailCount=0`；test stage success / `SUMMARY_GATE=GREEN`。本轮**无任何 RED 观测** ⇒ 未复发也未被证伪；**不**沿用在 `7c23a35a` 上的两点采样。记入 `plan/verdict-v15.json` 的 `risks`，**不**列入 `needs_human` |
+
+#### I.8.1 十门在 M14 上全绿（回读核对）
+
+`sn=cnb-jpu-1k46t3ft2`（`event=api_trigger_gate`，`targetRef=main`，`sourceRef=main`，
+`sha=c2419799d93c751c5c5e486db6cb12dbe5f721dc`，`status=success`，
+`pipelineSuccessCount=1 / pipelineFailCount=0`，13 stage `success` + `DebugDetection` `skipped`，
+每个 success stage 的 duration 均非零）：
+
+`DOWNLOADER=ready` / `GATE_SELFTEST=GREEN(PASS=167 FAIL=0)` /
+`DDL_CONSUMER_GATE=GREEN` / `DDL_REGISTRATION_GATE=GREEN` / `CMD_REFERENCE_GATE=GREEN` /
+`RESOURCE_PACK_GATE=GREEN` / `ASSET_BASELINE_GATE=GREEN` / `ASSET_REPRO_GATE=GREEN` /
+`COMPILE_GATE=GREEN(BUILD_EXIT=0 SECONDS=123)` / `TEST_GATE=GREEN` /
+`SUMMARY_GATE=GREEN(SUM tests=1105 failed=0 errors=0 skipped=2 modules=26)` /
+`PACKAGE_GATE=GREEN(JAR_COUNT=56)` / `SINGLE_SOURCE_OF_TRUTH_GATE=GREEN` /
+`VERDICT_MATRIX_CONSISTENCY_GATE=GREEN`（stage-1 打印 `N=14 done=true remaining=0 basis=7c23a35a`，
+即 M14 构建时仓库最新矩阵仍为 v14；本轮 v15 一致性按矩阵 §10 自查 GREEN） /
+**`MECHANICS_SPEC_GATE=GREEN(ENTRIES=137 / BY_KIND=config:78,behavior:56,java-const:3 / WEAK=0)`** /
+**`MECHANICS_SPEC_REPORT=FRESH`**。
+
+**本分支自身不含构建输入**：`git diff --name-only <M14> HEAD` 只含
+`plan/**`、`state/**`、`doc/cnb/**`、`.cnb/agent-out/**`。
+
+**本轮唯一未闭合项 = 0**。**REQUIRES_HUMAN 三项**：H-001（生产机写操作）/ U-003（真实 Paper + 真实客户端握手）/
+W7-A2 四条 `[R]` 级 unproven。
