@@ -10,7 +10,7 @@
   "doc/cnb/gap-registry.md",
   ".cnb/agent-out/W25-A1-verdict-v11.json"
  ],
- "pr_url": "",
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/76",
  "risks": [
   "本容器无 JDK（command -v java/javac 无输出），**未本地复跑 gradle**（任务亦声明不需要）；G-CACHE-STAMP-BEFORE-LOCK 的『窗口仍可达』结论由『代码结构 + 同 sha 的 CI RED 构建』双重证据支撑，不是本地复现。",
   "cnb-ok2-1k46acmji 是 push 事件构建（非 api_trigger_gate），与权威构建的事件类型不同；但两者同 sha、同 test stage 配置、同 env 排除口径、同测试总数，且失败用例是确定性回归测试（不是 @Tag(env)），因此把它当作『同一判据在同 sha 上不稳定』的证据是站得住的。若评审只认 api_trigger_gate，则『同 sha 一次 GREEN』成立，但『窗口已关闭』仍被代码结构证伪。",
