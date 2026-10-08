@@ -372,3 +372,71 @@ W7-A2 四条 `[R]` 级 unproven。
 
 **本轮唯一未闭合项 = 0**。**REQUIRES_HUMAN 三项**：H-001（生产机写操作）/ U-003（真实 Paper + 真实客户端握手）/
 W7-A2 四条 `[R]` 级 unproven。
+
+### I.9 W34 最终复验（v16）—— 两条已闭环缺陷的登记（各附机械证据）+ W33 未交付
+
+> context：`plan/gap-matrix-v16.md` + `plan/verdict-v16.json`，basis=**实测** `0237548`（= `HEAD` = `origin/main`，两者相等）。
+> 结论：**done=false / remaining=1 = `W33-RUNTIME-SMOKE`**（可派工的实现缺口，见下 §I.9.3）。
+> 与 v15 的差别：v15 的 basis=`c241979`；本轮 basis 前移到分叉时的 main HEAD `0237548`，
+> 且 **M18 的 sha 就是本轮 basis 本身** ⇒ 十门证据的构建输入与判定 basis 同集合。
+> 本轮 main 上有**新的构建输入改动**（PR#84 + `0237548`）⇒ `tests` 1105→1106、`PASS` 167→181、
+> env 测试 8→7，v15 的判据行**不可沿用**。
+
+| id | 缺陷 | 机械证据（命令 / sn / 文件:行号） | 状态 |
+|---|---|---|---|
+| **`G-ENV-TAG-OVERBROAD`** | **env 标签过宽**：`plugins/rpg-guide/.../HelpTopicTest.java` 的 `everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack()` 唯一依赖 `resource-pack/runtime-item-models.txt` —— 该文件**在本仓**（W12–W14 已入库），却被打了 `@Tag(env)` 被门禁 `-PexcludeTags=env` 排除 ⇒ **从来没跑过**，且没有任何机制会说「这个标签打错了」。过宽的豁免 = 本该生效的检查**静默失效**。 | **修前 vs 修后**：`sh scripts/list-env-tests.sh \| wc -l` → 8 ⇒ **7**；CI `plugins/rpg-guide tests=57`（56→57，M18 stage-7 回读）；全量 `SUM tests=1105` ⇒ **1106**。**防复发判据**（PR#84 / W32-A2）：新增 `scripts/check-env-tag-justified.sh` —— 每个 `@Tag(env)` 方法必须**至少有一个它引用的路径在本仓不存在**，否则 RED；抽不到路径字面量计 `UNJUSTIFIED_UNKNOWN` 并判 RED（「抽不到就放过」正是最危险的失效形态）。判据行 `ENV_TAG_JUSTIFIED_GATE` / `ENV_TAG_METHODS` / `ENV_TAG_UNJUSTIFIED`。**M18 stage-1 回读**：`[OK  ] 真实仓库 ENV_TAG_JUSTIFIED_GATE=GREEN / ENV_TAG_METHODS=7 / ENV_TAG_UNJUSTIFIED=0`；`[OK  ] 负夹具（把 A1 去掉的标签加回去）→ 1 (exit=1)`；`[OK  ] RED 输出点名 HelpTopicTest#everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack`；`[OK  ] 夹具恢复（标签去掉）→ 0`；`selftest-gates.sh` 覆盖本脚本（5 处）且 `.cnb.yml` 执行 `sh scripts/selftest-gates.sh`（§12d 接线自证）。**我 v16 独立负向对照**（不采信 NPC）：在 `/tmp/envtagfix16` 整树副本上先跑基线（7 方法 GREEN），加回该标签 ⇒ `ENV_TAG_METHODS=8` / `ENV_TAG_UNJUSTIFIED=1` / `GATE=RED` 并点名该方法（`全部引用路径都在本仓: resource-pack/runtime-item-models.txt`）；还原 ⇒ `GREEN`。 | **DONE** PR#84（`76ac736` + `c371bf7` + `eeac9e4`） |
+| **`G-GATE-FIXTURE-NEEDS-GIT`** | **§12c 夹具依赖 `git` 而门禁镜像无 `git`**：新增的 §12c 夹具用了 `git archive HEAD` / `git status --porcelain`，而真实门禁镜像（`eclipse-temurin:25-jdk` + apt `curl`/`coreutils`/`python3`）**没有 git** ⇒ `git: not found` → `tarfile.ReadError: empty file` ⇒ **M17 上门禁 error、main 变红**。这是「NPC 容器 GREEN ≠ 门禁容器 GREEN」的第二次实测复现（第一次是 PyYAML，见 §I.6）。 | **修法（commit `0237548`，调度器修）**：① 整树副本改用 python `shutil.copytree`（跳过 `.git`）—— 不再依赖 git；② 残留判据改用 `plugins/` 的 **sha256 清单前后比对**；③ 新增 **§12f 回归判据**：`scripts/**` 不得对「git」发起调用（注释除外）。**M18 stage-1 回读**：`[OK  ] 判据 12f：scripts/ 层没有对「git」的调用（门禁镜像无 git） (exit=0)`；`[OK  ] env 标签判据的夹具未在真实仓库留下残留（plugins/ 的 sha256 清单前后一致）`；`===== 门禁自测汇总：PASS=181 FAIL=0 =====` / `GATE_SELFTEST=GREEN`。⇒ 门禁在载体不再依赖 git 的前提下恢复全绿，且回归判据锁住复发。 | **DONE** `0237548`（M18 十门全绿即闭环证据） |
+
+#### I.9.1 v16 独立重跑的五组证据（不采信调度器结论）
+
+| 组 | 判据行（实测原文） |
+|---|---|
+| 素材层四条 | (a) 24/24 scripts 有真实调用点（新增 `check-env-tag-justified.sh` → `selftest-gates.sh:2027/:2038/:2097/:2135`）；(b) `python3 scripts/check-asset-baseline.py` → `EXIT=0` / 252↔252 / `UNREGISTERED=0 MISSING=0 MODIFIED=0`；(c) provenance 与 manifest 归一 `assets/` 前缀后 `same_set=True`（`manifest-only=0`/`prov-only=0`）、`$needsHumanDecision=[]`、六类合计 252（match=True）；(d) items 81 == runtime 去注释键 81 且键集合相等，七项 `--check` 全 `exit=0` |
+| G-302 系列 | `SOURCE_STRING_TESTS=0` / `SOURCE_STRING_GATE=GREEN` / `EXIT=0`（重定向取码）；4 类方法体抽样；三组负夹具 `EXIT=1` / `SOURCE_STRING_TESTS=3` / `GATE=RED` → 删除 → `GREEN`；反例 `LanguageBundleContractTest` 未被判红；`CHECKS=469 SPECS=79 SPEC_FILES=3` ≥ 466/78/2 |
+| 机制规格绑定层 | `MECHANICS_SPEC_GATE=GREEN` / `ENTRIES=137` / `WEAK=0`；`MECHANICS_SPEC_REPORT=FRESH`；`grep import yaml` 零命中；**我的独立负向对照**：`M-CORE-003` 的 config `expect` `[2,3,4,5]`→`[2,3,4,9]` ⇒ `EXIT=1` / `GATE=RED` / 点名 `M-CORE-003`；还原 ⇒ `GREEN` |
+| `G-CACHE-STAMP-BEFORE-LOCK` | `LockedTransaction.java` 存在；`wrap(:40-46)` 只包装不取号；`markLocked(:54-55)` `if (version == 0L)` 惰性一次取号；5/5 发布点 `LockedTransaction.wrap`；触发点在 `FOR UPDATE` 之后（`JdbcProfileService:484→:492`、`:667→:633`、`:648→:649`）；eager `nextCommitVersion()` 调用**为零**；3 个回归测试在（`JdbcServicesTest.java:1035/:1088/:1151`）且断言未放宽 |
+| env 标签正当性层（本轮新增） | `ENV_TAG_JUSTIFIED_GATE=GREEN` / `ENV_TAG_METHODS=7` / `ENV_TAG_UNJUSTIFIED=0`；`list-env-tests.sh` 恰好 7 条；**我的独立负向对照**：加回 W32-A1 去掉的标签 ⇒ `RED` 且点名；还原 ⇒ `GREEN` |
+
+#### I.9.2 十门在 M18 上全绿（回读核对）
+
+`sn=cnb-8rl-1k4db6u49`（`event=api_trigger_gate`，`targetRef=main`，`sha=0237548269545974520f073a3ff254a9885004de`，
+`status=success`，`pipelineSuccessCount=1 / pipelineFailCount=0`，13 stage `success` + `DebugDetection` `skipped`，
+每个 success stage 的 duration 均非零）：
+
+`DOWNLOADER=ready` / `GATE_SELFTEST=GREEN(PASS=181 FAIL=0)` / `DDL_CONSUMER_GATE=GREEN(81 表, 豁免 0)` /
+`DDL_REGISTRATION_GATE=GREEN(扫描 551 文件, 反向豁免 0)` / `CMD_REFERENCE_GATE=GREEN(43 指令, 豁免 9)` /
+`RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0)` / `ASSET_BASELINE_GATE=GREEN(252↔252)` /
+`ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0)` / `COMPILE_GATE=GREEN(BUILD_EXIT=0)` /
+`TEST_GATE=GREEN(TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=67)` /
+`SUMMARY_GATE=GREEN(SUM tests=1106 failed=0 errors=0 skipped=2 modules=26, NO_XML modules=0 期望 26)` /
+`PACKAGE_GATE=GREEN(JAR_COUNT=56, JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0)` /
+`SINGLE_SOURCE_OF_TRUTH_GATE=GREEN(WORLD_STATE_FILES=1)` / `VERDICT_MATRIX_CONSISTENCY_GATE=GREEN` /
+**`MECHANICS_SPEC_GATE=GREEN(ENTRIES=137 / BY_KIND=config:78,behavior:56,java-const:3 / WEAK=0)`** /
+**`MECHANICS_SPEC_REPORT=FRESH`** / **`ENV_TAG_JUSTIFIED_GATE=GREEN(ENV_TAG_METHODS=7 / ENV_TAG_UNJUSTIFIED=0)`**。
+
+同 sha `0237548` 上另一个 main 构建 `cnb-l5u-1k4db6aug`（`push`）亦 `success` ⇒
+`G-FLAKY-GATE` 本轮 **RED=0**（v11 的「同 sha 先绿后红」形态未复现）。
+
+#### I.9.3 未交付：`W33-RUNTIME-SMOKE`（**可派工**实现缺口，不属 REQUIRES_HUMAN）
+
+调度器尝试为「真实 Paper 运行时冒烟」建立 harness（W33），**未交付**，机械证据：
+
+```
+$ git log --oneline origin/main..origin/agent/W33-A1-runtime-smoke
+(空 —— 零提交)
+$ git diff --name-only origin/main origin/agent/W33-A1-runtime-smoke
+(空 —— 无差异)
+$ git log -1 --format='%H' origin/agent/W33-A1-runtime-smoke
+0237548269545974520f073a3ff254a9885004de       # == main HEAD，分支指针未动
+$ cnb pulls list-pulls --repo xzqkjmnbvc2026/sivitahub --state open
+total: 0                                        # 无任何 open PR
+$ grep -rln 'W33' plan/ .cnb/agent-out/ doc/cnb/ state/
+(空 —— 无任何产出文件登记)
+```
+
+已知失败模式：**构建超过 60 分钟超时**。
+
+判定：这**构成一个可派工的实现缺口**（不需要人类操作 —— 只需在 CNB 上做出能真实启动 Paper /
+采集运行时证据的 harness，并把耗时收敛到 CI 预算内）⇒ `verdict-v16` 判 `done=false` / `remaining=1`，
+派单见 `plan/tasks-w34.json`（`W34-A2-runtime-smoke`）。**不**把它当成已完成的证据，
+也**不**把它塞进 `needs_human`（`needs_human` 只许列 H-001 / U-003 / W7-A2 的 4 条）。
