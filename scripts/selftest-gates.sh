@@ -2054,11 +2054,22 @@ fi
 # 整树副本工具：夹具要包含 resource-pack/ 等被引用的路径，否则判据问不到真东西
 envtag_tree() {
   # envtag_tree <目标目录>
-  mkdir -p "$1"
-  git -C "$ROOT" archive HEAD | (
-    cd "$1" && python3 -c "import sys, tarfile; tarfile.open(fileobj=sys.stdin.buffer, mode='r|').extractall('.')"
-  )
+  # ⚠️ 门禁镜像（eclipse-temurin:25-jdk + apt curl/coreutils/python3）**没有 git**。
+  # 实测（sn=cnb-aq4-1k4da30vh）：这里原来用 `git -C "$ROOT" archive HEAD` 取副本，
+  # 在门禁里报 `git: not found` ⇒ 管道下游收到空流 ⇒ `tarfile.ReadError: empty file`
+  # ⇒ 整个「门禁自测」stage 假红（NPC 容器有 git，所以本地跑不出来）。改用 python 复制工作树。
+  rm -rf "$1"
+  python3 -c "
+import shutil, sys
+shutil.copytree(sys.argv[1], sys.argv[2], ignore=shutil.ignore_patterns('.git'))
+" "$ROOT" "$1"
 }
+
+# 残留判据用「plugins/ 的 sha256 清单」而不是 `git status`（门禁镜像没有 git，见上）。
+envtag_manifest() {
+  find plugins -type f -exec sha256sum {} + 2>/dev/null | sort
+}
+ENVTAG_BEFORE=$(envtag_manifest)
 
 ENVTAG_FIXTURE="$TMP/envtag-tree"
 envtag_tree "$ENVTAG_FIXTURE"
@@ -2175,16 +2186,37 @@ fi
 # 收尾断言：全程只动 $TMP，真实仓库里的被测载体不得有残留。
 # 只看 plugins/ —— 本脚本自身与新增的门禁脚本本来就处于「已改动」状态（工作区常态），
 # 把它们算进来会让这条断言恒红，从而被无视。
+# ⚠️ 门禁镜像没有 git，所以这里**不能**用 `git status --porcelain`（原实现如此，实测假红）；
+# 改用 plugins/ 的 sha256 清单前后比对：只要有一个字节变了就报红。
 cd "$ROOT"
 set +e
-envtag_dirty=$(git status --porcelain -- plugins)
+ENVTAG_AFTER=$(envtag_manifest)
 set -e
-if [ -z "$envtag_dirty" ]; then
-  echo "  [OK  ] env 标签判据的夹具未在真实仓库留下残留（plugins/ 干净）"
+if [ "$ENVTAG_BEFORE" = "$ENVTAG_AFTER" ]; then
+  echo "  [OK  ] env 标签判据的夹具未在真实仓库留下残留（plugins/ 的 sha256 清单前后一致）"
   PASS=$((PASS + 1))
 else
-  echo "  [FAIL] 夹具污染了真实仓库：" >&2
-  printf '%s\n' "$envtag_dirty" | sed 's/^/    /' >&2
+  echo "  [FAIL] 夹具污染了真实仓库（plugins/ 的 sha256 清单发生变化）：" >&2
+  printf '%s\n' "$ENVTAG_BEFORE" > "$TMP/envtag-manifest-before.txt"
+  printf '%s\n' "$ENVTAG_AFTER" > "$TMP/envtag-manifest-after.txt"
+  diff "$TMP/envtag-manifest-before.txt" "$TMP/envtag-manifest-after.txt" | sed 's/^/    /' >&2 || true
+  FAIL=$((FAIL + 1))
+fi
+
+# 12f. 回归判据：门禁镜像没有 git ⇒ scripts/ 层不得调用它。
+# 这条判据是上面那次假红的「把缺陷变成一条门」：只要有人再在脚本里用 git，这里就红。
+# 允许出现在**注释**里（# 开头的行不算）。
+set +e
+GIT_CALLS=$(grep -nE '(^|[^a-zA-Z_/])git[[:space:]]' "$ROOT"/scripts/*.sh "$ROOT"/scripts/*.py 2>/dev/null \
+  | grep -vE ':[0-9]+: *#' || true)
+set -e
+GIT_CALL_N=$(printf '%s' "$GIT_CALLS" | grep -c . || true)
+if [ "$GIT_CALL_N" -eq 0 ]; then
+  echo "  [OK  ] 判据 12f：scripts/ 层没有对「git」的调用（门禁镜像无 git） (exit=0)"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] scripts/ 层调用了 git，但门禁镜像没有 git：" >&2
+  printf '%s\n' "$GIT_CALLS" | sed 's/^/    /' >&2
   FAIL=$((FAIL + 1))
 fi
 
