@@ -7,7 +7,7 @@
   ],
   "branch": "agent/W32-A1-env-tag-overbroad",
   "base": "e5e45564fdb01c17d3716aa4760969d89f16032d",
-  "pr_url": "",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/84",
   "step1_dependency_review": {
     "verdict": "标签过宽成立：全部路径依赖都在本仓，无仓外依赖",
     "method_body_source": [
