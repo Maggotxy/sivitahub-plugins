@@ -1,9 +1,7 @@
 package cn.originalrpg.guide;
 
-import cn.originalrpg.guide.testing.DeploymentEnvironmentFixtures;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
@@ -75,8 +73,14 @@ class HelpTopicTest {
     }
 
     @Test
-    @Tag(DeploymentEnvironmentFixtures.TAG)
     void everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack() throws Exception {
+        // 本方法只读仓储内的 resource-pack/runtime-item-models.txt（自 W12–W14 起入库，
+        // 635 个文件在版本控制内），不依赖任何运维侧部署产物，因此**不带 @Tag(env)**、
+        // 在门禁口径（-PexcludeTags=env）下照常执行。
+        // 同类的另外两个资源包测试（helpModelsOnlyUseExistingSemanticResourcePackAssets /
+        // everyHelpTopicHasAnExplicitVanillaSafeFallbackIcon）也证明 resource-pack/ 与
+        // 打包进的 config.yml 在 CI 里可用。
+
         Path manifest = findFromWorkingTree("resource-pack/runtime-item-models.txt");
         Set<String> declared = Files.readAllLines(manifest).stream()
                 .map(line -> line.replaceFirst("\\s*#.*$", "").strip())

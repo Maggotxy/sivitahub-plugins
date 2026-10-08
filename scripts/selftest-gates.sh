@@ -2024,6 +2024,211 @@ fi
 
 cd "$ROOT"
 
+echo "== 12c. W32-A2 env 标签正当性门禁（scripts/check-env-tag-justified.sh）必须能真的变红 =="
+# 背景（W32-A1）：8 个 @Tag(env) 用例里 1 个的唯一依赖就在本仓 —— 它从来没跑过，
+# 而过宽的排除没有任何机制会提醒你。本段锁住三件事：
+#   ① 真实仓库必须 GREEN（ENV_TAG_METHODS=7 / ENV_TAG_UNJUSTIFIED=0）；
+#   ② 把那个标签**加回去**（临时整树副本）必须 RED 且点名该方法，去掉后回到 GREEN；
+#   ③ 方法体里抽不到任何路径字面量 ⇒ UNJUSTIFIED_UNKNOWN 且 RED（不许静默放过）。
+# 负夹具复制的是**整棵树**：判据问的是「引用的路径在本仓存在吗」，
+# 只复制 plugins/ 会让 resource-pack/ 一起消失，被检查的文件反而变成「不存在」，
+# 夹具就假绿了（W32-A2 实测踩过这个坑）。
+cd "$ROOT"
+set +e
+sh scripts/check-env-tag-justified.sh > "$TMP/envtag-green.txt" 2>&1
+envtag_green_rc=$?
+set -e
+check "真实仓库的 env 标签正当性判据 → 0" 0 "$envtag_green_rc"
+envtag_status=$(sed -n 's/^ENV_TAG_JUSTIFIED_GATE=\(.*\)$/\1/p' "$TMP/envtag-green.txt" | tail -1)
+envtag_methods=$(sed -n 's/^ENV_TAG_METHODS=\(.*\)$/\1/p' "$TMP/envtag-green.txt" | tail -1)
+envtag_unjustified=$(sed -n 's/^ENV_TAG_UNJUSTIFIED=\(.*\)$/\1/p' "$TMP/envtag-green.txt" | tail -1)
+if [ "$envtag_status" = "GREEN" ] && [ "$envtag_methods" = "7" ] && [ "$envtag_unjustified" = "0" ]; then
+  echo "  [OK  ] 真实仓库 ENV_TAG_JUSTIFIED_GATE=GREEN / ENV_TAG_METHODS=7 / ENV_TAG_UNJUSTIFIED=0"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 真实仓库判据行不符：GATE=$envtag_status METHODS=$envtag_methods UNJUSTIFIED=$envtag_unjustified" >&2
+  sed 's/^/    /' "$TMP/envtag-green.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 整树副本工具：夹具要包含 resource-pack/ 等被引用的路径，否则判据问不到真东西
+envtag_tree() {
+  # envtag_tree <目标目录>
+  mkdir -p "$1"
+  git -C "$ROOT" archive HEAD | (
+    cd "$1" && python3 -c "import sys, tarfile; tarfile.open(fileobj=sys.stdin.buffer, mode='r|').extractall('.')"
+  )
+}
+
+ENVTAG_FIXTURE="$TMP/envtag-tree"
+envtag_tree "$ENVTAG_FIXTURE"
+python3 - "$ENVTAG_FIXTURE" add <<'PYEOF'
+import os
+import sys
+
+root, action = sys.argv[1], sys.argv[2]
+path = os.path.join(root, 'plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java')
+with open(path, encoding='utf-8') as handle:
+    source = handle.read()
+anchor = '    void everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack() throws Exception {'
+assert anchor in source, '夹具锚点丢失：HelpTopicTest 里找不到目标方法'
+if action == 'add':
+    patched = source.replace(anchor, '    @Tag(DeploymentEnvironmentFixtures.TAG)\n' + anchor)
+    assert patched != source, '加回标签失败'
+else:
+    patched = source.replace(
+        '    @Tag(DeploymentEnvironmentFixtures.TAG)\n' + anchor, anchor)
+    assert patched != source, '去掉标签失败'
+with open(path, 'w', encoding='utf-8') as handle:
+    handle.write(patched)
+PYEOF
+set +e
+sh scripts/check-env-tag-justified.sh "$ENVTAG_FIXTURE" > "$TMP/envtag-red.txt" 2>&1
+envtag_red_rc=$?
+set -e
+check "负夹具（把 A1 去掉的标签加回去）→ 1" 1 "$envtag_red_rc"
+if grep -q '^ENV_TAG_JUSTIFIED_GATE=RED$' "$TMP/envtag-red.txt"; then
+  echo "  [OK  ] 过宽的 env 标签被判 RED"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 标签加回去后没有变红（判据对本缺陷恒绿）" >&2
+  sed 's/^/    /' "$TMP/envtag-red.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+# 必须**点名**到那个方法，否则「红了」等于没红（人不知道该改哪）
+if grep -q '^UNJUSTIFIED .*HelpTopicTest.java#everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack' "$TMP/envtag-red.txt"; then
+  echo "  [OK  ] RED 输出点名 HelpTopicTest#everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] RED 输出没有点名到出问题的方法" >&2
+  sed 's/^/    /' "$TMP/envtag-red.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 恢复：夹具里把标签再去掉 ⇒ 回到 GREEN（证明 RED 由该标签引起，不是别的东西）
+python3 - "$ENVTAG_FIXTURE" remove <<'PYEOF'
+import os
+import sys
+
+root, action = sys.argv[1], sys.argv[2]
+path = os.path.join(root, 'plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java')
+with open(path, encoding='utf-8') as handle:
+    source = handle.read()
+anchor = '    void everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack() throws Exception {'
+patched = source.replace('    @Tag(DeploymentEnvironmentFixtures.TAG)\n' + anchor, anchor)
+assert patched != source, '去掉标签失败'
+with open(path, 'w', encoding='utf-8') as handle:
+    handle.write(patched)
+PYEOF
+set +e
+sh scripts/check-env-tag-justified.sh "$ENVTAG_FIXTURE" > "$TMP/envtag-restored.txt" 2>&1
+envtag_restored_rc=$?
+set -e
+check "夹具恢复（标签去掉）→ 0" 0 "$envtag_restored_rc"
+if grep -q '^ENV_TAG_JUSTIFIED_GATE=GREEN$' "$TMP/envtag-restored.txt"; then
+  echo "  [OK  ] 恢复后回到 GREEN（RED 确由该标签引起）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 恢复后没有回到 GREEN" >&2
+  sed 's/^/    /' "$TMP/envtag-restored.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 告警路径：方法体里抽不到路径字面量 ⇒ UNJUSTIFIED_UNKNOWN 且 RED
+ENVTAG_UNKNOWN="$TMP/envtag-unknown"
+envtag_tree "$ENVTAG_UNKNOWN"
+python3 - "$ENVTAG_UNKNOWN" <<'PYEOF'
+import os
+import sys
+
+root = sys.argv[1]
+path = os.path.join(root, 'plugins/rpg-hub/src/test/java/cn/originalrpg/hub/WorldTravelConfigurationContractTest.java')
+with open(path, encoding='utf-8') as handle:
+    source = handle.read()
+old = '''        String maintenance = Files.readString(root.resolve(
+                "server/bin/maintain-world-coverage.sh"), java.nio.charset.StandardCharsets.UTF_8);'''
+new = '''        String maintenance = Files.readString(root.resolve(opsFile()),
+                java.nio.charset.StandardCharsets.UTF_8);'''
+assert old in source, '夹具锚点丢失：maintain-world-coverage.sh 读取点找不到'
+source = source.replace(old, new)
+source = source.replace(
+    '    private static Map<?, ?> yaml(Path path) throws IOException {',
+    '    private static String opsFile() {\n        return "maintain" + "-world-coverage.sh";\n    }\n\n'
+    '    private static Map<?, ?> yaml(Path path) throws IOException {')
+with open(path, 'w', encoding='utf-8') as handle:
+    handle.write(source)
+PYEOF
+set +e
+sh scripts/check-env-tag-justified.sh "$ENVTAG_UNKNOWN" > "$TMP/envtag-unknown.txt" 2>&1
+envtag_unknown_rc=$?
+set -e
+check "负夹具（路径字面量抽不到）→ 1" 1 "$envtag_unknown_rc"
+if grep -q '^UNJUSTIFIED_UNKNOWN .*WorldTravelConfigurationContractTest.java#controlledGenerationCoversTheCompleteBorderAndItsChunkMargin' "$TMP/envtag-unknown.txt"; then
+  echo "  [OK  ] 抽不到路径字面量被计为 UNJUSTIFIED_UNKNOWN 并判 RED"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 抽不到路径字面量被静默放过（判据失效的形态）" >&2
+  sed 's/^/    /' "$TMP/envtag-unknown.txt" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 收尾断言：全程只动 $TMP，真实仓库里的被测载体不得有残留。
+# 只看 plugins/ —— 本脚本自身与新增的门禁脚本本来就处于「已改动」状态（工作区常态），
+# 把它们算进来会让这条断言恒红，从而被无视。
+cd "$ROOT"
+set +e
+envtag_dirty=$(git status --porcelain -- plugins)
+set -e
+if [ -z "$envtag_dirty" ]; then
+  echo "  [OK  ] env 标签判据的夹具未在真实仓库留下残留（plugins/ 干净）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 夹具污染了真实仓库：" >&2
+  printf '%s\n' "$envtag_dirty" | sed 's/^/    /' >&2
+  FAIL=$((FAIL + 1))
+fi
+
+cd "$ROOT"
+
+
+echo "== 12d. W32-A2 接线自证：env 标签判据必须真的在 CI 里跑 =="
+# 「脚本写好了但没有任何 CI stage 调用它」比「脚本有 bug」更隐蔽（同 §6/§8/§9b/§10b/§12b）。
+# 本任务的白名单不含 .cnb.yml，接线方式是：本脚本调用新门禁，
+# 而 .cnb.yml 早已执行 `sh scripts/selftest-gates.sh`。
+set +e
+envtag_wired=$(grep -c -F "sh scripts/check-env-tag-justified.sh" "$ROOT/scripts/selftest-gates.sh")
+set -e
+if [ "$envtag_wired" -ge 1 ]; then
+  echo "  [OK  ] selftest-gates.sh 调用 check-env-tag-justified.sh（$envtag_wired 处）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] selftest-gates.sh 没有调用 check-env-tag-justified.sh —— 该门禁不在 CI 里" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+if [ -f "$ROOT/.cnb.yml" ] && grep -qF 'sh scripts/selftest-gates.sh' "$ROOT/.cnb.yml"; then
+  echo "  [OK  ] .cnb.yml 执行 sh scripts/selftest-gates.sh（配合上一条即接线成立）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] .cnb.yml 没有执行 selftest-gates.sh —— 新增判据进不了 CI" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+# 负向对照：拼出来的假路径必须查不到（证明上面那条判据能变红，不是恒命中）
+envtag_phantom="scripts/definitely-not-a-real""-env-tag-gate.sh"
+set +e
+envtag_phantom_hits=$(grep -c -F "$envtag_phantom" "$ROOT/scripts/selftest-gates.sh")
+set -e
+if [ "$envtag_phantom_hits" = "0" ]; then
+  echo "  [OK  ] 不存在的 env 标签门禁查不到（接线判据能变红）"
+  PASS=$((PASS + 1))
+else
+  echo "  [FAIL] 不存在的 env 标签门禁竟被查到 $envtag_phantom_hits 次 —— 接线判据恒绿" >&2
+  FAIL=$((FAIL + 1))
+fi
+
+cd "$ROOT"
+
 echo "===== 门禁自测汇总：PASS=$PASS FAIL=$FAIL ====="
 if [ "$FAIL" -ne 0 ]; then
   echo "GATE_SELFTEST=RED"

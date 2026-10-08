@@ -1,0 +1,133 @@
+{
+  "task_id": "W32-A1-env-tag-overbroad",
+  "status": "success",
+  "summary": "复核确认 HelpTopicTest.everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack() 的依赖全部在本仓（唯一路径读 resource-pack/runtime-item-models.txt，该文件已在 git 版本控制内），@Tag(env) 属过宽标注。去掉该标签 + 更新注释 + 删除随之变为未使用的两个 import。改后该测试在门禁口径 -PexcludeTags=env 下真的执行：模块用例 56→57（+1），全量 SUM 1105→1106（+1）且 failed=0，list-env-tests.sh 8→7，selftest PASS=167 FAIL=0。未改动其它 7 个 env 标签，未改动任何断言。",
+  "changed_files": [
+    "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java"
+  ],
+  "branch": "agent/W32-A1-env-tag-overbroad",
+  "base": "e5e45564fdb01c17d3716aa4760969d89f16032d",
+  "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/84",
+  "step1_dependency_review": {
+    "verdict": "标签过宽成立：全部路径依赖都在本仓，无仓外依赖",
+    "method_body_source": [
+      "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java:78  @Tag(DeploymentEnvironmentFixtures.TAG)   <- 待移除的标签",
+      "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java:79  void everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack() throws Exception {",
+      "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java:80  Path manifest = findFromWorkingTree(\"resource-pack/runtime-item-models.txt\");   <- 唯一文件依赖",
+      "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java:81  Set<String> declared = Files.readAllLines(manifest).stream()",
+      "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java:85-88  referenced = HelpTopic.ordered().stream().map(HelpTopic::itemModel)...  <- 纯内存，读被测类",
+      "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java:89-91  assertTrue(declared.containsAll(referenced), ...)   <- 无网络/无进程/无外部命令",
+      "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java:111-119  findFromWorkingTree(relative)  只做 Path.of(\"\").toAbsolutePath() 逐级上溯 resolve + Files.isRegularFile，**不读环境变量、不读仓外目录清单**"
+    ],
+    "dependency_check_output": [
+      "$ test -e resource-pack/runtime-item-models.txt && echo EXISTS  ->  EXISTS",
+      "$ ls -l resource-pack/runtime-item-models.txt -> -rw-r--r-- 1 root root 1604 Oct  2 19:10 resource-pack/runtime-item-models.txt",
+      "$ git ls-files --error-unmatch resource-pack/runtime-item-models.txt -> resource-pack/runtime-item-models.txt  （已在版本控制内）",
+      "$ git log --oneline -1 -- resource-pack/runtime-item-models.txt -> ffaeacb feat(resource-pack): 把素材生产线纳入 CNB 版本控制（629 文件 / 1.7M）",
+      "$ git ls-files resource-pack | wc -l -> 635   （resource-pack/ 整棵树入库）"
+    ],
+    "no_out_of_repo_dependency": "方法体内除该 manifest 外无任何文件读：全文 grep 'Files\\.|findFromWorkingTree|getResourceAsStream|Path\\.of' 在该类只命中 :80/:81（本方法 manifest）、:96（另一个不带 env 标签的测试读 classpath config.yml）、:111-115（helper 自身）。无 ProcessBuilder、无网络、无 socket、无仓外绝对路径。",
+    "side_evidence": "同类的 helpModelsOnlyUseExistingSemanticResourcePackAssets（:58-75）与 everyHelpTopicHasAnExplicitVanillaSafeFallbackIcon（:94-109）读同一资源包/打包配置且**不带** @Tag(env)、一直在门禁里跑 ⇒ resource-pack/ 在 CI 侧可用。"
+  },
+  "step2_change": {
+    "removed": [
+      "plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java:78  @Tag(DeploymentEnvironmentFixtures.TAG)"
+    ],
+    "imports_removed": [
+      "line 3 pre-change: import cn.originalrpg.guide.testing.DeploymentEnvironmentFixtures;  —— 确认该简单名在本类其余位置出现次数 = 0（改前全文 grep 只命中 :3 import 与 :78 @Tag），移除后无编译依赖",
+      "import org.junit.jupiter.api.Tag;  —— 改前仅 :78 一处使用该注解，移除后同样变未使用"
+    ],
+    "comment_updated": "方法体首行新增中文注释，写明「只读仓储内 resource-pack/runtime-item-models.txt（自 W12–W14 起入库，635 文件在版本控制内），不依赖运维侧部署产物，因此不带 @Tag(env)」，替换原先「断言对象是运维侧产物」的失真说明。",
+    "assertions_untouched": true,
+    "other_7_env_tags_untouched": [
+      "plugins/rpg-core/src/test/java/cn/originalrpg/core/i18n/LanguageBundleContractTest.java",
+      "plugins/rpg-hub/src/test/java/cn/originalrpg/hub/WorldTravelConfigurationContractTest.java",
+      "plugins/rpg-story/src/test/java/cn/originalrpg/story/StoryJourneyOrderContractTest.java",
+      "plugins/rpg-world/src/test/java/cn/originalrpg/world/SurvivalPerformanceConfigurationContractTest.java",
+      "$ grep -rn 'DeploymentEnvironmentFixtures.TAG' plugins/*/src/test -> 改后仍命中上述 4 个文件（共 7 个被排除用例）。"
+    ]
+  },
+  "step3_verification": {
+    "env_setup": [
+      "本仓无 JDK：/opt/jdk25 缺失。按 scripts/check-asset-reproducible.sh:63-66 的清华 Adoptium 25 镜像取 OpenJDK25U-jdk_x64_linux_hotspot_25.0.4.1_1.tar.gz。",
+      "⚠️ GNU tar 被 seccomp 拦（mkdirat/openat ENOSYS）：改用 python3 -c \"import tarfile; tarfile.open(p).extractall(d)\" 解压，再 cp -a 到 /opt/jdk25。",
+      "$ /opt/jdk25/bin/java -version -> openjdk version \"25.0.4.1\" 2026-08-18 LTS / OpenJDK Runtime Environment Temurin-25.0.4.1+1",
+      "$ sh scripts/fetch-deps.sh -> fetch-deps: 全部就绪（libs/ 5 个公开源 artifact + vendor 4 个本地取回）"
+    ],
+    "a_test_really_executed": {
+      "cmd": "./gradlew --no-daemon :plugins:rpg-guide:test --rerun -PexcludeTags=env",
+      "rc": 0,
+      "log_line": "excluding tests with tag: env / BUILD SUCCESSFUL in 5s (改动后)",
+      "xml_evidence": [
+        "file: plugins/rpg-guide/build/test-results/test/TEST-cn.originalrpg.guide.HelpTopicTest.xml",
+        "testsuite name=cn.originalrpg.guide.HelpTopicTest tests=5 failures=0 errors=0 skipped=0",
+        "raw: <testcase name=\"everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack()\" classname=\"cn.originalrpg.guide.HelpTopicTest\" time=\"0.002\"/>",
+        "该 <testcase> 无 <skipped> / <failure> / <error> 子元素 ⇒ 是被真正执行并通过，不是被跳过（改前该 XML 里根本不存在这个名字）"
+      ]
+    },
+    "b_module_count_plus_one": {
+      "before": "BEFORE rpg-guide: tests=56 failures=0 errors=0 skipped=0 （HelpTopicTest tests=4，第 5 个 env 用例被排除）",
+      "after": "AFTER rpg-guide: tests=57 failures=0 errors=0 skipped=0 （HelpTopicTest tests=5）",
+      "delta": "+1"
+    },
+    "c_full_suite_no_regression": {
+      "cmd": "./gradlew --no-daemon --continue -Dorg.gradle.workers.max=2 -Dorg.gradle.jvmargs=\"-Xmx1536m -Dfile.encoding=UTF-8\" test -PexcludeTags=env",
+      "rc": 0,
+      "summary_cmd": "python3 scripts/dump-test-results.py --min-modules 26",
+      "summary_output": "SUM                          tests=1106 failed=0 errors=0 skipped=2 modules=26 / NO_XML                       modules=0  期望模块数=26 / SUMMARY_GATE=GREEN",
+      "rpg_guide_line": "  plugins/rpg-guide            tests=  57 failed=0 errors=0 skipped=0 ok",
+      "basis": ".cnb/agent-out/W31-A1-verdict-v15.json stage-7 原文 'SUM tests=1105 failed=0 errors=0 skipped=2 modules=26'；本段首次出现 1106 ⇒ 1105→1106 恰为 +1",
+      "skipped_unchanged": "skipped=2（tools/db-migration 预存），与 basis 一致，未被改动"
+    },
+    "d_env_list_8_to_7": {
+      "before": [
+        "chunkLoadingUsesPaperConcurrencyWithoutDiscardingSavedEntities",
+        "controlledGenerationCoversTheCompleteBorderAndItsChunkMargin",
+        "everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack",
+        "mapsAndClaimsFailClosedForDynamicWorlds",
+        "naturalSpawningKeepsTheReviewedExperienceAndEntityEnvelope",
+        "projectYamlFilesParseWithoutDuplicateKeys",
+        "qizhiConversationUsesTheExecutableFirstForgeOrder",
+        "quickActionTaskButtonUsesTheUnifiedTaskCenter"
+      ],
+      "after": [
+        "chunkLoadingUsesPaperConcurrencyWithoutDiscardingSavedEntities",
+        "controlledGenerationCoversTheCompleteBorderAndItsChunkMargin",
+        "mapsAndClaimsFailClosedForDynamicWorlds",
+        "naturalSpawningKeepsTheReviewedExperienceAndEntityEnvelope",
+        "projectYamlFilesParseWithoutDuplicateKeys",
+        "qizhiConversationUsesTheExecutableFirstForgeOrder",
+        "quickActionTaskButtonUsesTheUnifiedTaskCenter"
+      ],
+      "diff": "3d2 < everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack",
+      "counts": "before=8 after=7"
+    },
+    "e_selftest_gates": {
+      "cmd": "sh scripts/selftest-gates.sh",
+      "rc": 0,
+      "output": "===== 门禁自测汇总：PASS=167 FAIL=0 ===== / GATE_SELFTEST=GREEN",
+      "note": "PASS 与 W31-A1-v15 记录的 167 一致 ⇒ env 清单抽取自测未受影响"
+    },
+    "f_clean_worktree": {
+      "cmd": "git status --porcelain",
+      "output": " M plugins/rpg-guide/src/test/java/cn/originalrpg/guide/HelpTopicTest.java",
+      "note": "仅 1 个改动文件，无夹具残留（负向对照用的 manifest 备份已还原，git diff --stat resource-pack/ 为空）"
+    },
+    "g_negative_control_behavioral": {
+      "why": "防止「标签去掉了但测试恒真」",
+      "cmd": "sed -i '/traveler_compass/d' resource-pack/runtime-item-models.txt && ./gradlew --no-daemon :plugins:rpg-guide:test --rerun --tests '*HelpTopicTest*' -PexcludeTags=env",
+      "rc": "非 0（BUILD FAILED in 6s）",
+      "assertion": "org.opentest4j.AssertionFailedError: help topics reference undeclared item models: [traveler_compass] ==> expected: <true> but was: <false>  (at HelpTopicTest.everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack(HelpTopicTest.java:93))",
+      "restored": "cp /tmp/manifest.bak resource-pack/runtime-item-models.txt  → grep -c traveler_compass = 1"
+    },
+    "gradle_runs_used": 4,
+    "gradle_runs_budget": "≤8（实际 4：模块 before/after 各 1、全量 1、负向对照 1）；未使用 --rerun-tasks"
+  },
+  "risks": [
+    "门禁 .cnb.yml 的 test stage 里有一条断言 env_annotations >= 1 —— 去掉 1 个标签后清单仍有 7 条，不触发（已由 scripts/selftest-gates.sh PASS=167 与 list-env-tests.sh 输出 7 行佐证）。",
+    "本方法用 findFromWorkingTree 从测试工作目录向上找 resource-pack/ ⇒ CI 侧 checkout 根目录必须含 resource-pack/。当前 .cnb.yml 的素材门禁 stage 已在该目录上跑，且同类两个不带标签的测试一直绿，故该前提已被门禁自身证明。"
+  ],
+  "next_steps": [
+    "PR 合并后：若希望进一步收敛，可评估其余 7 个 env 标签的依赖边界（本任务明确不动）。"
+  ]
+}
