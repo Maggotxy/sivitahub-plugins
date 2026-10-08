@@ -58,10 +58,29 @@ ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 LOCK_FILE="$SCRIPT_DIR/runtime-smoke-plugins.lock.json"
 
 # 自研插件清单：plugin.yml 的 name 是 Paper 日志里的名字，目录名是 jar 名。
-# 不从 plugin.yml 现场解析（那需要 YAML），而是由 scripts/gen-runtime-smoke-manifest.py 生成静态清单，
+# 不从 plugin.yml 现场解析（那需要 YAML），而是由 scripts/gen-runtime-smoke-own-plugins.py 生成静态清单，
 # 生成时逐个读 plugin.yml 校验过。
 OWN_MANIFEST="$SCRIPT_DIR/runtime-smoke-own-plugins.txt"
 [ -f "$OWN_MANIFEST" ] || { echo "run-paper-smoke: 缺 $OWN_MANIFEST" >&2; exit 2; }
+
+[ -f "$LOCK_FILE" ] || { echo "run-paper-smoke: 缺插件锁清单 $LOCK_FILE" >&2; exit 2; }
+
+# 锁清单静态预检：1 秒内查完「local 文件在不在仓库里 / sha512 对不对得上 /
+# 每条是不是恰好一个来源」，再决定要不要去下 60MB Paper 和 15 个插件。
+# W36 的教训：AuthMe 那条把自改版的 sha512 配了公网的 url，纯静态可查的错误
+# 却花了一次 10 分钟的云上冒烟才发现。
+#
+# 先跑**常驻负向夹具**（10 组变异必须都红在预期原因上），再查真实清单 ——
+# 只查真实清单只能证明「现在没报错」，不能证明「判据还认得出错」。
+# 两步都只读本地文件，毫秒级，不碰网络。
+if ! python3 "$SCRIPT_DIR/check-smoke-lock.py" --selftest "$LOCK_FILE" "$ROOT"; then
+    echo "run-paper-smoke: 锁清单判据自测失败（负向夹具没按预期变红，判据可能已反向失效）" >&2
+    exit 2
+fi
+if ! python3 "$SCRIPT_DIR/check-smoke-lock.py" "$LOCK_FILE" "$ROOT"; then
+    echo "run-paper-smoke: 锁清单预检失败（见上面 SMOKE_LOCK_* 判据行）" >&2
+    exit 2
+fi
 
 SKIP_KEY=$(python3 -c '
 import hashlib, json, sys
@@ -90,7 +109,7 @@ count_lines() { # $1=文件
 for t in python3 java sha256sum curl; do
     have "$t" || die "缺少必需工具：$t（门禁镜像应提供 python3/java/curl/coreutils）"
 done
-[ -f "$LOCK_FILE" ] || die "缺插件锁清单 $LOCK_FILE"
+# 锁清单的存在性与内容已在上面预检过（含 SMOKE_LOCK_* 判据行），此处不重复。
 
 WORK=$(mktemp -d /tmp/paper-smoke.XXXXXX)
 SERVER="$WORK/server"

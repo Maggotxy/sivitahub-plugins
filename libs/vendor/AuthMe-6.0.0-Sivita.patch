@@ -1,0 +1,999 @@
+diff --git a/authme-core/src/main/java/fr/xephi/authme/data/TempbanManager.java b/authme-core/src/main/java/fr/xephi/authme/data/TempbanManager.java
+index 9c221930871fb92a805cdd51146c82872abd830b..c1aed7f0a9bc86f0d2cb31d52ffe45c884620812 100644
+--- a/authme-core/src/main/java/fr/xephi/authme/data/TempbanManager.java
++++ b/authme-core/src/main/java/fr/xephi/authme/data/TempbanManager.java
+@@ -98,23 +98,46 @@ public class TempbanManager implements SettingsDependent, HasCleanup {
+             final String name = player.getName();
+             final String ip = PlayerUtils.getPlayerIp(player);
+             final String reason = messages.retrieveSingle(player, MessageKey.TEMPBAN_MAX_LOGINS);
+-
+-            final Date expires = new Date();
+-            long newTime = expires.getTime() + (length * MILLIS_PER_MINUTE);
+-            expires.setTime(newTime);
+-
+-            if (customCommand.isEmpty()) {
+-                bukkitService.runOnGlobalRegion(() -> bukkitService.banIp(ip, reason, expires, "AuthMe"));
++            if (applyTempban(ip, name, reason)) {
+                 bukkitService.scheduleSyncTaskFromOptionallyAsyncTask(player, () -> player.kickPlayer(reason));
+-            } else {
+-                String command = customCommand
+-                    .replace("%player%", name)
+-                    .replace("%ip%", ip);
+-                bukkitService.runOnGlobalRegion(() -> bukkitService.dispatchConsoleCommand(command));
+             }
++        }
++    }
++
++    /**
++     * Temporarily bans a configuration-phase connection for reaching the regular login threshold.
++     *
++     * <p>A Bukkit {@link Player} does not exist during Paper's pre-join configuration phase, so
++     * this overload applies the same IP ban or configured console command by resolved address.</p>
++     *
++     * @param address source IP address
++     * @param name player name used for messages and command placeholders
++     * @return the translated reason that should be used to disconnect the connection
++     */
++    public String tempbanAddress(String address, String name) {
++        String reason = messages.retrieveSingle(name, MessageKey.TEMPBAN_MAX_LOGINS);
++        if (isEnabled) {
++            applyTempban(address, name, reason);
++        }
++        return reason;
++    }
+ 
+-            ipLoginFailureCounts.remove(ip);
++    /**
++     * @return true when the caller must disconnect an existing Bukkit player
++     */
++    private boolean applyTempban(String address, String name, String reason) {
++        boolean usesInternalBan = customCommand.isEmpty();
++        if (usesInternalBan) {
++            Date expires = new Date(System.currentTimeMillis() + (length * MILLIS_PER_MINUTE));
++            bukkitService.runOnGlobalRegion(() -> bukkitService.banIp(address, reason, expires, "AuthMe"));
++        } else {
++            String command = customCommand
++                .replace("%player%", name)
++                .replace("%ip%", address);
++            bukkitService.runOnGlobalRegion(() -> bukkitService.dispatchConsoleCommand(command));
+         }
++        ipLoginFailureCounts.remove(address);
++        return usesInternalBan;
+     }
+ 
+     @Override
+diff --git a/authme-core/src/main/java/fr/xephi/authme/process/login/AsynchronousLogin.java b/authme-core/src/main/java/fr/xephi/authme/process/login/AsynchronousLogin.java
+index 96e4a096877e866276ff3911ea476ee19f8d6dde..f065be62e4e03425d61d1422cee21791c317f3eb 100644
+--- a/authme-core/src/main/java/fr/xephi/authme/process/login/AsynchronousLogin.java
++++ b/authme-core/src/main/java/fr/xephi/authme/process/login/AsynchronousLogin.java
+@@ -26,6 +26,7 @@ import fr.xephi.authme.service.BukkitService;
+ import fr.xephi.authme.service.CommonService;
+ import fr.xephi.authme.service.DialogStateService;
+ import fr.xephi.authme.service.DialogWindowService;
++import fr.xephi.authme.service.LoginFailureTracker;
+ import fr.xephi.authme.service.SessionService;
+ import fr.xephi.authme.service.bungeecord.BungeeSender;
+ import fr.xephi.authme.service.bungeecord.MessageType;
+@@ -77,6 +78,9 @@ public class AsynchronousLogin implements AsynchronousProcess {
+     @Inject
+     private TempbanManager tempbanManager;
+ 
++    @Inject
++    private LoginFailureTracker loginFailureTracker;
++
+     @Inject
+     private LimboService limboService;
+ 
+@@ -232,14 +236,11 @@ public class AsynchronousLogin implements AsynchronousProcess {
+ 
+         String ip = PlayerUtils.getPlayerIp(player);
+ 
+-        // Increase the counts here before knowing the result of the login.
+-        loginCaptchaManager.increaseLoginFailureCount(name);
+-        tempbanManager.increaseCount(ip, name);
+-
+         if (passwordSecurity.comparePassword(password, auth.getPassword(), player.getName())) {
+             return true;
+         } else {
+-            handleWrongPassword(player, auth, ip);
++            LoginFailureTracker.LoginFailureResult failure = loginFailureTracker.recordFailure(ip, name);
++            handleWrongPassword(player, auth, ip, failure.tempbanRequired());
+             return false;
+         }
+     }
+@@ -250,12 +251,13 @@ public class AsynchronousLogin implements AsynchronousProcess {
+      * @param player the player who attempted to log in
+      * @param auth the PlayerAuth object of the player
+      * @param ip the ip address of the player
++     * @param shouldTempban whether this failure reached the configured temporary-ban threshold
+      */
+-    private void handleWrongPassword(Player player, PlayerAuth auth, String ip) {
++    private void handleWrongPassword(Player player, PlayerAuth auth, String ip, boolean shouldTempban) {
+         logger.fine(player.getName() + " used the wrong password");
+ 
+         bukkitService.createAndCallEvent(isAsync -> new FailedLoginEvent(player, isAsync));
+-        if (tempbanManager.shouldTempban(ip)) {
++        if (shouldTempban) {
+             tempbanManager.tempbanPlayer(player);
+         } else if (service.getProperty(RestrictionSettings.KICK_ON_WRONG_PASSWORD)) {
+             bukkitService.scheduleSyncTaskFromOptionallyAsyncTask(player,
+diff --git a/authme-core/src/main/java/fr/xephi/authme/service/DialogWindowService.java b/authme-core/src/main/java/fr/xephi/authme/service/DialogWindowService.java
+index 60c63a25afd2de8c246ebc8699c58c49422705ab..3742b579738cd3be9520be2c3509e30e486650ea 100644
+--- a/authme-core/src/main/java/fr/xephi/authme/service/DialogWindowService.java
++++ b/authme-core/src/main/java/fr/xephi/authme/service/DialogWindowService.java
+@@ -8,6 +8,7 @@ import fr.xephi.authme.platform.DialogWindowSpec;
+ import fr.xephi.authme.process.register.RegisterSecondaryArgument;
+ import fr.xephi.authme.process.register.RegistrationType;
+ import fr.xephi.authme.settings.properties.RegistrationSettings;
++import fr.xephi.authme.settings.properties.SecuritySettings;
+ import org.bukkit.entity.Player;
+ 
+ import javax.inject.Inject;
+@@ -22,6 +23,8 @@ public class DialogWindowService {
+ 
+     private static final int DEFAULT_MAX_INPUT_LENGTH = 100;
+     private static final int TOTP_CODE_MAX_INPUT_LENGTH = 16;
++    private static final int MIN_PASSWORD_INPUT_LENGTH = 1;
++    private static final int MAX_PASSWORD_INPUT_LENGTH = 1024;
+ 
+     @Inject
+     private CommonService commonService;
+@@ -61,7 +64,7 @@ public class DialogWindowService {
+         // Password field only — email is collected on a separate recovery page if needed
+         return new DialogWindowSpec(
+             text.apply(MessageKey.DIALOG_LOGIN_TITLE),
+-            List.of(new DialogInputSpec("password", text.apply(MessageKey.DIALOG_LOGIN_PASSWORD), DEFAULT_MAX_INPUT_LENGTH)),
++            List.of(new DialogInputSpec("password", text.apply(MessageKey.DIALOG_LOGIN_PASSWORD), passwordMaxLength())),
+             text.apply(MessageKey.DIALOG_LOGIN_BUTTON),
+             showRecovery ? text.apply(MessageKey.DIALOG_LOGIN_RECOVERY_BUTTON) : text.apply(MessageKey.DIALOG_CANCEL_BUTTON),
+             showRecovery || showCancelButton,
+@@ -124,7 +127,7 @@ public class DialogWindowService {
+         List<DialogInputSpec> inputs = new ArrayList<>();
+         inputs.add(new DialogInputSpec("password",
+             textResolver.apply(MessageKey.DIALOG_LOGIN_PASSWORD),
+-            DEFAULT_MAX_INPUT_LENGTH));
++            passwordMaxLength()));
+         if (showRecovery) {
+             inputs.add(new DialogInputSpec("email",
+                 textResolver.apply(MessageKey.DIALOG_LOGIN_RECOVERY_EMAIL),
+@@ -174,11 +177,11 @@ public class DialogWindowService {
+             }
+             inputs.add(new DialogInputSpec("password",
+                 textResolver.apply(MessageKey.DIALOG_REGISTER_PASSWORD),
+-                DEFAULT_MAX_INPUT_LENGTH));
++                passwordMaxLength()));
+             if (secondArg == RegisterSecondaryArgument.CONFIRMATION) {
+                 inputs.add(new DialogInputSpec("confirm",
+                     textResolver.apply(MessageKey.DIALOG_REGISTER_CONFIRM_PASSWORD),
+-                    DEFAULT_MAX_INPUT_LENGTH));
++                    passwordMaxLength()));
+             } else if (secondArg == RegisterSecondaryArgument.EMAIL_OPTIONAL) {
+                 inputs.add(new DialogInputSpec("email",
+                     textResolver.apply(MessageKey.DIALOG_REGISTER_EMAIL),
+@@ -200,4 +203,10 @@ public class DialogWindowService {
+     private String getPostJoinMessage(Player player, MessageKey key) {
+         return commonService.retrieveSingleMessage(player, key);
+     }
++
++    private int passwordMaxLength() {
++        Integer configuredLength = commonService.getProperty(SecuritySettings.MAX_PASSWORD_LENGTH);
++        int safeLength = configuredLength == null ? MIN_PASSWORD_INPUT_LENGTH : configuredLength;
++        return Math.min(MAX_PASSWORD_INPUT_LENGTH, Math.max(MIN_PASSWORD_INPUT_LENGTH, safeLength));
++    }
+ }
+diff --git a/authme-core/src/main/java/fr/xephi/authme/service/LoginFailureTracker.java b/authme-core/src/main/java/fr/xephi/authme/service/LoginFailureTracker.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..e82b042d595948cfc064d951bfa6455e9bf76e73
+--- /dev/null
++++ b/authme-core/src/main/java/fr/xephi/authme/service/LoginFailureTracker.java
+@@ -0,0 +1,50 @@
++package fr.xephi.authme.service;
++
++import fr.xephi.authme.data.TempbanManager;
++import fr.xephi.authme.data.captcha.LoginCaptchaManager;
++
++import javax.inject.Inject;
++
++/**
++ * Records failed password attempts for every login surface.
++ *
++ * <p>Keeping this accounting in one service prevents graphical pre-join login from bypassing
++ * the captcha and temporary-ban counters used by the regular command login flow.</p>
++ */
++public class LoginFailureTracker {
++
++    @Inject
++    private LoginCaptchaManager loginCaptchaManager;
++
++    @Inject
++    private TempbanManager tempbanManager;
++
++    LoginFailureTracker() {
++    }
++
++    /**
++     * Records one failed password comparison.
++     *
++     * @param address source IP address; may be absent before a connection has exposed it
++     * @param normalizedName lowercase player name
++     * @return the protection state after recording the failure
++     */
++    public LoginFailureResult recordFailure(String address, String normalizedName) {
++        loginCaptchaManager.increaseLoginFailureCount(normalizedName);
++
++        boolean hasAddress = address != null && !address.isBlank();
++        if (hasAddress) {
++            tempbanManager.increaseCount(address, normalizedName);
++        }
++        return new LoginFailureResult(
++            loginCaptchaManager.isCaptchaRequired(normalizedName),
++            hasAddress && tempbanManager.shouldTempban(address));
++    }
++
++    public boolean isCaptchaRequired(String normalizedName) {
++        return loginCaptchaManager.isCaptchaRequired(normalizedName);
++    }
++
++    public record LoginFailureResult(boolean captchaRequired, boolean tempbanRequired) {
++    }
++}
+diff --git a/authme-core/src/test/java/fr/xephi/authme/data/TempbanManagerTest.java b/authme-core/src/test/java/fr/xephi/authme/data/TempbanManagerTest.java
+index d0091b4049b12aea8e79122f771dbda2610a1b0a..154d3f0c9ba69ccbf81bec9902e40baf06d260ef 100644
+--- a/authme-core/src/test/java/fr/xephi/authme/data/TempbanManagerTest.java
++++ b/authme-core/src/test/java/fr/xephi/authme/data/TempbanManagerTest.java
+@@ -26,9 +26,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
+ import static org.hamcrest.Matchers.contains;
+ import static org.hamcrest.Matchers.equalTo;
+ import static org.hamcrest.Matchers.lessThan;
++import static org.mockito.ArgumentMatchers.any;
+ import static org.mockito.ArgumentMatchers.eq;
+ import static org.mockito.BDDMockito.given;
+ import static org.mockito.Mockito.mock;
++import static org.mockito.Mockito.never;
+ import static org.mockito.Mockito.verify;
+ import static org.mockito.Mockito.verifyNoInteractions;
+ 
+@@ -190,6 +192,57 @@ class TempbanManagerTest {
+         verify(bukkitService).dispatchConsoleCommand(banCommand.replace("%ip%", ip));
+     }
+ 
++    @Test
++    void shouldBanAddressWithoutBukkitPlayer() {
++        // given
++        String name = "Bobby";
++        String ip = "198.51.100.24";
++        String banReason = "IP ban too many logins";
++        given(messages.retrieveSingle(name, MessageKey.TEMPBAN_MAX_LOGINS)).willReturn(banReason);
++        Settings settings = mockSettings(2, 100, "");
++        TempbanManager manager = new TempbanManager(bukkitService, messages, settings);
++        setBukkitServiceToRunOnGlobalRegion(bukkitService);
++
++        // when
++        String result = manager.tempbanAddress(ip, name);
++
++        // then
++        assertThat(result, equalTo(banReason));
++        ArgumentCaptor<Date> captor = ArgumentCaptor.forClass(Date.class);
++        verify(bukkitService).banIp(eq(ip), eq(banReason), captor.capture(), eq("AuthMe"));
++        verify(bukkitService, never()).scheduleSyncTaskFromOptionallyAsyncTask(
++            any(Player.class), any(Runnable.class));
++
++        Calendar cal = Calendar.getInstance();
++        cal.add(Calendar.MINUTE, 100);
++        long expectedExpiration = cal.getTime().getTime();
++        assertThat(Math.abs(captor.getValue().getTime() - expectedExpiration),
++            lessThan(DATE_TOLERANCE_MILLISECONDS));
++    }
++
++    @Test
++    void shouldBanAddressWithCustomCommandPlaceholdersWithoutBukkitPlayer() {
++        // given
++        String name = "Bobby";
++        String ip = "203.0.113.29";
++        String banReason = "Too many failed logins";
++        String commandTemplate = "banip %ip% 15d AuthMe login failures by %player%";
++        given(messages.retrieveSingle(name, MessageKey.TEMPBAN_MAX_LOGINS)).willReturn(banReason);
++        Settings settings = mockSettings(2, 100, commandTemplate);
++        TempbanManager manager = new TempbanManager(bukkitService, messages, settings);
++        setBukkitServiceToRunOnGlobalRegion(bukkitService);
++
++        // when
++        String result = manager.tempbanAddress(ip, name);
++
++        // then
++        assertThat(result, equalTo(banReason));
++        verify(bukkitService).dispatchConsoleCommand(
++            "banip 203.0.113.29 15d AuthMe login failures by Bobby");
++        verify(bukkitService, never()).scheduleSyncTaskFromOptionallyAsyncTask(
++            any(Player.class), any(Runnable.class));
++    }
++
+     @Test
+     void shouldResetCountAfterBan() {
+         // given
+diff --git a/authme-core/src/test/java/fr/xephi/authme/process/login/AsynchronousLoginTest.java b/authme-core/src/test/java/fr/xephi/authme/process/login/AsynchronousLoginTest.java
+index 7622d262646591c22ef1e9782fb91c25a529d576..4f6741104d323868c774d43be532db3d98656e34 100644
+--- a/authme-core/src/test/java/fr/xephi/authme/process/login/AsynchronousLoginTest.java
++++ b/authme-core/src/test/java/fr/xephi/authme/process/login/AsynchronousLoginTest.java
+@@ -25,6 +25,7 @@ import fr.xephi.authme.service.CommonService;
+ import fr.xephi.authme.service.CancellableTask;
+ import fr.xephi.authme.service.DialogStateService;
+ import fr.xephi.authme.service.DialogWindowService;
++import fr.xephi.authme.service.LoginFailureTracker;
+ import fr.xephi.authme.service.SessionService;
+ import fr.xephi.authme.service.bungeecord.BungeeSender;
+ import fr.xephi.authme.settings.properties.RegistrationSettings;
+@@ -86,6 +87,8 @@ public class AsynchronousLoginTest {
+     @Mock
+     private TempbanManager tempbanManager;
+     @Mock
++    private LoginFailureTracker loginFailureTracker;
++    @Mock
+     private SessionService sessionService;
+     @Mock
+     private BungeeSender bungeeSender;
+@@ -331,6 +334,36 @@ public class AsynchronousLoginTest {
+         verify(dialogAdapter, never()).showTotpDialog(eq(player), any(DialogWindowSpec.class));
+     }
+ 
++    @Test
++    public void shouldRecordWrongPasswordOnceAndTempbanWhenThresholdIsReached() {
++        // given
++        String name = "bobby";
++        String ip = "203.0.113.77";
++        String wrongPassword = "not-the-password";
++        Player player = mockPlayer("Bobby");
++        TestHelper.mockIpAddressToPlayer(player, ip);
++        PlayerAuth auth = PlayerAuth.builder().name(name).build();
++        given(playerCache.isAuthenticated(name)).willReturn(false);
++        given(dataSource.getAuth(name)).willReturn(auth);
++        given(commonService.getProperty(DatabaseSettings.MYSQL_COL_GROUP)).willReturn("");
++        given(commonService.getProperty(RestrictionSettings.MAX_LOGIN_PER_IP)).willReturn(0);
++        given(commonService.getProperty(PluginSettings.USE_ASYNC_TASKS)).willReturn(false);
++        given(loginCaptchaManager.isCaptchaRequired(name)).willReturn(false);
++        given(passwordSecurity.comparePassword(wrongPassword, auth.getPassword(), "Bobby")).willReturn(false);
++        given(loginFailureTracker.recordFailure(ip, name))
++            .willReturn(new LoginFailureTracker.LoginFailureResult(true, true));
++
++        // when
++        asynchronousLogin.login(player, wrongPassword);
++
++        // then
++        verify(loginFailureTracker, only()).recordFailure(ip, name);
++        verify(loginCaptchaManager, never()).increaseLoginFailureCount(anyString());
++        verify(tempbanManager, never()).increaseCount(anyString(), anyString());
++        verify(tempbanManager).tempbanPlayer(player);
++        verify(asynchronousLogin, never()).performLogin(player, auth);
++    }
++
+     private static Player mockPlayer(String name) {
+         Player player = mock(Player.class);
+         given(player.getName()).willReturn(name);
+@@ -385,5 +418,3 @@ public class AsynchronousLoginTest {
+     }
+ 
+ }
+-
+-
+diff --git a/authme-core/src/test/java/fr/xephi/authme/service/DialogWindowServiceTest.java b/authme-core/src/test/java/fr/xephi/authme/service/DialogWindowServiceTest.java
+index 1ae633eb5cc206ecdb65cd2813365893903bd715..b4ba54e8ce17e849d7a5564ea54dc175a36cfff3 100644
+--- a/authme-core/src/test/java/fr/xephi/authme/service/DialogWindowServiceTest.java
++++ b/authme-core/src/test/java/fr/xephi/authme/service/DialogWindowServiceTest.java
+@@ -7,6 +7,7 @@ import fr.xephi.authme.platform.DialogWindowSpec;
+ import fr.xephi.authme.process.register.RegisterSecondaryArgument;
+ import fr.xephi.authme.process.register.RegistrationType;
+ import fr.xephi.authme.settings.properties.RegistrationSettings;
++import fr.xephi.authme.settings.properties.SecuritySettings;
+ import org.bukkit.entity.Player;
+ import org.junit.jupiter.api.Test;
+ import org.junit.jupiter.api.extension.ExtendWith;
+@@ -149,6 +150,7 @@ public class DialogWindowServiceTest {
+         given(commonService.getProperty(RegistrationSettings.PRE_JOIN_DIALOG_SHOW_CANCEL_BUTTON)).willReturn(true);
+         given(commonService.getProperty(RegistrationSettings.PRE_JOIN_DIALOG_ALLOW_CLOSE_WITH_ESCAPE)).willReturn(true);
+         given(commonService.getProperty(RegistrationSettings.DIALOG_SHOW_BODY)).willReturn(true);
++        given(commonService.getProperty(SecuritySettings.MAX_PASSWORD_LENGTH)).willReturn(64);
+         given(emailService.hasAllInformation()).willReturn(false);
+ 
+         // when — email not configured: no recovery, cancel button shown instead
+@@ -162,9 +164,48 @@ public class DialogWindowServiceTest {
+         assertThat(dialog.canCloseWithEscape(), is(true));
+         assertThat(dialog.body(), is("dialog.login.body"));
+         assertThat(dialog.inputs().stream().map(input -> input.id()).toList(), contains("password"));
++        assertThat(dialog.inputs().get(0).maxLength(), is(64));
+         assertThat(dialog.secondaryButtonCommand(), is(nullValue()));
+     }
+ 
++    @Test
++    public void shouldApplyConfiguredPasswordLengthToPasswordAndConfirmationInputs() {
++        // given
++        given(messages.retrieveSingle(eq("Bobby"), any(MessageKey.class)))
++            .willAnswer(invocation -> invocation.getArgument(1, MessageKey.class).getKey());
++        given(commonService.getProperty(RegistrationSettings.DIALOG_SHOW_BODY)).willReturn(false);
++        given(commonService.getProperty(RegistrationSettings.PRE_JOIN_DIALOG_SHOW_CANCEL_BUTTON)).willReturn(true);
++        given(commonService.getProperty(RegistrationSettings.PRE_JOIN_DIALOG_ALLOW_CLOSE_WITH_ESCAPE)).willReturn(false);
++        given(commonService.getProperty(SecuritySettings.MAX_PASSWORD_LENGTH)).willReturn(64);
++
++        // when
++        DialogWindowSpec dialog = dialogWindowService.createPreJoinRegisterDialog(
++            "Bobby", RegistrationType.PASSWORD, RegisterSecondaryArgument.CONFIRMATION);
++
++        // then
++        assertThat(dialog.inputs().stream().map(input -> input.maxLength()).toList(), contains(64, 64));
++    }
++
++    @Test
++    public void shouldClampPasswordInputLengthToSafePaperRange() {
++        // given
++        given(messages.retrieveSingle(eq("Bobby"), any(MessageKey.class)))
++            .willAnswer(invocation -> invocation.getArgument(1, MessageKey.class).getKey());
++        given(commonService.getProperty(RegistrationSettings.DIALOG_SHOW_FORGOT_PASSWORD_BUTTON)).willReturn(false);
++        given(commonService.getProperty(RegistrationSettings.DIALOG_SHOW_BODY)).willReturn(false);
++        given(commonService.getProperty(RegistrationSettings.PRE_JOIN_DIALOG_SHOW_CANCEL_BUTTON)).willReturn(false);
++        given(commonService.getProperty(RegistrationSettings.PRE_JOIN_DIALOG_ALLOW_CLOSE_WITH_ESCAPE)).willReturn(false);
++        given(commonService.getProperty(SecuritySettings.MAX_PASSWORD_LENGTH)).willReturn(0, Integer.MAX_VALUE);
++
++        // when
++        DialogWindowSpec tooSmall = dialogWindowService.createPreJoinLoginDialog("Bobby");
++        DialogWindowSpec tooLarge = dialogWindowService.createPreJoinLoginDialog("Bobby");
++
++        // then
++        assertThat(tooSmall.inputs().get(0).maxLength(), is(1));
++        assertThat(tooLarge.inputs().get(0).maxLength(), is(1024));
++    }
++
+     @Test
+     public void shouldBuildPreJoinLoginDialogWithRecoveryButtonWhenEmailServiceConfigured() {
+         // given
+diff --git a/authme-core/src/test/java/fr/xephi/authme/service/LoginFailureTrackerTest.java b/authme-core/src/test/java/fr/xephi/authme/service/LoginFailureTrackerTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..faa745857e6cea03b41ec6e0bfda06220e1fbc17
+--- /dev/null
++++ b/authme-core/src/test/java/fr/xephi/authme/service/LoginFailureTrackerTest.java
+@@ -0,0 +1,56 @@
++package fr.xephi.authme.service;
++
++import fr.xephi.authme.data.TempbanManager;
++import fr.xephi.authme.data.captcha.LoginCaptchaManager;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.extension.ExtendWith;
++import org.mockito.InjectMocks;
++import org.mockito.Mock;
++import org.mockito.junit.jupiter.MockitoExtension;
++
++import static org.hamcrest.MatcherAssert.assertThat;
++import static org.hamcrest.Matchers.is;
++import static org.mockito.BDDMockito.given;
++import static org.mockito.Mockito.never;
++import static org.mockito.Mockito.verify;
++
++@ExtendWith(MockitoExtension.class)
++class LoginFailureTrackerTest {
++
++    @InjectMocks
++    private LoginFailureTracker tracker;
++
++    @Mock
++    private LoginCaptchaManager loginCaptchaManager;
++
++    @Mock
++    private TempbanManager tempbanManager;
++
++    @Test
++    void shouldRecordCaptchaAndIpTempbanCountersOnce() {
++        // given
++        given(loginCaptchaManager.isCaptchaRequired("bobby")).willReturn(true);
++        given(tempbanManager.shouldTempban("203.0.113.7")).willReturn(true);
++
++        // when
++        LoginFailureTracker.LoginFailureResult result = tracker.recordFailure("203.0.113.7", "bobby");
++
++        // then
++        verify(loginCaptchaManager).increaseLoginFailureCount("bobby");
++        verify(tempbanManager).increaseCount("203.0.113.7", "bobby");
++        assertThat(result.captchaRequired(), is(true));
++        assertThat(result.tempbanRequired(), is(true));
++    }
++
++    @Test
++    void shouldStillRecordCaptchaWhenClientAddressIsUnavailable() {
++        // when
++        LoginFailureTracker.LoginFailureResult result = tracker.recordFailure(null, "bobby");
++
++        // then
++        verify(loginCaptchaManager).increaseLoginFailureCount("bobby");
++        verify(tempbanManager, never()).increaseCount(null, "bobby");
++        verify(tempbanManager, never()).shouldTempban(null);
++        assertThat(result.tempbanRequired(), is(false));
++    }
++}
+diff --git a/authme-paper-common/pom.xml b/authme-paper-common/pom.xml
+index 8b0c401de452c98f91f2fbeabb6e2738a4c8804f..81a8bd4ff4755e9d22289564fce75f22b5640c7b 100644
+--- a/authme-paper-common/pom.xml
++++ b/authme-paper-common/pom.xml
+@@ -66,5 +66,11 @@
+             <artifactId>datasourcecolumns</artifactId>
+             <scope>test</scope>
+         </dependency>
++        <!-- Required when Mockito inspects PasswordSecurity's injected Factory field. -->
++        <dependency>
++            <groupId>ch.jalu</groupId>
++            <artifactId>injector</artifactId>
++            <scope>test</scope>
++        </dependency>
+     </dependencies>
+ </project>
+diff --git a/authme-paper-common/src/main/java/fr/xephi/authme/listener/PaperDialogFlowListener.java b/authme-paper-common/src/main/java/fr/xephi/authme/listener/PaperDialogFlowListener.java
+index f37c5a3be48c56a32741f266ba13267abd40dc0b..5f35a8f7ca4f969862608f9872475d77807c5158 100644
+--- a/authme-paper-common/src/main/java/fr/xephi/authme/listener/PaperDialogFlowListener.java
++++ b/authme-paper-common/src/main/java/fr/xephi/authme/listener/PaperDialogFlowListener.java
+@@ -3,6 +3,7 @@ package fr.xephi.authme.listener;
+ import com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent;
+ import com.destroystokyo.paper.profile.PlayerProfile;
+ import fr.xephi.authme.data.ProxySessionManager;
++import fr.xephi.authme.data.TempbanManager;
+ import fr.xephi.authme.data.auth.PlayerAuth;
+ import fr.xephi.authme.data.auth.PlayerCache;
+ import fr.xephi.authme.datasource.DataSource;
+@@ -16,6 +17,7 @@ import fr.xephi.authme.process.register.RegistrationType;
+ import fr.xephi.authme.security.PasswordSecurity;
+ import fr.xephi.authme.service.CommonService;
+ import fr.xephi.authme.service.DialogWindowService;
++import fr.xephi.authme.service.LoginFailureTracker;
+ import fr.xephi.authme.service.PreJoinDialogService;
+ import fr.xephi.authme.service.PremiumLoginVerifier;
+ import fr.xephi.authme.service.SessionService;
+@@ -67,6 +69,12 @@ public class PaperDialogFlowListener implements Listener {
+     @Inject
+     private PasswordSecurity passwordSecurity;
+ 
++    @Inject
++    private LoginFailureTracker loginFailureTracker;
++
++    @Inject
++    private TempbanManager tempbanManager;
++
+     @Inject
+     private ValidationService validationService;
+ 
+@@ -121,6 +129,11 @@ public class PaperDialogFlowListener implements Listener {
+                 preJoinDialogService.markSkipPostJoinDialog(playerId);
+                 return;
+             }
++            // Captcha is a post-join command flow. Let AuthMe's regular limbo path handle it
++            // instead of showing a password dialog that cannot accept the captcha response.
++            if (loginFailureTracker.isCaptchaRequired(normalizedName)) {
++                return;
++            }
+             handleBlockingLoginDialog(connection, playerId, playerName);
+         } else if (commonService.getProperty(RegistrationSettings.FORCE)) {
+             RegistrationType registrationType = commonService.getProperty(RegistrationSettings.REGISTRATION_TYPE);
+@@ -170,7 +183,7 @@ public class PaperDialogFlowListener implements Listener {
+         }
+ 
+         if (PaperDialogActionKeys.PRE_JOIN_LOGIN_SUBMIT.equals(event.getIdentifier())) {
+-            processPreJoinLogin(playerId, playerName, event.getDialogResponseView());
++            processPreJoinLogin(connection, playerId, playerName, event.getDialogResponseView());
+             return;
+         }
+ 
+@@ -215,7 +228,8 @@ public class PaperDialogFlowListener implements Listener {
+         }
+     }
+ 
+-    private void processPreJoinLogin(UUID playerId, String playerName, DialogResponseView dialogResponseView) {
++    private void processPreJoinLogin(PlayerConfigurationConnection connection, UUID playerId, String playerName,
++                                     DialogResponseView dialogResponseView) {
+         String password = dialogResponseView == null ? null : dialogResponseView.getText("password");
+         if (password == null || password.isBlank()) {
+             completeLoginResponse(playerId, messages.retrieveSingle(playerName, MessageKey.LOGIN_TIMEOUT_ERROR));
+@@ -232,7 +246,14 @@ public class PaperDialogFlowListener implements Listener {
+             preJoinDialogService.storePendingLoginPassword(playerId, password);
+             completeLoginResponse(playerId, null);
+         } else {
+-            completeLoginResponse(playerId, messages.retrieveSingle(playerName, MessageKey.WRONG_PASSWORD));
++            String normalizedName = playerName.toLowerCase(Locale.ROOT);
++            String address = getClientAddress(connection);
++            LoginFailureTracker.LoginFailureResult failure =
++                loginFailureTracker.recordFailure(address, normalizedName);
++            String kickMessage = failure.tempbanRequired()
++                ? tempbanManager.tempbanAddress(address, playerName)
++                : messages.retrieveSingle(playerName, MessageKey.WRONG_PASSWORD);
++            completeLoginResponse(playerId, kickMessage);
+         }
+     }
+ 
+@@ -365,6 +386,13 @@ public class PaperDialogFlowListener implements Listener {
+         }
+     }
+ 
++    private static String getClientAddress(PlayerConfigurationConnection connection) {
++        InetSocketAddress clientAddress = connection.getClientAddress();
++        return clientAddress == null || clientAddress.getAddress() == null
++            ? null
++            : clientAddress.getAddress().getHostAddress();
++    }
++
+     private boolean shouldSkipPreJoinDialogForPremium(PlayerAuth auth, String playerName, UUID playerId) {
+         if (!commonService.getProperty(PremiumSettings.ENABLE_PREMIUM) || !auth.isPremium()) {
+             return false;
+diff --git a/authme-paper-common/src/main/java/fr/xephi/authme/platform/PaperDialogHelper.java b/authme-paper-common/src/main/java/fr/xephi/authme/platform/PaperDialogHelper.java
+index 808b48eca1ead7f7ee7776cbb93db2224ba0fec0..2198eede98d4928b2183faa595267784eb0dc247 100644
+--- a/authme-paper-common/src/main/java/fr/xephi/authme/platform/PaperDialogHelper.java
++++ b/authme-paper-common/src/main/java/fr/xephi/authme/platform/PaperDialogHelper.java
+@@ -23,6 +23,10 @@ import java.util.List;
+ public final class PaperDialogHelper {
+ 
+     private static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.legacySection();
++    private static final int BODY_WIDTH = 300;
++    private static final int INPUT_WIDTH = 300;
++    private static final int BUTTON_WIDTH = 146;
++    private static final int MAX_ACTION_COLUMNS = 2;
+ 
+     private PaperDialogHelper() {
+     }
+@@ -52,9 +56,8 @@ public final class PaperDialogHelper {
+             .afterAction(DialogBase.DialogAfterAction.WAIT_FOR_RESPONSE)
+             .build();
+ 
+-        ActionButton loginButton = ActionButton.builder(legacyComponent(dialog.primaryButtonLabel()))
+-            .action(DialogAction.customClick(PaperDialogActionKeys.PRE_JOIN_LOGIN_SUBMIT, null))
+-            .build();
++        ActionButton loginButton = createActionButton(dialog.primaryButtonLabel(),
++            DialogAction.customClick(PaperDialogActionKeys.PRE_JOIN_LOGIN_SUBMIT, null));
+ 
+         // Recovery button if the spec includes a secondary command, otherwise a plain cancel button
+         Key secondaryKey = dialog.secondaryButtonCommand() != null
+@@ -63,7 +66,9 @@ public final class PaperDialogHelper {
+ 
+         return Dialog.create(factory -> factory.empty()
+             .base(base)
+-            .type(DialogType.multiAction(createPreJoinButtons(dialog, loginButton, secondaryKey)).build()));
++            .type(DialogType.multiAction(createPreJoinButtons(dialog, loginButton, secondaryKey))
++                .columns(actionColumns(dialog.showSecondaryButton() ? 2 : 1))
++                .build()));
+     }
+ 
+     public static Dialog createPreJoinRecoveryDialog(DialogWindowSpec dialog) {
+@@ -74,14 +79,15 @@ public final class PaperDialogHelper {
+             .afterAction(DialogBase.DialogAfterAction.WAIT_FOR_RESPONSE)
+             .build();
+ 
+-        ActionButton submitButton = ActionButton.builder(legacyComponent(dialog.primaryButtonLabel()))
+-            .action(DialogAction.customClick(PaperDialogActionKeys.PRE_JOIN_RECOVERY_SUBMIT, null))
+-            .build();
++        ActionButton submitButton = createActionButton(dialog.primaryButtonLabel(),
++            DialogAction.customClick(PaperDialogActionKeys.PRE_JOIN_RECOVERY_SUBMIT, null));
+ 
+         return Dialog.create(factory -> factory.empty()
+             .base(base)
+             .type(DialogType.multiAction(createPreJoinButtons(dialog, submitButton,
+-                PaperDialogActionKeys.PRE_JOIN_RECOVERY_CANCEL)).build()));
++                PaperDialogActionKeys.PRE_JOIN_RECOVERY_CANCEL))
++                .columns(actionColumns(2))
++                .build()));
+     }
+ 
+     public static Dialog createPreJoinRegisterDialog(DialogWindowSpec dialog) {
+@@ -92,15 +98,16 @@ public final class PaperDialogHelper {
+             .afterAction(DialogBase.DialogAfterAction.WAIT_FOR_RESPONSE)
+             .build();
+ 
+-        ActionButton registerButton = ActionButton.builder(legacyComponent(dialog.primaryButtonLabel()))
+-            .action(DialogAction.customClick(PaperDialogActionKeys.PRE_JOIN_REGISTER_SUBMIT, null))
+-            .build();
++        ActionButton registerButton = createActionButton(dialog.primaryButtonLabel(),
++            DialogAction.customClick(PaperDialogActionKeys.PRE_JOIN_REGISTER_SUBMIT, null));
+ 
+         return Dialog.create(factory -> factory.empty()
+             .base(base)
+             .type(DialogType.multiAction(createPreJoinButtons(dialog,
+                 registerButton,
+-                PaperDialogActionKeys.PRE_JOIN_REGISTER_CANCEL)).build()));
++                PaperDialogActionKeys.PRE_JOIN_REGISTER_CANCEL))
++                .columns(actionColumns(dialog.showSecondaryButton() ? 2 : 1))
++                .build()));
+     }
+ 
+     private static Dialog createInGameCommandDialog(DialogWindowSpec dialog, String commandTemplate) {
+@@ -110,21 +117,21 @@ public final class PaperDialogHelper {
+             .afterAction(DialogBase.DialogAfterAction.CLOSE)
+             .build();
+ 
+-        ActionButton primaryButton = ActionButton.builder(legacyComponent(dialog.primaryButtonLabel()))
+-            .action(DialogAction.commandTemplate(commandTemplate))
+-            .build();
++        ActionButton primaryButton = createActionButton(dialog.primaryButtonLabel(),
++            DialogAction.commandTemplate(commandTemplate));
+ 
+         List<ActionButton> buttons = new ArrayList<>();
+         buttons.add(primaryButton);
+         if (dialog.showSecondaryButton() && dialog.secondaryButtonCommand() != null) {
+-            buttons.add(ActionButton.builder(legacyComponent(dialog.secondaryButtonLabel()))
+-                .action(DialogAction.commandTemplate(dialog.secondaryButtonCommand()))
+-                .build());
++            buttons.add(createActionButton(dialog.secondaryButtonLabel(),
++                DialogAction.commandTemplate(dialog.secondaryButtonCommand())));
+         }
+ 
+         return Dialog.create(factory -> factory.empty()
+             .base(base)
+-            .type(DialogType.multiAction(buttons).build()));
++            .type(DialogType.multiAction(buttons)
++                .columns(actionColumns(buttons.size()))
++                .build()));
+     }
+ 
+     private static List<ActionButton> createPreJoinButtons(DialogWindowSpec dialog,
+@@ -133,17 +140,28 @@ public final class PaperDialogHelper {
+         List<ActionButton> buttons = new ArrayList<>();
+         buttons.add(primaryButton);
+         if (dialog.showSecondaryButton()) {
+-            buttons.add(ActionButton.builder(legacyComponent(dialog.secondaryButtonLabel()))
+-                .action(DialogAction.customClick(cancelActionKey, null))
+-                .build());
++            buttons.add(createActionButton(dialog.secondaryButtonLabel(),
++                DialogAction.customClick(cancelActionKey, null)));
+         }
+         return buttons;
+     }
+ 
++    private static ActionButton createActionButton(String label, DialogAction action) {
++        return ActionButton.builder(legacyComponent(label))
++            .width(BUTTON_WIDTH)
++            .action(action)
++            .build();
++    }
++
++    static int actionColumns(int buttonCount) {
++        return Math.max(1, Math.min(buttonCount, MAX_ACTION_COLUMNS));
++    }
++
+     private static List<DialogInput> createInputs(DialogWindowSpec dialog) {
+         List<DialogInput> inputs = new ArrayList<>();
+         for (DialogInputSpec input : dialog.inputs()) {
+             inputs.add(DialogInput.text(input.id(), legacyComponent(input.label()))
++                .width(INPUT_WIDTH)
+                 .maxLength(input.maxLength())
+                 .build());
+         }
+@@ -154,7 +172,7 @@ public final class PaperDialogHelper {
+         if (dialog.body() == null) {
+             return List.of();
+         }
+-        return List.of(DialogBody.plainMessage(legacyComponent(dialog.body())));
++        return List.of(DialogBody.plainMessage(legacyComponent(dialog.body()), BODY_WIDTH));
+     }
+ 
+     private static String createRegisterTemplate(RegistrationType type, RegisterSecondaryArgument secondArg) {
+diff --git a/authme-paper-common/src/test/java/fr/xephi/authme/listener/PaperDialogFlowListenerTest.java b/authme-paper-common/src/test/java/fr/xephi/authme/listener/PaperDialogFlowListenerTest.java
+index c3e7a9f0204e2cf10d499959b4341222fb9f4e93..4054866bb679abd692398b5739a757c2d991af92 100644
+--- a/authme-paper-common/src/test/java/fr/xephi/authme/listener/PaperDialogFlowListenerTest.java
++++ b/authme-paper-common/src/test/java/fr/xephi/authme/listener/PaperDialogFlowListenerTest.java
+@@ -2,6 +2,7 @@ package fr.xephi.authme.listener;
+ 
+ import com.destroystokyo.paper.profile.PlayerProfile;
+ import fr.xephi.authme.data.ProxySessionManager;
++import fr.xephi.authme.data.TempbanManager;
+ import fr.xephi.authme.data.auth.PlayerCache;
+ import fr.xephi.authme.message.MessageKey;
+ import fr.xephi.authme.message.Messages;
+@@ -10,11 +11,13 @@ import fr.xephi.authme.platform.DialogWindowSpec;
+ import fr.xephi.authme.platform.PaperDialogActionKeys;
+ import fr.xephi.authme.process.register.RegisterSecondaryArgument;
+ import fr.xephi.authme.process.register.RegistrationType;
++import fr.xephi.authme.security.PasswordSecurity;
+ import fr.xephi.authme.data.auth.PlayerAuth;
+ import fr.xephi.authme.security.crypts.HashedPassword;
+ import fr.xephi.authme.datasource.DataSource;
+ import fr.xephi.authme.service.CommonService;
+ import fr.xephi.authme.service.DialogWindowService;
++import fr.xephi.authme.service.LoginFailureTracker;
+ import fr.xephi.authme.service.PreJoinDialogService;
+ import fr.xephi.authme.service.PremiumLoginVerifier;
+ import fr.xephi.authme.service.SessionService;
+@@ -264,6 +267,167 @@ public class PaperDialogFlowListenerTest {
+         assertThat(future.getNow(null), is("Timed out!"));
+     }
+ 
++    @Test
++    @SuppressWarnings("unchecked")
++    public void shouldCountWrongPreJoinPasswordAndNeverStoreIt() throws Exception {
++        PaperDialogFlowListener listener = new PaperDialogFlowListener();
++        DataSource dataSource = mock(DataSource.class);
++        LoginFailureTracker loginFailureTracker = mock(LoginFailureTracker.class);
++        Messages messages = mock(Messages.class);
++        PasswordSecurity passwordSecurity = mock(PasswordSecurity.class);
++        PreJoinDialogService preJoinDialogService = mock(PreJoinDialogService.class);
++        TempbanManager tempbanManager = mock(TempbanManager.class);
++        setField(listener, "dataSource", dataSource);
++        setField(listener, "loginFailureTracker", loginFailureTracker);
++        setField(listener, "messages", messages);
++        setField(listener, "passwordSecurity", passwordSecurity);
++        setField(listener, "preJoinDialogService", preJoinDialogService);
++        setField(listener, "tempbanManager", tempbanManager);
++
++        HashedPassword hash = new HashedPassword("hash");
++        PlayerAuth auth = PlayerAuth.builder().name("bobby").password(hash).build();
++        given(dataSource.getAuth("bobby")).willReturn(auth);
++        given(passwordSecurity.comparePassword("wrong", hash, "Bobby")).willReturn(false);
++        given(loginFailureTracker.recordFailure("203.0.113.5", "bobby"))
++            .willReturn(new LoginFailureTracker.LoginFailureResult(false, false));
++        given(messages.retrieveSingle("Bobby", MessageKey.WRONG_PASSWORD)).willReturn("Wrong password!");
++
++        UUID playerId = UUID.randomUUID();
++        CompletableFuture<String> future = new CompletableFuture<>();
++        Field pendingField = PaperDialogFlowListener.class.getDeclaredField("pendingLoginResponses");
++        pendingField.setAccessible(true);
++        ConcurrentMap<UUID, CompletableFuture<String>> pendingLoginResponses =
++            (ConcurrentMap<UUID, CompletableFuture<String>>) pendingField.get(listener);
++        pendingLoginResponses.put(playerId, future);
++
++        PlayerProfile profile = mock(PlayerProfile.class);
++        given(profile.getId()).willReturn(playerId);
++        given(profile.getName()).willReturn("Bobby");
++        PlayerConfigurationConnection connection = mock(PlayerConfigurationConnection.class);
++        given(connection.getProfile()).willReturn(profile);
++        given(connection.getClientAddress())
++            .willReturn(new InetSocketAddress(InetAddress.getByName("203.0.113.5"), 25565));
++        DialogResponseView responseView = mock(DialogResponseView.class);
++        given(responseView.getText("password")).willReturn("wrong");
++        PlayerCustomClickEvent event = mock(PlayerCustomClickEvent.class);
++        given(event.getCommonConnection()).willReturn(connection);
++        given(event.getIdentifier()).willReturn(PaperDialogActionKeys.PRE_JOIN_LOGIN_SUBMIT);
++        given(event.getDialogResponseView()).willReturn(responseView);
++
++        listener.onPlayerCustomClick(event);
++
++        assertThat(future.getNow(null), is("Wrong password!"));
++        verify(loginFailureTracker).recordFailure("203.0.113.5", "bobby");
++        verify(preJoinDialogService, never()).storePendingLoginPassword(any(), any());
++        verify(tempbanManager, never()).tempbanAddress(any(), any());
++    }
++
++    @Test
++    @SuppressWarnings("unchecked")
++    public void shouldTempbanAddressAfterWrongPreJoinPasswordAtThreshold() throws Exception {
++        PaperDialogFlowListener listener = new PaperDialogFlowListener();
++        DataSource dataSource = mock(DataSource.class);
++        LoginFailureTracker loginFailureTracker = mock(LoginFailureTracker.class);
++        PasswordSecurity passwordSecurity = mock(PasswordSecurity.class);
++        PreJoinDialogService preJoinDialogService = mock(PreJoinDialogService.class);
++        TempbanManager tempbanManager = mock(TempbanManager.class);
++        setField(listener, "dataSource", dataSource);
++        setField(listener, "loginFailureTracker", loginFailureTracker);
++        setField(listener, "passwordSecurity", passwordSecurity);
++        setField(listener, "preJoinDialogService", preJoinDialogService);
++        setField(listener, "tempbanManager", tempbanManager);
++
++        HashedPassword hash = new HashedPassword("hash");
++        PlayerAuth auth = PlayerAuth.builder().name("bobby").password(hash).build();
++        given(dataSource.getAuth("bobby")).willReturn(auth);
++        given(passwordSecurity.comparePassword("wrong", hash, "Bobby")).willReturn(false);
++        given(loginFailureTracker.recordFailure("203.0.113.5", "bobby"))
++            .willReturn(new LoginFailureTracker.LoginFailureResult(true, true));
++        given(tempbanManager.tempbanAddress("203.0.113.5", "Bobby")).willReturn("Try later!");
++
++        UUID playerId = UUID.randomUUID();
++        CompletableFuture<String> future = new CompletableFuture<>();
++        Field pendingField = PaperDialogFlowListener.class.getDeclaredField("pendingLoginResponses");
++        pendingField.setAccessible(true);
++        ConcurrentMap<UUID, CompletableFuture<String>> pendingLoginResponses =
++            (ConcurrentMap<UUID, CompletableFuture<String>>) pendingField.get(listener);
++        pendingLoginResponses.put(playerId, future);
++
++        PlayerProfile profile = mock(PlayerProfile.class);
++        given(profile.getId()).willReturn(playerId);
++        given(profile.getName()).willReturn("Bobby");
++        PlayerConfigurationConnection connection = mock(PlayerConfigurationConnection.class);
++        given(connection.getProfile()).willReturn(profile);
++        given(connection.getClientAddress())
++            .willReturn(new InetSocketAddress(InetAddress.getByName("203.0.113.5"), 25565));
++        DialogResponseView responseView = mock(DialogResponseView.class);
++        given(responseView.getText("password")).willReturn("wrong");
++        PlayerCustomClickEvent event = mock(PlayerCustomClickEvent.class);
++        given(event.getCommonConnection()).willReturn(connection);
++        given(event.getIdentifier()).willReturn(PaperDialogActionKeys.PRE_JOIN_LOGIN_SUBMIT);
++        given(event.getDialogResponseView()).willReturn(responseView);
++
++        listener.onPlayerCustomClick(event);
++
++        assertThat(future.getNow(null), is("Try later!"));
++        verify(loginFailureTracker).recordFailure("203.0.113.5", "bobby");
++        verify(tempbanManager).tempbanAddress("203.0.113.5", "Bobby");
++        verify(preJoinDialogService, never()).storePendingLoginPassword(any(), any());
++    }
++
++    @Test
++    public void shouldDeferToPostJoinCaptchaInsteadOfShowingPasswordDialog() throws Exception {
++        PaperDialogFlowListener listener = new PaperDialogFlowListener();
++        CommonService commonService = mock(CommonService.class);
++        DataSource dataSource = mock(DataSource.class);
++        LoginFailureTracker loginFailureTracker = mock(LoginFailureTracker.class);
++        PlayerCache playerCache = mock(PlayerCache.class);
++        PreJoinDialogService preJoinDialogService = mock(PreJoinDialogService.class);
++        PremiumLoginVerifier premiumLoginVerifier = mock(PremiumLoginVerifier.class);
++        ProxySessionManager proxySessionManager = mock(ProxySessionManager.class);
++        SessionService sessionService = mock(SessionService.class);
++        setField(listener, "commonService", commonService);
++        setField(listener, "dataSource", dataSource);
++        setField(listener, "loginFailureTracker", loginFailureTracker);
++        setField(listener, "playerCache", playerCache);
++        setField(listener, "preJoinDialogService", preJoinDialogService);
++        setField(listener, "premiumLoginVerifier", premiumLoginVerifier);
++        setField(listener, "proxySessionManager", proxySessionManager);
++        setField(listener, "sessionService", sessionService);
++
++        UUID playerId = UUID.randomUUID();
++        PlayerAuth auth = PlayerAuth.builder()
++            .name("bobby")
++            .password(new HashedPassword("hash"))
++            .build();
++        given(commonService.getProperty(RegistrationSettings.USE_PREJOIN_DIALOG_UI)).willReturn(true);
++        given(commonService.getProperty(RestrictionSettings.UNRESTRICTED_NAMES)).willReturn(Set.of());
++        given(commonService.getProperty(PremiumSettings.ENABLE_PREMIUM)).willReturn(false);
++        given(dataSource.getAuth("bobby")).willReturn(auth);
++        given(loginFailureTracker.isCaptchaRequired("bobby")).willReturn(true);
++        given(playerCache.isAuthenticated("bobby")).willReturn(false);
++        given(proxySessionManager.shouldResumeSession("bobby")).willReturn(false);
++        given(sessionService.hasValidSession("bobby", "203.0.113.5")).willReturn(false);
++
++        PlayerProfile profile = mock(PlayerProfile.class);
++        given(profile.getId()).willReturn(playerId);
++        given(profile.getName()).willReturn("Bobby");
++        Audience audience = mock(Audience.class);
++        PlayerConfigurationConnection connection = mock(PlayerConfigurationConnection.class);
++        given(connection.getProfile()).willReturn(profile);
++        given(connection.getAudience()).willReturn(audience);
++        given(connection.getClientAddress())
++            .willReturn(new InetSocketAddress(InetAddress.getByName("203.0.113.5"), 25565));
++        AsyncPlayerConnectionConfigureEvent event = mock(AsyncPlayerConnectionConfigureEvent.class);
++        given(event.getConnection()).willReturn(connection);
++
++        listener.onPlayerConfigure(event);
++
++        verify(loginFailureTracker).isCaptchaRequired("bobby");
++        verify(preJoinDialogService).clear(playerId);
++        verifyNoInteractions(audience);
++    }
++
+     @Test
+     public void shouldSkipPreJoinDialogsForAuthenticatedPlayerEvenIfPostJoinDialogsAreDisabled() throws Exception {
+         PaperDialogFlowListener listener = new PaperDialogFlowListener();
+diff --git a/authme-paper-common/src/test/java/fr/xephi/authme/platform/PaperDialogHelperTest.java b/authme-paper-common/src/test/java/fr/xephi/authme/platform/PaperDialogHelperTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..4593e87d4ed096428df2b1560738532543a60d38
+--- /dev/null
++++ b/authme-paper-common/src/test/java/fr/xephi/authme/platform/PaperDialogHelperTest.java
+@@ -0,0 +1,32 @@
++package fr.xephi.authme.platform;
++
++import org.junit.jupiter.api.Test;
++
++import java.lang.reflect.Field;
++
++import static org.hamcrest.MatcherAssert.assertThat;
++import static org.hamcrest.Matchers.is;
++
++public class PaperDialogHelperTest {
++
++    @Test
++    public void shouldKeepReadableDialogDimensions() throws ReflectiveOperationException {
++        assertThat(readConstant("BODY_WIDTH"), is(300));
++        assertThat(readConstant("INPUT_WIDTH"), is(300));
++        assertThat(readConstant("BUTTON_WIDTH"), is(146));
++    }
++
++    @Test
++    public void shouldLayOutSingleAndDoubleActionsWithoutEmptyColumns() {
++        assertThat(PaperDialogHelper.actionColumns(0), is(1));
++        assertThat(PaperDialogHelper.actionColumns(1), is(1));
++        assertThat(PaperDialogHelper.actionColumns(2), is(2));
++        assertThat(PaperDialogHelper.actionColumns(3), is(2));
++    }
++
++    private static int readConstant(String name) throws ReflectiveOperationException {
++        Field field = PaperDialogHelper.class.getDeclaredField(name);
++        field.setAccessible(true);
++        return field.getInt(null);
++    }
++}
