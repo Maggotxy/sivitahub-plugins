@@ -31,7 +31,7 @@
 相对 main HEAD 零提交、无 PR、无产出文件 —— 见 §12）。
 ⇒ `plan/verdict-v16.json`：`done=false`、`remaining=1`、`remaining_ids=["W33-RUNTIME-SMOKE"]`
 （与本节 `> verdict:` 行**严格一致**，见 §10）。
-> 本轮 PR：<见 `.cnb/agent-out/W34-A1-verdict-v16.json` 的 `pr_url`>（分支 `agent/W34-A1-verdict-v16`）。
+> 本轮 PR：https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/85（分支 `agent/W34-A1-verdict-v16`）。
 
 ## 1. basis 实测（本轮首要目的）
 

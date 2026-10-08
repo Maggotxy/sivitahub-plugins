@@ -10,7 +10,7 @@
   "doc/cnb/gap-registry.md",
   ".cnb/agent-out/W34-A1-verdict-v16.json"
  ],
- "pr_url": "",
+ "pr_url": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/85",
  "risks": [
   "W33-RUNTIME-SMOKE 未交付 ⇒ done=false / remaining=1（如实登记，不粉饰、也不当作已完成证据）。",
   "G-302 遍历形态的已知边界（与 v13/v14/v15 同源，不构成缺口）。",
@@ -61,7 +61,15 @@
     "key_set_equal": true,
     "items_only": [],
     "models_only": [],
-    "checks": {"closure":0,"compass":0,"hud":0,"journey":0,"lang":0,"packmeta":0,"textures":0}
+    "checks": {
+     "closure": 0,
+     "compass": 0,
+     "hud": 0,
+     "journey": 0,
+     "lang": 0,
+     "packmeta": 0,
+     "textures": 0
+    }
    }
   },
   "group_b_g302_series": {
