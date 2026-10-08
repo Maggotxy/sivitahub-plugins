@@ -387,67 +387,125 @@ TOTAL=$(count_lines "$OWN_MANIFEST")
 EXC_RE='(^|[] ])([a-zA-Z_$][a-zA-Z0-9_$.]*(Exception|Error))(:|$)'
 grep -nE "$EXC_RE" "$SERVER_LOG" > "$WORK/exc-all.txt" 2>/dev/null || : > "$WORK/exc-all.txt"
 grep -nF "Caused by:" "$SERVER_LOG" >> "$WORK/exc-all.txt" 2>/dev/null || true
-# 去重（行号前缀保证同一行不会被两条规则重复计入：第二次 append 的是同一行文本，
-# 用 sort -u 会误去重不同行，所以改用 awk 按原行去重）
-awk '!seen[$0]++' "$WORK/exc-all.txt" > "$WORK/exc.txt"
+# 去重：两条规则可能命中同一行（如 `Caused by: java.lang.RuntimeException:`），
+# 但**两行文本不同、都应保留**，所以不能按文本 sort -u。
+# 改为按 grep 的行号前缀去重，行号重复才丢弃。
+awk -F: '!seen[$1]++' "$WORK/exc-all.txt" > "$WORK/exc.txt"
 
 # 归属：异常行命中哪个插件名/包名，就记到哪个插件
-: > "$WORK/own-errors.txt"
-: > "$WORK/community-errors.txt"
-: > "$WORK/unattributed-errors.txt"
-if [ -s "$WORK/exc.txt" ]; then
-    while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        owner=""
-        # 1) 社区插件：锁清单里的插件名 + 常见插件包前缀
-        owner=$(python3 - "$LOCK_FILE" "$line" <<'PY'
-import json, re, sys
-lock_path, line = sys.argv[1], sys.argv[2]
+python3 - "$SERVER_LOG" "$WORK/exc.txt" "$WORK/own-errors.txt" \
+        "$WORK/community-errors.txt" "$WORK/unattributed-errors.txt" "$OWN_MANIFEST" "$LOCK_FILE" <<'PY'
+"""把异常行归属到插件。
+
+为什么不能「一行一判」，也不能只拿异常行组块：
+  真实 Paper 日志里一个自研插件异常长这样 ——
+    [18:00:06 ERROR]: [RpgCore] Could not initialize economy ledger reconciliation   <- 带插件名
+    [18:00:06 ERROR]: java.lang.IllegalStateException: closing price floor mismatch   <- 异常行、无插件名
+    \tat cn.originalrpg.core.ledger.LedgerReconciliation.onEnable(...)                <- 栈帧、无插件名
+  只有块首带插件名；异常行与栈帧都不带。若只把「异常行」组块，块里就没有
+  RpgCore / cn.originalrpg 的踪迹 ⇒ 自研插件的真实异常会被算成「无法归属」，
+  PAPER_OWN_ERRORS 误算成 0 —— 那是最危险的方向（假绿）。
+
+  所以这里取**原始日志的连续行区间**作为块：从一个异常行开始，一直吃到
+  下一行「不再像同一个异常块」为止（连续空行、或下一个非缩进非 Caused by 的日志头）。
+  块内任意一行命中插件名 / 包名 / cn.originalrpg，整块即归属该插件。
+"""
+import json
+import re
+import sys
+
+server_log, exc_list, own_out, community_out, unattr_out, manifest, lock_path = sys.argv[1:8]
+
 lock = json.load(open(lock_path, encoding="utf-8"))
-for e in lock["plugins"]:
-    name = e["name"]
-    if re.search(r"\b%s\b" % re.escape(name), line, re.I):
-        print(name); raise SystemExit(0)
-# 包名兜底（插件名与包名不一致时）
-packages = {"LuckPerms": "luckperms", "PlaceholderAPI": "me.clip.placeholderapi",
-            "WorldEdit": "com.sk89q", "WorldGuard": "com.sk89q.worldguard",
-            "Chunky": "org.popcraft.chunky", "AuthMeReloaded": "fr.xephi.authme",
-            "squaremap": "xyz.jpenilla.squaremap", "SkinsRestorer": "net.skinsrestorer",
-            "Citizens": "net.citizensnpcs", "BetonQuest": "org.betonquest",
-            "GriefPrevention": "me.ryanhamshire", "BetterModel": "kr.toxicity.model",
-            "BetterHud": "kr.toxicity.hud", "EssentialsX": "com.earth2me.essentials",
-            "MyPet": "de.Keyle.MyPet"}
-low = line.lower()
-for name, pkg in packages.items():
-    if pkg.lower() in low:
-        print(name); raise SystemExit(0)
-print("")
+own_names = [l.split("\t")[1].strip() for l in open(manifest, encoding="utf-8") if l.strip()]
+
+# 左侧非标识符字符 + 前缀匹配：能命中 RpgCorePlugin / cn.originalrpg.core.RpgCorePlugin，
+# 又不会把 RpgCore 命中到别的词里（实测 /\bRpgCore\b/ 匹配不到 RpgCorePlugin）。
+def hit(text, name):
+    return re.search(r"(?<![A-Za-z0-9_])%s" % re.escape(name), text, re.I) is not None
+
+
+COMMUNITY_PACKAGES = {
+    "LuckPerms": "luckperms",
+    "PlaceholderAPI": "placeholderapi",
+    "WorldEdit": "sk89q.worldedit",
+    "WorldGuard": "sk89q.worldguard",
+    "Chunky": "popcraft.chunky",
+    "AuthMeReloaded": "xephi.authme",
+    "squaremap": "jpenilla.squaremap",
+    "SkinsRestorer": "skinsrestorer",
+    "Citizens": "citizensnpcs",
+    "BetonQuest": "betonquest",
+    "GriefPrevention": "ryanhamshire",
+    "BetterModel": "toxicity.model",
+    "BetterHud": "toxicity.hud",
+    "EssentialsX": "earth2me.essentials",
+    "MyPet": "keyle.mypet",
+}
+
+# 归因顺序：社区优先。理由 —— 本仓是客户端/玩法侧插件，栈里出现 MyPet 的类很常见，
+# 但那类异常的源头是第三方；反过来第三方栈里出现 cn.originalrpg 才是本仓要背的账。
+# 两种都命中时按「社区」计，避免把第三方噪声算进 PAPER_OWN_ERRORS（会让门变假红），
+# 而**不会**掩盖本仓异常：本仓自有异常块里不会有第三方类名。
+def classify(text):
+    for entry in lock["plugins"]:
+        if hit(text, entry["name"]):
+            return entry["name"], "community"
+    low = text.lower()
+    for name, pkg in COMMUNITY_PACKAGES.items():
+        if pkg.lower() in low:
+            return name, "community"
+    for name in own_names:
+        if hit(text, name):
+            return name, "own"
+    if "cn.originalrpg" in low or "originalrpg" in low:
+        return "cn.originalrpg", "own"
+    return "", ""
+
+
+exc_linenos = []
+for raw in open(exc_list, encoding="utf-8"):
+    num, _, _rest = raw.rstrip("\n").partition(":")
+    if num.isdigit():
+        exc_linenos.append(int(num))
+ordered = sorted(set(exc_linenos))
+
+lines = open(server_log, encoding="utf-8", errors="replace").read().split("\n")
+exc_set = set(ordered)
+
+# 一个「日志头」行长这样：`[HH:MM:SS LEVEL]: ...`（Paper 的 java.util.logging 格式）
+LOG_HEAD = re.compile(r"^\[[0-9]{2}:[0-9]{2}:[0-9]{2}")
+
+own_rows, community_rows, unattr_rows = [], [], []
+for num in ordered:
+    if num - 1 >= len(lines):
+        continue
+    # 从异常行往前后扩到「同一个异常块」：向上吃到上一个日志头之后，
+    # 向下吃到下一个日志头之前（含空行与缩进栈帧）。
+    top = num
+    while top - 2 >= 0 and not LOG_HEAD.match(lines[top - 2]):
+        top -= 1
+    bottom = num
+    while bottom < len(lines) and not LOG_HEAD.match(lines[bottom]):
+        bottom += 1
+    block = "\n".join(lines[top - 1:bottom])
+    name, kind = classify(block)
+    row = "%d:%s" % (num, lines[num - 1])
+    if kind == "community":
+        community_rows.append("%s\t%s" % (name, row))
+    elif kind == "own":
+        own_rows.append("%s\t%s" % (name, row))
+    else:
+        unattr_rows.append(row)
+
+for path, rows in ((own_out, own_rows), (community_out, community_rows), (unattr_out, unattr_rows)):
+    with open(path, "w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(row + "\n")
+
+print("[smoke] 异常行 %d 条：自研 %d / 社区 %d / 无法归属 %d"
+      % (len(ordered), len(own_rows), len(community_rows), len(unattr_rows)))
 PY
-)
-        if [ -n "$owner" ]; then
-            printf '%s\t%s\n' "$owner" "$line" >> "$WORK/community-errors.txt"
-            continue
-        fi
-        # 2) 自研插件：日志里插件 logger 名是 CamelCase（如 RpgCore），栈里是 cn.originalrpg
-        hit=$(python3 - "$OWN_MANIFEST" "$line" <<'PY'
-import re, sys
-manifest, line = sys.argv[1], sys.argv[2]
-own = [l.split("\t")[1].strip() for l in open(manifest, encoding="utf-8") if l.strip()]
-for name in own:
-    if re.search(r"\b%s\b" % re.escape(name), line):
-        print(name); raise SystemExit(0)
-if "cn.originalrpg" in line or "originalrpg" in line.lower():
-    print("cn.originalrpg"); raise SystemExit(0)
-print("")
-PY
-)
-        if [ -n "$hit" ]; then
-            printf '%s\t%s\n' "$hit" "$line" >> "$WORK/own-errors.txt"
-        else
-            printf '%s\n' "$line" >> "$WORK/unattributed-errors.txt"
-        fi
-    done < "$WORK/exc.txt"
-fi
 
 OWN_ERRORS=$(count_lines "$WORK/own-errors.txt")
 COMMUNITY_ERRORS=$(count_lines "$WORK/community-errors.txt")
