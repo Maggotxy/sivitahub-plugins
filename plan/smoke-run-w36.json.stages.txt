@@ -1,0 +1,287 @@
+
+================================================================================
+=== stage: Prepare  status=success
+================================================================================
+trace: d610352f3be9dedd9544f0f159a5d9ee (parent: 09805f4492638d31373fcd2a9dfb257e)
+pipeline init...
+check if skip...
+no skip
+Master 2026-10-08 19:49:52 runner init...
+1th attempt to assign runner
+start...
+Requesting alloc-runner service for allocation...
+Allocation completed: runner 10.235.0.32:8087, cluster size is 3
+Done 82ms
+Pull Runner's configuration...
+Pipeline yaml cpus: -1
+Pipeline actual limit cpus: 8, memory: 16
+maxPipelineRunTime: 2h
+quota size: {
+  "workspace": "512G",
+  "volume": "512G",
+  "container": "256G"
+}
+Runner[10.235.0.32] runs on cnb:arch:default ...
+start...
+Do a Docker probe check
+Build with Docker? true. userns: true
+done
+> Init build docker container [0.1s]
+AI plugin is enabled.
+start services...
+Several services need to be started: 2
+Start services: 
+- Service git-clone-yyds start...
+Runner[10.235.0.32] 2026-10-08 19:49:52 $ mkdir -p $CNB_RUNNER_PIPELINE_CACHE && mkdir -p $CNB_RUNNER_WORKSPACE_PARENT
+Finished, code: 0, duration: 0s
+Runner[10.235.0.32][docker] 2026-10-08 19:49:52 $ docker pull cnbcool/git-clone-yyds:latest
+latest: Pulling from cnbcool/git-clone-yyds
+Digest: sha256:c803999894d9847998a8e1d240ef54d5ab5a42b21877bc243f9c6e11d53b0f02
+Status: Image is up to date for cnbcool/git-clone-yyds:latest
+docker.io/cnbcool/git-clone-yyds:latest
+
+Finished, code: 0, duration: 0.2s
+Runner[10.235.0.32][docker] 2026-10-08 19:49:53 $ docker run --rm --name cnb-3gl-1k4dlibvp-001-git-clone-yyds cnbcool/git-clone-yyds:latest
+use git username/password
+git version 2.39.5
+file:/etc/gitconfig	filter.lfs.process=git-lfs filter-process
+file:/etc/gitconfig	filter.lfs.required=true
+file:/etc/gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:/etc/gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:/root/.gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:/root/.gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:/root/.gitconfig	filter.lfs.process=git-lfs filter-process
+file:/root/.gitconfig	filter.lfs.required=true
+2026-10-08 19:49.54 $ lfs-progress-for-git
+2026-10-08 19:49.54 $ flock -xn ${PLUGIN_GIT_CACHE} ${CUR_DIR}/git-clone
+[.git] show progress...
+2026-10-08 19:49.54 $ mount |grep '/data/orange-ci/git/cnb.cool/2105858053681057792/cache/'
+2026-10-08 19:49.54 $ update cache with mount is exists.
+2026-10-08 19:49.54 $ git fetch -v https://cnb.cool/xzqkjmnbvc2026/sivitahub.git refs/heads/main
+[git-credential]: user: lamb031226
+[git-credential]: for https://cnb.cool/xzqkjmnbvc2026/sivitahub
+[git-credential]: hit self by env
+[git-credential]: allow lamb031226 view true
+[git-credential]: done
+[git-credential]: store ignored
+POST git-upload-pack (371 bytes)
+From https://cnb.cool/xzqkjmnbvc2026/sivitahub
+ * branch            main       -> FETCH_HEAD
+2026-10-08 19:49.54 $ break after fetch with mount is exists.
+2026-10-08 19:49.54 $ flock -x ${PLUGIN_GIT_CACHE} echo done
+done
+2026-10-08 19:49.54 $ copy-on-write for /yyds/cnb-3gl-1k4dlibvp-001~9fc/workspace
+2026-10-08 19:49.54 $ busybox mount -t overlay git-clone-yyds with extra_opts: 
+2026-10-08 19:49.54 $ cd /yyds/cnb-3gl-1k4dlibvp-001~9fc/workspace && /bin/git-checkout
+2026-10-08 19:49.54 $ git remote set-url origin "https://cnb.cool/xzqkjmnbvc2026/sivitahub.git"
+2026-10-08 19:49.54 $ git remote -v
+origin	https://cnb.cool/xzqkjmnbvc2026/sivitahub.git (fetch)
+origin	https://cnb.cool/xzqkjmnbvc2026/sivitahub.git (push)
+2026-10-08 19:49.54 $ git branch --show-current
+main
+2026-10-08 19:49.54 $ git rev-parse HEAD
+efd2b12ccf04cbd7fde73cfc1dbc67bfb55068e4
+2026-10-08 19:49.54 $ skip fetch due to fetched in cow
+2026-10-08 19:49.54 $ skip checkout due to checkouted in cow
+2026-10-08 19:49.54 $ done
+
+
+Finished, code: 0, duration: 1.3s
+- Service git-clone-yyds started [1.5s]
+- Service network-bus start...
+Runner[10.235.0.32][docker] 2026-10-08 19:49:54 $ docker pull orangeci/network-bus:latest
+latest: Pulling from orangeci/network-bus
+Digest: sha256:88737276d46f4115fbce2c748dae79c83944e92254f9e64d1247d71f0cacbf08
+Status: Image is up to date for orangeci/network-bus:latest
+docker.io/orangeci/network-bus:latest
+
+Finished, code: 0, duration: 0.2s
+Runner[10.235.0.32][docker] 2026-10-08 19:49:54 $ docker run --rm -d --name cnb-3gl-1k4dlibvp-001-network-bus orangeci/network-bus:latest sleep 79200
+78b77e5694ff6dffefddc652443e109d76ddf7ff8899849bc3096fb11639894f
+
+Finished, code: 0, duration: 0.3s
+Runner[10.235.0.32][docker] 2026-10-08 19:49:54 $ docker pull orangeci/orange-tc:latest
+latest: Pulling from orangeci/orange-tc
+Digest: sha256:8915dacc6568e04c255a02da6be55d058dd59344694f7946ad06f00d83333e53
+Status: Image is up to date for orangeci/orange-tc:latest
+docker.io/orangeci/orange-tc:latest
+
+Finished, code: 0, duration: 0.2s
+- Service network-bus started [0.8s]
+done
+launch docker 
+Runner[10.235.0.32][docker] 2026-10-08 19:49:55 $ docker pull eclipse-temurin:25-jdk
+[docker pull eclipse-temurin:25-jdk] 25-jdk: Pulling from library/eclipse-temurin
+[docker pull eclipse-temurin:25-jdk] Digest: sha256:8c0a84ea11c8f6ed52600fc19f1040121f2a162998e9f50a5faebbbad9172dcc
+[docker pull eclipse-temurin:25-jdk] Status: Image is up to date for eclipse-temurin:25-jdk
+[docker pull eclipse-temurin:25-jdk] docker.io/library/eclipse-temurin:25-jdk
+[docker pull eclipse-temurin:25-jdk] 
+[docker pull eclipse-temurin:25-jdk] Finished, code: 0, duration: 0.9s
+setup git config ok
+Runner[10.235.0.32][docker] 2026-10-08 19:49:56 $ command -v helm > /dev/null && helm registry login -u cnb --password-stdin helm.cnb.cool || true
+Finished, code: 0, duration: 0.1s
+
+================================================================================
+=== stage: 环境自检  status=success
+================================================================================
+Runner[10.235.0.32][docker] 2026-10-08 19:49:56 $
+set -e
+echo "event=$CNB_EVENT repo=$CNB_REPO_SLUG branch=$CNB_BRANCH"
+# eclipse-temurin:25-jdk 里 python3 / curl / sha256sum 全缺，冒烟脚本依赖它们
+# （解析 fill.papermc.io 的 JSON、下载、校验 sha256/sha512）。
+# 门禁自测阶段相同的坑见 .quality_gate 第一个 stage 的注释。
+have() { command -v "$1" >/dev/null 2>&1; }
+if have curl && have sha256sum && have python3; then echo "TOOLS=ready"; exit 0; fi
+echo "缺少 curl/sha256sum/python3，用 apt 安装"
+apt-get update -qq >/dev/null 2>&1 || true
+apt-get install -y -qq curl ca-certificates coreutils python3 >/dev/null 2>&1 || true
+echo "curl=$(have curl && echo yes || echo no) python3=$(have python3 && echo yes || echo no) sha256sum=$(have sha256sum && echo yes || echo no)"
+have curl && have sha256sum && have python3 || { echo "TOOLS=MISSING"; exit 1; }
+java -version 2>&1 | head -1
+event=api_trigger_smoke repo=xzqkjmnbvc2026/sivitahub branch=main
+缺少 curl/sha256sum/python3，用 apt 安装
+curl=yes python3=yes sha256sum=yes
+openjdk version "25.0.4.1" 2026-08-18 LTS
+
+Finished, code: 0, duration: 26.1s
+
+================================================================================
+=== stage: 运行时冒烟（下载 Paper → 装 25 自研 + 15 社区插件 → 启动 → 判据行）  status=error
+================================================================================
+               ^
+[smoke] gradle| /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java:744: error: cannot find symbol
+[smoke] gradle|                 && AuthMeApi.getInstance().isAuthenticated(player)
+[smoke] gradle|                    ^
+[smoke] gradle|   symbol:   variable AuthMeApi
+[smoke] gradle|   location: class RpgClassesPlugin
+[smoke] gradle| 4 errors
+[smoke] gradle| 
+[smoke] gradle| [Incubating] Problems report is available at: file:///workspace/build/reports/problems/problems-report.html
+[smoke] gradle| 
+[smoke] gradle| FAILURE: Build failed with an exception.
+[smoke] gradle| 
+[smoke] gradle| * What went wrong:
+[smoke] gradle| Execution failed for task ':plugins:rpg-classes:compileJava'.
+[smoke] gradle| > Compilation failed; see the compiler output below.
+[smoke] gradle|   /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/HiddenPathEffects.java:110: error: cannot find symbol
+[smoke] gradle|       public void onLogout(LogoutEvent event) {
+[smoke] gradle|                            ^
+[smoke] gradle|     symbol:   class LogoutEvent
+[smoke] gradle|     location: class HiddenPathEffects
+[smoke] gradle|   /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java:744: error: cannot find symbol
+[smoke] gradle|                   && AuthMeApi.getInstance().isAuthenticated(player)
+[smoke] gradle|                      ^
+[smoke] gradle|     symbol:   variable AuthMeApi
+[smoke] gradle|     location: class RpgClassesPlugin
+[smoke] gradle|   /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/HiddenPathEffects.java:9: error: package fr.xephi.authme.events does not exist
+[smoke] gradle|   import fr.xephi.authme.events.LogoutEvent;
+[smoke] gradle|                                ^
+[smoke] gradle|   /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java:30: error: package fr.xephi.authme.api.v3 does not exist
+[smoke] gradle|   import fr.xephi.authme.api.v3.AuthMeApi;
+[smoke] gradle|                                ^
+[smoke] gradle|   4 errors
+[smoke] gradle| 
+[smoke] gradle| * Try:
+[smoke] gradle| > Check your code and dependencies to fix the compilation error(s)
+[smoke] gradle| > Run with --scan to generate a Build Scan (Powered by Develocity).
+[smoke] gradle| 
+[smoke] gradle| BUILD FAILED in 1m 49s
+[smoke] gradle| 17 actionable tasks: 17 executed
+[smoke] GRADLE_ASSEMBLE=FAILED rc=1；日志尾部：
+[smoke]    > Task :plugins:rpg-ai-npc:classes
+[smoke]    > Task :plugins:rpg-ai-npc:jar
+[smoke]    > Task :plugins:rpg-ai-npc:sourcesJar
+[smoke]    > Task :plugins:rpg-ai-npc:assemble
+[smoke]    > Task :plugins:rpg-api:processResources
+[smoke]    > Task :plugins:rpg-api:classes
+[smoke]    > Task :plugins:rpg-api:jar
+[smoke]    > Task :plugins:rpg-api:sourcesJar
+[smoke]    > Task :plugins:rpg-api:assemble
+[smoke]    
+[smoke]    > Task :plugins:rpg-classes:compileJava FAILED
+[smoke]    /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/HiddenPathEffects.java:9: error: package fr.xephi.authme.events does not exist
+[smoke]    import fr.xephi.authme.events.LogoutEvent;
+[smoke]                                 ^
+[smoke]    /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/HiddenPathEffects.java:110: error: cannot find symbol
+[smoke]        public void onLogout(LogoutEvent event) {
+[smoke]                             ^
+[smoke]      symbol:   class LogoutEvent
+[smoke]      location: class HiddenPathEffects
+[smoke]    /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java:30: error: package fr.xephi.authme.api.v3 does not exist
+[smoke]    import fr.xephi.authme.api.v3.AuthMeApi;
+[smoke]                                 ^
+[smoke]    /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java:744: error: cannot find symbol
+[smoke]                    && AuthMeApi.getInstance().isAuthenticated(player)
+[smoke]                       ^
+[smoke]      symbol:   variable AuthMeApi
+[smoke]      location: class RpgClassesPlugin
+[smoke]    4 errors
+[smoke]    
+[smoke]    [Incubating] Problems report is available at: file:///workspace/build/reports/problems/problems-report.html
+[smoke]    
+[smoke]    FAILURE: Build failed with an exception.
+[smoke]    
+[smoke]    * What went wrong:
+[smoke]    Execution failed for task ':plugins:rpg-classes:compileJava'.
+[smoke]    > Compilation failed; see the compiler output below.
+[smoke]      /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/HiddenPathEffects.java:110: error: cannot find symbol
+[smoke]          public void onLogout(LogoutEvent event) {
+[smoke]                               ^
+[smoke]        symbol:   class LogoutEvent
+[smoke]        location: class HiddenPathEffects
+[smoke]      /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java:744: error: cannot find symbol
+[smoke]                      && AuthMeApi.getInstance().isAuthenticated(player)
+[smoke]                         ^
+[smoke]        symbol:   variable AuthMeApi
+[smoke]        location: class RpgClassesPlugin
+[smoke]      /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/HiddenPathEffects.java:9: error: package fr.xephi.authme.events does not exist
+[smoke]      import fr.xephi.authme.events.LogoutEvent;
+[smoke]                                   ^
+[smoke]      /workspace/plugins/rpg-classes/src/main/java/cn/originalrpg/classes/RpgClassesPlugin.java:30: error: package fr.xephi.authme.api.v3 does not exist
+[smoke]      import fr.xephi.authme.api.v3.AuthMeApi;
+[smoke]                                   ^
+[smoke]      4 errors
+[smoke]    
+[smoke]    * Try:
+[smoke]    > Check your code and dependencies to fix the compilation error(s)
+[smoke]    > Run with --scan to generate a Build Scan (Powered by Develocity).
+[smoke]    
+[smoke]    BUILD FAILED in 1m 49s
+[smoke]    17 actionable tasks: 17 executed
+
+Finished, code: 1, duration: 50m 45s
+
+================================================================================
+=== stage: BeforeEnd  status=success
+================================================================================
+Pipeline BeforeEnd for Services...
+Runner[10.235.0.32][docker] 2026-10-08 20:41:08 $ docker pull orangeci/check-is-remote-debugging:latest
+latest: Pulling from orangeci/check-is-remote-debugging
+Digest: sha256:519a2e95ed0a11547c9d3e183028cb044d7bac3cb8317c6c14181a45c482e444
+Status: Image is up to date for orangeci/check-is-remote-debugging:latest
+docker.io/orangeci/check-is-remote-debugging:latest
+
+Finished, code: 0, duration: 0.2s
+Runner[10.235.0.32] 2026-10-08 20:41:08 $ check remote debugging
+no debugging is found by tty.
+
+Checked that it is not debugging and the Debug mode is not turned on.
+
+================================================================================
+=== stage: DebugDetection  status=skipped
+================================================================================
+We couldn't find information on that stage.
+没有查询到该stage信息。
+
+================================================================================
+=== stage: End  status=success
+================================================================================
+Pipeline end...
+- Service network-bus stop...
+Runner[10.235.0.32] 2026-10-08 20:41:09 $ docker kill cnb-3gl-1k4dlibvp-001-network-bus
+cnb-3gl-1k4dlibvp-001-network-bus
+
+Finished, code: 0, duration: 0.2s
+- Service network-bus stoped [0.6s]
+- Service git-clone-yyds stop...
+- Service git-clone-yyds stoped [0s]

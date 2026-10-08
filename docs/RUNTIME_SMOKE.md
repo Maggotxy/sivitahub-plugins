@@ -109,16 +109,29 @@ sh scripts/run-paper-smoke.sh --timeout 600   # 覆盖「等 Done( 」的上限�
    W36 更正：AuthMe 一条原为「Sivita 自改版的 sha512 + 公网 Modrinth 的 url」——
    两个来源对不上，必然校验失败（实测 sn=cnb-kus-1k4djem3f：14/15 OK，只有 AuthMeReloaded 红）。
    已改为 `local` 条目，**校验值一个字节没动**。溯源与更新方式见 `libs/vendor/README.md`。
-4. `./gradlew --no-daemon assemble`，把 25 个 `plugins/*/build/libs/*.jar`（**排除 `-sources.jar`**）
+4. **`sh scripts/fetch-deps.sh` + `sh scripts/check-file-deps.sh`（在 gradle 之前）**。
+   ⚠️ 这一步**必须有**：干净克隆里 `libs/*.jar` 不在版本控制（`.gitignore` 忽略），
+   必须由 `fetch-deps.sh` 拉；十门的两处编译门都在 gradle 前跑它
+   （`.cnb.yml:179` 与 `:458`）。本 harness 最初漏了这一步，于是 `assemble` 在
+   `rpg-classes` 报 `package fr.xephi.authme.api.v3 does not exist` / `symbol: variable AuthMeApi`
+   （实测 `sn=cnb-3gl-1k4dlibvp`）。
+   **规矩：凡是要跑 gradle 的地方，都要先 `fetch-deps` + `check-file-deps`。**
+   「本地能编」不等于「干净克隆能编」—— 本地 `libs/` 里那些 jar 早就下过了。
+5. `./gradlew --no-daemon assemble`，把 25 个 `plugins/*/build/libs/*.jar`（**排除 `-sources.jar`**）
    装进临时目录的 `plugins/`。模块 → 插件名的对应关系由
    `scripts/gen-runtime-smoke-own-plugins.py` 从 `plugin.yml` 机械生成到
    `scripts/runtime-smoke-own-plugins.txt`。
-5. 写最小 `server.properties`：`online-mode=false`、`max-players=1`、
+6. 写最小 `server.properties`：`online-mode=false`、`max-players=1`、
    `level-type=minecraft\:flat`、`spawn-protection=0`、`view-distance=4`、
    `simulation-distance=4`、`allow-nether=false`、`allow-end=false`；`eula=true`。
-6. `java -Xmx2G -jar paper.jar --nogui` 后台启动（stdin 接 FIFO，避免读到 EOF 直接关控制台），
+7. `java -Xmx2G -jar paper.jar --nogui` 后台启动（stdin 接 FIFO，避免读到 EOF 直接关控制台），
    轮询日志等 **`Done (`**，上限 300 秒；然后写 `stop` 优雅停服，超时再 kill。
-7. 分类统计异常行并打印判据行。
+8. 分类统计异常行并打印判据行。
+
+**各阶段耗时**：脚本每个阶段都打一行 `[smoke] ---- <阶段>（自脚本启动 <n>s）----`
+（shell 侧用 `tick()`，python 侧用 `mark()`）。加它的原因：这个 stage 实测能跑到
+**51 分钟**（`sn=cnb-3gl-1k4dlibvp`），没有分段时间就只能猜时间花在哪一步。
+调优前先看这些行，不要凭直觉改。
 
 ## 独立校验（不是自证）
 
