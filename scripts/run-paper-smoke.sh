@@ -151,12 +151,52 @@ PAPER_URL=$(printf '%s' "$PAPER_META" | cut -f4)
 log "Paper $PAPER_MAJOR build=$PAPER_BUILD file=$PAPER_NAME"
 log "  sha256=$PAPER_SHA256"
 
+# CNB 会对「超过 10 分钟没有任何输出」的 stage 强制杀（实测 sn=cnb-80a-1k4dhivkj）。
+# 下载器必须**边下边吐进度**：python3 urllib 的文件名参数会被 CNB 逐行捕获成心跳，
+# 每 5 秒一行 `%` 进度，既不淹日志也保证 10 分钟内一定有输出。
+PYTHON_DL='
+import sys, time, urllib.request
+# python3 -c 时 sys.argv[0] 是 "-c"，所以 url/dest/ua 从 1 开始
+url, dest, ua = sys.argv[1], sys.argv[2], sys.argv[3]
+req = urllib.request.Request(url, headers={"User-Agent": ua})
+start = time.time()
+last = 0.0
+with urllib.request.urlopen(req, timeout=120) as resp, open(dest, "wb") as out:
+    total = int(resp.headers.get("Content-Length") or 0)
+    done = 0
+    while True:
+        chunk = resp.read(262144)
+        if not chunk:
+            break
+        out.write(chunk)
+        done += len(chunk)
+        now = time.time()
+        if now - last >= 5:
+            last = now
+            if total:
+                pct = 100.0 * done / total
+                sys.stdout.write("    ... %.1f%% (%d/%d bytes, %.1fs)\n" % (pct, done, total, now - start))
+            else:
+                sys.stdout.write("    ... %d bytes, %.1fs\n" % (done, now - start))
+            sys.stdout.flush()
+print("    下载完成：%d bytes / %.1fs" % (done, time.time() - start))
+'
+# 下载单个 URL 到目标文件（单次尝试）。文件名参数由调用方落盘，这里只负责重试。
+download_once() { # $1=url $2=dest
+    if have python3; then
+        python3 -c "$PYTHON_DL" "$1" "$2" "$UA"
+    elif have curl; then
+        curl -fSL --no-buffer --connect-timeout 20 --max-time 1800 -A "$UA" -o "$2" "$1"
+    else
+        return 1
+    fi
+}
+
 download() { # $1=url $2=dest
     attempt=0
     while [ "$attempt" -lt 3 ]; do
         attempt=$((attempt + 1))
-        if curl -fsSL --retry 2 --connect-timeout 20 --max-time 900 \
-                -A "$UA" -o "$2" "$1"; then
+        if download_once "$1" "$2"; then
             return 0
         fi
         log "  下载失败（第 $attempt/3 次）：$1"
@@ -181,13 +221,28 @@ else
 fi
 log "Paper sha256 校验通过（独立核对，见 evidence）"
 
-# ------------------------------------------------------------------ 2. 15 个社区插件（逐个 sha512）
+# ------------------------------------------------------------------ 2+3. 社区插件 + assemble
+#
+# ⚠️ CNB 会杀掉「10 分钟没有任何输出」的 stage（实测 sn=cnb-80a-1k4dhivkj：
+#    日志停在 Paper 下载完那一行，第 613 秒被 "任务超过(10m0s)没有任何输出而被强制关闭"）。
+#    改法不是加大超时（那是平台侧行为），而是**保证持续有输出**：
+#    把「15 个插件下载 + assemble」放进同一个 python 协调进程里，
+#    每完成一个插件、每 5 秒读一次 gradle 日志增量都 print 一次 ——
+#    这样最长静默 = Gradle 配置阶段（实测 30-40 秒），远低于 10 分钟。
+log "开始：15 个社区插件 sha512 校验/下载 → ./gradlew assemble（同进程持续吐进度）"
+python3 -u - "$LOCK_FILE" "$CACHE" "$ROOT" "$UA" "$WORK" "$SKIP_BUILD" <<'PY'
+import hashlib, json, os, shutil, subprocess, sys, time, urllib.request
 
-python3 - "$LOCK_FILE" "$CACHE" "$ROOT" "$UA" <<'PY'
-import hashlib, json, os, shutil, sys, urllib.request
-
-lock_path, cache, root, ua = sys.argv[1:5]
+lock_path, cache, root, ua, work, skip_build = sys.argv[1:7]
+skip_build = skip_build == "1"
 lock = json.load(open(lock_path, encoding="utf-8"))
+
+
+def say(msg):
+    # flush 是硬要求：没有它，print 会被块缓冲吃掉，日志依然是「长时间无输出」
+    sys.stdout.write("[smoke] %s\n" % msg)
+    sys.stdout.flush()
+
 
 def sha512_of(path):
     h = hashlib.sha512()
@@ -196,64 +251,123 @@ def sha512_of(path):
             h.update(chunk)
     return h.hexdigest()
 
+
 def verify(path, expect):
     return os.path.isfile(path) and sha512_of(path) == expect
 
+
+# ---------------- 2. 15 个社区插件 ----------------
 failures = []
-for entry in lock["plugins"]:
+for index, entry in enumerate(lock["plugins"], start=1):
     name, filename, expect = entry["name"], entry["file"], entry["sha512"]
     dest = os.path.join(cache, filename)
+    tag = "%d/%d %s" % (index, len(lock["plugins"]), name)
     if verify(dest, expect):
-        print("[smoke][plugin] %-16s OK(缓存 sha512 已核对) %s" % (name, filename))
+        say("插件 %-22s OK（缓存 sha512 已核对）%s" % (tag, filename))
         continue
     if "local" in entry:
         src = os.path.join(root, entry["local"])
         if not verify(src, expect):
             failures.append("%s（local %s 缺失或 sha512 不匹配）" % (name, entry["local"]))
-            print("[smoke][plugin] %-16s MISSING/BAD-SHA512 %s" % (name, entry["local"]))
+            say("插件 %-22s 失败：vendor 文件缺失/校验不过 %s" % (tag, entry["local"]))
             continue
         shutil.copyfile(src, dest)
-        print("[smoke][plugin] %-16s OK(vendor %s)" % (name, entry["local"]))
-    else:
-        url = entry["url"]
-        ok = False
-        for attempt in range(1, 4):
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": ua})
-                with urllib.request.urlopen(req, timeout=300) as resp, open(dest, "wb") as out:
-                    shutil.copyfileobj(resp, out)
-                ok = verify(dest, expect)
-                if ok:
-                    print("[smoke][plugin] %-16s OK(下载 attempt=%d) %s" % (name, attempt, filename))
-                    break
-                print("[smoke][plugin] %-16s SHA512-MISMATCH attempt=%d" % (name, attempt))
-            except Exception as exc:
-                print("[smoke][plugin] %-16s DOWNLOAD-FAIL attempt=%d %s" % (name, attempt, exc))
-            if os.path.exists(dest):
-                os.remove(dest)
-        if not ok:
-            failures.append("%s（%s 下载/校验失败）" % (name, url))
+        say("插件 %-22s OK（vendor %s）" % (tag, entry["local"]))
+        continue
+
+    url = entry["url"]
+    ok = False
+    for attempt in range(1, 4):
+        say("插件 %-22s 下载中 attempt=%d" % (tag, attempt))
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": ua})
+            with urllib.request.urlopen(req, timeout=300) as resp, open(dest, "wb") as out:
+                total = int(resp.headers.get("Content-Length") or 0)
+                done = 0
+                last = time.time()
+                while True:
+                    chunk = resp.read(262144)
+                    if not chunk:
+                        break
+                    out.write(chunk)
+                    done += len(chunk)
+                    now = time.time()
+                    # 每 10 秒一行进度。插件普遍几 MB，正常不会触发；
+                    # 触发说明网慢 —— 这时更需要心跳，否则 stage 会被判「无输出」。
+                    if now - last >= 10:
+                        last = now
+                        pct = ("%.0f%%" % (100.0 * done / total)) if total else "?"
+                        say("插件 %-22s ... %s (%d bytes)" % (tag, pct, done))
+            ok = verify(dest, expect)
+            if ok:
+                say("插件 %-22s OK（下载 attempt=%d，sha512 通过）%s" % (tag, attempt, filename))
+                break
+            say("插件 %-22s 失败：sha512 不匹配 attempt=%d" % (tag, attempt))
+        except Exception as exc:
+            say("插件 %-22s 失败：下载异常 attempt=%d %s" % (tag, attempt, exc))
+        if os.path.exists(dest):
+            os.remove(dest)
+    if not ok:
+        failures.append("%s（%s 下载/校验失败）" % (name, url))
 
 if failures:
-    print("[smoke][plugin] 有 %d 个社区插件不可用：" % len(failures))
-    for f in failures:
-        print("   - " + f)
+    say("有 %d 个社区插件不可用：" % len(failures))
+    for item in failures:
+        say("   - " + item)
     raise SystemExit(1)
+say("社区插件全部就绪：%d/%d，sha512 逐个核对通过" % (len(lock["plugins"]), len(lock["plugins"])))
+
+# ---------------- 3. assemble ----------------
+if skip_build:
+    say("--skip-build：跳过 assemble，复用已有 build/libs")
+    raise SystemExit(0)
+
+say("运行 ./gradlew --no-daemon assemble（完整日志 %s/assemble.log）" % work)
+env = dict(os.environ)
+env.setdefault("GRADLE_USER_HOME", os.path.expanduser("~/.gradle"))
+gradlew = os.path.join(root, "gradlew")
+try:
+    os.chmod(gradlew, 0o755)
+except OSError:
+    pass
+logfile = os.path.join(work, "assemble.log")
+with open(logfile, "w", encoding="utf-8") as out:
+    proc = subprocess.Popen([gradlew, "--no-daemon", "assemble"], cwd=root,
+                            stdout=out, stderr=subprocess.STDOUT, env=env)
+    # 每 20 秒把 gradle 日志的**新增行**逐条吐出来 —— 这就是心跳。
+    # 只打增量行而不是 tail 全量，避免把日志刷爆。
+    printed = 0
+    last_beat = time.time()
+    while proc.poll() is None:
+        time.sleep(5)
+        try:
+            with open(logfile, encoding="utf-8", errors="replace") as fh:
+                lines = fh.read().splitlines()
+        except OSError:
+            lines = []
+        for line in lines[printed:]:
+            say("gradle| %s" % line)
+        printed = len(lines)
+        if time.time() - last_beat >= 20:
+            last_beat = time.time()
+            say("... assemble 仍在进行（已运行 %ds，gradle 输出 %d 行）"
+                % (int(time.time() - last_beat + 20), printed))
+    rc = proc.returncode
+    with open(logfile, encoding="utf-8", errors="replace") as fh:
+        lines = fh.read().splitlines()
+    for line in lines[printed:]:
+        say("gradle| %s" % line)
+    printed = len(lines)
+
+if rc != 0:
+    say("GRADLE_ASSEMBLE=FAILED rc=%d；日志尾部：" % rc)
+    for line in lines[-60:]:
+        say("   " + line)
+    raise SystemExit(1)
+say("GRADLE_ASSEMBLE=OK（%d 行输出），日志：%s" % (printed, logfile))
+for line in lines[-5:]:
+    say("gradle| %s" % line)
 PY
-
-# ------------------------------------------------------------------ 3. ./gradlew assemble → 自研插件 jar
-
-if [ "$SKIP_BUILD" -eq 1 ]; then
-    log "--skip-build：跳过 assemble，用已有 build/libs"
-else
-    log "运行 ./gradlew --no-daemon assemble（日志 $WORK/assemble.log）"
-    chmod +x "$ROOT/gradlew" 2>/dev/null || true
-    ( cd "$ROOT" && ./gradlew --no-daemon assemble ) > "$WORK/assemble.log" 2>&1 || {
-        tail -n 60 "$WORK/assemble.log"
-        die "gradle assemble 失败（完整日志：$WORK/assemble.log）"
-    }
-    tail -n 5 "$WORK/assemble.log"
-fi
 
 # 25 个自研 jar：scripts/runtime-smoke-own-plugins.txt 每行 "<module>\t<plugin name>"
 : > "$WORK/own-jars.txt"
@@ -330,6 +444,8 @@ log "Paper PID=$JAVA_PID，等待日志出现 '$EULA_MARK'（上限 ${BOOT_TIMEO
 
 STARTED=NO
 waited=0
+# 每 5 秒一行心跳：Paper 启动期日志本来就是逐行滚动的，这里只保证
+# 「哪怕日志被 Paper 缓冲住也一定有输出」，避免再被 CNB 的无输出看门狗杀掉。
 while [ "$waited" -lt "$BOOT_TIMEOUT" ]; do
     if grep -qF "$EULA_MARK" "$SERVER_LOG" 2>/dev/null; then
         STARTED=YES
@@ -341,6 +457,10 @@ while [ "$waited" -lt "$BOOT_TIMEOUT" ]; do
     fi
     sleep 5
     waited=$((waited + 5))
+    # 每 30 秒报一次进度（含日志当前行数），既是心跳也是诊断信息
+    if [ $((waited % 30)) -eq 0 ]; then
+        log "  等待启动 ${waited}/${BOOT_TIMEOUT}s，服务端日志 $(count_lines "$SERVER_LOG") 行"
+    fi
 done
 
 if [ "$STARTED" = "YES" ]; then
@@ -488,8 +608,26 @@ for num in ordered:
     bottom = num
     while bottom < len(lines) and not LOG_HEAD.match(lines[bottom]):
         bottom += 1
-    block = "\n".join(lines[top - 1:bottom])
-    name, kind = classify(block)
+    name, kind = classify("\n".join(lines[top - 1:bottom]))
+
+    # 兜底：异常块里有时完全不含插件标识（Paper 把插件名印在**前一行**的
+    # "Could not pass event ... to <Plugin>" / "[<Plugin>] ..." 上，
+    # 而异常头本身只有异常类名）。这时向前回溯最多 LOOKBACK 行，
+    # 取第一个能归属的上下文行 —— 只用于**归属**，计入的行仍是异常行本身。
+    if not kind:
+        LOOKBACK = 6
+        for back in range(1, LOOKBACK + 1):
+            idx = top - 1 - back
+            if idx < 0:
+                break
+            ctx = lines[idx]
+            if LOG_HEAD.match(ctx):
+                # 命中日志头就只看这一行的归属，不再继续往上（避免跨到上一个事件）
+                ctx_name, ctx_kind = classify(ctx)
+                if ctx_kind:
+                    name, kind = ctx_name, ctx_kind
+                break
+
     row = "%d:%s" % (num, lines[num - 1])
     if kind == "community":
         community_rows.append("%s\t%s" % (name, row))
