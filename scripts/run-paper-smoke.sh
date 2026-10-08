@@ -96,6 +96,11 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 log() { echo "[smoke] $*"; }
 
+# 阶段耗时：这个 stage 实测能跑到 50 分钟（sn=cnb-3gl-1k4dlibvp），
+# 没有分段计时就只能猜时间花在哪一步。tick 每打一行带累计秒数。
+SMOKE_T0=$(date +%s)
+tick() { echo "[smoke] ---- $*（自脚本启动 $(( $(date +%s) - SMOKE_T0 ))s）----"; }
+
 die() { echo "[smoke][FATAL] $*" >&2; exit 1; }
 
 # 统计行数（无匹配输出 0，不依赖 grep 退出码，dash 下安全）
@@ -239,6 +244,7 @@ else
     cp "$PAPER_JAR" "$CACHE/$PAPER_NAME"
 fi
 log "Paper sha256 校验通过（独立核对，见 evidence）"
+tick "Paper 下载 + sha256 校验完成"
 
 # ------------------------------------------------------------------ 2+3. 社区插件 + assemble
 #
@@ -255,6 +261,14 @@ import hashlib, json, os, shutil, subprocess, sys, time, urllib.request
 lock_path, cache, root, ua, work, skip_build = sys.argv[1:7]
 skip_build = skip_build == "1"
 lock = json.load(open(lock_path, encoding="utf-8"))
+
+# 各阶段耗时：这个 stage 实测能跑到 50 分钟（sn=cnb-3gl-1k4dlibvp），
+# 没有分段时间就只能猜钱花在哪。每条 mark 打一行累计秒数。
+_t0 = time.time()
+
+
+def mark(msg):
+    say("---- %s（自本进程启动 %.0fs）----" % (msg, time.time() - _t0))
 
 
 def say(msg):
@@ -276,6 +290,7 @@ def verify(path, expect):
 
 
 # ---------------- 2. 15 个社区插件 ----------------
+mark("开始下载/校验 15 个社区插件")
 failures = []
 for index, entry in enumerate(lock["plugins"], start=1):
     name, filename, expect = entry["name"], entry["file"], entry["sha512"]
@@ -335,12 +350,52 @@ if failures:
         say("   - " + item)
     raise SystemExit(1)
 say("社区插件全部就绪：%d/%d，sha512 逐个核对通过" % (len(lock["plugins"]), len(lock["plugins"])))
+mark("社区插件就绪")
+
+# ---------------- 2.5 第三方编译期依赖 ----------------
+# ⚠️ 干净克隆里 `libs/*.jar` **不在版本控制**（.gitignore 忽略 `libs/*.jar`），
+#    必须由 `scripts/fetch-deps.sh` 拉。十门的两处编译门都在 gradle 之前跑它
+#    （.cnb.yml:179 与 :458 的 `sh scripts/fetch-deps.sh` + `sh scripts/check-file-deps.sh`）。
+#
+#    本 harness 最初**漏了这一步**，于是 assemble 在 rpg-classes 报
+#      `package fr.xephi.authme.api.v3 does not exist` / `symbol: variable AuthMeApi`
+#    （实测 sn=cnb-3gl-1k4dlibvp）。教训：**凡是要跑 gradle 的地方，都要先 fetch-deps**；
+#    「本地能编」不等于「干净克隆能编」，因为本地 libs/ 里那些 jar 早就下过了。
+if not skip_build:
+    mark("开始 fetch-deps")
+    fd_log = os.path.join(work, "fetch-deps.log")
+    with open(fd_log, "w", encoding="utf-8") as out:
+        fd = subprocess.Popen(["sh", os.path.join(root, "scripts", "fetch-deps.sh")],
+                              cwd=root, stdout=out, stderr=subprocess.STDOUT)
+        fd.wait()
+    if fd.returncode != 0:
+        say("FETCH_DEPS=FAILED rc=%d；日志尾部：" % fd.returncode)
+        with open(fd_log, encoding="utf-8", errors="replace") as fh:
+            for line in fh.read().splitlines()[-30:]:
+                say("   " + line)
+        raise SystemExit(1)
+    say("FETCH_DEPS=OK")
+
+    # 与编译门同口径的静态门禁：每个 compileOnly(files(...)) 都必须在清单里。
+    # 跑它保证「冒烟能编」与「编译门能编」的前置条件一致。
+    cf = subprocess.run(["sh", os.path.join(root, "scripts", "check-file-deps.sh")],
+                        cwd=root, capture_output=True, text=True)
+    if cf.returncode != 0:
+        say("CHECK_FILE_DEPS=FAILED rc=%d" % cf.returncode)
+        for line in (cf.stdout or "").splitlines()[-30:]:
+            say("   " + line)
+        for line in (cf.stderr or "").splitlines()[-10:]:
+            say("   " + line)
+        raise SystemExit(1)
+    say("CHECK_FILE_DEPS=OK")
+    mark("fetch-deps 完成")
 
 # ---------------- 3. assemble ----------------
 if skip_build:
     say("--skip-build：跳过 assemble，复用已有 build/libs")
     raise SystemExit(0)
 
+mark("开始 gradle assemble")
 say("运行 ./gradlew --no-daemon assemble（完整日志 %s/assemble.log）" % work)
 env = dict(os.environ)
 env.setdefault("GRADLE_USER_HOME", os.path.expanduser("~/.gradle"))
@@ -386,6 +441,7 @@ if rc != 0:
 say("GRADLE_ASSEMBLE=OK（%d 行输出），日志：%s" % (printed, logfile))
 for line in lines[-5:]:
     say("gradle| %s" % line)
+mark("gradle assemble 完成")
 PY
 
 # 25 个自研 jar：scripts/runtime-smoke-own-plugins.txt 每行 "<module>\t<plugin name>"
@@ -406,6 +462,7 @@ while IFS="$(printf '\t')" read -r module pname; do
     printf '%s\t%s\t%s\n' "$module" "$pname" "$jar" >> "$WORK/own-jars.txt"
 done < "$OWN_MANIFEST"
 log "自研插件 jar 已装入 plugins/：$(count_lines "$WORK/own-jars.txt") 个"
+tick "25 个自研插件 jar 已装入"
 
 # 社区插件装入 plugins/
 python3 - "$LOCK_FILE" "$CACHE" "$PLUGINS" <<'PY'
@@ -460,6 +517,7 @@ FIFO_HOLDER=$!
 java -Xmx"$JAVA_XMX" -jar "$PAPER_JAR" --nogui < "$FIFO" > "$SERVER_LOG" 2>&1 &
 JAVA_PID=$!
 log "Paper PID=$JAVA_PID，等待日志出现 '$EULA_MARK'（上限 ${BOOT_TIMEOUT}s）"
+tick "Paper 进程已启动，开始等 Done ("
 
 STARTED=NO
 waited=0
@@ -503,6 +561,7 @@ fi
 kill "$FIFO_HOLDER" 2>/dev/null || true
 wait "$JAVA_PID" 2>/dev/null || true
 JAVA_PID=""
+tick "Paper 已停止，开始统计判据"
 
 # ------------------------------------------------------------------ 6. 判据
 

@@ -486,3 +486,23 @@ PR = #86（`f4e4f43`）。
 | 接线 | `run-paper-smoke.sh` 开头先跑 `--selftest` 再查真实清单 —— 只查真实清单只能证明「现在没报错」，不能证明「判据还认得出错」。两步都只读本地文件，毫秒级、不碰网络 |
 | 本地实测 | `SMOKE_LOCK_ENTRIES=15 / SMOKE_LOCK_LOCAL=5 / SMOKE_LOCK_PROBLEMS=0 / SMOKE_LOCK_CHECK=PASS`；`SMOKE_LOCK_SELFTEST=PASS=10 FAIL=0`；`sh -n scripts/run-paper-smoke.sh` → 通过 |
 | **夹具抓到我自己的缺陷** | 第一版「sha512 与清单不符」夹具把 `local` 指向一个**不存在**的文件 ⇒ 先撞上「local 文件不存在」分支，sha512 比较**根本没跑到**。10 组里 1 组「红了但红在别的原因上」= 等于没测到。修法：该夹具的 `local` 必须指向**确实存在**的文件（取清单里真实的 local 路径，退化时用 `README.md` 顶上）。这正是 §L 那条规矩（「每加一条判据都要配负向夹具」）的又一次实测 —— 而且证明「只判退出码不看原因」是不够的 |
+
+#### I.10.4 缺陷 `G-SMOKE-MISSING-FETCH-DEPS`：harness 没跑 `fetch-deps`，`assemble` 必红（**已修**）
+
+| 项 | 内容 |
+|---|---|
+| **现象** | 修完 §I.10.2 后重跑（`sn=cnb-3gl-1k4dlibvp`，stage 耗时 3093s ≈ 51.5 min）仍 RED，但失败点**前移到 assemble**：`GRADLE_ASSEMBLE=FAILED rc=1`，`> Task :plugins:rpg-classes:compileJava FAILED`，4 个错误 —— `package fr.xephi.authme.api.v3 does not exist` / `symbol: variable AuthMeApi` / `package fr.xephi.authme.events does not exist` / `symbol: class LogoutEvent`（`BUILD FAILED in 1m 49s`，17 actionable tasks） |
+| **根因** | `libs/*.jar` 被 `.gitignore` 忽略，靠 `scripts/fetch-deps.sh` 拉到本地；十门的**两处**编译门都在 gradle 之前跑它（`.cnb.yml:179` 与 `:458` 的 `sh scripts/fetch-deps.sh` + `sh scripts/check-file-deps.sh`）。**harness 漏了这一步** ⇒ 干净克隆里 `libs/AuthMe-6.0.0-Paper.jar` 不存在 ⇒ `compileOnly(files(rootProject.file("libs/AuthMe-6.0.0-Paper.jar")))` 解不出符号 |
+| **为什么第一轮没暴露** | 第一轮实跑在更早的「15 个社区插件」就 RED 了（§I.10.2），**根本没走到 assemble**。修好锁清单才把它顶出来 —— 「一次只暴露一个缺陷」是串联链路的常态，所以「修完必须重跑」不是仪式 |
+| **修法** | assemble 之前加 `sh scripts/fetch-deps.sh`（失败即 RED，打印日志尾部）与 `sh scripts/check-file-deps.sh`（与编译门同口径、同镜像 `eclipse-temurin:25-jdk`），保证「冒烟能编」与「编译门能编」的前置条件**一致** |
+| **同族规矩（值得记）** | **凡是要跑 gradle 的地方，都要先 `fetch-deps` + `check-file-deps`。** 「本地能编」不等于「干净克隆能编」—— 本地 `libs/` 里那些 jar 早就下过了，所以本地永远不会暴露这个缺陷 |
+| **顺带（诊断能力）** | 新增**分阶段计时**：shell 侧 `tick()`、python 侧 `mark()`，每阶段打一行 `---- <阶段>（自脚本启动 <n>s）----`。理由：这个 stage 能跑到 51 分钟，没有分段时间就只能猜钱花在哪一步 —— 调优前先看这些行，不要凭直觉改 |
+
+#### I.10.5 取证工具缺陷 `G-GATE-LOG-TRUNCATED`：`hits` 为空不是「没打判据行」，是**证据被截掉了**（**已修**）
+
+| 项 | 内容 |
+|---|---|
+| **现象** | `plan/smoke-run-w36.json` 的 `hits` 为**空数组** —— 一行判据行都没抽到。表面看像「脚本没打判据行」，实际脚本明明打了 |
+| **真因** | `scripts/run_gate.py` 调用 `collect_stage_logs(tail_chars=6000)`，只保留每个 stage 的**末尾 6000 字符**。这个 stage 跑 51 分钟、gradle 打了上万行 ⇒ 开头的 `SMOKE_LOCK_*` 全被截掉。**是取证工具把证据截没了**，不是判据没打 |
+| **修法** | ① `run_gate.py` 把 `--tail-chars` 提为参数，默认 `2000000`，注释写明「判据行可能出现在 stage 的任意位置（开头的前置检查、末尾的汇总），别调小」；② `KEY_PATTERNS` 补 `SMOKE_LOCK_CHECK` / `_ENTRIES` / `_LOCAL` / `_PROBLEMS` / `_SELFTEST` |
+| **教训** | 「判据行没抽到」有**两种**可能：脚本没打，或取证工具截掉了。先看 `.stages.txt` 的实际长度与内容，再下结论 —— 否则会把工具缺陷误判成产品缺陷（本轮差点如此） |
