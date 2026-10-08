@@ -73,6 +73,10 @@ sh scripts/run-paper-smoke.sh --timeout 600   # 覆盖「等 Done( 」的上限�
 | `PAPER_OWN_ERRORS=<n>` | **自研插件相关**的 `Exception` / `Error` / `Caused by:` 行数（按插件名或 `cn.originalrpg` 归属） |
 | `PAPER_COMMUNITY_ERRORS=<n>` | **社区插件**的异常行数，单独计数 |
 | `PAPER_UNATTRIBUTED_ERRORS=<n>` | 两种归属都不命中的异常行数（Paper 自身 / 库），仅报告 |
+| `SMOKE_LOCK_SELFTEST=PASS=<n> FAIL=<m>` | 锁清单判据的**负向夹具**自测（10 组变异必须都红在预期原因上） |
+| `SMOKE_LOCK_CHECK=PASS\|FAIL` | 锁清单静态预检结果 |
+| `SMOKE_LOCK_ENTRIES=<n>` / `SMOKE_LOCK_LOCAL=<n>` | 清单条数 / 其中取本地 vendor 文件的条数 |
+| `SMOKE_LOCK_PROBLEMS=<n>` | 预检发现的问题条数（`>0` 即 FAIL） |
 
 **GREEN 的条件（三条缺一不可，脚本不对任何一条放宽）**：
 
@@ -83,17 +87,28 @@ sh scripts/run-paper-smoke.sh --timeout 600   # 覆盖「等 Done( 」的上限�
 **社区插件异常不判 RED**：它们不是本仓代码，第三方插件在真实 Paper 上的
 版本漂移与本仓无关；但脚本必须把它们逐条打印出来，避免「用社区插件异常掩盖自研插件异常」。
 
-退出码：`0` = GREEN，`1` = RED（判据行已打全），`2` = 用法错误。
+退出码：`0` = GREEN，`1` = RED（判据行已打全），`2` = 用法错误或**前置检查失败**
+（缺文件 / 锁清单预检不过 —— 这类问题在下载任何东西之前就红，不浪费 10 分钟云上时间）。
 
 ## 脚本实际做了什么
 
+0. **锁清单静态预检（不碰网络，毫秒级）**：`scripts/check-smoke-lock.py`。
+   先跑 `--selftest` —— 10 组变异（local 文件不存在 / sha512 不符 / 来源重复 / 来源缺失 /
+   sha512 形态错 / file 或 name 重复 / 清单空 / 清单不是 JSON）必须**都红在预期原因上**；
+   再查真实清单。顺序有意如此：只查真实清单只能证明「现在没报错」，
+   不能证明「判据还认得出错」。
+   加这一步的直接原因是 W36 的事故：AuthMe 一条把自改版的 sha512 配了公网的 url，
+   纯静态可查的错误却花了一次 10 分钟的云上冒烟才发现。
 1. **解析 Paper 26.2 最新 STABLE build**：读 `https://fill.papermc.io/v3/projects/paper/versions/26.2/builds`，
    取最新 STABLE 的 `.downloads["server:default"].url` 与 `.checksums.sha256`。
    JSON 用 `python3` 解析（门禁镜像**没有 jq**），不是硬编码 build 号，也不跳过校验。
 2. **下载并校验 sha256**，不匹配即 RED（先落缓存，复跑命中缓存仍重新核对 sha256）。
 3. **下载 15 个社区插件并逐个校验 sha512**：清单在
-   `scripts/runtime-smoke-plugins.lock.json`，来源是 W33 派单 goal 里那份内嵌清单
-   （逐字节复制的校验值，不改动）；其中 4 条从仓库 `libs/vendor/**` 取本地文件。
+   `scripts/runtime-smoke-plugins.lock.json`，来源是 W33 派单 goal 里那份内嵌清单；
+   其中 5 条从仓库 `libs/vendor/**` 取本地文件。
+   W36 更正：AuthMe 一条原为「Sivita 自改版的 sha512 + 公网 Modrinth 的 url」——
+   两个来源对不上，必然校验失败（实测 sn=cnb-kus-1k4djem3f：14/15 OK，只有 AuthMeReloaded 红）。
+   已改为 `local` 条目，**校验值一个字节没动**。溯源与更新方式见 `libs/vendor/README.md`。
 4. `./gradlew --no-daemon assemble`，把 25 个 `plugins/*/build/libs/*.jar`（**排除 `-sources.jar`**）
    装进临时目录的 `plugins/`。模块 → 插件名的对应关系由
    `scripts/gen-runtime-smoke-own-plugins.py` 从 `plugin.yml` 机械生成到
@@ -148,3 +163,7 @@ sh scripts/run-paper-smoke.sh --timeout 600   # 覆盖「等 Done( 」的上限�
   `python3 scripts/gen-runtime-smoke-own-plugins.py`，它会在数量不等于 25 时非零退出。
 - 改社区插件版本后：更新 `scripts/runtime-smoke-plugins.lock.json` 的
   `file` / `sha512` / `url|local` 三元组，**必须来自实际下载后重算的值**。
+- `local` 条目指向的文件必须真的在 `libs/vendor/` 里**入库**
+  （`.gitignore` 已用 `!libs/vendor/*.jar` 放行），并在 `libs/vendor/README.md`
+  登记「用途 / 引用方 / 生产机来源 / sha1」。
+  只把文件放进工作区而不入库，干净克隆/CI 里必然是 RED —— 这类错误只有实跑才暴露。

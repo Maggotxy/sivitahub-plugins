@@ -440,3 +440,49 @@ $ grep -rln 'W33' plan/ .cnb/agent-out/ doc/cnb/ state/
 采集运行时证据的 harness，并把耗时收敛到 CI 预算内）⇒ `verdict-v16` 判 `done=false` / `remaining=1`，
 派单见 `plan/tasks-w34.json`（`W34-A2-runtime-smoke`）。**不**把它当成已完成的证据，
 也**不**把它塞进 `needs_human`（`needs_human` 只许列 H-001 / U-003 / W7-A2 的 4 条）。
+
+### I.10 W35/W36 真实 Paper 运行时冒烟：harness 落仓 + 锁清单来源不一致修复 + 预检前移
+
+> context：W33 未交付（§I.9.3）⇒ W35 拆小重派（`doc/cnb/tasks-w35.json`），
+> 交付优先级写明「先把三样交付物写完并 commit+push，再去实跑」。
+> 结论：harness 已落仓（PR#86 / `f4e4f43`）；**首次实跑 RED**，根因是锁清单里一条自相矛盾，
+> 已修（W36），并把这类纯静态错误前移到脚本开头的预检。
+
+#### I.10.1 W35 交付（已落仓）
+
+| 交付物 | 说明 |
+|---|---|
+| `scripts/run-paper-smoke.sh` | 真实 Paper 26.2 + 25 个自研插件 + 15 个社区插件，`mktemp -d` 建服务端（不在仓库里生成 `server/`），等 `Done (` → 写 `stop` → 分类统计异常行 → 打印判据行 |
+| `.cnb.yml` 新增 `api_trigger_smoke` | 独立事件，**不接进十门**（十门是静态/单元层，冒烟要外网下载 + 真跑服务端） |
+| `docs/RUNTIME_SMOKE.md` | 判据行、GREEN 三条件、已知边界（明确不覆盖的东西） |
+| `scripts/runtime-smoke-plugins.lock.json` | 15 个社区插件锁清单（W33 派单 goal 内嵌 JSON 落盘） |
+| `scripts/runtime-smoke-own-plugins.txt` + `scripts/gen-runtime-smoke-own-plugins.py` | 25 个自研插件的模块→插件名清单（从 `plugin.yml` 机械生成，数量不等于 25 即非零退出） |
+
+PR = #86（`f4e4f43`）。
+
+#### I.10.2 缺陷 `G-SMOKE-LOCK-SOURCE-MISMATCH`：锁清单一条的来源自相矛盾（**已修**）
+
+| 项 | 内容 |
+|---|---|
+| **现象** | 首次实跑 `sn=cnb-kus-1k4djem3f` 在「15 个社区插件」这一步 RED：`[smoke] 有 1 个社区插件不可用：` / `[smoke]    - AuthMeReloaded（https://cdn.modrinth.com/data/9js4IEHC/versions/Kpko24V8/AuthMe-6.0.0-Paper.jar 下载/校验失败）`。**其余 14/15 全 OK** |
+| **根因** | 该条把 **Sivita 自改版**的 `sha512` 配了**公网 Modrinth 上游版**的 `url` —— 两个来源对不上，校验必然失败。不是网络问题，也不是上游删构建 |
+| **机械证据** | `sha512sum lamb:/home/lamb/minecraft/server/vendor/authme/AuthMe-6.0.0-Sivita-Paper.jar` = `5134afaa3fed32d384a077b3d6ffe3e0b2fe08353d365df2867f65dbecf5a3f53745355330b48312c52a197864a203a92437d3ce24e22a0770f81c5f28bfe4f1` **= 锁清单里写的值**；生产机 `runtime/plugins/AuthMe-6.0.0-Paper.jar` 同 sha512（1131386 字节，8月 8 02:14）⇒ 锁清单的值取自自改版，url 却指向上游 |
+| **修法** | 该条 `url` → `local: libs/vendor/AuthMe-6.0.0-Sivita-Paper.jar`。**sha512 一个字节没动**（保持「与生产机一致」这个更强的性质），只把来源改对 |
+| **入库** | `libs/vendor/AuthMe-6.0.0-Sivita-Paper.jar` + `libs/vendor/AuthMe-6.0.0-Sivita.patch` 入库；`.gitignore` 已有 `!libs/vendor/*.jar` 放行 |
+| **溯源（可复现）** | 上游 `AuthMe/AuthMeReloaded` tag `6.0.0` / commit `2ff4970ad405d083f858198a1cd0a3e9f6bda587`；补丁 13 个文件（4 主代码 + 4 测试在 `authme-core`，2 主代码 + 2 测试在 `authme-paper-common`，+ `pom.xml`）；构建身份可机检 `plugin.yml` 里 `version: 6.0.0-bSIVITA1`；`-Dproject.build.outputTimestamp=<commit 时间戳>` ⇒ 逐字节可复现。完整说明见 `libs/vendor/README.md` |
+| **为什么不是「把断言放宽」** | 社区插件不可用是**真缺口**（少装一个插件就少一类真实环境）。放宽成「社区插件缺失不判 RED」会让冒烟失去「与生产机同一套插件」这个性质 —— 所以是修清单，不是改判据 |
+| **顺带修的三处不实声明** | ① 锁清单的 `generated_by: scripts/gen-runtime-smoke-plugin-lock.py` 指向一个**从未落仓**的文件（典型「声明了但没接线」）→ 改为 `provenance` 说明手工落盘 ② `run-paper-smoke.sh:61` 注释写 `gen-runtime-smoke-manifest.py`，实际文件是 `gen-runtime-smoke-own-plugins.py` ③ `libs/vendor/README.md` 缺 BetterHud 行，且开头「只用于 `compileOnly`（编译期），**不参与运行时加载**」与事实相反（4 个 vendor jar 同时也在冒烟运行时清单里） |
+
+#### I.10.3 W36 新增：锁清单静态预检 + **常驻**负向夹具
+
+这条缺陷纯静态可查，却花了一次约 10 分钟的云上冒烟才发现。所以把它前移：
+
+| 项 | 内容 |
+|---|---|
+| 脚本 | `scripts/check-smoke-lock.py`（stdlib，只用 `json`/`hashlib`/`os`/`tempfile`） |
+| 判据行 | `SMOKE_LOCK_CHECK=PASS\|FAIL` / `SMOKE_LOCK_ENTRIES` / `SMOKE_LOCK_LOCAL` / `SMOKE_LOCK_PROBLEMS` / `SMOKE_LOCK_SELFTEST=PASS=n FAIL=m` |
+| 查什么 | 清单可解析；`plugins` 非空数组；每条恰好有 `url` 或 `local` 之一；`sha512` 是 128 位十六进制串；`name` / `file` 不重复；`local` 指向的文件**确实在仓库里**且 sha512 对得上 |
+| 负向夹具 | 10 组**常驻**变异（`--selftest`），且**要求红在预期原因上**，不只是红 |
+| 接线 | `run-paper-smoke.sh` 开头先跑 `--selftest` 再查真实清单 —— 只查真实清单只能证明「现在没报错」，不能证明「判据还认得出错」。两步都只读本地文件，毫秒级、不碰网络 |
+| 本地实测 | `SMOKE_LOCK_ENTRIES=15 / SMOKE_LOCK_LOCAL=5 / SMOKE_LOCK_PROBLEMS=0 / SMOKE_LOCK_CHECK=PASS`；`SMOKE_LOCK_SELFTEST=PASS=10 FAIL=0`；`sh -n scripts/run-paper-smoke.sh` → 通过 |
+| **夹具抓到我自己的缺陷** | 第一版「sha512 与清单不符」夹具把 `local` 指向一个**不存在**的文件 ⇒ 先撞上「local 文件不存在」分支，sha512 比较**根本没跑到**。10 组里 1 组「红了但红在别的原因上」= 等于没测到。修法：该夹具的 `local` 必须指向**确实存在**的文件（取清单里真实的 local 路径，退化时用 `README.md` 顶上）。这正是 §L 那条规矩（「每加一条判据都要配负向夹具」）的又一次实测 —— 而且证明「只判退出码不看原因」是不够的 |

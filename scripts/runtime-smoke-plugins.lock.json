@@ -1,6 +1,6 @@
 {
-  "$comment": "SivitaHub 真实 Paper 运行时冒烟用的社区插件锁清单。来源：doc/cnb/tasks-w33.json 的 W33 派单 goal 内嵌 JSON（逐字节复制，校验值不改动）。sha512 必校；url 条目下载，local 条目从仓库 libs/vendor/ 取。",
-  "generated_by": "scripts/gen-runtime-smoke-plugin-lock.py",
+  "$comment": "SivitaHub 真实 Paper 运行时冒烟用的社区插件锁清单。来源：doc/cnb/tasks-w33.json 的 W33 派单 goal 内嵌 JSON（逐字节落盘）。sha512 必校；url 条目下载，local 条目从仓库 libs/vendor/ 取（.gitignore 已用 !libs/vendor/*.jar 放行，vendor jar 必须入库）。W36 更正：AuthMe 一条原为「Sivita 自改版的 sha512 + 公网 Modrinth 的 url」，两个来源对不上，必然校验失败（实测 sn=cnb-kus-1k4djem3f：14/15 OK，AuthMeReloaded 下载/校验失败）。已改为 local 条目，校验值不变。",
+  "provenance": "手工落盘，无生成脚本。此前写的 generated_by=scripts/gen-runtime-smoke-plugin-lock.py 指向一个从未落仓的文件 —— W36 删除该错误声明（属「声明了但没接线」）。",
   "plugins": [
     {
       "name": "LuckPerms",
@@ -34,9 +34,9 @@
     },
     {
       "name": "AuthMeReloaded",
-      "file": "AuthMe-6.0.0-Paper.jar",
+      "file": "AuthMe-6.0.0-Sivita-Paper.jar",
       "sha512": "5134afaa3fed32d384a077b3d6ffe3e0b2fe08353d365df2867f65dbecf5a3f53745355330b48312c52a197864a203a92437d3ce24e22a0770f81c5f28bfe4f1",
-      "url": "https://cdn.modrinth.com/data/9js4IEHC/versions/Kpko24V8/AuthMe-6.0.0-Paper.jar"
+      "local": "libs/vendor/AuthMe-6.0.0-Sivita-Paper.jar"
     },
     {
       "name": "squaremap",
