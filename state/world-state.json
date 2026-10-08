@@ -5,7 +5,7 @@
  "source_of_truth": "本仓 main 分支",
  "executor": "CNB 云上 NPC（本地 agent 只做调度 / 验收 / 补 CNB 做不到的事）",
  "goal": "把 25 个 rpg-* 插件里「声明了但没接线」的玩法机制补齐到可验收状态",
- "round": 30,
+ "round": 31,
  "max_round": 12,
  "phase_cursor": "Phase 0（机制目录与 Kill Switch）",
  "gate": {
@@ -568,6 +568,42 @@
    "fact": "v15 最终复验：basis 实测 = HEAD = origin/main = c2419799d93c751c5c5e486db6cb12dbe5f721dc（EQUAL=true）。差集矩阵「声明未接线」=0、「可派工实现缺口」=0；十门在 M14=c241979 上全绿（sn=cnb-jpu-1k46t3ft2, api_trigger_gate, 13 stage success + DebugDetection skipped）；素材层四条（23/23 脚本有调用点 / 252↔252 基线 GREEN / 归一 assets/ 前缀同集合 + $needsHumanDecision=[] + 六类合计 252 / items 81==81 + 七项 exit=0）在本轮 basis 上亲自重跑成立；G-302 系列 SOURCE_STRING_TESTS=0 / GATE=GREEN 且 3 组负夹具 RED→删除→GREEN；机制规格层 137/137/WEAK=0/REPORT=FRESH 且独立负向对照点名 M-CORE-003；G-CACHE-STAMP-BEFORE-LOCK 仍闭环（eager nextCommitVersion() 零调用）。剩余只有 REQUIRES_HUMAN（H-001/U-003/W7-A2 四条 [R]）。",
    "source": "plan/gap-matrix-v15.md §1–§13 / plan/verdict-v15.json / sn=cnb-jpu-1k46t3ft2",
    "level": "[T]"
+  },
+  {
+   "id": "E-092",
+   "fact": "★ W34 最终复验轮 v16：**首要目的达成** —— `plan/gap-matrix-v16.md` 的 `basis: 0237548` 字面等于它分叉时的 main HEAD。实测 `git rev-parse HEAD` == `git rev-parse origin/main` == 0237548269545974520f073a3ff254a9885004de（EQUAL=true）。⚠️ **判 done=false / remaining=1 = W33-RUNTIME-SMOKE**（可派工的实现缺口）：调度器为「真实 Paper 运行时冒烟」建立了分支 `agent/W33-A1-runtime-smoke`，但该分支相对 main **零提交**（`git log --oneline origin/main..origin/agent/W33-A1-runtime-smoke` 空）、**无 diff**、**无 PR**（`cnb pulls list-pulls --state open` → total: 0）、**无产出文件**（`grep -rln 'W33' plan/ .cnb/agent-out/ doc/cnb/ state/` 空），且已知构建超过 60 分钟超时 ⇒ 本仓可以做、尚未做，属可派工缺口，如实登记、不粉饰、也不当作已完成证据。其余三条件成立（十门 M18 全绿含 MECHANICS_SPEC_* 与 ENV_TAG_*；素材层四条本轮 basis 亲自重跑；剩余中只有 REQUIRES_HUMAN 那一部分属人类）。",
+   "source": "./plan/gap-matrix-v16.md §0/§1/§9/§11/§12 / plan/verdict-v16.json / sn=cnb-8rl-1k4db6u49",
+   "level": "[T]"
+  },
+  {
+   "id": "E-093",
+   "fact": "★ v16 在**本轮 basis 上亲自重跑素材层四条**（不采信调度器结论）：(a) 零消费者=0 —— scripts/ 下 **24** 个 .sh/.py（新增 check-env-tag-justified.sh → selftest-gates.sh:2027/:2038/:2097/:2135）逐个给调用点原文；(b) python3 scripts/check-asset-baseline.py → EXIT=0 / 校验 252 张 PNG（清单 252 条）/ UNREGISTERED=0 MISSING=0 MODIFIED=0 / ASSET_BASELINE_GATE=GREEN（⚠️ 该文件是 Python 文件，`sh` 会语法错，按 .cnb.yml:143 真实方式用 python3）；(c) provenance.assets(252)==manifest(252)，归一 assets/ 前缀后 same_set=True（manifest-only=0 prov-only=0）、$needsHumanDecision=[]、六类 $counts 合计 252 且与逐条重算一致（match=True）；(d) items 定义 81 == runtime-item-models 去注释键 81 且键集合相等（items-only=[] models-only=[]），七项 resource-pack-asset-check {closure,compass,hud,journey,lang,packmeta,textures} 全 exit=0。",
+   "source": "./plan/gap-matrix-v16.md §2–§5",
+   "level": "[S]"
+  },
+  {
+   "id": "E-094",
+   "fact": "★ v16 独立复核 G-302-RESIDUAL 系列（判据未放宽）：SOURCE_STRING_GATE=GREEN / SOURCE_STRING_TESTS=0 / EXIT=0（重定向取码）/ --json hits=[]；4 类方法体抽样（DungeonTimeoutLifecycleContractTest 全类只命中 :19 注释 / EquipmentExitPathReachabilityTest :332-:340 读规格 JSON + 进程 stdout / SeasonAttunementSettlementWiringTest :243-:258 进程 stdout + :299 newInputStream 真解析 / DungeonEntryCommitAmbiguityContractTest :65-:77 进程 stdout）；三组负夹具⑤⑥⑦现场造在 plugins/rpg-core/src/test/java/_gatefixture16/（:11/:13/:17），EXIT=1 / SOURCE_STRING_TESTS=3 / GATE=RED，删除后 EXIT=0 GREEN，收尾 git status --porcelain 为空；反例 LanguageBundleContractTest 未被判红（grep -c = 0）；规格 469/79/3 ≥ v8 的 466/78/2。机制规格层独立复核：MECHANICS_SPEC_GATE=GREEN / ENTRIES=137 / WEAK=0；我的独立负向对照（M-CORE-003 的 config expect [2,3,4,5]→[2,3,4,9]）⇒ EXIT=1 / GATE=RED / 点名 M-CORE-003；还原 GREEN；gen-mechanics-spec-report.py --check → FRESH；grep import yaml 零命中。",
+   "source": "./plan/gap-matrix-v16.md §6–§7",
+   "level": "[S]"
+  },
+  {
+   "id": "E-095",
+   "fact": "★ v16 复核 env 标签正当性层（本轮新增门禁）并做独立负向对照：sh scripts/check-env-tag-justified.sh → ENV_TAG_JUSTIFIED_GATE=GREEN / ENV_TAG_METHODS=7 / ENV_TAG_UNJUSTIFIED=0；sh scripts/list-env-tests.sh → 恰好 7 条（chunkLoading… / controlledGeneration… / mapsAndClaims… / naturalSpawning… / projectYamlFiles… / qizhiConversation… / quickActionTaskButton…）；我在 /tmp/envtagfix16 整树副本上先跑基线（7 方法 GREEN，证明对照不空跑），再加回 W32-A1 去掉的 @Tag(DeploymentEnvironmentFixtures.TAG) 到 HelpTopicTest#everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack ⇒ ENV_TAG_METHODS=8 / ENV_TAG_JUSTIFIED=7 / ENV_TAG_UNJUSTIFIED=1 / GATE=RED 且 UNJUSTIFIED 行点名该方法（'全部引用路径都在本仓: resource-pack/runtime-item-models.txt'）；还原标签 ⇒ GREEN。仓库内 HelpTopicTest.java 未改（grep -c DeploymentEnvironmentFixtures.TAG = 0）。",
+   "source": "./plan/gap-matrix-v16.md §11",
+   "level": "[S]"
+  },
+  {
+   "id": "E-096",
+   "fact": "★ v16 回读核对十门在 M18 上全绿（非采信调度器结论）：权威 sn=cnb-8rl-1k4db6u49（event=api_trigger_gate, targetRef=main, sha=0237548269545974520f073a3ff254a9885004de, status=success, pipelineSuccessCount=1 / pipelineFailCount=0, 13 stage success + DebugDetection skipped）：DOWNLOADER=ready / GATE_SELFTEST=GREEN(PASS=181 FAIL=0) / DDL_CONSUMER_GATE=GREEN(81 表, 豁免 0) / DDL_REGISTRATION_GATE=GREEN(扫描 551 文件, 反向豁免 0) / CMD_REFERENCE_GATE=GREEN(43 指令, 豁免 9) / RESOURCE_PACK_GATE=GREEN(RUN=8 SKIPPED=0) / ASSET_BASELINE_GATE=GREEN(252↔252) / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / COMPILE_GATE=GREEN(BUILD_EXIT=0) / TEST_GATE=GREEN(TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=67) / SUMMARY_GATE=GREEN(SUM tests=1106 failed=0 errors=0 skipped=2 modules=26, NO_XML modules=0 期望 26) / PACKAGE_GATE=GREEN(JAR_COUNT=56, JAR_CHECKED=25 JAR_MISSING_PLUGIN_YML=0) / SINGLE_SOURCE_OF_TRUTH_GATE=GREEN(WORLD_STATE_FILES=1) / VERDICT_MATRIX_CONSISTENCY_GATE=GREEN / MECHANICS_SPEC_GATE=GREEN(ENTRIES=137 / BY_KIND=config:78,behavior:56,java-const:3 / WEAK=0) / MECHANICS_SPEC_REPORT=FRESH / ENV_TAG_JUSTIFIED_GATE=GREEN(ENV_TAG_METHODS=7 / ENV_TAG_UNJUSTIFIED=0)（§12c 回读，含负夹具 RED + 点名 + 还原 GREEN + §12f 门禁镜像无 git 的回归判据）。G-FLAKY-GATE：同 sha 0237548 两个 main 构建均 success（cnb-8rl-1k4db6u49 api_trigger_gate + cnb-l5u-1k4db6aug push），RED=0。",
+   "source": "cnb build get-build-status / get-build-stage --sn cnb-8rl-1k4db6u49；./plan/gap-matrix-v16.md §9",
+   "level": "[R]"
+  },
+  {
+   "id": "E-097",
+   "fact": "★ v16 登记两条已闭环缺陷（各附机械证据）：① **G-ENV-TAG-OVERBROAD** —— HelpTopicTest.everyCustomHelpModelIsDeclaredByTheRuntimeResourcePack 的唯一依赖 resource-pack/runtime-item-models.txt 在本仓却打了 @Tag(env) ⇒ 从来没跑过；已由 PR#84 修（list-env-tests 8→7、rpg-guide tests 56→57、全量 1105→1106），并加 scripts/check-env-tag-justified.sh 防复发（我独立负向对照加回标签 ⇒ RED 且点名该方法）。② **G-GATE-FIXTURE-NEEDS-GIT** —— §12c 夹具用 git archive/git status 而门禁镜像（eclipse-temurin:25-jdk + apt curl/coreutils/python3）没有 git ⇒ git: not found / tarfile.ReadError ⇒ M17 门禁 error、main 变红；已由 0237548 修（python shutil.copytree 跳过 .git + plugins/ sha256 清单前后比对 + 新增 §12f 回归判据「scripts/** 不得对 git 发起调用」）；M18 stage-1 回读 [OK] 判据 12f exit=0 + [OK] 夹具未留残留（sha256 清单前后一致）+ GATE_SELFTEST=PASS=181 FAIL=0。",
+   "source": "doc/cnb/gap-registry.md §I.9；./plan/gap-matrix-v16.md §14",
+   "level": "[S]"
   }
  ],
  "unverified": [
@@ -605,11 +641,11 @@
  "open_questions_for_human": [
   "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机 `lamb:/home/lamb/minecraft` 跑 scripts/maintain-world-coverage.sh（生产机写操作，L-006 只读）。",
   "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
-  "W7-A2 遗留的 4 条 [R] 级 unproven（G-207 计数器内存态重启会丢当天场次 / G-205 启动对账需真实 Bukkit / G-209 的 20 tick 是表现层推理值 / G-208 启动 fail-closed 未在真实 Paper 验证）。"
+  "W7-A2 遗留的 4 条 [R] 级 unproven（G-205 启动对账需真实 Bukkit / G-207 计数器内存态重启会丢当天场次 / G-208 启动 fail-closed 未在真实 Paper 验证 / G-209 的 20 tick 是表现层推理值）。"
  ],
- "next_action": "收口。若需继续，只能推进 REQUIRES_HUMAN 三项（H-001 生产机写操作 / U-003 真实 Paper + 真实客户端握手 / W7-A2 四条 [R] 级 unproven）—— 均需真实环境与人类操作，本仓与 CNB 无法完成。",
- "updated_by": "CNB CodeBuddy NPC（W31-A1-verdict-v15）",
- "updated_at": "2026-10-06T15:10:00Z",
+ "next_action": "派 W34-A2-runtime-smoke（见 plan/tasks-w34.json）：在 CNB 上做出**能在 CI 预算内跑完**的真实 Paper 启动 + 运行时证据采集 harness，替代 W33 的未交付尝试；若实测确认门禁镜像内不可行，则如实收口为 REQUIRES_HUMAN 并给机械证据。其余仅剩 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）。",
+ "updated_by": "CNB CodeBuddy NPC（W34-A1-verdict-v16）",
+ "updated_at": "2026-10-08T10:35:00Z",
  "merged_gaps": [
   "G-001",
   "G-002",
@@ -676,33 +712,36 @@
   "W27": "DONE：最终复验轮 v12（gap-matrix-v12 + verdict-v12，判 **done=true / remaining=0**）。G-CACHE-STAMP-BEFORE-LOCK 闭环复核通过；G-302-RESIDUAL 系列复跑仍清零、判据未放宽；素材层四条成立；十门在权威构建 cnb-lpt-1k46f0u8b 全绿，且同 sha 两次构建连续全绿（G-FLAKY-GATE 恢复）。剩余只有 REQUIRES_HUMAN。",
   "W28": "DONE：PR#80（c74249e）把 docs/GAME_DESIGN.md 的数值/公式/阈值/枚举与代码机械绑定 —— scripts/mechanics-spec.json（137 条：config:78/behavior:56/java-const:3）+ check-mechanics-spec.sh（判据行 GATE/ENTRIES/BY_KIND/WEAK）+ gen-mechanics-spec-report.py（可重生成报告，--check 判 FRESH|STALE）+ selftest-gates.sh §12 六组负夹具；并修掉两条真实缺陷（载体缺失曾判 GREEN；依赖 PyYAML 而门禁镜像无 PyYAML/pip ⇒ 改 stdlib-only）。动因：本项目实测已漂移 3 次（G-106/G-202/G-209）。",
   "W29": "DONE：最终复验轮 v13（gap-matrix-v13 + verdict-v13，判 **done=true / remaining=0**），basis=实测 c74249e == origin/main。PR#80 的构建输入改动已在 M12 上重判；玩法规格↔代码机械绑定层闭环（137 条 / 6 组负夹具 / 报告 FRESH / 零 import yaml / 独立负向对照 RED 并点名 M-CORE-003）；PR#80 顺带修的两条门禁缺陷独立复现确认闭环；G-CACHE-STAMP-BEFORE-LOCK 仍闭环；G-302-RESIDUAL 系列仍清零且判据未放宽；素材层四条成立；十门在 sn=cnb-cf6-1k46peo58 上全绿。剩余只有 REQUIRES_HUMAN。 PR=#81（https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/81）。",
-  "W30": "DONE 2026-10-06：v14 最终复验 —— 矩阵 basis 前移到分叉时的 main HEAD 7c23a35a（字面一致）；素材层四条在本轮 basis 上亲自重跑；G-302/机制规格层独立复核 + 负向对照；十门在 M13=7c23a35a 上全绿；G-FLAKY-GATE 补成同 sha 两绿（RED=0）。verdict done=true / remaining=0。"
+  "W30": "DONE 2026-10-06：v14 最终复验 —— 矩阵 basis 前移到分叉时的 main HEAD 7c23a35a（字面一致）；素材层四条在本轮 basis 上亲自重跑；G-302/机制规格层独立复核 + 负向对照；十门在 M13=7c23a35a 上全绿；G-FLAKY-GATE 补成同 sha 两绿（RED=0）。verdict done=true / remaining=0。",
+  "W32": "DONE 2026-10-08：PR#84 —— W32-A1 修 HelpTopicTest 过宽的 @Tag(env)（唯一依赖 resource-pack/runtime-item-models.txt 在本仓，从来没跑过；list-env-tests 8→7、rpg-guide tests 56→57、全量 1105→1106）；W32-A2 新增 scripts/check-env-tag-justified.sh（每个 @Tag(env) 方法必须至少有一个引用的路径在本仓不存在，否则 RED；抽不到路径字面量计 UNJUSTIFIED_UNKNOWN）并接进 selftest-gates.sh §12c/§12d。",
+  "W33": "NOT DELIVERED：真实 Paper 运行时冒烟 harness —— 分支 agent/W33-A1-runtime-smoke 相对 main 零提交/无 diff/无 PR/无产出，构建超过 60 分钟超时 ⇒ v16 登记为 remaining=1 的可派工缺口。",
+  "W34": "REMAINING：最终复验轮 v16（gap-matrix-v16 + verdict-v16，判 done=false / remaining=1 = W33-RUNTIME-SMOKE）。M18=0237548 十门全绿（回读核对，sn=cnb-8rl-1k4db6u49，PASS=181 / tests=1106）；素材层四条在本轮 basis 亲自重跑；env 标签正当性层新增并独立负向对照。"
  },
  "gates": {
-  "evidence_sn": "cnb-jpu-1k46t3ft2",
-  "evidence_sha": "c241979",
+  "evidence_sn": "cnb-8rl-1k4db6u49",
+  "evidence_sha": "0237548",
   "event": "api_trigger_gate",
   "targetRef": "main",
-  "sourceRef": "main",
   "status": "success",
   "stages_all_success": 13,
   "stages_skipped": 1,
   "downloader": "GREEN (DOWNLOADER=ready)",
-  "gate_selftest": "GREEN (PASS=167 FAIL=0)",
+  "gate_selftest": "GREEN (PASS=181 FAIL=0)",
   "ddl_consumer": "GREEN",
   "ddl_registration": "GREEN",
   "cmd_reference": "GREEN",
-  "resource_pack": "GREEN",
+  "resource_pack": "GREEN (RUN=8 SKIPPED=0)",
   "asset_baseline": "GREEN (UNREGISTERED=0 MISSING=0 MODIFIED=0，252↔252)",
-  "asset_repro": "GREEN",
-  "compile": "GREEN (BUILD_EXIT=0 SECONDS=123)",
-  "test": "GREEN",
-  "summary": "GREEN (SUM tests=1105 failed=0 errors=0 skipped=2 modules=26)",
+  "asset_repro": "GREEN (REPRODUCIBLE=70 MISMATCH=0)",
+  "compile": "GREEN (BUILD_EXIT=0)",
+  "test": "GREEN (TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=67)",
+  "summary": "GREEN (SUM tests=1106 failed=0 errors=0 skipped=2 modules=26)",
   "package": "GREEN (JAR_COUNT=56)",
   "mechanics_spec": "GREEN (ENTRIES=137 / BY_KIND=config:78,behavior:56,java-const:3 / WEAK=0)",
   "mechanics_spec_report": "FRESH",
+  "env_tag_justified": "GREEN (ENV_TAG_METHODS=7 / ENV_TAG_UNJUSTIFIED=0)",
   "single_source_of_truth": "GREEN (WORLD_STATE_FILES=1)",
-  "verdict_matrix_consistency": "GREEN (N=15 done=true remaining=0 basis=c241979，用 vmc_gate() 原函数自查)"
+  "verdict_matrix_consistency": "GREEN (M18 stage-1 打印 N=15 done=true remaining=0 basis=c241979 —— 那是 M18 构建时仓库最新矩阵仍为 v15；本轮 v16 矩阵按 vmc_gate() 原函数自查为 GREEN / N=16 done=false remaining=1 basis=0237548)"
  },
  "decisions_by_agent": [
   {
@@ -725,15 +764,17 @@
    "by": "WorkBuddy AI"
   }
  ],
- "status": "DONE —— verdict-v15 判 done=true / remaining=0，且矩阵 basis 字面等于分叉时的 main HEAD（c241979）：素材层四条在本轮 basis 上亲自重跑成立；G-302 系列清零且判据未放宽；机制规格层独立负向对照闭环；十门在 M14=c241979 上全绿（回读核对，sn=cnb-jpu-1k46t3ft2）。剩余只有 REQUIRES_HUMAN。G-FLAKY-GATE 本轮单点采样（无 RED，不断言同 sha 两次全绿）。",
+ "status": "REMAINING —— verdict-v16 判 done=false / remaining=1（W33-RUNTIME-SMOKE：真实 Paper 运行时冒烟 harness 未交付，分支 agent/W33-A1-runtime-smoke 零提交/无 PR/无产出）。矩阵 basis 字面等于分叉时的 main HEAD（0237548）；素材层四条、G-302 系列、机制规格层、G-CACHE-STAMP-BEFORE-LOCK、env 标签正当性层均在本轮 basis 上亲自重跑；十门在 M18=0237548 上全绿（回读核对，sn=cnb-8rl-1k4db6u49）。",
  "verdict": {
-  "done": true,
+  "done": false,
   "impossible": false,
-  "remaining": 0,
-  "remaining_ids": [],
-  "basis": "c241979",
-  "decided_at": "2026-10-06",
-  "reason": "v15 首要目的：矩阵 basis 字面等于分叉时的 main HEAD（c241979，实测 HEAD==origin/main）。四条件成立：① 声明未接线=0、可派工实现缺口=0（G-CACHE-STAMP-BEFORE-LOCK 仍闭环；G-302 系列清零且判据未放宽）。② 十门在 M14=c241979 上全绿（sn=cnb-jpu-1k46t3ft2，13 stage success + DebugDetection skipped，含 MECHANICS_SPEC_GATE=GREEN(ENTRIES=137/WEAK=0) 与 MECHANICS_SPEC_REPORT=FRESH）。③ 素材层四条在本轮 basis 上亲自重跑成立。④ 剩余只有 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）。"
+  "remaining": 1,
+  "remaining_ids": [
+   "W33-RUNTIME-SMOKE"
+  ],
+  "basis": "0237548",
+  "decided_at": "2026-10-08",
+  "reason": "v16 首要目的：矩阵 basis 字面等于分叉时的 main HEAD（0237548，实测 HEAD==origin/main）。done=false：第 1 个条件（无可派工实现缺口）不成立 —— W33-RUNTIME-SMOKE（真实 Paper 运行时冒烟 harness）未交付（分支零提交/无 PR/无产出，构建 >60 分钟超时），属本仓可做、尚未做的实现任务。其余成立：十门在 M18=0237548 上全绿（含 MECHANICS_SPEC_* 与 ENV_TAG_*）；素材层四条在本轮 basis 上亲自重跑；G-CACHE-STAMP-BEFORE-LOCK 仍闭环；G-302 系列清零且判据未放宽；剩余中只有 REQUIRES_HUMAN 那一部分属人类。"
  },
  "assets": {
   "png_total": 252,
@@ -752,12 +793,12 @@
   "counts_sum": 252,
   "manifest_vs_disk": "252 == 252，集合相等，UNREGISTERED=0 MISSING=0 MODIFIED=0",
   "provenance_vs_manifest": "归一并集后同集合；needs_human_decision=[]",
-  "items_three_way": "items 81 == runtime-item-models 81；插件侧 12 个字面量 item_model 键全 ⊆ manifest",
+  "items_three_way": "items 81 == runtime-item-models 81；七项 resource-pack-asset-check 全 exit=0",
   "config_yml_readers": "24 个 config.yml / 143 个顶层键；无一个「声明机制行为却无读方」",
   "needs_human_decision": [],
   "audio": "0（代码只用原版 Sound.*，不是缺口）"
  },
- "basis": "c2419799d93c751c5c5e486db6cb12dbe5f721dc",
+ "basis": "0237548269545974520f073a3ff254a9885004de",
  "_ledger": {
   "single_source_of_truth": "state/world-state.json",
   "deprecated": "plan/world-state.json（本任务已删除；禁止再建）",
@@ -792,10 +833,10 @@
   }
  },
  "risks": [
-  "G-302-RESIDUAL 常量回溯形态的已知边界：常量名须 ≥3 字符才会被回溯。已如实登记在 plan/gap-matrix-v14.md §6.3；当前 SOURCE_STRING_TESTS=0 是方法体事实（4 类逐条复核）。",
-  "素材可复现性门禁（ASSET_REPRO）本容器无 JDK 未本地复跑（实测 JAVA=NONE / JAVAC=NONE），以 M13 stage-5 判据行为证据。",
-  "docs/GAME_DESIGN.md 的 15 节里「核心循环」无机械可核数值（纯叙述），该节无 spec 条目；spec 的 unverifiable 清单（11 条）显式登记不可机械核对的断言。",
-  "任务描述里的 `sh scripts/check-asset-baseline.py` 对 Python 文件会报语法错（EXIT=2）；本轮按 .cnb.yml stage-4 真实方式用 python3，结果 GREEN。"
+  "W33-RUNTIME-SMOKE 未交付（分支零提交/无 PR/无产出，构建 >60 分钟超时）：本轮如实登记为 remaining=1，done=false。它覆盖 W7-A2 四条 [R] 级 unproven 的验证手段，是「可派工但不能判已完成」的缺口。",
+  "G-302 判据遍历形态的已知边界：形态⑦要求 Files.walk 实参里同时出现 plugins|tools 与 src/main 两个独立字面量。已如实登记在 plan/gap-matrix-v16.md §6.3；当前 SOURCE_STRING_TESTS=0 是方法体事实（4 类逐条复核）。",
+  "素材可复现性门禁（ASSET_REPRO）本容器无 JDK 未本地复跑，以 M18 stage-5 判据行为证据。",
+  "任务描述里的 `sh scripts/check-asset-baseline.py` 对 Python 文件会报语法错；本轮按 .cnb.yml:143 的真实调用方式用 python3 跑，结果 GREEN。"
  ],
  "pr_w31": "https://cnb.cool/xzqkjmnbvc2026/sivitahub/-/pulls/83"
 }

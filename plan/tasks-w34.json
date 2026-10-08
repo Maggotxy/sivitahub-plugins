@@ -1,0 +1,48 @@
+{
+ "wave": "W34",
+ "basis": "0237548",
+ "generated_by": "CNB CodeBuddy NPC（W34-A1-verdict-v16）",
+ "note": "只含真实剩余缺口。本轮 verdict-v16 判 done=false / remaining=1 = W33-RUNTIME-SMOKE。REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）不在本清单 —— 它们不是可派工任务。",
+ "tasks": [
+  {
+   "id": "W34-A2-runtime-smoke",
+   "title": "真实 Paper 运行时冒烟 harness（交付型，非人类依赖）",
+   "goal": "在 CNB 上做出一个**能在 CI 预算内跑完**的「真实 Paper 启动 + 运行时证据采集」harness，替代 W33 的未交付尝试（W33 分支 agent/W33-A1-runtime-smoke 零提交 / 无 PR / 无产出；已知失败模式：构建超过 60 分钟超时）。目标是为 W7-A2 的四条 [R] 级 unproven（G-205 启动对账 / G-207 计数器内存态 / G-208 启动 fail-closed / G-209 20 tick 表现层推理值）提供**真实运行时**证据采集通道。",
+   "why": "这是「可派工的实现缺口」：不需要人类操作，只需在 CNB 上做出能真实启动 Paper（或等效 Bukkit 运行栈）并采集运行时证据的 harness，且把耗时收敛到 CI 预算内。它不满足 REQUIRES_HUMAN 的定义（不需要碰生产机、不需要真实客户端握手）。",
+   "deps": [],
+   "allowed_paths": [
+    "scripts/**",
+    "tools/**",
+    ".cnb.yml",
+    "doc/cnb/**",
+    ".cnb/agent-out/**"
+   ],
+   "acceptance": [
+    "harness 在 CI 上真实启动 Paper（或等效 Bukkit 运行栈），日志可回读（判据行 + 启动耗时）",
+    "采集到至少一条**运行时**证据（不是单元测试推理），并落仓（`doc/cnb/**` + `.cnb/agent-out/**`）",
+    "构建总耗时在 CI 预算内（W33 的失败模式是 >60 分钟超时）：给出实测 SECONDS 与超时收敛手段",
+    "若某条 [R] 级 unproven 仍无法在 CI 内验证，必须在产出里**逐条如实说明**为什么（不许默认成功）",
+    "负向对照：harness 对「Paper 起不来」或「证据缺失」必须变红（不许恒绿或静默放过）"
+   ],
+   "evidence_required": [
+    "命令原文 + 退出码（重定向取码，不走管道）",
+    "改造前后对比或负向对照（必红、还原后必绿）",
+    "判据行与 CI sn / stage 日志回读"
+   ],
+   "forbidden": [
+    "不得改宪法 `docs/GAME_ECONOMY_CONSTITUTION.md`",
+    "不得新增货币 / 转数",
+    "不得改任何 PNG 像素",
+    "不得把「NPC 容器 GREEN」当作「门禁容器 GREEN」（门禁镜像没有 git / pip / PyYAML / jq；实测 CLI=sh(dash)/curl/python3/coreutils/java）",
+    "不得用超时/降级把判据做窄来换 GREEN"
+   ],
+   "risk": "真实 Paper 启动在门禁镜像内可能本就不可行（缺 Java 运行栈以外的依赖）。若实测确认「在 CNB 门禁镜像内不可行」，本任务应**如实收口为 REQUIRES_HUMAN** 并给出机械证据（不是默认失败、也不是默认成功）。",
+   "estimated_scope": "中（harness 骨架 + 一次真实启动 + 证据采集；重点是耗时收敛）"
+  }
+ ],
+ "needs_human_reminder": [
+  "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机 lamb:/home/lamb/minecraft 跑 scripts/maintain-world-coverage.sh（生产机写操作，L-006 只读）。",
+  "U-003：纯原版客户端能否真握手进服，需真实 Paper + 真实客户端。",
+  "W7-A2 四条 [R] 级 unproven：G-205 启动对账需真实 Bukkit / G-207 计数器内存态重启会丢当天场次 / G-208 启动 fail-closed 未在真实 Paper 验证 / G-209 的 20 tick 是表现层推理值。"
+ ]
+}
