@@ -506,3 +506,29 @@ PR = #86（`f4e4f43`）。
 | **真因** | `scripts/run_gate.py` 调用 `collect_stage_logs(tail_chars=6000)`，只保留每个 stage 的**末尾 6000 字符**。这个 stage 跑 51 分钟、gradle 打了上万行 ⇒ 开头的 `SMOKE_LOCK_*` 全被截掉。**是取证工具把证据截没了**，不是判据没打 |
 | **修法** | ① `run_gate.py` 把 `--tail-chars` 提为参数，默认 `2000000`，注释写明「判据行可能出现在 stage 的任意位置（开头的前置检查、末尾的汇总），别调小」；② `KEY_PATTERNS` 补 `SMOKE_LOCK_CHECK` / `_ENTRIES` / `_LOCAL` / `_PROBLEMS` / `_SELFTEST` |
 | **教训** | 「判据行没抽到」有**两种**可能：脚本没打，或取证工具截掉了。先看 `.stages.txt` 的实际长度与内容，再下结论 —— 否则会把工具缺陷误判成产品缺陷（本轮差点如此） |
+
+#### I.10.6 缺陷 `G-SMOKE-CRITERION-UNRETRIEVABLE`：退出码 GREEN，但**判据行取不回来**（**未修，需人类决策**）
+
+> 这一条是 §I.10.5 修好之后才浮出来的**更深一层**问题。
+> §I.10.5 修的是「本地取证脚本把自己截断了」；这一条是**平台侧交付的日志窗口本身就是有界的**，
+> 本地脚本无论怎么调 `--tail-chars` 都拿不到。
+
+| 项 | 内容 |
+|---|---|
+| **现象** | 第二轮冒烟 `sn=cnb-3h3-1k4dosi86`（sha `761b416`，即**已含 §I.10.4 修复**的版本）整体 `status=success`，stage-1 末行是 `Finished, code: 0, duration: 44m 39s`，`error` 字段为空。**但整段 stage 日志里一行 `PAPER_SMOKE_GATE=` / `PAPER_STARTED=` / `PAPER_PLUGINS_ENABLED=` / `PAPER_OWN_ERRORS=` 都取不到**，连我自己新加的 `FETCH_DEPS=OK` / `CHECK_FILE_DEPS=OK` / `开始 gradle assemble` 也取不到 |
+| **交付窗口是有界的（实测）** | 连续 3 次调 `stage_detail(stage-1)`，返回恒为 **186 行 / 10720 字符**，末行固定在 `插件 12/15 BetterModel ... 92%`。**窗口从 stage 开头起算，到窗口上限截断**，不会给尾部 |
+| **为什么第一轮能拿到尾部** | 第一轮 `sn=cnb-3gl-1k4dlibvp` 是**失败**（`code: 1`），平台侧同样返回 363 行 / 21171 字符 —— 但它的 stage **提前结束**（失败即 `SystemExit(1)`，没跑到 50 分钟），总输出短，所以「有界窗口」正好覆盖到了结尾的 `GRADLE_ASSEMBLE=FAILED` 与 4 条编译错误。**这不是尾巴，是「短到能被完整交付」** |
+| **两轮对比（决定性）** | ① 失败轮 363 行里**有** `GRADLE_ASSEMBLE=FAILED`；② 成功轮 186 行里**没有**任何 `PAPER_*`。若只看 `hits`，会得出「成功轮什么都没打」的错误结论 —— 实际是窗口覆盖不到 |
+| **为什么这是真缺口** | `run-paper-smoke.sh` 的 GREEN 判据（`PAPER_STARTED=YES` 且 25/25 enabled 且 `PAPER_OWN_ERRORS=0`）**只以判据行为准**。现在退出码说 GREEN，但判据行落在交付窗口之外 ⇒ **GREEN 无法被机械引用**。按本仓纪律「只认机械判据」，这等于 **`[R] Runtime` 仍然拿不到** —— 与「脚本返回 0」不是一回事 |
+| **为什么不能靠放宽判据绕过** | 若把「退出码 0」直接当 `PAPER_SMOKE_GATE=GREEN`，就等于**用平台的 stage 状态冒充脚本判据**。而 stage 状态的语义只到「这条命令没非零退出」，不含「25 个插件真 enabled / 自研插件零异常」这两个关键性质 —— 恰恰是冒烟存在的理由（4 条 `[R]` unproven 全挂在这上面） |
+| **可选的修法（举二留一，需人类定）** | ① **脚本自己把判据行落仓**：跑完把 `PAPER_*` 写进一个文件并 `git commit + push` 到一个证据分支（RNB 里已有先例：`run_gate.py` 触发后回读 `plan/*.json`）。代价：冒烟 job 需要 push 权限，且要处理并发写同一分支。② **把判据行前移到 stage 早段打印**：脚本一进 assemble 前就 `echo PAPER_SMOKE_GATE=PENDING` 之类占位、最终值另起一个**极短的新 stage**（只 cat 证据文件）—— 让判据行落在一个「总输出很短、必然能被完整交付」的 stage 里。代价：改动 `.cnb.yml` 增加一个 stage |
+| **本轮的处置** | **不擅自选**。已把两轮完整证据（`plan/smoke-run-w36.json` 失败轮 / `plan/smoke-run-w36b.json*` 成功轮）落仓，并在 `plan/verdict-v17.json` 里把该条登记为 **`REQUIRES_HUMAN`**：在人类选定修法前，**冒烟不得被引用为 `[R]` 证据**，「4 条 `[R]` unproven」状态维持不变 |
+
+#### I.10.7 顺带发现（我方 harness 的**心跳缺口**，非阻塞）
+
+| 项 | 内容 |
+|---|---|
+| **现象** | `run-paper-smoke.sh` 为满足 CNB「10 分钟无输出即杀」（实测 `sn=cnb-80a-1k4dhivkj`）而设计「插件下载逐条打分 + 每 5 秒读 gradle 增量」，但 `fetch-deps.sh` 与 `check-file-deps.sh` 是**子进程、输出重定向到文件**，成功时**一行都不吐到 stdout** |
+| **量化** | `fetch-deps.sh` 只在**全部就绪**时打一行（`echo "fetch-deps: 全部就绪…"`，见 `scripts/fetch-deps.sh:241`）；它内部逐个下载的过程**不进 stdout**。`check-file-deps.sh` 同理（输出进 `cf.stdout`，只在失败时 `say`） |
+| **风险** | 这两个脚本在冷缓存下要下载 5 个公开源 artifact。若单次下载慢到超过 10 分钟且期间零输出，**整个 stage 会被平台看门狗杀掉** —— 表现为「莫名其妙地红/断」，而根因与产品代码无关。**本轮未触发**（实测 `fetch-deps` 段落没出现长静默），所以只记账、不改 |
+| **建议修法（记账待办）** | 把 `fetch-deps.sh` / `check-file-deps.sh` 改成 `stdout=PIPE` 逐行转发 + `say("fetch| ...")` 前缀，或在调用前后各打一行 `mark()` 保证心搏（后者更省事，但长静默期内仍无输出） |
