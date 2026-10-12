@@ -155,5 +155,17 @@
    "plan/gate-run-v18b.json.stages.txt"
   ],
   "conclusion": "十门（gate 事件）第一手确认：Prepare=error、十门 stage 全 skipped、hits=[]。与前 6 次同一句话。"
+ },
+ "owner_correction": {
+  "finding": "配额错误的「升级对象」不是我方之外的第三方 —— **本 token 的账号 lamb031226（晓阳）就是根组织 xzqkjmnbvc2026（Lamb Org）的 Owner**。",
+  "evidence": [
+   "GET /user -> {\"username\":\"lamb031226\",\"nickname\":\"晓阳\",\"verified\":1}",
+   "GET /user/groups -> [{\"name\":\"xzqkjmnbvc2026\",\"remark\":\"Lamb Org\",\"description\":\"CNB challenge organization\"}]",
+   "GET /xzqkjmnbvc2026 -> {\"name\":\"xzqkjmnbvc2026\",\"access_role\":\"Owner\",\"member_count\":1,\"all_member_count\":1}",
+   "GET /xzqkjmnbvc2026/-/members -> 仅 1 人（lamb031226）"
+  ],
+  "correction": "此前 world-state / verdict 里写「升级对象 = CNB 根组织管理员」不准确：错误原文让我们联系「root group administrator」，而**该管理员就是用户本人**。正确表述：**须用户本人**在 CNB 控制台为根组织提升「云原生构建-CPU」配额（或等待配额周期重置）。",
+  "no_api_lever": "探测 /user/billing、/user/orders、/user/quota、/user/balance、/xzqkjmnbvc2026/-/billing 等均 404 ⇒ 配额提升**无 API 通路**，只能在 CNB Web 控制台操作。",
+  "scope_proof": "组内 member_count=1、sub_repo_count=13 ⇒ 若有其它仓库在跑构建消耗配额，那是同一 Owner 名下的其它项目；根组织级配额被共享。"
  }
 }

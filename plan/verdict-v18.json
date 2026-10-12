@@ -92,8 +92,9 @@
   "scope": "root-group-global",
   "workaround": "none（Prepare 是平台 stage，改 .cnb.yml/job timeout/stage 条件均无效；连自定义 config 也照样死在 Prepare）",
   "collateral": "所有 CNB 写路径不可用（十门 / 冒烟 / 播种法 push）⇒ 本轮无法推送分支、无法开 PR",
-  "escalate_to": "CNB 根组织管理员",
-  "evidence": "plan/quota-probe-v18.json（第 4 轮）"
+  "escalate_to": "**用户本人**（lamb031226 即根组织 Owner，组内仅 1 名成员）；须本人在 CNB 控制台提升 CPU 配额或等周期重置（无 API 通路）",
+  "evidence": "plan/quota-probe-v18.json（第 4 轮）",
+  "owner_identity": "lamb031226 / 晓阳 / Owner of xzqkjmnbvc2026 (Lamb Org) / member_count=1"
  },
  "asset_repro_encoding_fix": {
   "id": "ASSET-REPRO-JAVAC-ENCODING",

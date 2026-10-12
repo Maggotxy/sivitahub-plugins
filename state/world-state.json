@@ -907,11 +907,20 @@
   ],
   "scope": "root-group-global",
   "workaround": "none（Prepare 是平台 stage，改 .cnb.yml/job timeout/stage 条件均无效）",
-  "escalate_to": "CNB 根组织管理员",
+  "escalate_to": "**用户本人**（lamb031226 = 根组织 xzqkjmnbvc2026 Owner；组内仅 1 名成员）—— 非第三方管理员",
   "collateral": "所有 CNB 写路径不可用（十门 / 冒烟 / 播种法 push）⇒ 本轮无法推送分支、无法开 PR",
-  "evidence": "plan/quota-probe-v18.json",
+  "evidence": "plan/quota-probe-v18.json（含 owner_correction）",
   "probe_count": 7,
-  "events_covered": "gate×3 / smoke×1 / seed×3 —— 全事件类型覆盖，同一句话"
+  "events_covered": "gate×3 / smoke×1 / seed×3 —— 全事件类型覆盖，同一句话",
+  "escalate_note": "错误原文说 contact root group administrator，但该管理员就是本 token 的账号本人。须用户在 CNB Web 控制台提升「云原生构建-CPU」配额（无 API 通路，/user/billing 等均 404），或等待配额周期重置。",
+  "owner_identity": {
+   "username": "lamb031226",
+   "nickname": "晓阳",
+   "group": "xzqkjmnbvc2026 (Lamb Org)",
+   "access_role": "Owner",
+   "group_member_count": 1,
+   "group_sub_repo_count": 13
+  }
  },
  "asset_repro_encoding_fix": {
   "id": "ASSET-REPRO-JAVAC-ENCODING",
