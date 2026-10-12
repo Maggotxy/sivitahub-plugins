@@ -717,7 +717,7 @@
   "W34": "REMAINING：最终复验轮 v16（gap-matrix-v16 + verdict-v16，判 done=false / remaining=1 = W33-RUNTIME-SMOKE）。M18=0237548 十门全绿（回读核对，sn=cnb-8rl-1k4db6u49，PASS=181 / tests=1106）；素材层四条在本轮 basis 亲自重跑；env 标签正当性层新增并独立负向对照。"
  },
  "gates": {
-  "evidence_sn": "cnb-fef-1k4ot1qvq",
+  "evidence_sn": "cnb-c23-1k4p0k0cf",
   "evidence_sha": "d2cffd27632ba9a623c957397fe168bca753ff7f",
   "event": "api_trigger_gate",
   "targetRef": "main",
@@ -744,8 +744,13 @@
   "paper_smoke_gate": "NOT_CLAIMED（配额耗尽，api_trigger_smoke 未跑起来，死在 Prepare）",
   "smoke_lock_check": "PASS（上轮，未重跑）",
   "smoke_lock_selftest": "PASS=10 FAIL=0（上轮，未重跑）",
-  "ten_gates_remote": "BLOCKED_EXTERNAL（CNB-QUOTA-EXHAUSTED；三次触发 cnb-fef-1k4ot1qvq / cnb-r2i-1k4ot3gs2 / cnb-u8e-1k4ot4o4n 全死在平台 Prepare）",
-  "local_layers_rerun": "9/9 GREEN (a)-(i) on LF 干净树（6308da5 = d2cffd2 + javac 编码修复）"
+  "ten_gates_remote": "BLOCKED_EXTERNAL（CNB-QUOTA-EXHAUSTED；7 次触发全死在平台 Prepare，含 hook 指定命令 run_gate.py 的 gate 事件）",
+  "local_layers_rerun": "9/9 GREEN (a)-(i) on LF 干净树（6308da5 = d2cffd2 + javac 编码修复）",
+  "evidence_files": [
+   "plan/gate-run-v18.json",
+   "plan/gate-run-v18b.json",
+   "plan/quota-probe-v18.json"
+  ]
  },
  "decisions_by_agent": [
   {
@@ -892,19 +897,21 @@
   "class": "BLOCKED_EXTERNAL",
   "prepare_error": "Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours)",
   "attempts": [
-   "cnb-fef-1k4ot1qvq",
-   "cnb-r2i-1k4ot3gs2",
-   "cnb-u8e-1k4ot4o4n",
-   "cnb-qvu-1k4p03o5r",
-   "cnb-0e6-1k4p0fdq4",
-   "cnb-6h5-1k4p0h3rs"
+   "cnb-fef-1k4ot1qvq (gate)",
+   "cnb-r2i-1k4ot3gs2 (smoke)",
+   "cnb-u8e-1k4ot4o4n (gate)",
+   "cnb-qvu-1k4p03o5r (seed)",
+   "cnb-0e6-1k4p0fdq4 (seed)",
+   "cnb-6h5-1k4p0h3rs (seed)",
+   "cnb-c23-1k4p0k0cf (gate, hook 指定命令 run_gate.py)"
   ],
   "scope": "root-group-global",
   "workaround": "none（Prepare 是平台 stage，改 .cnb.yml/job timeout/stage 条件均无效）",
   "escalate_to": "CNB 根组织管理员",
   "collateral": "所有 CNB 写路径不可用（十门 / 冒烟 / 播种法 push）⇒ 本轮无法推送分支、无法开 PR",
   "evidence": "plan/quota-probe-v18.json",
-  "probe_count": 6
+  "probe_count": 7,
+  "events_covered": "gate×3 / smoke×1 / seed×3 —— 全事件类型覆盖，同一句话"
  },
  "asset_repro_encoding_fix": {
   "id": "ASSET-REPRO-JAVAC-ENCODING",
