@@ -915,10 +915,14 @@
  "delivery_state": {
   "local_commits": [
    "codex/asset-repro-encoding-fix = 6308da5",
-   "codex/gap-matrix-v18 = a984483"
+   "codex/gap-matrix-v18 = a984483",
+   "97350f3",
+   "b243021"
   ],
   "pushed": false,
   "pr_opened": false,
-  "reason": "CNB 配额耗尽覆盖所有写路径（含播种法 push）"
+  "reason": "CNB 配额耗尽覆盖所有「内容写」路径（流水线 push 被 Prepare 挡 + 本地 git push 被本机沙箱 SIGTERM）",
+  "what_still_works": "只读+元数据通道：POST/DELETE /-/git/branches、GET /-/git/contents/<path>?ref=、GET /-/git/commits?ref_name=",
+  "next": "配额恢复后：git push 两分支（或 putfile 播种法逐文件推）→ 开 PR → PUT /-/pulls/{n}/merge 合入 → 重跑十门取得判据行"
  }
 }
