@@ -39,6 +39,16 @@
   - name: 全量质量门（编译 → 测试 → 打包）
     docker:
       image: eclipse-temurin:25-jdk
+      # ★ 缓存 Gradle 依赖，跨构建复用 GRADLE_USER_HOME。
+      # 动机（2026-10-13 实测）：十门每次全量构建都要从 repo.maven.apache.org 重下依赖树，
+      # 90 分钟内触发 6+ 次后该源开始返回 **HTTP 429 Too Many Requests**，
+      # 429 窗口甚至持续 >10 分钟，连 5 次指数退避（30/60/120/240s）都盖不过去
+      # （实测 sn=cnb-266-1k4p6bino compile 645s 全 FAILED / sn=cnb-rdk-1k4p2if8a 758s 全 FAILED）。
+      # 把 /root/.gradle 用 CNB 的 copy-on-write 卷缓存到构建节点后，
+      # 已解析依赖直接复用 ⇒ 从根上减少对 Maven Central 的暴露，既止 429 又提速。
+      # 语法见 https://docs.cnb.build/zh/build/pipeline-cache.html
+      volumes:
+        - /root/.gradle:copy-on-write
     stages:
       - name: 准备下载器（必须是第一个 stage）
         script: |
