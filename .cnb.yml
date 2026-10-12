@@ -183,14 +183,20 @@
           export GRADLE_USER_HOME=/root/.gradle
           # CNB 出网到 repo.papermc.io 会间歇性 connect timeout（实测 sn=cnb-lk2-1k3tdomfr：
           # gradle 发行包从 services.gradle.org 下得下来，但 papermc 的 pom 连接超时）。
-          # 对策：放宽 HTTP 超时 + 最多重试 3 次（GRADLE_USER_HOME 在重试间复用，
-          # 已下载的发行包与已解析的依赖不会重来）。
+          # 另有一条更常见的抖动：**repo.maven.apache.org 返回 HTTP 429 Too Many Requests**
+          # （实测 sn=cnb-v0a-1k4p1den5 / sn=cnb-mq0-1k4p3lnu1 / sn=cnb-lbv-1k4p4gf85：
+          # 依赖下载被限流，且 429 窗口可长到吞掉「3 次 × 间隔 10s」的短重试）。
+          # 对策：放宽 HTTP 超时 + **指数退避重试**（30s→60s→120s→240s，最多 5 次），
+          # 让重试跨度足够盖过 429 窗口；GRADLE_USER_HOME 在重试间复用，
+          # 已下载的发行包与已解析的依赖不会重来。
           start=$(date +%s)
           rc=1
           attempt=0
-          while [ "$attempt" -lt 3 ]; do
+          max_attempts=5
+          backoff=30
+          while [ "$attempt" -lt "$max_attempts" ]; do
             attempt=$((attempt + 1))
-            echo "===== compileJava 尝试 $attempt/3 ====="
+            echo "===== compileJava 尝试 $attempt/$max_attempts ====="
             set +e
             ./gradlew --no-daemon --continue \
               -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 \
@@ -202,7 +208,11 @@
             if [ "$rc" -eq 0 ]; then break; fi
             echo "--- 第 $attempt 次失败，尾部 40 行 ---"
             tail -n 40 /tmp/gradle.log
-            if [ "$attempt" -lt 3 ]; then echo "10s 后重试"; sleep 10; fi
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              echo "${backoff}s 后重试（指数退避，盖过 Maven 429 窗口）"
+              sleep "$backoff"
+              backoff=$((backoff * 2))
+            fi
           done
           end=$(date +%s)
           echo "===== 最终一次构建日志尾部 ====="
@@ -241,14 +251,43 @@
           # 且随后查明**真因不是负载本身**，而是 rpg-core 读缓存被「晚到的旧快照」回滚
           # （行锁保证数据库是 20，但 get() 只读缓存，读到 19）—— 见 #73 的修复与
           # `readCacheIsNotRolledBackByALateCommit()` 这个确定性回归测试。
-          ./gradlew --no-daemon --continue \
-            -Dorg.gradle.workers.max=2 \
-            -Dorg.gradle.internal.http.connectionTimeout=60000 \
-            -Dorg.gradle.internal.http.socketTimeout=60000 \
-            -Dorg.gradle.jvmargs="-Xmx1536m -Dfile.encoding=UTF-8" \
-            test -PexcludeTags=env > /tmp/test.log 2>&1
-          rc=$?
-          set -e
+          # 与 compile stage 同源的 Maven 429 限流也会打到这里：依赖若在 compile 阶段
+          # 未全部落进 GRADLE_USER_HOME（例如 compile 用的是 `compileJava`，test 还要
+          # 解析 testImplementation 的额外依赖），本 stage 同样可能撞 429。
+          # 实测 sn=cnb-v0a-1k4p1den5：本 stage 无重试 ⇒ 一次 429 抖动直接把整门判 RED。
+          # 故套与 compile 相同的**指数退避重试**（30s→60s→120s→240s，最多 5 次）。
+          rc=1
+          attempt=0
+          max_attempts=5
+          backoff=30
+          while [ "$attempt" -lt "$max_attempts" ]; do
+            attempt=$((attempt + 1))
+            echo "===== test 尝试 $attempt/$max_attempts ====="
+            set +e
+            ./gradlew --no-daemon --continue \
+              -Dorg.gradle.workers.max=2 \
+              -Dorg.gradle.internal.http.connectionTimeout=60000 \
+              -Dorg.gradle.internal.http.socketTimeout=60000 \
+              -Dorg.gradle.jvmargs="-Xmx1536m -Dfile.encoding=UTF-8" \
+              test -PexcludeTags=env > /tmp/test.log 2>&1
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then break; fi
+            # 只有「依赖解析失败 / 429」才值得退避重试；测试断言失败重试无意义且会掩盖真红。
+            if grep -qE '429 Too Many Requests|Could not (resolve|download|GET|HEAD)|Connection timed out' /tmp/test.log; then
+              echo "--- 第 $attempt 次失败（依赖/网络类），尾部 40 行 ---"
+              tail -n 40 /tmp/test.log
+              if [ "$attempt" -lt "$max_attempts" ]; then
+                echo "${backoff}s 后重试（指数退避，盖过 Maven 429 窗口）"
+                sleep "$backoff"
+                backoff=$((backoff * 2))
+              fi
+            else
+              echo "--- 第 $attempt 次失败为**测试断言类**（非依赖/网络）⇒ 不退避重试，直接判定 ---"
+              break
+            fi
+          done
+          echo "TEST_ATTEMPTS=$attempt"
           test_end=$(date +%s)
 
           echo "===== 测试日志错误段（失败时上下文）====="
