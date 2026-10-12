@@ -669,3 +669,23 @@ d2cffd27632ba9a623c957397fe168bca753ff7f
 2. **必做对照实验**（同时刻不带 `npc` 再触发一次），否则会被误判为「配额自己恢复了」；
 3. `npc` 口径下 stage **执行很慢**（自测 stage 实测 `549874ms ≈ 9.2 分钟`），`status=start, duration=0` 且日志只有命令回显**不是卡死**；
 4. 取证保留两样：`Prepare` 的 `git checkout -f -B "main" "<basis>"` + `build_status` 顶层 `npc:{name,workMode}` 回显。
+
+#### I.12.7 追加：门禁脆弱性 `MAVEN-429` 与两处加固（2026-10-13）
+
+| 编号 | 问题 | 证据 | 处置 |
+|---|---|---|---|
+| `TEST-STAGE-NO-RETRY` | `test` stage **无重试**，一次 Maven 429 直接判整门 RED | `sn=cnb-v0a-1k4p1den5`：1066 tests failed=0，纯依赖下载失败 | 已加指数退避重试（`bbd88f2` / PR#93） |
+| `COMPILE-RETRY-TOO-SHORT` | `compile` 重试 **3 次 × 固定 10s**，跨度 20s 短于 429 窗口 | `sn=cnb-mq0-1k4p3lnu1` / `sn=cnb-lbv-1k4p4gf85`：3 次全落同一 429 窗口 | 改为 **5 次指数退避 30/60/120/240s**（跨度 ~450s），已验证 `sn=cnb-77r-1k4p57075` 10/10 GREEN（`TEST_ATTEMPTS=2` 显示重试生效） |
+| `MAVEN-429-SUSTAINED-WINDOW` | 429 窗口可**持续 >10 分钟**；连续触发会把它越拉越长（疑似按出口 IP 频率限流） | `sn=cnb-266-1k4p6bino` compile 645s 跑满 5 次退避仍 FAILED；`sn=cnb-rdk-1k4p2if8a` 758s 同 | ① 降触发频率（通过即停）；② **加 `/root/.gradle:copy-on-write` 缓存卷**（`8d2608a`），从根上减少 Maven Central 暴露 |
+
+**缓存卷的机械证据**（`sn=cnb-ugf-1k4p7n9to` Prepare 日志）：
+```
+- volume /root/.gradle:copy-on-write mount...
+- volume /root/.gradle:copy-on-write mounted [0s]
+```
+语法来源：CNB 官方文档《流水线缓存》`docker.volumes` + `copy-on-write`。
+
+**教训**：
+- 「门禁偶发假红」**不要**靠手工多跑一次绕过 —— 偶发会变惯例。**改重试参数 / 加缓存**。
+- `Task :xxx:compileJava FAILED` 看起来像代码缺陷，但 429 才是真因 —— **先看失败是「解析」还是「编译」**。
+- 重试只能缓解**短窗口**；**长窗口必须靠缓存/镜像**从暴露量上解决。
