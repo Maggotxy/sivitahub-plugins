@@ -48,7 +48,7 @@
   "desc": "（1）给 test stage 加与 compile stage 相同的重试循环；（2）把两处的重试间隔由固定 10s 改为**指数退避 + 更长基础间隔**（如 30s/60s/120s），以挺过 Maven Central 的 429 窗口；（3）可选：引入 Gradle 依赖缓存卷或国内镜像，从根上减少 429 暴露。",
   "why_raised": "v20 证明 429 窗口可以长到吞掉 3 次 10s 间隔的重试 ⇒ 当前 compile 的重试参数也不够。"
  },
- "updated_at": "2026-10-13T06:55:00+08:00",
+ "updated_at": "2026-10-13T07:37:00+08:00",
  "v20_attempt3": {
   "sn": "cnb-77r-1k4p57075",
   "title": "十门 v20-r3（现场下发指数退避版 .cnb.yml）",
@@ -120,5 +120,35 @@
   "why_it_matters": "这是唯一能把『判据行』绑到『已提交门禁定义』上的运行 —— r3 用了 config 现场下发，不能作为长期依据。",
   "status": "running"
  },
- "updated_at": "2026-10-13T07:15:00+08:00"
+ "v20_final_attempt": {
+  "sn": "cnb-266-1k4p6bino",
+  "title": "十门 v20-final（basis=db9e827，仓库自身加固版 .cnb.yml）",
+  "status": "error @ compile (645511ms)",
+  "retry_behavior": "正确触发：5 次尝试 + 指数退避 30/60/120/240s（日志可见『30s/60s/120s/240s 后重试』）",
+  "per_attempt": [
+   "尝试 1/5 BUILD FAILED 2m9s",
+   "尝试 2/5 18s",
+   "尝试 3/5 12s",
+   "尝试 4/5 12s",
+   "尝试 5/5 12s"
+  ],
+  "final": "ATTEMPTS=5 BUILD_EXIT=1 SECONDS=637 COMPILE_GATE=RED",
+  "root_cause": "Maven Central 429 窗口**持续 >10 分钟**（远超此前 20s 量级的瞬时抖动）"
+ },
+ "v20_rdk_attempt": {
+  "sn": "cnb-rdk-1k4p2if8a",
+  "status": "error @ compile (758475ms)",
+  "note": "同样跑满退避链仍 RED ⇒ 与之互证：不是单次偶发"
+ },
+ "new_finding_rate_limited_by_own_frequency": {
+  "id": "MAVEN-429-SUSTAINED-WINDOW",
+  "observation": "自 07:00 起两次构建（cnb-rdk 758s / cnb-266 646s）跑满 5 次指数退避（总跨度 ~450s）仍全部撞 429；而 07:12 的 cnb-77r 通过（TEST_ATTEMPTS=2）⇒ 429 窗口在时间上**时开时闭**，且**长时间**闭合。",
+  "hypothesis": "90 分钟内触发 6+ 次全量依赖构建 ⇒ 平台出口 IP 被 repo.maven.apache.org 按频率限流，429 窗口随我们自己的触发频率拉长。",
+  "action_taken": "停止连续触发；记录为待观察的基础设施约束，改由定时任务在窗口开启时自动重跑。",
+  "recommendation": [
+   "（短期）降低触发频率：一次通过即停，不要连续复跑。",
+   "（中期）引入 Gradle 依赖缓存卷（GRADLE_USER_HOME 跨构建复用）或国内镜像，从根上减少对 Maven Central 的暴露。",
+   "（已做）指数退避重试（bbd88f2 / PR#93）—— 对 20s 量级窗口有效，对 >10min 窗口仍需缓存/镜像配合。"
+  ]
+ }
 }
