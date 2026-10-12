@@ -45,8 +45,13 @@
 | 1 | `api_trigger_gate` | `cnb-fef-1k4ot1qvq` | `error` | `error`（十门 stage **全部 skipped**） |
 | 2 | `api_trigger_smoke`（对照） | `cnb-r2i-1k4ot3gs2` | `error` | `error`（同上） |
 | 3 | `api_trigger_gate`（重试） | `cnb-u8e-1k4ot4o4n` | `error` | `error`（同上） |
+| 4 | `api_trigger_seed`（**自定义极简 config** 探测） | `cnb-qvu-1k4p03o5r` | `error` | `error`（自定 stage **skipped**） |
 
-三次的 `Prepare` 末尾原文**字面相同**：
+第 4 轮的独立性：它**不用仓库 `.cnb.yml`**，而是走 `start_build` 的 `config` 字段传一段最小 YAML（`echo QUOTA_PROBE_OK`），
+只为排除「是不是本仓配置太重」。结果**照样死在 `Prepare`** ⇒ 进一步确证阻塞发生在**平台层**，与本仓配置无关。
+（原始取证：`plan/quota-probe-v18.json`。）
+
+**四次的 `Prepare` 末尾原文字面相同**：
 
 ```
 Pipeline prepare error: Root Group's events CPU core-hours are insufficient for pre-freezing
@@ -55,9 +60,14 @@ Contact the root group administrator to extend.
 根组织的云原生构建-CPU配额已不够预冻结(冻结时间：5.00 min，折合0.67核时)，请联系根组织管理员提升配额。
 ```
 
-⇒ 事件无关（gate ×2 + smoke ×1 同一句话）⇒ 是**根组织级全局配额**。
+⇒ 事件无关（gate ×2 + smoke ×1 + seed ×1 同一句话）⇒ 是**根组织级全局配额**。
 ⇒ `Prepare` 是**平台自带 stage**，不在 `.cnb.yml` 里 ⇒ **改 `.cnb.yml` / job `timeout` / stage 条件全都无效**。
 ⇒ 本条判 `BLOCKED_EXTERNAL`（外部阻塞），**不是**产品缺陷，也**不是**「未达成 by 缺工」。
+
+**连带后果（本轮实际发生）**：连「借流水线 push」的播种法（`putfile.py`：`start_build` + `config` 里 `git push origin HEAD:<branch>`）
+也被同一道 `Prepare` 挡住 ⇒ **本轮分支推送与 PR 创建全部不可行**。故本会话的 v18 交付物**只落到本地提交**
+（`codex/asset-repro-encoding-fix`=`6308da5`、`codex/gap-matrix-v18`=`a984483`），待配额恢复后一次性推送开 PR。
+这不是「忘了推」，是**外部阻塞覆盖了所有 CNB 写路径**。
 
 **副产品（有用的）**：`Prepare` 的 git-clone 日志里打印了它真正 checkout 的 sha：
 
@@ -241,9 +251,9 @@ EXIT=0
 
 ## 7. 十门：本轮**未**取得判据行（`BLOCKED_EXTERNAL`）
 
-### 7.1 三次触发，三次死在平台 `Prepare`
+### 7.1 四次触发，四次死在平台 `Prepare`
 
-见 §0.2。原始取证：`plan/gate-run-v18.json`（`sn=cnb-fef-1k4ot1qvq`）+ `.stages.txt`。
+见 §0.2。原始取证：`plan/gate-run-v18.json`（`sn=cnb-fef-1k4ot1qvq`）+ `.stages.txt`，第 4 轮见 `plan/quota-probe-v18.json`。
 十门 stage 状态全为 `skipped`（`Prepare=error`）：
 
 ```
@@ -301,12 +311,14 @@ assemble=skipped
 
 | 项 | 值 |
 |---|---|
-| 现象 | `start_build` 返回 `success:true`，~4s 后 `build_status=error`；`Prepare=error`，十门 stage 全 `skipped` |
+| 现象 | `start_build` 返回 `success:true`，~2.6s 后 `build_status=error`；`Prepare=error`，自带 stage 全 `skipped` |
 | 根因 | `Root Group's events CPU core-hours are insufficient for pre-freezing`（配额折算 0.67 核时都拿不出） |
-| 作用域 | **根组织级**（gate ×2 + smoke ×1 同一句话） |
-| 绕过可能 | **无**（`Prepare` 是平台 stage，不在 `.cnb.yml`） |
+| 作用域 | **根组织级**（gate ×2 + smoke ×1 + seed ×1 同一句话） |
+| 绕过可能 | **无**（`Prepare` 是平台 stage，不在 `.cnb.yml`；连自定义 `config` 也照样死在 `Prepare`） |
+| **连带影响** | **所有 CNB 写路径均不可用**：十门、冒烟、以及借流水线 push 的播种法（`putfile.py`）⇒ 本轮**无法推送分支 / 无法开 PR**，v18 交付物仅落本地提交 |
 | 处置 | 停手、记 `BLOCKED_EXTERNAL`、报人类（组织管理员扩容）；**不得**重试刷配额 |
 | 升级对象 | CNB 根组织管理员 |
+| 取证 | `plan/quota-probe-v18.json`（第 4 轮，自定义极简 config，`sn=cnb-qvu-1k4p03o5r`） |
 
 ### 9.2 `G-SMOKE-CRITERION-UNRETRIEVABLE`（v17 已登记，维持 `REQUIRES_HUMAN`）
 

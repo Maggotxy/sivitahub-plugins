@@ -842,6 +842,7 @@
  },
  "risks": [
   "CNB-QUOTA-EXHAUSTED（BLOCKED_EXTERNAL）：根组织 CPU 配额耗尽 ⇒ 十门跑不起来。这不是产品缺陷，但也意味着「十门在 d2cffd2 上全绿」在本轮没有任何机械判据行证据。须管理员扩容后重跑。",
+  "本轮分支推送与 PR 创建**已做但被外部阻塞**：git push 被本机沙箱 SIGTERM，播种法（putfile）被平台 Prepare 挡（配额）⇒ 交付物仅落本地提交。须配额恢复后推送。",
   "本地九层 GREEN（a-i）≠ 十门 GREEN：两者跑在不同镜像（本地 Temurin 17/GBK vs 门禁 eclipse-temurin:25-jdk）与不同 stage 编排里；本轮未在 d2cffd2 上取得任何流水线 *_GATE= 行。",
   "G-SMOKE-CRITERION-UNRETRIEVABLE（REQUIRES_HUMAN）：冒烟 GREEN 无法机械引用 ⇒ 4 条 [R] unproven（G-205/G-207/G-208/G-209）状态维持不变。须人类选修法。",
   "harness 心跳缺口（非阻塞）：fetch-deps.sh / check-file-deps.sh 成功路径不吐主 stdout ⇒ 冷缓存长静默可能被平台看门狗杀。本轮未触发。",
@@ -893,11 +894,14 @@
   "attempts": [
    "cnb-fef-1k4ot1qvq",
    "cnb-r2i-1k4ot3gs2",
-   "cnb-u8e-1k4ot4o4n"
+   "cnb-u8e-1k4ot4o4n",
+   "cnb-qvu-1k4p03o5r"
   ],
   "scope": "root-group-global",
   "workaround": "none（Prepare 是平台 stage，改 .cnb.yml/job timeout/stage 条件均无效）",
-  "escalate_to": "CNB 根组织管理员"
+  "escalate_to": "CNB 根组织管理员",
+  "collateral": "所有 CNB 写路径不可用（十门 / 冒烟 / 播种法 push）⇒ 本轮无法推送分支、无法开 PR",
+  "evidence": "plan/quota-probe-v18.json"
  },
  "asset_repro_encoding_fix": {
   "id": "ASSET-REPRO-JAVAC-ENCODING",
@@ -907,5 +911,14 @@
   "defect": "check-asset-reproducible.sh 调 javac 未指定源编码；生成器源码含 UTF-8 中文注释，javac 默认源编码随平台走。CNB 的 eclipse-temurin:25-jdk 默认 UTF-8 故从未暴露；GBK 平台（本机 Temurin 17/zh_CN）报「编码 GBK 的不可映射字符」而整门假红。",
   "fix": "javac 加 -encoding UTF-8；4 处 java 运行加 -Dfile.encoding=UTF-8。",
   "effect": "ASSET_REPRO_GATE 从「只在 UTF-8 平台可复现」变为「与平台默认字符集无关」。实测：加前 58 个不可映射字符错误；加后 4 个生成器全编译通过、逐像素比对 GREEN。"
+ },
+ "delivery_state": {
+  "local_commits": [
+   "codex/asset-repro-encoding-fix = 6308da5",
+   "codex/gap-matrix-v18 = a984483"
+  ],
+  "pushed": false,
+  "pr_opened": false,
+  "reason": "CNB 配额耗尽覆盖所有写路径（含播种法 push）"
  }
 }

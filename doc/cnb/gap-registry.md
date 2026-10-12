@@ -544,9 +544,10 @@ PR = #86（`f4e4f43`）。
 |---|---|
 | **现象** | `start_build(api_trigger_gate, branch=main, sha=d2cffd2)` 返回 `{"success":true}`（**受理成功**），但约 4 秒后 `build_status` 即为 `error`；`Prepare` stage `status=error`，**其余十门 stage 全部 `skipped`**；`collect_stage_logs` 的 `hits=[]`（空） |
 | **根因（`Prepare` stage 末尾 `content` 原文）** | `Pipeline prepare error: Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours). Contact the root group administrator to extend.` / 中文：`根组织的云原生构建-CPU配额已不够预冻结(冻结时间：5.00 min，折合0.67核时)，请联系根组织管理员提升配额。` |
-| **作用域 = 根组织级（实测）** | 三次触发（`api_trigger_gate` ×2：`cnb-fef-1k4ot1qvq` / `cnb-u8e-1k4ot4o4n`；`api_trigger_smoke` ×1：`cnb-r2i-1k4ot3gs2`）**报同一句话** ⇒ 与事件、分支、流水线无关，是**全局配额** |
+| **作用域 = 根组织级（实测）** | **四次**触发（`api_trigger_gate` ×2：`cnb-fef-1k4ot1qvq` / `cnb-u8e-1k4ot4o4n`；`api_trigger_smoke` ×1：`cnb-r2i-1k4ot3gs2`；`api_trigger_seed` ×1：`cnb-qvu-1k4p03o5r`）**报同一句话** ⇒ 与事件、分支、流水线无关，是**全局配额**。第 4 轮特意走 `start_build` 的 `config` 字段传一段**自定义极简 YAML**（不经本仓 `.cnb.yml`），照样死在 `Prepare` ⇒ 确证在平台层 |
 | **为什么改 `.cnb.yml` 没用** | `Prepare` 是**平台自带 stage**（拉 runner / 起 git-clone / 起 network-bus / 预冻结配额），**不在** `.cnb.yml` 的 stage 列表里。改 job `timeout` / stage 顺序 / `if:` 条件**全部无效** |
-| **为什么不能重试绕过** | 配额是组织级共享资源；本轮连续 3 次同错 ⇒ 重试只会继续消耗并刷屏，**无意义**。应停手、升级到管理员 |
+| **为什么不能重试绕过** | 配额是组织级共享资源；本轮连续 4 次同错 ⇒ 重试只会继续消耗并刷屏，**无意义**。应停手、升级到管理员 |
+| **★ 连带影响（本轮实际发生）** | 所有 **CNB 写路径**均不可用：十门、冒烟，**以及**借流水线 push 的播种法（`putfile.py`：`start_build` + `config` 里 `git push origin HEAD:<branch>`）也被同一道 `Prepare` 挡。⇒ 本轮**无法推送分支、无法开 PR**；v18 交付物只落本地提交（`codex/asset-repro-encoding-fix`=`6308da5`、`codex/gap-matrix-v18`=`a984483`）。这不是「忘了推」 |
 | **处置** | 判 `BLOCKED_EXTERNAL`（**不是**产品缺陷，**不是**可派工实现缺口），升级对象 = CNB 根组织管理员（提升 `云原生构建-CPU` 配额） |
 | **副产品（有用的）** | `Prepare` 的 git-clone 日志打印了它真正 checkout 的 sha：`$ git rev-parse HEAD` → `d2cffd27632ba9a623c957397fe168bca753ff7f`。⇒ **即使十门没跑，也能机械证明「平台确实按我给的 basis 拉到了代码」**（比只写「我请求了 d2cffd2」强得多） |
 | **教训** | `start_build` 返回 `success` **只表示「受理」**，不表示「构建已开始」。**触发后第一件事是看 `Prepare` 的 `status`**：`error` + 配额文案 ⇒ 立刻停手，别去 `collect_stage_logs` 抽判据行（只会拿到一叠 `skipped`，白等一轮）。这条已进 `cnb-workflow` skill 硬规则 14 与 `references/pitfalls.md` §X |

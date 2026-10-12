@@ -8,7 +8,7 @@
   "G-SMOKE-CRITERION-UNRETRIEVABLE"
  ],
  "blocked_external": [
-  "CNB-QUOTA-EXHAUSTED：CNB 根组织 CPU 配额耗尽，十门流水线三次触发全死在平台 `Prepare`（十门 stage 全 skipped）。改 .cnb.yml/job timeout/stage 条件均无效（Prepare 是平台 stage）。须 CNB 根组织管理员提升配额。"
+  "CNB-QUOTA-EXHAUSTED：CNB 根组织 CPU 配额耗尽，十门流水线**四次**触发（api_trigger_gate ×2 + api_trigger_smoke ×1 + api_trigger_seed ×1 自定义极简 config）全死在平台 `Prepare`（十门 stage 全 skipped）。改 .cnb.yml/job timeout/stage 条件均无效（Prepare 是平台 stage）。**连带：借流水线 push 的播种法（putfile.py）同样被挡 ⇒ 所有 CNB 写路径不可用，本轮无法推送分支/开 PR。** 须 CNB 根组织管理员提升配额。"
  ],
  "needs_human": [
   "G-SMOKE-CRITERION-UNRETRIEVABLE：冒烟退出码 GREEN 但判据行落在平台交付窗口外 ⇒ GREEN 无法被机械引用。须人类在两种修法间选择：(1) 脚本把 PAPER_* 判据行落仓并 push 到证据分支（代价：冒烟 job 需 push 权限 + 并发写同一分支的处理）；(2) 新增一个只 cat 证据文件的极短 stage，把判据行挪到「总输出必然短到能被完整交付」的位置（代价：改 .cnb.yml）。在选定前，冒烟不得作为 [R] 证据。",
@@ -25,12 +25,27 @@
   "remote_gate_sn": "cnb-fef-1k4ot1qvq",
   "remote_gate_status": "error",
   "remote_gate_prepare": "error",
-  "remote_gate_stages_skipped": ["准备下载器（必须是第一个 stage）", "门禁自测（负向对照）", "DDL 门禁（G-301 消费者 + G-302 注册，双向）", "素材门禁（W7-A1）", "素材逐像素基线门禁（W12-A1）", "素材可复现性门禁（W13-A1）", "compile", "test", "assemble"],
+  "remote_gate_stages_skipped": [
+   "准备下载器（必须是第一个 stage）",
+   "门禁自测（负向对照）",
+   "DDL 门禁（G-301 消费者 + G-302 注册，双向）",
+   "素材门禁（W7-A1）",
+   "素材逐像素基线门禁（W12-A1）",
+   "素材可复现性门禁（W13-A1）",
+   "compile",
+   "test",
+   "assemble"
+  ],
   "remote_gate_hits": [],
   "prepare_error_line": "Pipeline prepare error: Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours). Contact the root group administrator to extend.",
   "bossi_proof": "Prepare 日志含 `$ git rev-parse HEAD` -> d2cffd27632ba9a623c957397fe168bca753ff7f（证明平台按请求的 basis 拉到了代码）",
-  "retriggered": ["cnb-r2i-1k4ot3gs2 (api_trigger_smoke)", "cnb-u8e-1k4ot4o4n (api_trigger_gate)"],
-  "retrigger_verdict": "三次同一句话 ⇒ 根组织级全局配额"
+  "retriggered": [
+   "cnb-r2i-1k4ot3gs2 (api_trigger_smoke)",
+   "cnb-u8e-1k4ot4o4n (api_trigger_gate)",
+   "cnb-qvu-1k4p03o5r (api_trigger_seed, 自定义 config)"
+  ],
+  "retrigger_verdict": "四次同一句话 ⇒ 根组织级全局配额；连自定义 config 也死在 Prepare ⇒ 平台层阻塞",
+  "quota_probe_evidence": "plan/quota-probe-v18.json（sn=cnb-qvu-1k4p03o5r，Prepare=error/2391ms，probe stage=skipped）"
  },
  "condition_3_asset_layer_four": true,
  "condition_3_evidence": {
@@ -68,10 +83,17 @@
   "id": "CNB-QUOTA-EXHAUSTED",
   "class": "BLOCKED_EXTERNAL",
   "prepare_error": "Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours)",
-  "attempts": ["cnb-fef-1k4ot1qvq", "cnb-r2i-1k4ot3gs2", "cnb-u8e-1k4ot4o4n"],
+  "attempts": [
+   "cnb-fef-1k4ot1qvq (gate)",
+   "cnb-r2i-1k4ot3gs2 (smoke)",
+   "cnb-u8e-1k4ot4o4n (gate)",
+   "cnb-qvu-1k4p03o5r (seed, 自定义极简 config)"
+  ],
   "scope": "root-group-global",
-  "workaround": "none（Prepare 是平台 stage，改 .cnb.yml/job timeout/stage 条件均无效）",
-  "escalate_to": "CNB 根组织管理员"
+  "workaround": "none（Prepare 是平台 stage，改 .cnb.yml/job timeout/stage 条件均无效；连自定义 config 也照样死在 Prepare）",
+  "collateral": "所有 CNB 写路径不可用（十门 / 冒烟 / 播种法 push）⇒ 本轮无法推送分支、无法开 PR",
+  "escalate_to": "CNB 根组织管理员",
+  "evidence": "plan/quota-probe-v18.json（第 4 轮）"
  },
  "asset_repro_encoding_fix": {
   "id": "ASSET-REPRO-JAVAC-ENCODING",
@@ -142,7 +164,17 @@
   "env_tag_methods": 7,
   "local_layers_rerun": 9,
   "local_layers_green": 9,
-  "local_layers_rerun_list": ["a", "b", "c", "d", "e", "f", "g", "h", "i"],
+  "local_layers_rerun_list": [
+   "a",
+   "b",
+   "c",
+   "d",
+   "e",
+   "f",
+   "g",
+   "h",
+   "i"
+  ],
   "remote_gate_attempts": 3,
   "remote_gate_criteria_retrieved": 0
  },
@@ -159,5 +191,14 @@
   "doc/cnb/gap-registry.md（§I.11 新增）",
   "state/world-state.json"
  ],
- "pr_url": ""
+ "pr_url": "",
+ "delivery_state": {
+  "local_commits": [
+   "codex/asset-repro-encoding-fix = 6308da5",
+   "codex/gap-matrix-v18 = a984483"
+  ],
+  "pushed": false,
+  "pr_opened": false,
+  "reason": "CNB 配额耗尽覆盖所有写路径（含播种法 push），本地提交已完成，待配额恢复后一次性推送开 PR"
+ }
 }
