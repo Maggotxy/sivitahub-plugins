@@ -1,0 +1,50 @@
+{
+  "purpose": "在**新 main HEAD (cc8fd9d)** 上取得十条 *_GATE= 判据行，用于 v20 判定（basis 须字面等于届时 main HEAD）",
+  "basis": "cc8fd9d82f0905bd4355f0692723ab6a7f3a479e",
+  "basis_context": "Merge PR #91 后的 main HEAD；此前 cc8fd9d 的父提交链含 PR#92(javac 修复) + v19 证据",
+  "basis_proof_v20": {
+    "sn": "cnb-mq0-1k4p3lnu1",
+    "prepare_log": [
+      "2026-10-13 06:28.04 $ git checkout -f -B \"main\" \"cc8fd9d82f0905bd4355f0692723ab6a7f3a479e\"",
+      "2026-10-13 06:28.04 $ git rev-parse HEAD",
+      "cc8fd9d82f0905bd4355f0692723ab6a7f3a479e"
+    ]
+  },
+  "v20_attempt1": {
+    "sn": "cnb-mq0-1k4p3lnu1",
+    "result": "error @ compile stage (135910ms)",
+    "passed_before_failure": [
+      "Prepare success",
+      "准备下载器 success",
+      "门禁自测（负向对照） success 570429",
+      "DDL 门禁 success 105893",
+      "素材门禁（W7-A1） success 496",
+      "素材逐像素基线门禁（W12-A1） success 352",
+      "素材可复现性门禁（W13-A1） success 1451"
+    ],
+    "failed_stage": "compile",
+    "root_cause": "Maven Central HTTP 429 Too Many Requests（依赖下载限流），3 次重试全部落在同一 429 窗口内（每次仅隔 10s）",
+    "evidence_lines": [
+      "> Task :plugins:rpg-api:compileJava FAILED",
+      "> Could not GET 'https://repo.maven.apache.org/maven2/net/kyori/option/1.1.0/option-1.1.0.jar'. Received status code 429 from server: Too Many Requests",
+      "> Could not HEAD 'https://repo.maven.apache.org/maven2/com/google/guava/listenablefuture/...jar'. Received status code 429",
+      "ATTEMPTS=3",
+      "BUILD_EXIT=1 SECONDS=128",
+      "COMPILE_GATE=RED"
+    ],
+    "classification": "INFRA_TRANSIENT",
+    "note": "证明了 compile stage 现有的『3 次 × 间隔 10s』重试对**持续 429 窗口**不足 —— 需要指数退避或更长间隔。"
+  },
+  "v20_attempt2": {
+    "sn": "cnb-lbv-1k4p4gf85",
+    "title": "十门 v20-r2（basis=cc8fd9d，等 429 窗口过去）",
+    "status": "running"
+  },
+  "hardening_recommendation": {
+    "id": "TEST-STAGE-RETRY",
+    "priority": "raised",
+    "desc": "（1）给 test stage 加与 compile stage 相同的重试循环；（2）把两处的重试间隔由固定 10s 改为**指数退避 + 更长基础间隔**（如 30s/60s/120s），以挺过 Maven Central 的 429 窗口；（3）可选：引入 Gradle 依赖缓存卷或国内镜像，从根上减少 429 暴露。",
+    "why_raised": "v20 证明 429 窗口可以长到吞掉 3 次 10s 间隔的重试 ⇒ 当前 compile 的重试参数也不够。"
+  },
+  "updated_at": "2026-10-13T06:42:00+08:00"
+}
