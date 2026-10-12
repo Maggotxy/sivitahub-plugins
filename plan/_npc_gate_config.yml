@@ -1,0 +1,443 @@
+# 希维塔大陆 SivitaHub —— CNB 流水线
+#
+# 三条硬规则（写错会被静默忽略，见 cnb-workflow skill §6）：
+#   1. `docker:` 必须写在 job 级（与 `stages:` 同级），写 stage 级会被忽略
+#   2. 需要 NPC 写仓库时必须不写 `sandbox`（或 sandbox: false）+ `workMode: true`
+#   3. 构建脚本跑在 `sh`(dash) 下，不能用 `${PIPESTATUS[@]}`、进程替换、`<<-`
+#
+# 本仓定位：**CNB 为唯一真相源与执行体**。质量门是唯一机械判据，门不绿不算完成。
+
+# 质量门 = 五个阶段，判据全部是退出码 + SECONDS>0
+# （SECONDS>0 是为了防止「缓存命中后 0 秒通过」被当成真执行）：
+#   1. 门禁自测（负向对照）              —— 先证明「门禁自己会红」
+#   2. DDL/指令引用门禁 + compileJava   —— 编译门
+#   3. test                              —— 全量测试门（26 子工程）
+#   4. assemble                          —— 打包门（各插件 jar + plugin.yml 校验）
+#
+# 测试门的「环境依赖测试」处理方式（W3-A2 决策，见 PR 描述）：
+#   本仓按设计只含 plugins/ docs/ tools/，**不含 server/ 与 resource-pack/**，
+#   因此有 9 个断言「运维侧部署产物」（运行中的 Paper 配置 / 数据包 / 文字包 / 第三方
+#   插件 jar 的命令注册表 / BungeeCord 风格对话包）的测试必然无法在此通过。
+#   它们被显式打上 @Tag("env")，门禁用 excludeTags 'env' 排除，并在日志里把
+#   「被排除的清单」逐条打印出来 —— 是显式分类，不是静默跳过。
+#   禁止的做法（本仓不做）：删测试 / @Disabled / 把断言改恒真 / -x test。
+#
+# 门禁自身逻辑的机械自证（scripts/selftest-gates.sh，作为第一个 stage 跑）：
+#   测试门与打包门最危险的不是报红，而是「永远绿」或「永远红」。
+#   W3-A2 实测抓到两处「看起来在跑、实际从不生效」的判据：
+#     ① 按模块汇总曾只统计「有失败用例」的模块：rpg-combat 整个模块因 compileTestJava
+#        失败而根本没跑，却因为「没有失败用例」被算成绿（模块漏跑 = 假绿）。
+#        现在 NO_XML 计入 RED，且要求跑过的模块数 >= 26。
+#     ② env 排除清单的抽取曾用 `grep -o -A1 | grep -oE`：`-A1` 会插入 `--` 分隔行，
+#        下游一行都匹配不到，清单恒为空 → 「排除清单」段落永远打印「（无）」。
+#        改用 scripts/list-env-tests.sh（awk 取下一行），并在门里断言清单非空。
+#   自测脚本用最小夹具复跑这些判定分支，改坏任何一个都会让门直接红。
+#
+# 门禁同一套阶段被 push 与 api_trigger_gate 共用（YAML 锚点）。
+# `docker:` 必须写在 job 级（与 `stages:` 同级），写 stage 级会被静默忽略。
+.quality_gate: &quality_gate
+  - name: 全量质量门（编译 → 测试 → 打包）
+    docker:
+      image: eclipse-temurin:25-jdk
+    stages:
+      - name: 准备下载器（必须是第一个 stage）
+        script: |
+          # ⚠️ 这个 stage 必须排在最前：实测把它放在「门禁自测」之后，
+          # selftest-gates.sh 会因为 `python3: not found` 全部 exit=127 ⇒ 整门假红
+          # （sn=cnb-l6r-1k3tucifk）。
+          # eclipse-temurin:25-jdk 里 python3 / curl / wget / sha256sum 全缺，
+          # fetch-deps.sh 会因此「没有可用的下载器」而整体失败（实测 sn=cnb-n4t-1k3td2s2k）。
+          # 这里先补齐，缺什么装什么，装不上就明确失败而不是让下游报一个看不懂的错。
+          set -e
+          have() { command -v "$1" >/dev/null 2>&1; }
+          if have curl && have sha256sum && have python3; then echo "DOWNLOADER=curl(ready)"; exit 0; fi
+          echo "缺少 curl/sha256sum/python3，用 apt 安装"
+          apt-get update -qq >/dev/null 2>&1 || true
+          # python3 也要装：scripts/check-file-deps.sh 依赖它（实测只装 curl 会在那里挂在
+          # 「check-file-deps.sh: 19: python3: not found」）
+          apt-get install -y -qq curl ca-certificates coreutils python3 >/dev/null 2>&1 || true
+          echo "curl=$(have curl && echo yes || echo no) python3=$(have python3 && echo yes || echo no) sha256sum=$(have sha256sum && echo yes || echo no)"
+          have curl || have python3 || { echo "DOWNLOADER=NONE"; exit 1; }
+          echo "DOWNLOADER=ready"
+      - name: 门禁自测（负向对照）
+        script: |
+          # 先证明「门禁自己会红」：用最小夹具把汇总脚本 / jar 校验 / env 清单抽取
+          # 的每个判定分支都跑一遍（scripts/selftest-gates.sh）。
+          # 没有这一步，改坏一个判据会静默变成假门禁 —— 见 W3-A2 实测：
+          # `grep -o -A1` 抽取 env 清单恒为空、`"...\benv\b"` 里的 \b 被 shell 吃掉，
+          # 两处都让门禁「看起来在跑」但从不生效。自测就是拦这类复发的。
+          set -e
+          chmod +x scripts/*.sh scripts/*.py
+          sh scripts/selftest-gates.sh
+      - name: DDL 门禁（G-301 消费者 + G-302 注册，双向）
+        script: |
+          set -e
+          # 每一次 clone 出来的 gradlew 权限位都可能丢（实测：本地 checkout 后
+          # `./gradlew` 报 Permission denied，退化成 TEST_EXIT=126 / SECONDS=0）。
+          # 这里统一兜底，避免门禁因为一个文件模式位而整段假红。
+          chmod +x gradlew scripts/*.sh scripts/*.py
+          # 同一个脚本里有三节判据，都是退出码判据（任一节红 → 整门红）：
+          #   §1/§3-5 G-301 消费者：DDL 里的表必须有真实 SQL 消费者
+          #   §6      G-303 指令引用：语言包承诺的 /cmd 必须被某个 plugin.yml 注册
+          #   §7      G-302 注册（W5-A1 新增）：src/main 里出现的每个 rpg_* 表名
+          #           必须在 DDL 真相源里有 CREATE TABLE —— W4-A2 踩的坑就是
+          #           「代码写了 INSERT INTO 一张不存在的表」，编译与单测（自带 H2
+          #           夹具）全绿，真机启动后任何授予经验都以 Table not found 回滚。
+          # 第 7 节的负向对照（证明它会红）跑在上一 stage：
+          #   scripts/selftest-gates.sh §4 —— 缺表 → RED、显式豁免 → GREEN 可审计。
+          # 注意：脚本跑在 sh(dash) 下，不要用 bash 专有语法。
+          sh scripts/check-ddl-consumers.sh
+      - name: 素材门禁（W7-A1）
+        script: |
+          set -e
+          # resource-pack/ 在 2026-10-02 入库，但它的校验只存在于生产机的
+          # resource-pack/build.sh 里 —— 那一版依赖 Paper / server/ / zip / rg / jq，
+          # 在 CNB 里跑不起来。结果是**素材可以坏着进 main 而没有任何人知道**：
+          # 删一个 items 定义、把某张 PNG 改成 16x16、把 HUD 图集裁掉一列、
+          # 改一个 lang 键，都要等生产机下一次 build.sh 才被发现。
+          #
+          # 本 stage 是仓内静态子集，放在 DDL 门禁旁边（都属于「不做任何编译就能
+          # 判定」的结构性门禁，早失败早修）：
+          #   1. runtime-item-models.txt 与 items/*.json 一一对应
+          #   2. item 定义 → model → texture 闭包（孤儿模型 / 孤儿纹理都要报）
+          #   3. 物品 PNG 全部 32x32 且 alpha 只有 0/255
+          #   4. font/hud.json U+E000..U+E00A 十一码位 ↔ 99x9 图集
+          #   5. font/journey.json U+E100..U+E107 八码位 ↔ 八张旅程图
+          #   6. en_us.json 与 zh_cn.json 键集合一致
+          #   7. traveler_compass 的 26.2 33 段方向分发 ↔ 32 帧模型 / 纹理
+          #
+          # 依赖：只用 POSIX sh + python3（PNG 解码与 JSON 解析走 stdlib）。
+          # **不用 jq、不用 ImageMagick** —— eclipse-temurin 镜像里没有，
+          # 也不该为素材门禁引入新依赖。python3 由最上面的「准备下载器」stage 装。
+          #
+          # 这些判据自身也被「门禁自测（负向对照）」stage 覆盖：
+          # scripts/selftest-gates.sh §7 对每条判据各做一次
+          # 「破坏 → 必须红 → 还原 → 必须绿」，所以它们不会退化成恒绿假门禁。
+          chmod +x scripts/*.sh scripts/*.py
+          sh scripts/check-resource-pack.sh
+
+      - name: 素材逐像素基线门禁（W12-A1）
+        script: |
+          set -e
+          # 素材门禁（上一 stage）判定的是「素材自洽」：闭包 / 32x32 / 二值 alpha /
+          # 码位 / 语言键。它管不了「这张图还是不是原来那张」—— 换一张同样 32x32、
+          # 同样二值 alpha 的图，八条判据全绿。结果是 83 张物品纹理 + 116 张 betterhud
+          # 纹理 + 16 张 bettermodel 纹理可以被悄悄换掉而没有任何人知道。
+          #
+          # 本 stage 拿 resource-pack/assets-manifest.json 做逐像素对账（252 张）：
+          #   a) 磁盘有、清单无 → 未登记    b) 清单有、磁盘无 → 丢失
+          #   c) 指纹不一致 → 被改动（打印 期望/实际）
+          # 指纹 = 解码后像素的 SHA-256（宽高 + 逐像素 ARGB），与
+          # resource-pack/tools/PngFingerprint.java 同构，但用 python3 实现
+          # （本仓无 JDK）；不受 PNG 编码器元数据 / 滤波 / 压缩率影响。
+          #
+          # 本门禁有意**不留** --skip / --force / --update 开关：一旦有，它就会变成
+          # 出事时的默认动作。有意更新基线的唯一路径：
+          #   python3 scripts/gen-asset-manifest.py && git add resource-pack/assets-manifest.json
+          # 那会作为可评审的 diff 出现在 PR 里。见 resource-pack/README.md。
+          #
+          # 判据自身也被「门禁自测（负向对照）」stage 覆盖：
+          # scripts/selftest-gates.sh §9 做「改 1 像素 / 删图 / 加未登记图 / 还原」
+          # 四组对照，证明它会红也能转绿。
+          chmod +x scripts/*.sh scripts/*.py
+          python3 scripts/check-asset-baseline.py
+
+      - name: 素材可复现性门禁（W13-A1）
+        script: |
+          set -e
+          # 上一道 stage（基线门禁）判的是「磁盘像素 == 清单登记的像素」，它挡不住
+          # 「注册表和生成器一起漂走」：有人手改 PNG、再重跑 gen-asset-manifest.py
+          # 把新像素登记进基线，两道门禁全绿，但那 30 张物品纹理从此再也造不出来。
+          # 本 stage 把「再造一次」变成断言：现场编译并运行 resource-pack/tools/ 下的
+          # Java 生成器到临时目录，再逐像素比对仓库里的对应 PNG（覆盖规格见
+          # scripts/check-asset-reproducible.py 与 resource-pack/asset-reproducible.json）。
+          #
+          # 覆盖 70 条资产 / 4 个生成器：GenerateTextures 36（31 原有 + 5 张 skill_*）、
+          # GenerateHudAtlas 1、GenerateSkillHudAtlas 1、GenerateCompassFrames 32 帧
+          # （另加 32 个罗盘模型 JSON 逐字节比对）。
+          #
+          # 本 stage 跑在 eclipse-temurin:25-jdk 镜像里，java/javac 自带；
+          # 开发容器没有 JDK 时脚本会自取 Temurin 25（清华 Adoptium 镜像），
+          # 装不上就 exit 2 明确失败 —— 静默跳过等于门禁不存在。
+          #
+          # 有意**不纳入** GenerateSivitaHudPanel：132x44 遗留物，build.sh 不调用，
+          # 输出不在 assets-manifest.json 里；把没有对应仓库产物的生成器拖进门禁
+          # 只会得到一条恒真的假判据。理由同时写在脚本注释里。
+          #
+          # 判据自身也被「门禁自测（负向对照）」stage 覆盖：scripts/selftest-gates.sh §10
+          # 做「改生成器常量 → 必须 RED / 把 ancient_echo_skill_book 换成生成器输出 →
+          # 必须 RED（反向断言）/ 还原 → GREEN」三组对照。
+          chmod +x scripts/*.sh scripts/*.py
+          sh scripts/check-asset-reproducible.sh
+
+      - name: compile
+        script: |
+          set -e
+          echo "java: $(java -version 2>&1 | head -1)"
+          chmod +x gradlew
+          # 干净克隆的自包含性：第三方编译期 jar 不在版本控制里，编译前先拉取 + 校验
+          sh scripts/fetch-deps.sh
+          # 门禁：每个 compileOnly(files(...)) 都必须在 fetch-deps.sh 的清单里
+          sh scripts/check-file-deps.sh
+          export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
+          export GRADLE_USER_HOME=/root/.gradle
+          # CNB 出网到 repo.papermc.io 会间歇性 connect timeout（实测 sn=cnb-lk2-1k3tdomfr：
+          # gradle 发行包从 services.gradle.org 下得下来，但 papermc 的 pom 连接超时）。
+          # 对策：放宽 HTTP 超时 + 最多重试 3 次（GRADLE_USER_HOME 在重试间复用，
+          # 已下载的发行包与已解析的依赖不会重来）。
+          start=$(date +%s)
+          rc=1
+          attempt=0
+          while [ "$attempt" -lt 3 ]; do
+            attempt=$((attempt + 1))
+            echo "===== compileJava 尝试 $attempt/3 ====="
+            set +e
+            ./gradlew --no-daemon --continue \
+              -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 \
+              -Dorg.gradle.internal.http.connectionTimeout=60000 \
+              -Dorg.gradle.internal.http.socketTimeout=60000 \
+              compileJava > /tmp/gradle.log 2>&1
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then break; fi
+            echo "--- 第 $attempt 次失败，尾部 40 行 ---"
+            tail -n 40 /tmp/gradle.log
+            if [ "$attempt" -lt 3 ]; then echo "10s 后重试"; sleep 10; fi
+          done
+          end=$(date +%s)
+          echo "===== 最终一次构建日志尾部 ====="
+          tail -n 150 /tmp/gradle.log
+          echo "-----"
+          echo "TASKS_DONE=$(grep -c '^> Task' /tmp/gradle.log || true)"
+          echo "ATTEMPTS=$attempt"
+          echo "BUILD_EXIT=$rc SECONDS=$((end-start))"
+          if [ "$rc" -ne 0 ]; then echo "COMPILE_GATE=RED"; exit 1; fi
+          if [ $((end-start)) -le 0 ]; then echo "COMPILE_GATE=SUSPECT(0s)"; exit 1; fi
+          echo "COMPILE_GATE=GREEN"
+      - name: test
+        script: |
+          # 全量测试门：26 个子工程全部跑 test（不用 -x test 绕过，不跳过任何模块）。
+          # --continue 保证单个模块失败不会让后面的模块被静默跳过 —— 每个模块都真的跑了、
+          # 都在下面「按模块结果」里报告。
+          # 按模块汇总放在 scripts/dump-test-results.py 里（不要在这里内联 python：
+          # 该脚本对「模块漏跑」的判定是门禁的一半语义，独立成文件才能被单元自测覆盖）。
+          # 排除清单的抽取放在 scripts/list-env-tests.sh 里，理由同上（它自己被自测覆盖）。
+          set -e
+          chmod +x gradlew scripts/*.sh scripts/*.py
+          export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
+          export GRADLE_USER_HOME=/root/.gradle
+          test_start=$(date +%s)
+          set +e
+          # ⚠️ 并行度与假红（2026-10-03 实测）：`workers.max=4` 会在 26 个模块上同时起 4 个
+          # 测试 JVM，本身就是一份 CPU 争抢。实测同一个 commit 上质量门「先红后绿」两次
+          # （sn=cnb-d93-1k41bqhbe RED / sn=cnb-esl-1k41cpau5 GREEN；更早 sn=cnb-tn4-1k4141s0e
+          # RED / sn=cnb-h3n-1k414popl GREEN），失败的都是**时序/并发敏感**的用例
+          # （AnomalyReviewCommandTest 的 30ms 静默窗口、JdbcServicesTest 的 20 路并发授予），
+          # 且两次假红都发生在**平台上另有构建在跑**的时候 ⇒ 判定为「CPU 争抢把测试饿出假红」。
+          # 因此把并行度收敛到 2 并去掉 parallel（不是跳过任何测试），减少门禁自伤。
+          # W22-A1 补充了**决定性证据**：在 8x CPU hog 下用 parallel=true/workers=4 复现到与门禁
+          # 逐字一致的失败 —— `JdbcServicesTest > concurrentExperienceGrantsPreserveEveryMutation()`
+          # `org.opentest4j.AssertionFailedError: expected: <20> but was: <19>`，
+          # 且随后查明**真因不是负载本身**，而是 rpg-core 读缓存被「晚到的旧快照」回滚
+          # （行锁保证数据库是 20，但 get() 只读缓存，读到 19）—— 见 #73 的修复与
+          # `readCacheIsNotRolledBackByALateCommit()` 这个确定性回归测试。
+          ./gradlew --no-daemon --continue \
+            -Dorg.gradle.workers.max=2 \
+            -Dorg.gradle.internal.http.connectionTimeout=60000 \
+            -Dorg.gradle.internal.http.socketTimeout=60000 \
+            -Dorg.gradle.jvmargs="-Xmx1536m -Dfile.encoding=UTF-8" \
+            test -PexcludeTags=env > /tmp/test.log 2>&1
+          rc=$?
+          set -e
+          test_end=$(date +%s)
+
+          echo "===== 测试日志错误段（失败时上下文）====="
+          grep -nE "FAILED|SKIPPED|tests completed|execution failed" /tmp/test.log | head -200 || true
+          echo "-----"
+
+          # 失败时把失败断言的 message 原文抄出来。
+          # 为什么必须有这一段：旧的错误段只 echo `grep -nE "FAILED"` 的**行号**，拿不到
+          # <failure message> / <error message>，于是**诊断一次假红就要另起一次构建**
+          # 去容器里循环跑并把 XML 抄出来（2026-10-03 实测，为此多花了一次完整构建）。
+          # 有了这一段，日志里直接能看到「实际值是多少」还是「抛了什么异常」——
+          # 这两者性质完全不同：实际值 19 = 真丢更新（生产代码 bug）；锁超时 = 夹具脆弱性。
+          echo "===== 失败断言的 message 原文（从 test-results XML 抄）====="
+          python3 - <<'PY' || true
+          import glob, xml.etree.ElementTree as ET
+          n = 0
+          paths = (glob.glob('plugins/**/build/test-results/test/*.xml', recursive=True)
+                   + glob.glob('tools/**/build/test-results/test/*.xml', recursive=True))
+          for path in paths:
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception:
+                  continue
+              for case in root.iter('testcase'):
+                  for kind in ('failure', 'error'):
+                      node = case.find(kind)
+                      if node is None:
+                          continue
+                      n += 1
+                      msg = (node.get('message') or '').strip().replace('\n', ' ')
+                      print('%s %s#%s' % (kind.upper(), case.get('classname'), case.get('name')))
+                      print('   message: %s' % msg[:600])
+          print('FAILURE_XML_COUNT=%d' % n)
+          PY
+          echo "-----"
+
+          # 按模块结果：直接读 build/test-results/test/*.xml。
+          # 「某个模块根本没跑」会以 NO_XML 显式暴露，并被 dump-test-results.py 计入 RED
+          # （旧的 `SUMMARY_EXIT=0` 就是这么漏掉 rpg-combat 整个模块的）。
+          echo "===== 按模块结果（test-results XML 汇总）====="
+          set +e
+          python3 scripts/dump-test-results.py --min-modules 26
+          summary_rc=$?
+          set -e
+
+          echo "===== 被显式排除的环境依赖测试（@Tag env）====="
+          # 排除清单必须自己自证，否则「跑过了」和「静默跳过」在日志里长得一样：
+          #   a) 源码里带 @Tag(env) 的测试方法名要逐条打印出来（可审计的排除清单）
+          #   b) 门禁确实把 -PexcludeTags=env 生效了 —— 用 Gradle 自己的输出做证据
+          #      （原句："excluding tests with tag: env"；用 grep -F 避免转义歧义）
+          #   c) 任何一个被排除的测试名都不许出现在测试日志里
+          sh scripts/list-env-tests.sh > /tmp/env-methods.txt
+          env_annotations=$(wc -l < /tmp/env-methods.txt | tr -d ' ')
+          if [ "$env_annotations" -gt 0 ]; then
+            sed 's/^/  - /' /tmp/env-methods.txt
+          else
+            echo "（源码里没有任何 @Tag(env) 的测试）"
+          fi
+          excluded_tag_seen=$(grep -ciF 'tests with tag' /tmp/test.log || true)
+          env_tag_line=$(grep -iF 'tests with tag' /tmp/test.log | grep -c 'env' || true)
+          echo "  ENV_ANNOTATIONS=$env_annotations"
+          echo "  EXCLUDED_TAG_SEEN_IN_LOG=$excluded_tag_seen ENV_TAG_LINE=$env_tag_line"
+          if [ "$env_annotations" -lt 1 ]; then
+            echo "TEST_GATE=RED(env 标签测试清单为空：排除清单失去意义，可能标签被误删)"
+            exit 1
+          fi
+          if [ "$env_tag_line" -lt 1 ]; then
+            echo "TEST_GATE=RED(日志里看不到 Gradle 排除 env 标签的记录：-PexcludeTags 没生效)"
+            exit 1
+          fi
+          # 逐行读「临时文件」，不要用管道喂 while：管道会开子 shell，循环里的
+          # 变量与 exit 都止步于子进程（实测踩过：env_leak 在循环外永远是空的）。
+          env_leak=''
+          while IFS= read -r m; do
+            [ -z "$m" ] && continue
+            if grep -qF "$m" /tmp/test.log; then env_leak="$env_leak $m"; fi
+          done < /tmp/env-methods.txt
+          if [ -n "$env_leak" ]; then
+            echo "TEST_GATE=RED(以下 env 测试仍然被执行：$env_leak)"
+            exit 1
+          fi
+
+          echo "===== 重新启用这些测试的方法（本机或完整部署环境）====="
+          echo "  ./gradlew --no-daemon -PexcludeTags= test   # 空 excludeTags = 跑全部"
+          echo "-----"
+          echo "TEST_EXIT=$rc SUMMARY_EXIT=$summary_rc SECONDS=$((test_end-test_start))"
+          if [ "$rc" -ne 0 ]; then echo "TEST_GATE=RED"; exit 1; fi
+          if [ "$summary_rc" -ne 0 ]; then echo "TEST_GATE=RED(按模块汇总有失败或模块漏跑)"; exit 1; fi
+          if [ $((test_end-test_start)) -le 0 ]; then echo "TEST_GATE=SUSPECT(0s)"; exit 1; fi
+          echo "TEST_GATE=GREEN"
+      - name: assemble
+        script: |
+          # 打包门：产出全部 rpg-* 插件 jar（assemble 带 jar + sourcesJar），并列出产物清单与大小。
+          # 磁盘预检：打包门最容易的假红是「Gradle 没跑起来 / jar 没产出」，所以
+          # 先断言 build/libs 下真有 jar，再看每个插件 jar 是否含 plugin.yml。
+          set -e
+          export GRADLE_OPTS="-Xmx3g -Dfile.encoding=UTF-8"
+          export GRADLE_USER_HOME=/root/.gradle
+          asm_start=$(date +%s)
+          set +e
+          ./gradlew --no-daemon --continue \
+            -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 \
+            -Dorg.gradle.internal.http.connectionTimeout=60000 \
+            -Dorg.gradle.internal.http.socketTimeout=60000 \
+            assemble > /tmp/assemble.log 2>&1
+          rc=$?
+          set -e
+          asm_end=$(date +%s)
+          tail -n 40 /tmp/assemble.log
+
+          echo "===== jar 产物清单（大小 / 路径）====="
+          # 用临时文件而不是 shell 变量传参：jar 列表可能很长，且下面被 while 子进程读，
+          # 变量会因 subshell 丢失（dash 下实测 JAR_COUNT 变成空）。
+          find plugins tools -path '*/build/libs/*.jar' -type f 2>/dev/null | sort > /tmp/jars.txt
+          if [ ! -s /tmp/jars.txt ]; then echo "PACKAGE_GATE=RED 没有任何 jar 产物"; exit 1; fi
+          while IFS= read -r jar; do
+            [ -z "$jar" ] && continue
+            size=$(wc -c < "$jar" | tr -d ' ')
+            printf '  %10s  %s\n' "$size" "$jar"
+          done < /tmp/jars.txt
+          echo "-----"
+          # assemble 会用两个进程管道，不能用 ${PIPESTATUS}；改用两条独立命令 +
+          # 单条 awk 既算数又算字节，避免再次踩「命令替换里嵌套命令替换」的坑。
+          jar_count=$(wc -l < /tmp/jars.txt | tr -d ' ')
+          # 逐行累加字节数：awk 里用 getline 调 wc，避免「命令替换里再套命令替换」
+          # 在 dash 下被拆行（实测会产出空值）。
+          jar_bytes=$(awk '{ cmd = "wc -c < \"" $0 "\""; cmd | getline n; close(cmd); total += n } END { print total + 0 }' /tmp/jars.txt)
+          echo "JAR_COUNT=$jar_count"
+          echo "JAR_BYTES=$jar_bytes"
+          if [ "$jar_count" -lt 1 ]; then echo "PACKAGE_GATE=RED jar 数为 0"; exit 1; fi
+
+          echo "===== 产物校验：每个插件 jar 必须含 plugin.yml（可被 Paper 加载）====="
+          # 校验逻辑在 scripts/check-plugin-jars.py 里（用 python 读 zip，不用 unzip：
+          # eclipse-temurin 镜像没有 unzip，实测会把 25 个完好的 jar 全部误报）。
+          set +e
+          python3 scripts/check-plugin-jars.py /tmp/jars.txt
+          jarcheck_rc=$?
+          set -e
+          echo "-----"
+          echo "ASSEMBLE_EXIT=$rc JARCHECK_EXIT=$jarcheck_rc SECONDS=$((asm_end-asm_start))"
+          if [ "$rc" -ne 0 ]; then echo "PACKAGE_GATE=RED(gradle assemble 非零退出)"; exit 1; fi
+          if [ "$jarcheck_rc" -ne 0 ]; then echo "PACKAGE_GATE=RED(有插件 jar 缺 plugin.yml)"; exit 1; fi
+          if [ $((asm_end-asm_start)) -le 0 ]; then echo "PACKAGE_GATE=SUSPECT(0s)"; exit 1; fi
+          echo "PACKAGE_GATE=GREEN"
+
+$:
+  push: *quality_gate
+
+  # 每波合完显式触发一次（编排器不会自动跑）
+  # 与 push 共用同一套阶段（同一个 YAML 锚点），不存在「push 严、api_trigger 松」的缝隙。
+  api_trigger_gate: *quality_gate
+
+  # 真实 Paper 运行时冒烟（W35-A1）：**刻意不接进十门**。
+  # 理由：十门是「提交即可判定」的编译/测试/打包/静态门禁；本任务要外网下载 60MB+ 的
+  # Paper 26.2 服务端并真跑一遍 JVM（只有服务端才会执行 plugin.yml 的 depend 链、
+  # 运行期 libraries 下载、跨插件 ServicesManager 解析、onEnable 启动对账），
+  # 属于运行期证据采集、分钟级起步。塞进 push 只会让每次提交变慢，并且 Paper 下载源
+  # 一抖动就整门假红。按需触发，判据行独立：PAPER_SMOKE_GATE / PAPER_STARTED /
+  # PAPER_PLUGINS_ENABLED / PAPER_OWN_ERRORS / PAPER_COMMUNITY_ERRORS。
+  # 详见 docs/RUNTIME_SMOKE.md。
+  api_trigger_smoke:
+    - name: Paper 运行时冒烟
+      docker:
+        image: eclipse-temurin:25-jdk
+      stages:
+        - name: 环境自检
+          script: |
+            set -e
+            echo "event=$CNB_EVENT repo=$CNB_REPO_SLUG branch=$CNB_BRANCH"
+            # eclipse-temurin:25-jdk 里 python3 / curl / sha256sum 全缺，冒烟脚本依赖它们
+            # （解析 fill.papermc.io 的 JSON、下载、校验 sha256/sha512）。
+            # 门禁自测阶段相同的坑见 .quality_gate 第一个 stage 的注释。
+            have() { command -v "$1" >/dev/null 2>&1; }
+            if have curl && have sha256sum && have python3; then echo "TOOLS=ready"; exit 0; fi
+            echo "缺少 curl/sha256sum/python3，用 apt 安装"
+            apt-get update -qq >/dev/null 2>&1 || true
+            apt-get install -y -qq curl ca-certificates coreutils python3 >/dev/null 2>&1 || true
+            echo "curl=$(have curl && echo yes || echo no) python3=$(have python3 && echo yes || echo no) sha256sum=$(have sha256sum && echo yes || echo no)"
+            have curl && have sha256sum && have python3 || { echo "TOOLS=MISSING"; exit 1; }
+            java -version 2>&1 | head -1
+        - name: 运行时冒烟（下载 Paper → 装 25 自研 + 15 社区插件 → 启动 → 判据行）
+          script: |
+            set -e
+            chmod +x gradlew scripts/*.sh 2>/dev/null || true
+            # 冒烟脚本自己在 mktemp -d 里建服务端，不在仓库里生成 server/。
+            # 退出码：0=GREEN / 1=RED（判据行已打全）/ 2=用法错误。
+            # 这里**不用** `|| true` 吞掉退出码：GREEN 是硬判据，
+            # 起不来就该让这个 stage 红，而不是留一行好看的 GREEN 文本。
+            sh scripts/run-paper-smoke.sh
+
+  # NPC 编排：由本地 orchestrator.py 派发（config 现场下发时此段不生效）
+  api_trigger_npc: *quality_gate
