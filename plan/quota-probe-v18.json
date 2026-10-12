@@ -48,7 +48,7 @@
   "cpus": 8,
   "memory": 16
  },
- "note": "第四次触发（前三次：cnb-fef-1k4ot1qvq / cnb-r2i-1k4ot3gs2 / cnb-u8e-1k4ot4o4n）同一句话 ⇒ 根组织级全局配额，非本仓/非本分支。Prepare 是平台自带 stage（在 .cnb.yml 之外），故本探测用的是自定义 config 也照样死在 Prepare。⇒ 借流水线 push（putfile 播种法）同样不可行 ⇒ 分支推送与 PR 创建本轮全部被阻塞。 第 5 次（2026-10-13，cnb-0e6-1k4p0fdq4）同一句话 ⇒ 仍未恢复。",
+ "note": "第四次触发（前三次：cnb-fef-1k4ot1qvq / cnb-r2i-1k4ot3gs2 / cnb-u8e-1k4ot4o4n）同一句话 ⇒ 根组织级全局配额，非本仓/非本分支。Prepare 是平台自带 stage（在 .cnb.yml 之外），故本探测用的是自定义 config 也照样死在 Prepare。⇒ 借流水线 push（putfile 播种法）同样不可行 ⇒ 分支推送与 PR 创建本轮全部被阻塞。 第 5 次（2026-10-13，cnb-0e6-1k4p0fdq4）同一句话 ⇒ 仍未恢复。 第 7 次（2026-10-13，gate 事件，sn=cnb-c23-1k4p0k0cf）hook 指定命令实测：同一句话 ⇒ 仍未恢复。",
  "consequence": "写 CNB 的一切路径（十门、冒烟、putfile 播种推送）本轮均不可用。本地提交已完成（codex/asset-repro-encoding-fix=6308da5，codex/gap-matrix-v18=a984483），待配额恢复后一次性推送并开 PR。",
  "probe_5": {
   "purpose": "第 5 次独立探测（承接 Stop hook 第 (1) 步「等管理员扩容」，确认配额是否已恢复）",
@@ -86,5 +86,74 @@
   ],
   "prepare_error_en": "Pipeline prepare error: Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours). Contact the root group administrator to extend.",
   "conclusion": "五次触发同一句话 ⇒ 配额仍未恢复。推送/PR 仍不可行。"
+ },
+ "probe_7_gate_event": {
+  "purpose": "按 Stop hook 明确指定的命令触发**十门事件**（api_trigger_gate）本身，取得 gate 事件在第一手下的 Prepare 结果（前 6 次中 gate 只占 3 次，且未用 hook 指定命令）",
+  "command": "python ~/.workbuddy-ai/skills/cnb-workflow/scripts/run_gate.py --repo xzqkjmnbvc2026/sivitahub --event api_trigger_gate --branch main --timeout 300 --out plan/gate-run-v18b.json",
+  "sn": "cnb-c23-1k4p0k0cf",
+  "status": "error",
+  "hits": [],
+  "pipeline_id": "cnb-c23-1k4p0k0cf-001",
+  "stages": [
+   {
+    "name": "Prepare",
+    "status": "error"
+   },
+   {
+    "name": "准备下载器（必须是第一个 stage）",
+    "status": "skipped"
+   },
+   {
+    "name": "门禁自测（负向对照）",
+    "status": "skipped"
+   },
+   {
+    "name": "DDL 门禁（G-301 消费者 + G-302 注册，双向）",
+    "status": "skipped"
+   },
+   {
+    "name": "素材门禁（W7-A1）",
+    "status": "skipped"
+   },
+   {
+    "name": "素材逐像素基线门禁（W12-A1）",
+    "status": "skipped"
+   },
+   {
+    "name": "素材可复现性门禁（W13-A1）",
+    "status": "skipped"
+   },
+   {
+    "name": "compile",
+    "status": "skipped"
+   },
+   {
+    "name": "test",
+    "status": "skipped"
+   },
+   {
+    "name": "assemble",
+    "status": "skipped"
+   },
+   {
+    "name": "BeforeEnd",
+    "status": "success"
+   },
+   {
+    "name": "DebugDetection",
+    "status": "skipped"
+   },
+   {
+    "name": "End",
+    "status": "success"
+   }
+  ],
+  "prepare_error": "Pipeline prepare error: Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours). Contact the root group administrator to extend.",
+  "basis_proof": "Prepare 日志含 `git checkout -f -B \"main\" \"d2cffd27632ba9a623c957397fe168bca753ff7f\"` ⇒ 平台按请求的 basis 拉到了代码",
+  "evidence_files": [
+   "plan/gate-run-v18b.json",
+   "plan/gate-run-v18b.json.stages.txt"
+  ],
+  "conclusion": "十门（gate 事件）第一手确认：Prepare=error、十门 stage 全 skipped、hits=[]。与前 6 次同一句话。"
  }
 }

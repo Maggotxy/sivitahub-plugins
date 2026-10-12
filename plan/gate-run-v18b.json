@@ -1,0 +1,59 @@
+{
+ "sn": "cnb-c23-1k4p0k0cf",
+ "status": "error",
+ "hits": [],
+ "stages": [
+  {
+   "stage": "Prepare",
+   "status": "error"
+  },
+  {
+   "stage": "准备下载器（必须是第一个 stage）",
+   "status": "skipped"
+  },
+  {
+   "stage": "门禁自测（负向对照）",
+   "status": "skipped"
+  },
+  {
+   "stage": "DDL 门禁（G-301 消费者 + G-302 注册，双向）",
+   "status": "skipped"
+  },
+  {
+   "stage": "素材门禁（W7-A1）",
+   "status": "skipped"
+  },
+  {
+   "stage": "素材逐像素基线门禁（W12-A1）",
+   "status": "skipped"
+  },
+  {
+   "stage": "素材可复现性门禁（W13-A1）",
+   "status": "skipped"
+  },
+  {
+   "stage": "compile",
+   "status": "skipped"
+  },
+  {
+   "stage": "test",
+   "status": "skipped"
+  },
+  {
+   "stage": "assemble",
+   "status": "skipped"
+  },
+  {
+   "stage": "BeforeEnd",
+   "status": "success"
+  },
+  {
+   "stage": "DebugDetection",
+   "status": "skipped"
+  },
+  {
+   "stage": "End",
+   "status": "success"
+  }
+ ]
+}
