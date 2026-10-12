@@ -1,5 +1,8 @@
 pluginManagement {
     repositories {
+        // 同 build.gradle.kts：优先国内镜像，规避 repo.maven.apache.org 的 429。
+        maven("https://maven.aliyun.com/repository/public")
+        maven("https://maven.aliyun.com/repository/gradle-plugin")
         gradlePluginPortal()
         maven("https://repo.papermc.io/repository/maven-public/")
     }

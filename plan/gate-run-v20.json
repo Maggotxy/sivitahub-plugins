@@ -54,16 +54,71 @@
   "title": "十门 v20-r3（现场下发指数退避版 .cnb.yml）",
   "method": "start_build('api_trigger_gate', branch='main', npc={'name':'CodeBuddy'}, config=<加固后的 .cnb.yml>)",
   "note": "config 字段现场下发 ⇒ 代码仍 checkout 自 main HEAD (cc8fd9d)，但门禁定义用加固版。用于验证加固有效性。",
-  "status": "running"
+  "status": "success",
+  "result": "★ 10/10 GREEN —— 加固生效，指数退避挺过 Maven 429",
+  "basis_proof": [
+   "2026-10-13 06:54.57 $ git checkout -f -B \"main\" \"cc8fd9d82f0905bd4355f0692723ab6a7f3a479e\""
+  ],
+  "stages": {
+   "Prepare": "success 3686",
+   "准备下载器": "success 19773",
+   "门禁自测（负向对照）": "success 559666 (≈9.3min, PASS=181 FAIL=0)",
+   "DDL 门禁": "success 111721",
+   "素材门禁（W7-A1）": "success 537",
+   "素材逐像素基线门禁（W12-A1）": "success 343",
+   "素材可复现性门禁（W13-A1）": "success 1552",
+   "compile": "success 158030 (ATTEMPTS=1 BUILD_EXIT=0 SECONDS=148)",
+   "test": "success 220956 (TEST_ATTEMPTS=2 TEST_EXIT=0 SUMMARY_EXIT=0 SECONDS=221)",
+   "assemble": "success 10779",
+   "BeforeEnd": "success 452",
+   "End": "success 633"
+  },
+  "criterion_lines": {
+   "GATE_SELFTEST": "GREEN",
+   "RESOURCE_PACK_GATE": "GREEN",
+   "ASSET_BASELINE_GATE": "GREEN",
+   "ASSET_REPRO_GATE": "GREEN",
+   "DDL_CONSUMER_GATE": "GREEN",
+   "DDL_REGISTRATION_GATE": "GREEN",
+   "CMD_REFERENCE_GATE": "GREEN",
+   "COMPILE_GATE": "GREEN",
+   "TEST_GATE": "GREEN",
+   "SUMMARY_GATE": "GREEN",
+   "PACKAGE_GATE": "GREEN"
+  },
+  "hardening_effect_evidence": {
+   "compile": "ATTEMPTS=1 —— 未触发重试即成功（429 窗口已过或首次即通）",
+   "test": "TEST_ATTEMPTS=2 —— ★ 决定性证据：第 1 次尝试撞到 Maven 429，退避 30s 后第 2 次成功",
+   "attempt1_429_raw": [
+    "Execution failed for task ':plugins:rpg-skills:compileTestJava'.",
+    "> Could not download snakeyaml-2.4.jar (org.yaml:snakeyaml:2.4)",
+    "   > Could not HEAD 'https://repo.maven.apache.org/maven2/org/yaml/snakeyaml/2.4/snakeyaml-2.4.jar'. Received status code 429 from server: Too Many Requests",
+    "30s 后重试（指数退避，盖过 Maven 429 窗口）",
+    "===== test 尝试 2/5 ====="
+   ],
+   "attempt2_success": "SUM tests=1106 failed=0 errors=0 skipped=2 modules=26 ; NO_XML modules=0 期望模块数=26 ; ENV_ANNOTATIONS=7",
+   "conclusion": "若 test stage 仍是加固前的『无重试』版本，sn=cnb-77r-1k4p57075 会在此处整门判 RED —— 加固把这唯一一次 429 抖动吸收掉了。"
+  }
  },
  "hardening_implemented": {
   "commit": "bbd88f2",
   "branch": "codex/gap-matrix-v18",
   "pr": 93,
+  "pr_state": "merged",
+  "merge_commit": "db9e8279a4196ee76d6d0d3831494474aaac0fb7",
   "changes": {
    "compile_stage": "3 次固定 10s ⇒ 5 次指数退避 30/60/120/240s",
    "test_stage": "无重试 ⇒ 5 次指数退避（仅依赖/网络类失败才退避；测试断言类失败不退避）"
   },
   "retry_span": "20s → ~450s"
- }
+ },
+ "v20_final": {
+  "sn": "cnb-vom-1k4p6bh4h",
+  "title": "十门 v20-final（已提交 .cnb.yml，无 config 现场下发）",
+  "method": "start_build('api_trigger_gate', branch='main', npc={'name':'CodeBuddy'})  —— 不传 config，用仓库自身已提交的 .cnb.yml",
+  "expected_basis": "db9e8279a4196ee76d6d0d3831494474aaac0fb7",
+  "why_it_matters": "这是唯一能把『判据行』绑到『已提交门禁定义』上的运行 —— r3 用了 config 现场下发，不能作为长期依据。",
+  "status": "running"
+ },
+ "updated_at": "2026-10-13T07:15:00+08:00"
 }

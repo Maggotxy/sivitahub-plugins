@@ -9,6 +9,19 @@ allprojects {
     version = providers.gradleProperty("projectVersion").get()
 
     repositories {
+        // ⚠️ 依赖下载必须优先走国内镜像，否则直连 repo.maven.apache.org 会撞
+        // HTTP 429 Too Many Requests（CNB 共享出口 IP，实测 429 窗口可持续
+        // ~10 分钟，指数退避 30/60/120/240s 全部落窗内 —— 见
+        // sn=cnb-vom-1k4p6bh4h / sn=cnb-mq0-1k4p3lnu1 / sn=cnb-lbv-1k4p4gf85）。
+        // 阿里云公共仓库对 maven-central 是全量代理，先命中即不再暴露在 429 下。
+        // 多仓顺序查找由 Gradle 保证：镜像没有的（如 PaperMC 的 paper-api）返回
+        // 404，Gradle 自动落到下一个仓库，无需额外处理。
+        maven {
+            url = uri("https://maven.aliyun.com/repository/public")
+        }
+        maven {
+            url = uri("https://maven.aliyun.com/repository/central")
+        }
         mavenCentral()
         maven("https://repo.papermc.io/repository/maven-public/")
     }
