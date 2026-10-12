@@ -48,7 +48,7 @@
   "cpus": 8,
   "memory": 16
  },
- "note": "第四次触发（前三次：cnb-fef-1k4ot1qvq / cnb-r2i-1k4ot3gs2 / cnb-u8e-1k4ot4o4n）同一句话 ⇒ 根组织级全局配额，非本仓/非本分支。Prepare 是平台自带 stage（在 .cnb.yml 之外），故本探测用的是自定义 config 也照样死在 Prepare。⇒ 借流水线 push（putfile 播种法）同样不可行 ⇒ 分支推送与 PR 创建本轮全部被阻塞。 第 5 次（2026-10-13，cnb-0e6-1k4p0fdq4）同一句话 ⇒ 仍未恢复。 第 7 次（2026-10-13，gate 事件，sn=cnb-c23-1k4p0k0cf）hook 指定命令实测：同一句话 ⇒ 仍未恢复。",
+ "note": "第四次触发（前三次：cnb-fef-1k4ot1qvq / cnb-r2i-1k4ot3gs2 / cnb-u8e-1k4ot4o4n）同一句话 ⇒ 根组织级全局配额，非本仓/非本分支。Prepare 是平台自带 stage（在 .cnb.yml 之外），故本探测用的是自定义 config 也照样死在 Prepare。⇒ 借流水线 push（putfile 播种法）同样不可行 ⇒ 分支推送与 PR 创建本轮全部被阻塞。 第 5 次（2026-10-13，cnb-0e6-1k4p0fdq4）同一句话 ⇒ 仍未恢复。 第 7 次（2026-10-13，gate 事件，sn=cnb-c23-1k4p0k0cf）hook 指定命令实测：同一句话 ⇒ 仍未恢复。 第 9 次（api_trigger_npc，sn=cnb-oi4-1k4p0r45a）Prepare=error ⇒ 事件类型无关。",
  "consequence": "写 CNB 的一切路径（十门、冒烟、putfile 播种推送）本轮均不可用。本地提交已完成（codex/asset-repro-encoding-fix=6308da5，codex/gap-matrix-v18=a984483），待配额恢复后一次性推送并开 PR。",
  "probe_5": {
   "purpose": "第 5 次独立探测（承接 Stop hook 第 (1) 步「等管理员扩容」，确认配额是否已恢复）",
@@ -167,5 +167,38 @@
   "correction": "此前 world-state / verdict 里写「升级对象 = CNB 根组织管理员」不准确：错误原文让我们联系「root group administrator」，而**该管理员就是用户本人**。正确表述：**须用户本人**在 CNB 控制台为根组织提升「云原生构建-CPU」配额（或等待配额周期重置）。",
   "no_api_lever": "探测 /user/billing、/user/orders、/user/quota、/user/balance、/xzqkjmnbvc2026/-/billing 等均 404 ⇒ 配额提升**无 API 通路**，只能在 CNB Web 控制台操作。",
   "scope_proof": "组内 member_count=1、sub_repo_count=13 ⇒ 若有其它仓库在跑构建消耗配额，那是同一 Owner 名下的其它项目；根组织级配额被共享。"
+ },
+ "probe_9_npc_event": {
+  "purpose": "排查「配额是否按 event 类型分桶」—— 试第 4 种事件 api_trigger_npc，并试 push 事件",
+  "npc_sn": "cnb-oi4-1k4p0r45a",
+  "npc_status": "error",
+  "npc_stages": [
+   {
+    "name": "Prepare",
+    "status": "error"
+   },
+   {
+    "name": "环境自检",
+    "status": "skipped"
+   },
+   {
+    "name": "编译门（任务前置）",
+    "status": "skipped"
+   },
+   {
+    "name": "BeforeEnd",
+    "status": "success"
+   },
+   {
+    "name": "DebugDetection",
+    "status": "skipped"
+   },
+   {
+    "name": "End",
+    "status": "success"
+   }
+  ],
+  "push_event_result": "POST build/start event=push -> 400 [API_BUILD_START_FAIL] \"Event must be 'api_trigger' or start with 'api_trigger_'.\" ⇒ push 事件**无法**用 API 触发（而 push 才是与 api_trigger_gate 共用同一 quality_gate 锚点的另一入口）",
+  "conclusion": "配额阻塞与 event 类型无关（gate/smoke/seed/npc 四种全死在 Prepare）；push 事件无 API 入口。配额分桶假设证伪。"
  }
 }
