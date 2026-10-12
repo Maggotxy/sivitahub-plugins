@@ -20,7 +20,13 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
 # 标签常量：DeploymentEnvironmentFixtures.TAG 求值后是 "env"
-TAG_ANCHOR='DeploymentEnvironmentFixtures\.TAG'
+#
+# ⚠️ 点号写成 `[.]` 而不是 `\.`：这个值会通过 `awk -v` 传进去当**动态正则**用，
+# 而 `awk`（mawk/gawk）对 `\.` 会警告 `escape sequence '\.' treated as plain '.'`
+# 并往 **stderr** 吐 4 行。实测后果：有人用 `sh scripts/list-env-tests.sh 2>&1 | wc -l`
+# 数方法数，会得到 11 而不是 7 —— 取证时凭空多出 4 行。
+# `[.]` 在 BRE 与 ERE 里都表示字面点，语义完全一致且无警告。
+TAG_ANCHOR='DeploymentEnvironmentFixtures[.]TAG'
 
 if [ "$#" -gt 0 ]; then
   echo "用法: scripts/list-env-tests.sh" >&2

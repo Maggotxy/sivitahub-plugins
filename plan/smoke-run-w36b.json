@@ -1,0 +1,37 @@
+{
+ "sn": "cnb-3h3-1k4dosi86",
+ "status": "success",
+ "hits": [
+  "SMOKE_LOCK_SELFTEST=PASS=10 FAIL=0",
+  "SMOKE_LOCK_CHECK=PASS",
+  "SMOKE_LOCK_ENTRIES=15",
+  "SMOKE_LOCK_LOCAL=5",
+  "SMOKE_LOCK_PROBLEMS=0"
+ ],
+ "stages": [
+  {
+   "stage": "Prepare",
+   "status": "success"
+  },
+  {
+   "stage": "环境自检",
+   "status": "success"
+  },
+  {
+   "stage": "运行时冒烟（下载 Paper → 装 25 自研 + 15 社区插件 → 启动 → 判据行）",
+   "status": "success"
+  },
+  {
+   "stage": "BeforeEnd",
+   "status": "success"
+  },
+  {
+   "stage": "DebugDetection",
+   "status": "skipped"
+  },
+  {
+   "stage": "End",
+   "status": "success"
+  }
+ ]
+}
