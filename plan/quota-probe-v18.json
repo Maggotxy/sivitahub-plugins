@@ -207,5 +207,29 @@
   "event_types_covered": "gate / smoke / seed / npc（4 种）",
   "resource_knob_check": "start_build 无 cpus 参数；.cnb.yml 无资源声明；Prepare 日志显示 `Pipeline yaml cpus: -1` → `actual limit cpus: 8`。冻结成本 `0.67 core-hours` 由平台 5 分钟预冻结固定，无下调配额占用的参数 ⇒ 无「申请更小资源以挤进余量」的路。",
   "final_conclusion": "11 次探测 / 4 种事件类型 / 覆盖自定义 config 与仓库 config / 12+ 个可能的配额与计费 API 端点（全 404）。配额阻塞为平台层、全局、事件无关，且**无任何程序化绕过或降额通路**。唯一可行路径 = 用户本人在 CNB 控制台提升配额。"
+ },
+ "quota_release_investigation": {
+  "purpose": "排查 hook 步骤①的第二条：「停掉其它仓库 sub_repo_count=13 的构建释放配额」是否可行",
+  "repos_enumerated": [
+   "sivitahub",
+   "atp",
+   "qwenimage-2251",
+   "cube-recall-mods",
+   "q27-native-2209",
+   "cnb-probe",
+   "ascend-910a",
+   "minecraft-3d",
+   "secrets",
+   "orchestrator",
+   "minecraft-mini",
+   "910A",
+   "hello-cnb"
+  ],
+  "repos_count": 13,
+  "finding_1": "组内 13 个仓库全部 freeze=false；最近更新均早于本次会话（最新 sivitahub 2026-10-12），**无迹象表明此刻有其它仓库在跑构建**。",
+  "finding_2": "CNB OpenAPI **未暴露 build 列表端点**：/-/builds、/-/build、/-/build/history、/-/build/list 全部 404 ⇒ **无法程序化枚举/停止其它仓库的在跑构建**。",
+  "finding_3": "账号**无个人命名空间**（/lamb031226 404），也无第二条 root group 可借配额；/user/repos 只返回 sivitahub（Private）。",
+  "finding_4": "无任何配额/计费/用量端点（/user/billing /orders /quota /balance /credits、/<group>/-/billing /credits /cpu /resource /insight 全 404）⇒ 配额状态**不可读、不可改**（程序化）。",
+  "conclusion": "hook 步骤①的两条分支中，第二条（停其它构建）**无程序化通路**；第一条（提升配额）**只有控制台**。⇒ 本会话内无法自行解除阻塞。"
  }
 }
