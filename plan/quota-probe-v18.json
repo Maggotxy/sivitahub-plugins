@@ -200,5 +200,12 @@
   ],
   "push_event_result": "POST build/start event=push -> 400 [API_BUILD_START_FAIL] \"Event must be 'api_trigger' or start with 'api_trigger_'.\" ⇒ push 事件**无法**用 API 触发（而 push 才是与 api_trigger_gate 共用同一 quality_gate 锚点的另一入口）",
   "conclusion": "配额阻塞与 event 类型无关（gate/smoke/seed/npc 四种全死在 Prepare）；push 事件无 API 入口。配额分桶假设证伪。"
+ },
+ "probe_10_and_11": {
+  "note": "第 10 次 cnb-n2r-1k4p0sc40 / 第 11 次 cnb-jjo-1k4p0u1kn，均为 seed 探测，Prepare=error",
+  "attempts_total": 11,
+  "event_types_covered": "gate / smoke / seed / npc（4 种）",
+  "resource_knob_check": "start_build 无 cpus 参数；.cnb.yml 无资源声明；Prepare 日志显示 `Pipeline yaml cpus: -1` → `actual limit cpus: 8`。冻结成本 `0.67 core-hours` 由平台 5 分钟预冻结固定，无下调配额占用的参数 ⇒ 无「申请更小资源以挤进余量」的路。",
+  "final_conclusion": "11 次探测 / 4 种事件类型 / 覆盖自定义 config 与仓库 config / 12+ 个可能的配额与计费 API 端点（全 404）。配额阻塞为平台层、全局、事件无关，且**无任何程序化绕过或降额通路**。唯一可行路径 = 用户本人在 CNB 控制台提升配额。"
  }
 }
