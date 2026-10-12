@@ -1,0 +1,163 @@
+{
+ "done": false,
+ "impossible": false,
+ "basis": "d2cffd2",
+ "reason": "❌ done=false / remaining=1 —— 但**本轮的性质是「外部阻塞」而非「缺工」**。**本轮首要目的部分达成**：`plan/gap-matrix-v18.md` 的 `basis: d2cffd2` **字面等于**当前 main HEAD（实测 `git rev-parse origin/main` == d2cffd27632ba9a623c957397fe168bca753ff7f）。**但十门在 d2cffd2 上仍取不到判据行**：三次触发（api_trigger_gate ×2 + api_trigger_smoke ×1）全部死在平台 `Prepare` 阶段，原文为 `Pipeline prepare error: Root Group's events CPU core-hours are insufficient for pre-freezing…`（根组织 CPU 配额耗尽）⇒ 十门 stage 全 skipped，`hits=[]`。本项判 **BLOCKED_EXTERNAL**（须 CNB 组织管理员扩容），不是产品缺陷、也不是可派工的实现缺口。**素材层有实质进展**：本会话首次亲自取得 `ASSET_REPRO_GATE=GREEN` 与 `REPRODUCIBLE=70 MISMATCH=0`（v17 §8 明写未本地复跑），且顺带修复了 `check-asset-reproducible.sh` 的 javac 编码缺陷（GBK 平台假红）。本地九层 (a)-(i) 全 GREEN。口径四条中 1)2)3) 成立，第 4) 条因 remaining=1（含 1 条 BLOCKED_EXTERNAL）不成立。",
+ "remaining": 1,
+ "remaining_ids": [
+  "G-SMOKE-CRITERION-UNRETRIEVABLE"
+ ],
+ "blocked_external": [
+  "CNB-QUOTA-EXHAUSTED：CNB 根组织 CPU 配额耗尽，十门流水线三次触发全死在平台 `Prepare`（十门 stage 全 skipped）。改 .cnb.yml/job timeout/stage 条件均无效（Prepare 是平台 stage）。须 CNB 根组织管理员提升配额。"
+ ],
+ "needs_human": [
+  "G-SMOKE-CRITERION-UNRETRIEVABLE：冒烟退出码 GREEN 但判据行落在平台交付窗口外 ⇒ GREEN 无法被机械引用。须人类在两种修法间选择：(1) 脚本把 PAPER_* 判据行落仓并 push 到证据分支（代价：冒烟 job 需 push 权限 + 并发写同一分支的处理）；(2) 新增一个只 cat 证据文件的极短 stage，把判据行挪到「总输出必然短到能被完整交付」的位置（代价：改 .cnb.yml）。在选定前，冒烟不得作为 [R] 证据。",
+  "H-001：原版世界方形边界缺 5435 个四角区块，需无人维护窗口在生产机 `lamb:/home/lamb/minecraft` 跑 `scripts/maintain-world-coverage.sh`（生产机写操作）。",
+  "U-003：纯原版客户端能否真握手进服 —— 需真实 Paper + 真实客户端。",
+  "W7-A2 四条 [R] unproven（G-205/G-207/G-208/G-209）：需真实 Bukkit / 真实 Paper 运行；本轮冒烟因配额阻塞未提供任何 [R] 证据。"
+ ],
+ "condition_1_no_declared_unwired": true,
+ "condition_1_note": "「声明未接线」机制 = 0，与 v17 同；判据未放宽。见矩阵 §3。",
+ "condition_1_dispatchable_gap": 0,
+ "condition_2_gates_green_on_current_main": false,
+ "condition_2_note": "❌ 在 d2cffd2 上**未取得任何**来自 CNB 流水线的 *_GATE= 行：十门 stage 因平台配额全 skipped。判 BLOCKED_EXTERNAL。本地九层 GREEN 不等于十门 GREEN（不同镜像/编排）。",
+ "condition_2_evidence": {
+  "remote_gate_sn": "cnb-fef-1k4ot1qvq",
+  "remote_gate_status": "error",
+  "remote_gate_prepare": "error",
+  "remote_gate_stages_skipped": ["准备下载器（必须是第一个 stage）", "门禁自测（负向对照）", "DDL 门禁（G-301 消费者 + G-302 注册，双向）", "素材门禁（W7-A1）", "素材逐像素基线门禁（W12-A1）", "素材可复现性门禁（W13-A1）", "compile", "test", "assemble"],
+  "remote_gate_hits": [],
+  "prepare_error_line": "Pipeline prepare error: Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours). Contact the root group administrator to extend.",
+  "bossi_proof": "Prepare 日志含 `$ git rev-parse HEAD` -> d2cffd27632ba9a623c957397fe168bca753ff7f（证明平台按请求的 basis 拉到了代码）",
+  "retriggered": ["cnb-r2i-1k4ot3gs2 (api_trigger_smoke)", "cnb-u8e-1k4ot4o4n (api_trigger_gate)"],
+  "retrigger_verdict": "三次同一句话 ⇒ 根组织级全局配额"
+ },
+ "condition_3_asset_layer_four": true,
+ "condition_3_evidence": {
+  "baseline": "ASSET_BASELINE_GATE=GREEN（校验 252 张 / UNREGISTERED=0 MISSING=0 MODIFIED=0）",
+  "provenance": "清单与磁盘一致（252 张）；$needsHumanDecision=[]；$counts.generator=129 / derived-from=69 / ai-prompt=10 / human-override=1 / upstream-betterhud=38 / upstream-vanilla=5",
+  "resource_pack": "RESOURCE_PACK_GATE=GREEN（RUN=8 SKIPPED=0，判据 closure/compass/hud/journey/lang/packmeta/textures）",
+  "asset_repro": "ASSET_REPRO_GATE=GREEN（比对 70 张 / 4 个生成器；REPRODUCIBLE=70 MISMATCH=0；罗盘模型 JSON 32/32 逐字节一致）—— **本会话首次取得**",
+  "scripts_count": 27
+ },
+ "condition_4_only_requires_human": false,
+ "condition_4_note": "❌ 不成立：remaining=1（G-SMOKE-CRITERION-UNRETRIEVABLE，REQUIRES_HUMAN），且本轮新增 1 条 BLOCKED_EXTERNAL（CNB-QUOTA-EXHAUSTED）。第 4 条把 done 钉在 false。",
+ "verdict_conditions": {
+  "1_no_declared_unwired": true,
+  "2_gates_green_on_current_main": false,
+  "3_asset_layer_four": true,
+  "4_only_requires_human": false
+ },
+ "basis_scope": {
+  "basis": "d2cffd2",
+  "origin_main": "d2cffd27632ba9a623c957397fe168bca753ff7f",
+  "equal": true,
+  "independent_check": "git rev-parse origin/main",
+  "note": "本矩阵 basis 字面等于当前 main HEAD。判据层实际在 `6308da5`（= d2cffd2 + javac 编码修复，分支 codex/asset-repro-encoding-fix）上跑 —— 该修复只影响本机 javac 能否运行，不改变任何判据阈值/逻辑（见矩阵 §0.4 / §2.5）。",
+  "local_layers_ran_on": "6308da5df80a94e0959981dd826a20f905e7fb3"
+ },
+ "runtime_smoke": {
+  "gate_claim": "NOT_CLAIMED",
+  "reason": "平台配额耗尽 ⇒ 本轮 api_trigger_smoke 未跑起来（死在 Prepare）。v17 的 G-SMOKE-CRITERION-UNRETRIEVABLE 状态维持：成功轮判据行落在平台交付窗口外，无法机械引用。",
+  "prior_rounds": {
+   "round1_failed": "sn=cnb-3gl-1k4dlibvp，交付 363 行含结尾失败原因",
+   "round2_success_but_unretrievable": "sn=cnb-3h3-1k4dosi86，交付恒 186 行，PAPER_* 一行没有"
+  }
+ },
+ "cnb_quota_block": {
+  "id": "CNB-QUOTA-EXHAUSTED",
+  "class": "BLOCKED_EXTERNAL",
+  "prepare_error": "Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours)",
+  "attempts": ["cnb-fef-1k4ot1qvq", "cnb-r2i-1k4ot3gs2", "cnb-u8e-1k4ot4o4n"],
+  "scope": "root-group-global",
+  "workaround": "none（Prepare 是平台 stage，改 .cnb.yml/job timeout/stage 条件均无效）",
+  "escalate_to": "CNB 根组织管理员"
+ },
+ "asset_repro_encoding_fix": {
+  "id": "ASSET-REPRO-JAVAC-ENCODING",
+  "class": "已修",
+  "branch": "codex/asset-repro-encoding-fix",
+  "commit": "6308da5",
+  "defect": "check-asset-reproducible.sh 调 javac 未指定源编码；生成器源码含 UTF-8 中文注释，javac 默认源编码随平台走。CNB 的 eclipse-temurin:25-jdk 默认 UTF-8 故从未暴露；GBK 平台（本机 Temurin 17/zh_CN）报「编码 GBK 的不可映射字符」而整门假红。",
+  "fix": "javac 加 -encoding UTF-8；4 处 java 运行加 -Dfile.encoding=UTF-8。",
+  "effect": "ASSET_REPRO_GATE 从「只在 UTF-8 平台可复现」变为「与平台默认字符集无关」。实测：加前 58 个不可映射字符错误；加后 4 个生成器全编译通过、逐像素比对 GREEN。"
+ },
+ "mechanics_spec_layer": {
+  "gate": "GREEN",
+  "entries": 137,
+  "by_kind": "config:78,behavior:56,java-const:3",
+  "weak": 0
+ },
+ "env_tag_justification_layer": {
+  "methods": 7,
+  "justified": 7,
+  "unjustified": 0,
+  "gate": "GREEN"
+ },
+ "source_contract_layer": {
+  "checks": 469,
+  "specs": 79,
+  "spec_files": 3
+ },
+ "source_string_layer": {
+  "gate": "GREEN",
+  "tests": 0
+ },
+ "artifact_layer": {
+  "png_checked": 252,
+  "unregistered": 0,
+  "missing": 0,
+  "modified": 0,
+  "reproducible": 70,
+  "repro_mismatch": 0,
+  "compass_models_byte_identical": "32/32"
+ },
+ "gates": {
+  "asset_baseline_gate": "GREEN",
+  "provenance_gate": "GREEN",
+  "resource_pack_gate": "GREEN",
+  "asset_repro_gate": "GREEN",
+  "source_string_gate": "GREEN",
+  "source_contract_gate": "GREEN",
+  "mechanics_spec_gate": "GREEN",
+  "env_tag_justified_gate": "GREEN",
+  "scripts_count": 27,
+  "selftest_gates_local": "NOT_RUN（本机 Windows 环境不可用，纯树同样失败）",
+  "ddl_gates_local": "NOT_RUN_THIS_ROUND（本轮时间盒未纳入）",
+  "compile_test_package_local": "NOT_RUN（本机无 JDK25/Gradle 缓存）",
+  "ten_gates_remote": "BLOCKED_EXTERNAL（CNB-QUOTA-EXHAUSTED，Prepare=error）",
+  "paper_smoke_gate": "NOT_CLAIMED（配额阻塞，未跑）"
+ },
+ "risks": [
+  "CNB-QUOTA-EXHAUSTED（BLOCKED_EXTERNAL）：根组织 CPU 配额耗尽 ⇒ 十门跑不起来。这不是产品缺陷，但也意味着「十门在 d2cffd2 上全绿」在本轮**没有**机械判据行证据。须管理员扩容后重跑。",
+  "本地九层 GREEN ≠ 十门 GREEN：两者跑在不同镜像与 stage 编排里，本轮**未**在 d2cffd2 上取得任何流水线 *_GATE= 行。",
+  "G-SMOKE-CRITERION-UNRETRIEVABLE（REQUIRES_HUMAN）：冒烟 GREEN 无法机械引用 ⇒ 4 条 [R] unproven（G-205/207/208/209）状态维持不变。须人类选修法。",
+  "harness 心跳缺口（非阻塞）：fetch-deps.sh / check-file-deps.sh 成功路径不吐主 stdout ⇒ 冷缓存长静默可能被平台看门狗杀。本轮未触发。",
+  "本机取证环境差异：subprocess 裸调 bash 命中 WSL（不认 /d/...）；工作树 core.autocrlf=true 使 .sh 为 CRLF。均已在取证脚本里显式规避（Git Bash 绝对路径 + LF 干净树）。"
+ ],
+ "stats": {
+  "scripts": 27,
+  "assets": 252,
+  "mechanics_entries": 137,
+  "env_tag_methods": 7,
+  "local_layers_rerun": 9,
+  "local_layers_green": 9,
+  "local_layers_rerun_list": ["a", "b", "c", "d", "e", "f", "g", "h", "i"],
+  "remote_gate_attempts": 3,
+  "remote_gate_criteria_retrieved": 0
+ },
+ "artifacts": [
+  "plan/gap-matrix-v18.md",
+  "plan/verdict-v18.json",
+  "plan/local-layers-v18.txt（本地九层判据行汇总）",
+  "plan/layer-i-repro-v18.txt（层 i 原始输出）",
+  "plan/gate-run-v18.json（十门被配额阻塞原始取证）",
+  "plan/gate-run-v18.json.stages.txt",
+  "plan/run_local_layers_v18.py（本地层取证脚本）",
+  "plan/poll_gate_v18.py（十门轮询取证脚本）",
+  "scripts/check-asset-reproducible.sh（编码修复，分支 codex/asset-repro-encoding-fix）",
+  "doc/cnb/gap-registry.md（§I.11 新增）",
+  "state/world-state.json"
+ ],
+ "pr_url": ""
+}

@@ -1,0 +1,14 @@
+[repro] javac -d <tmp>/classes resource-pack/tools/{GenerateTextures,GenerateHudAtlas,GenerateSkillHudAtlas,GenerateCompassFrames}.java
+[repro] java GenerateTextures <tmp>/generated/GenerateTextures --force
+[repro] java GenerateHudAtlas <tmp>/generated/GenerateHudAtlas/hud_symbols.png
+Generated 11 crisp HUD glyphs at 99x9: C:\Users\maggo\AppData\Local\Temp\tmp.kGH2V4jrQO\generated\GenerateHudAtlas\hud_symbols.png
+[repro] java GenerateSkillHudAtlas <tmp>/generated/GenerateSkillHudAtlas/class_skill_symbols.png
+Generated 48 class/skill HUD glyphs: C:\Users\maggo\AppData\Local\Temp\tmp.kGH2V4jrQO\generated\GenerateSkillHudAtlas\class_skill_symbols.png
+[repro] java GenerateCompassFrames assets/.../traveler_compass.png <tmp>/generated/GenerateCompassFrames/{textures,models}
+Generated 32 traveler-compass angle frames from resource-pack\assets\originalrpg\textures\item\traveler_compass.png
+[repro] 逐字节比对 32 个罗盘模型 JSON
+[repro] 罗盘模型 JSON：一致 32/32
+ASSET_REPRO: 比对 70 张（4 个生成器）
+  逐像素一致: 70
+  REPRODUCIBLE=70 MISMATCH=0 MISSING=0 UNREGISTERED=0
+ASSET_REPRO_GATE=GREEN

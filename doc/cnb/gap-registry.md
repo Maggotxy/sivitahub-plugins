@@ -532,3 +532,65 @@ PR = #86（`f4e4f43`）。
 | **量化** | `fetch-deps.sh` 只在**全部就绪**时打一行（`echo "fetch-deps: 全部就绪…"`，见 `scripts/fetch-deps.sh:241`）；它内部逐个下载的过程**不进 stdout**。`check-file-deps.sh` 同理（输出进 `cf.stdout`，只在失败时 `say`） |
 | **风险** | 这两个脚本在冷缓存下要下载 5 个公开源 artifact。若单次下载慢到超过 10 分钟且期间零输出，**整个 stage 会被平台看门狗杀掉** —— 表现为「莫名其妙地红/断」，而根因与产品代码无关。**本轮未触发**（实测 `fetch-deps` 段落没出现长静默），所以只记账、不改 |
 | **建议修法（记账待办）** | 把 `fetch-deps.sh` / `check-file-deps.sh` 改成 `stdout=PIPE` 逐行转发 + `say("fetch| ...")` 前缀，或在调用前后各打一行 `mark()` 保证心搏（后者更省事，但长静默期内仍无输出） |
+
+### I.11 W36-A5 最终复验（v18）—— 十门被 **CNB 根组织 CPU 配额** 阻塞（`BLOCKED_EXTERNAL`）+ 素材可复现性门禁首次本地取得
+
+本轮目的是在**当前 main**（`d2cffd2`）上取得十门判据行。结果三条：**十门被平台配额阻塞**（新增缺口）、
+**素材可复现性门禁首次取得 GREEN**（v17 的欠账补齐）、**顺带修复一条判据可移植性缺陷**。
+
+#### I.11.1 缺口 `CNB-QUOTA-EXHAUSTED`（`BLOCKED_EXTERNAL`，**外部阻塞，非产品缺陷**）
+
+| 项 | 内容 |
+|---|---|
+| **现象** | `start_build(api_trigger_gate, branch=main, sha=d2cffd2)` 返回 `{"success":true}`（**受理成功**），但约 4 秒后 `build_status` 即为 `error`；`Prepare` stage `status=error`，**其余十门 stage 全部 `skipped`**；`collect_stage_logs` 的 `hits=[]`（空） |
+| **根因（`Prepare` stage 末尾 `content` 原文）** | `Pipeline prepare error: Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours). Contact the root group administrator to extend.` / 中文：`根组织的云原生构建-CPU配额已不够预冻结(冻结时间：5.00 min，折合0.67核时)，请联系根组织管理员提升配额。` |
+| **作用域 = 根组织级（实测）** | 三次触发（`api_trigger_gate` ×2：`cnb-fef-1k4ot1qvq` / `cnb-u8e-1k4ot4o4n`；`api_trigger_smoke` ×1：`cnb-r2i-1k4ot3gs2`）**报同一句话** ⇒ 与事件、分支、流水线无关，是**全局配额** |
+| **为什么改 `.cnb.yml` 没用** | `Prepare` 是**平台自带 stage**（拉 runner / 起 git-clone / 起 network-bus / 预冻结配额），**不在** `.cnb.yml` 的 stage 列表里。改 job `timeout` / stage 顺序 / `if:` 条件**全部无效** |
+| **为什么不能重试绕过** | 配额是组织级共享资源；本轮连续 3 次同错 ⇒ 重试只会继续消耗并刷屏，**无意义**。应停手、升级到管理员 |
+| **处置** | 判 `BLOCKED_EXTERNAL`（**不是**产品缺陷，**不是**可派工实现缺口），升级对象 = CNB 根组织管理员（提升 `云原生构建-CPU` 配额） |
+| **副产品（有用的）** | `Prepare` 的 git-clone 日志打印了它真正 checkout 的 sha：`$ git rev-parse HEAD` → `d2cffd27632ba9a623c957397fe168bca753ff7f`。⇒ **即使十门没跑，也能机械证明「平台确实按我给的 basis 拉到了代码」**（比只写「我请求了 d2cffd2」强得多） |
+| **教训** | `start_build` 返回 `success` **只表示「受理」**，不表示「构建已开始」。**触发后第一件事是看 `Prepare` 的 `status`**：`error` + 配额文案 ⇒ 立刻停手，别去 `collect_stage_logs` 抽判据行（只会拿到一叠 `skipped`，白等一轮）。这条已进 `cnb-workflow` skill 硬规则 14 与 `references/pitfalls.md` §X |
+
+#### I.11.2 素材可复现性门禁（`ASSET_REPRO_GATE`）—— **本会话首次取得**
+
+v17 §8 明写「本容器无 JDK，素材可复现性门禁未本地复跑」，只以旧 stage-5 判据行为依据。本轮在干净 LF 树上亲自重跑：
+
+```
+ASSET_REPRO: 比对 70 张（4 个生成器）
+  逐像素一致: 70
+  REPRODUCIBLE=70 MISMATCH=0 MISSING=0 UNREGISTERED=0
+ASSET_REPRO_GATE=GREEN
+[repro] 罗盘模型 JSON：一致 32/32
+```
+
+⇒ 取得机械判据行。两个「张数」口径必须分清（**不互相冒充**）：
+- **70** = `resource-pack/asset-reproducible.json` 的覆盖数（有可编译 Java 生成器、且产物在仓库里）；
+- **129** = `resource-pack/asset-provenance.json` 的 `$counts.generator`（声明为生成器派生的条目总数）。
+
+#### I.11.3 缺陷 `ASSET-REPRO-JAVAC-ENCODING`（**已修**）
+
+| 项 | 内容 |
+|---|---|
+| **现象** | 在本机（Temurin 17 / `zh_CN`，javac 默认源编码 GBK）跑 `sh scripts/check-asset-reproducible.sh`，`javac` 报 58 个「编码 GBK 的不可映射字符」，退出码非 0 ⇒ `ASSET_REPRO_GATE` 整门**假红** |
+| **真因** | 脚本调 `javac` 时**未指定源编码**。生成器源码含 UTF-8 中文注释，而 `javac` 默认源编码**随平台走**。CNB 的 `eclipse-temurin:25-jdk` 默认 UTF-8，所以这个问题在 CI **从未暴露** |
+| **为什么这是真缺陷** | 一个「只在 UTF-8 平台 GREEN」的判据是**不可移植的假门禁** —— 换一台默认非 UTF-8 的机器就恒红，会被当成「环境噪音」而放宽，最终判据失效 |
+| **修法** | `javac` 加 `-encoding UTF-8`；4 处 `java` 运行加 `-Dfile.encoding=UTF-8`。分支 `codex/asset-repro-encoding-fix`（`6308da5`） |
+| **效果（实测）** | 加前：58 个不可映射字符错误、EXIT≠0；加后：4 个生成器全部编译通过、逐像素比对 GREEN、EXIT=0 |
+| **教训** | 判据脚本里调外部编译器/解释器时，**任何依赖「平台默认值」的隐含参数都要显式化**（源编码、区域、时区、默认字符集）。CNB 上 GREEN 不等于「判据是对的」，可能只是「CI 镜像的默认值恰好对」 |
+
+#### I.11.4 本轮本地九层判据行（basis 实际为 `6308da5` = `d2cffd2` + I.11.3 修复）
+
+| 层 | 判据行 | 值 |
+|---|---|---|
+| (a) | `scripts/*.sh\|*.py` 计数 | `27` |
+| (b) | `ASSET_BASELINE_GATE` | `GREEN`（252 张 / UNREGISTERED=0 MISSING=0 MODIFIED=0） |
+| (c) | provenance/manifest 一致 | `252 张一致`；`$needsHumanDecision=[]` |
+| (d) | `RESOURCE_PACK_GATE` | `GREEN`（RUN=8 SKIPPED=0） |
+| (e) | `SOURCE_STRING_GATE` | `GREEN`（TESTS=0） |
+| (f) | `SOURCE_CONTRACT_CHECKS` | `469 SPECS=79 SPEC_FILES=3` |
+| (g) | `MECHANICS_SPEC_GATE` | `GREEN`（ENTRIES=137 / WEAK=0） |
+| (h) | `ENV_TAG_JUSTIFIED_GATE` | `GREEN`（7/7/0） |
+| (i) | `ASSET_REPRO_GATE` | `GREEN`（REPRODUCIBLE=70 MISMATCH=0） |
+
+⇒ **本地九层 GREEN ≠ 十门 GREEN**：两者跑在不同镜像与 stage 编排里。本轮**没有**在 `d2cffd2` 上取得任何来自 CNB 流水线的 `*_GATE=` 行。
+
