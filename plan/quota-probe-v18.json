@@ -10,16 +10,81 @@
  "pipeline_name": "probe",
  "pipeline_duration_ms": 2605,
  "stages": [
-  {"name": "Prepare", "id": "prepare", "status": "error", "duration_ms": 2391},
-  {"name": "probe", "id": "stage-0", "status": "skipped", "duration_ms": 0},
-  {"name": "BeforeEnd", "id": "beforeEnd", "status": "success", "duration_ms": 215},
-  {"name": "DebugDetection", "id": "debugDetection", "status": "skipped", "duration_ms": 0},
-  {"name": "End", "id": "end", "status": "success", "duration_ms": 837}
+  {
+   "name": "Prepare",
+   "id": "prepare",
+   "status": "error",
+   "duration_ms": 2391
+  },
+  {
+   "name": "probe",
+   "id": "stage-0",
+   "status": "skipped",
+   "duration_ms": 0
+  },
+  {
+   "name": "BeforeEnd",
+   "id": "beforeEnd",
+   "status": "success",
+   "duration_ms": 215
+  },
+  {
+   "name": "DebugDetection",
+   "id": "debugDetection",
+   "status": "skipped",
+   "duration_ms": 0
+  },
+  {
+   "name": "End",
+   "id": "end",
+   "status": "success",
+   "duration_ms": 837
+  }
  ],
  "prepare_error_en": "Pipeline prepare error: Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours). Contact the root group administrator to extend.",
  "prepare_error_zh": "根组织的云原生构建-CPU配额已不够预冻结(冻结时间：5.00 min，折合0.67核时)，请联系根组织管理员提升配额。",
  "runner": "10.235.0.32",
- "runner_labels": {"cpus": 8, "memory": 16},
- "note": "第四次触发（前三次：cnb-fef-1k4ot1qvq / cnb-r2i-1k4ot3gs2 / cnb-u8e-1k4ot4o4n）同一句话 ⇒ 根组织级全局配额，非本仓/非本分支。Prepare 是平台自带 stage（在 .cnb.yml 之外），故本探测用的是自定义 config 也照样死在 Prepare。⇒ 借流水线 push（putfile 播种法）同样不可行 ⇒ 分支推送与 PR 创建本轮全部被阻塞。",
- "consequence": "写 CNB 的一切路径（十门、冒烟、putfile 播种推送）本轮均不可用。本地提交已完成（codex/asset-repro-encoding-fix=6308da5，codex/gap-matrix-v18=a984483），待配额恢复后一次性推送并开 PR。"
+ "runner_labels": {
+  "cpus": 8,
+  "memory": 16
+ },
+ "note": "第四次触发（前三次：cnb-fef-1k4ot1qvq / cnb-r2i-1k4ot3gs2 / cnb-u8e-1k4ot4o4n）同一句话 ⇒ 根组织级全局配额，非本仓/非本分支。Prepare 是平台自带 stage（在 .cnb.yml 之外），故本探测用的是自定义 config 也照样死在 Prepare。⇒ 借流水线 push（putfile 播种法）同样不可行 ⇒ 分支推送与 PR 创建本轮全部被阻塞。 第 5 次（2026-10-13，cnb-0e6-1k4p0fdq4）同一句话 ⇒ 仍未恢复。",
+ "consequence": "写 CNB 的一切路径（十门、冒烟、putfile 播种推送）本轮均不可用。本地提交已完成（codex/asset-repro-encoding-fix=6308da5，codex/gap-matrix-v18=a984483），待配额恢复后一次性推送并开 PR。",
+ "probe_5": {
+  "purpose": "第 5 次独立探测（承接 Stop hook 第 (1) 步「等管理员扩容」，确认配额是否已恢复）",
+  "sn": "cnb-0e6-1k4p0fdq4",
+  "event": "api_trigger_seed（自定义极简 config，不读本仓 .cnb.yml）",
+  "title": "quota-probe-5",
+  "build_status": "error",
+  "pipeline_id": "cnb-0e6-1k4p0fdq4-001",
+  "stages": [
+   {
+    "name": "Prepare",
+    "status": "error",
+    "duration_ms": 3484
+   },
+   {
+    "name": "probe2",
+    "status": "skipped",
+    "duration_ms": 0
+   },
+   {
+    "name": "BeforeEnd",
+    "status": "success",
+    "duration_ms": 244
+   },
+   {
+    "name": "DebugDetection",
+    "status": "skipped",
+    "duration_ms": 0
+   },
+   {
+    "name": "End",
+    "status": "success",
+    "duration_ms": 938
+   }
+  ],
+  "prepare_error_en": "Pipeline prepare error: Root Group's events CPU core-hours are insufficient for pre-freezing(Freezing time:5.00 min,equivalent to 0.67 core-hours). Contact the root group administrator to extend.",
+  "conclusion": "五次触发同一句话 ⇒ 配额仍未恢复。推送/PR 仍不可行。"
+ }
 }

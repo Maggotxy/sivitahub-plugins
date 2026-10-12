@@ -895,13 +895,16 @@
    "cnb-fef-1k4ot1qvq",
    "cnb-r2i-1k4ot3gs2",
    "cnb-u8e-1k4ot4o4n",
-   "cnb-qvu-1k4p03o5r"
+   "cnb-qvu-1k4p03o5r",
+   "cnb-0e6-1k4p0fdq4",
+   "cnb-6h5-1k4p0h3rs"
   ],
   "scope": "root-group-global",
   "workaround": "none（Prepare 是平台 stage，改 .cnb.yml/job timeout/stage 条件均无效）",
   "escalate_to": "CNB 根组织管理员",
   "collateral": "所有 CNB 写路径不可用（十门 / 冒烟 / 播种法 push）⇒ 本轮无法推送分支、无法开 PR",
-  "evidence": "plan/quota-probe-v18.json"
+  "evidence": "plan/quota-probe-v18.json",
+  "probe_count": 6
  },
  "asset_repro_encoding_fix": {
   "id": "ASSET-REPRO-JAVAC-ENCODING",
@@ -923,6 +926,8 @@
   "pr_opened": false,
   "reason": "CNB 配额耗尽覆盖所有「内容写」路径（流水线 push 被 Prepare 挡 + 本地 git push 被本机沙箱 SIGTERM）",
   "what_still_works": "只读+元数据通道：POST/DELETE /-/git/branches、GET /-/git/contents/<path>?ref=、GET /-/git/commits?ref_name=",
-  "next": "配额恢复后：git push 两分支（或 putfile 播种法逐文件推）→ 开 PR → PUT /-/pulls/{n}/merge 合入 → 重跑十门取得判据行"
+  "next": "配额恢复后：git push 两分支（或 putfile 播种法逐文件推）→ 开 PR → PUT /-/pulls/{n}/merge 合入 → 重跑十门取得判据行",
+  "recovery_automation": "b692458c-52f1-4dbf-a88d-608a8cfd0227（每 3 小时探测配额；恢复即自动 push → PR → gate → v19）",
+  "recovery_script": "plan/recover_after_quota.py（--probe / --push / --pr / --merge n / --gate / --all）"
  }
 }
