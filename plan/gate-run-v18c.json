@@ -61,5 +61,31 @@
     "result": "Prepare=success 4111；同样推进到门禁自测（耗时约 9 分钟量级）",
     "note": "更干净的路径：连 config 改写都不需要，就是标准 api_trigger_gate job，仅计费口径切为 NPC 事件。"
   },
-  "updated_at": "2026-10-13T06:00:58+08:00"
+  "test_stage_failure_root_cause": {
+    "sn": "cnb-v0a-1k4p1den5",
+    "observed": "test stage error 89772ms；TEST_GATE=RED；SUMMARY_GATE=RED 只有 25/26 模块跑过测试",
+    "failed_task": "> Task :plugins:rpg-hub:compileJava FAILED",
+    "root_cause": "**Maven Central HTTP 429 Too Many Requests**（依赖下载被限流），非仓库代码缺陷",
+    "evidence_lines": [
+      "> Could not GET 'https://repo.maven.apache.org/maven2/net/kyori/adventure-text-logger-slf4j/5.2.0/...jar'. Received status code 429 from server: Too Many Requests",
+      "> Could not GET '...it/unimi/dsi/fastutil/8.5.18/...jar'. Received status code 429",
+      "> Task :plugins:rpg-hub:compileJava FAILED ... Could not HEAD 'https://repo.maven.apache.org/maven2/org/eclipse/sisu/org.eclipse.sisu.inject/0.9.0.M2/...jar'. Received status code 429",
+      "> Task :plugins:rpg-mobs:compileJava FAILED ... 同样 429"
+    ],
+    "why_not_a_code_defect": [
+      "所有真正跑起来的测试全部通过：SUM tests=1066 failed=0 errors=0 skipped=2 modules=25",
+      "失败任务全是依赖解析（Could not resolve / Could not download），无一条 javac 语法/类型错误",
+      "同一构建的 compile stage 也遇到 429，但其自带 3 次重试循环（ATTEMPTS=3 BUILD_EXIT=0）最终成功 ⇒ 证明 429 是瞬时抖动",
+      "test stage **没有** compile stage 那样的重试循环（.cnb.yml:191 只在 compile 段），故同样抖动下直接 RED"
+    ],
+    "classification": "INFRA_TRANSIENT（Maven Central 限流），重跑可恢复",
+    "remediation_note": "可考虑给 test stage 加与 compile stage 相同的重试循环；或引入 Gradle 依赖缓存/镜像。本轮先靠重跑取证。"
+  },
+  "retry_run": {
+    "sn": "cnb-rdk-1k4p2if8a",
+    "method": "start_build('api_trigger_gate', branch='main', npc={'name':'CodeBuddy'})",
+    "title": "十门复跑（NPC 口径，规避 Maven 429 瞬时抖动）",
+    "purpose": "复跑以取得十条全 GREEN 的判据行"
+  },
+  "updated_at": "2026-10-13T06:08:00+08:00"
 }
