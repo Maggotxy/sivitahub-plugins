@@ -1,0 +1,66 @@
+{
+  "purpose": "在加固后的门禁上验证十门 10/10 GREEN（加固：依赖下载指数退避重试）",
+  "result": "TEN_GATES=GREEN (10/10)",
+  "sn": "cnb-77r-1k4p57075",
+  "overall_build_status": "success",
+  "event": "api_trigger_gate",
+  "npc": {"name": "CodeBuddy"},
+  "config": "现场下发加固后的 .cnb.yml（指数退避重试版，commit bbd88f2）",
+  "branch": "main",
+  "code_basis": "cc8fd9d82f0905bd4355f0692723ab6a7f3a479e",
+  "note": "code 仍 checkout 自 main HEAD（cc8fd9d）；门禁定义用加固版。用于验证加固有效性。",
+
+  "criterion_lines": {
+    "GATE_SELFTEST": "GREEN",
+    "RESOURCE_PACK_GATE": "GREEN",
+    "ASSET_BASELINE_GATE": "GREEN",
+    "ASSET_REPRO_GATE": "GREEN (REPRODUCIBLE=70 MISMATCH=0 MISSING=0 UNREGISTERED=0)",
+    "DDL_CONSUMER_GATE": "GREEN",
+    "DDL_REGISTRATION_GATE": "GREEN",
+    "CMD_REFERENCE_GATE": "GREEN",
+    "COMPILE_GATE": "GREEN",
+    "TEST_GATE": "GREEN",
+    "SUMMARY_GATE": "GREEN",
+    "PACKAGE_GATE": "GREEN"
+  },
+
+  "hardening_effect_evidence": {
+    "TEST_ATTEMPTS": "2",
+    "meaning": "test stage 第 1 次撞依赖/网络类失败，退避 30s 后第 2 次成功 ⇒ **新增的 test 重试确实生效并救了整门**",
+    "compile_ATTEMPTS": "1",
+    "compile_BUILD_EXIT": "0",
+    "compile_TASKS_DONE": "28",
+    "test_SUM": "tests=1106 failed=0 errors=0 skipped=2 modules=26",
+    "test_NO_XML": "modules=0 期望模块数=26"
+  },
+
+  "stage_status": {
+    "Prepare": "success 3686",
+    "准备下载器（必须是第一个 stage）": "success 19773",
+    "门禁自测（负向对照）": "success 559666",
+    "DDL 门禁（G-301 消费者 + G-302 注册，双向）": "success 111721",
+    "素材门禁（W7-A1）": "success 537",
+    "素材逐像素基线门禁（W12-A1）": "success 343",
+    "素材可复现性门禁（W13-A1）": "success 1552",
+    "compile": "success 158030",
+    "test": "success 220956",
+    "assemble": "success 10779",
+    "BeforeEnd": "success 452",
+    "End": "success 633"
+  },
+
+  "contrast": {
+    "without_hardening": [
+      {"sn": "cnb-v0a-1k4p1den5", "failure": "test stage 撞 429，无重试 ⇒ TEST_GATE=RED（1066/25 模块）"},
+      {"sn": "cnb-mq0-1k4p3lnu1", "failure": "compile stage 撞 429，3×10s 重试全落同一窗口 ⇒ COMPILE_GATE=RED"},
+      {"sn": "cnb-lbv-1k4p4gf85", "failure": "同上，复现"}
+    ],
+    "with_hardening": [
+      {"sn": "cnb-77r-1k4p57075", "result": "10/10 GREEN（TEST_ATTEMPTS=2 显示重试救了整门）"}
+    ]
+  },
+
+  "hardening_commit": "bbd88f2",
+  "hardening_pr": 93,
+  "updated_at": "2026-10-13T07:13:00+08:00"
+}
