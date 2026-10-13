@@ -1,0 +1,64 @@
+{
+  "purpose": "★ 定版：在**当前 main HEAD (ce9864c6)** 上取得十条 *_GATE= 判据行，全部 GREEN",
+  "result": "TEN_GATES=GREEN (10/10) + GATE_SELFTEST=GREEN(PASS=181 FAIL=0)",
+  "sn": "cnb-ipi-1k4pa1scm",
+  "event": "api_trigger_gate",
+  "npc": {"name": "CodeBuddy"},
+  "config": "仓库自身 .cnb.yml（未改写，含缓存卷 + 指数退避重试）",
+  "branch": "main",
+  "overall_build_status": "success",
+  "basis": "ce9864c62dd9ccf0f8c65d0ad6427c9f780e4186",
+  "basis_proof": {
+    "prepare_log": "2026-10-13 08:19.32 $ git checkout -f -B \"main\" \"ce9864c62dd9ccf0f8c65d0ad6427c9f780e4186\"",
+    "remote_main_head": "ce9864c62dd9ccf0f8c65d0ad6427c9f780e4186（Merge PR #96）",
+    "conclusion": "basis 字面等于当前 main HEAD"
+  },
+  "same_yaml_anchor_proof": {
+    "evidence": [
+      ".cnb.yml:  &quality_gate（锚点定义）",
+      ".cnb.yml:  api_trigger_gate: *quality_gate（本次 event 指向）"
+    ],
+    "note": "config 未改写，不存在『另写松门』可能"
+  },
+  "criterion_lines": {
+    "GATE_SELFTEST": "GREEN   (门禁自测汇总：PASS=181 FAIL=0)",
+    "RESOURCE_PACK_GATE": "GREEN",
+    "ASSET_BASELINE_GATE": "GREEN",
+    "ASSET_REPRO_GATE": "GREEN   (REPRODUCIBLE=70 MISMATCH=0 MISSING=0 UNREGISTERED=0)",
+    "DDL_CONSUMER_GATE": "GREEN",
+    "DDL_REGISTRATION_GATE": "GREEN",
+    "CMD_REFERENCE_GATE": "GREEN",
+    "COMPILE_GATE": "GREEN",
+    "TEST_GATE": "GREEN",
+    "SUMMARY_GATE": "GREEN",
+    "PACKAGE_GATE": "GREEN"
+  },
+  "test_evidence": {
+    "SUM": "tests=1106 failed=0 errors=0 skipped=2 modules=26",
+    "NO_XML": "modules=0 期望模块数=26",
+    "TEST_EXIT": "0",
+    "SUMMARY_EXIT": "0",
+    "TEST_ATTEMPTS": "1",
+    "ENV_TAG_LINE": "28"
+  },
+  "stage_status": {
+    "Prepare": "success 3631",
+    "准备下载器（必须是第一个 stage）": "success 16436",
+    "门禁自测（负向对照）": "success 360680",
+    "DDL 门禁（G-301 消费者 + G-302 注册，双向）": "success 68862",
+    "素材门禁（W7-A1）": "success 395",
+    "素材逐像素基线门禁（W12-A1）": "success 270",
+    "素材可复现性门禁（W13-A1）": "success 1127",
+    "compile": "success 14194",
+    "test": "success 8873",
+    "assemble": "success 5028",
+    "BeforeEnd": "success 376",
+    "End": "success 1271"
+  },
+  "hardening_proven": {
+    "gradle_cache": "compile 226s→14s；test 188~221s→9s（缓存卷 8d2608a 生效）",
+    "retry": "TEST_ATTEMPTS=1（本次未撞 429，无需重试）",
+    "evidence_fix": "ENV_TAG_LINE=28（配置期 println 生效，不再因任务 UP-TO-DATE 而消失）"
+  },
+  "updated_at": "2026-10-13T08:28:00+08:00"
+}
