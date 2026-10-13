@@ -50,3 +50,7 @@ libs/*.jar
 # 不入库则干净克隆永远编不过。详见 libs/vendor/README.md。
 !libs/vendor/*.jar
 resource-pack/**/__pycache__/
+
+# WorkBuddy IDE 元数据
+.workbuddy/
+.workbuddy-ai/

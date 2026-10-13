@@ -38,7 +38,7 @@ PAPER_MAJOR="26.2"
 PAPER_BUILDS_URL="https://fill.papermc.io/v3/projects/paper/versions/${PAPER_MAJOR}/builds"
 # 下载器 User-Agent：实测 fill.papermc.io 对空 UA/curl 默认 UA 有 WAF 行为，
 # 带一个可识别的 UA 才稳定 200（本仓 fetch-deps.sh 同样带 UA）。
-UA="sivitahub-paper-smoke/1 (+https://cnb.cool/xzqkjmnbvc2026/sivitahub)"
+UA="sivitahub-paper-smoke/1"
 BOOT_TIMEOUT=300
 EULA_MARK="Done ("
 STOP_GRACE=120

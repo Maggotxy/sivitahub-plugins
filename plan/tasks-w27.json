@@ -1,6 +1,0 @@
-{
- "wave": "W27",
- "basis": "14b67f2",
- "note": "只含真实剩余缺口（本轮实测）。done=true / remaining=0 ⇒ 无可派工的实现缺口，tasks 为空。剩余问题只有 REQUIRES_HUMAN（见 plan/verdict-v12.json 的 needs_human）。",
- "tasks": []
-}

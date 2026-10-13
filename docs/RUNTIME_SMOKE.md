@@ -19,37 +19,6 @@
 
 ## 怎么跑
 
-### 方式一：CNB 事件 `api_trigger_smoke`
-
-`api_trigger_smoke` 与本仓十门（`push` / `api_trigger_gate`）**完全分离**：
-十门是编译 + 测试 + 打包 + 静态门禁，冒烟要下载 60MB+ 的 Paper 服务端并真跑一遍 JVM，
-十分钟起步。把它塞进十门只会让每次 push 都变慢，并且一旦 Paper 下载源抖动就整门假红。
-
-```sh
-cnb build start-build --repo xzqkjmnbvc2026/sivitahub \
-  --branch main --event api_trigger_smoke --sync false
-```
-
-内联 config 触发（不依赖分支上的 `.cnb.yml`，用于验证脚本改动）：
-
-```sh
-cnb build start-build --repo xzqkjmnbvc2026/sivitahub \
-  --branch agent/W35-A1-runtime-smoke-harness --event api_trigger_smoke --sync false \
-  --config '
-$:
-  api_trigger_smoke:
-    - name: Paper 运行时冒烟
-      docker:
-        image: eclipse-temurin:25-jdk
-      stages:
-        - name: 运行时冒烟
-          script: |
-            set -e
-            chmod +x scripts/*.sh gradlew
-            sh scripts/run-paper-smoke.sh
-'
-```
-
 ### 方式二：本地 / 生产机直接跑
 
 ```sh
@@ -163,12 +132,11 @@ sh scripts/run-paper-smoke.sh --timeout 600   # 覆盖「等 Done( 」的上限�
    没有阻止启动」，但**反向**（故意把配置改坏，验证它**确实** fail-closed）
    需要实验分组，本脚本不做 —— 不做就是不做，不写成「已验证」。
 
-## 与十门的关系
+## 定位
 
-`api_trigger_smoke` **不接进** `push` / `api_trigger_gate` 的十门。
-理由：十门是「提交即可判定」的静态/单元层门禁，秒级到分钟级；
-冒烟要外网下载 + 真跑服务端，属于**运行期证据采集**，按需触发。
-两者的判据行互不影响，冒烟红了不会让十门红，反之亦然。
+冒烟是**独立**的运行期验证，**不在**编译/CI 门禁链上，按需手动触发。
+理由：冒烟要外网下载 60MB+ Paper 服务端并真跑 JVM，分钟级起步；
+它回答的是「插件装上去能不能真起来」这个问题，与「代码写得对不对」是两层，判据互不影响。
 
 ## 维护
 
