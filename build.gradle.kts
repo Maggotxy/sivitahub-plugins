@@ -71,14 +71,19 @@ subprojects {
         // 门禁需要一条「排除确实生效」的**机器证据**：Gradle 自己的
         // "excluding tests with tag" 是 INFO 级，默认日志级别下不会输出，
         // 导致 .cnb.yml 的测试门 grep 不到而整门 RED。
-        // 这里在 Test 任务真正执行前，把本任务实际应用的排除标签以 LIFECYCLE 级打出来 ——
+        // 这里把本任务实际应用的排除标签以 LIFECYCLE 级打出来 ——
         // 这是构建脚本自己声明的、可被 CI 抓取的事实，而不是手写日志。
         // 只在确实有排除项时打印，避免「空排除也打印一行」变成新的假证据。
+        //
+        // ★ 2026-10-13 修正（缓存交互 bug）：原实现在 `doFirst` 里打印，
+        // 但 Gradle 开启构建缓存/UP-TO-DATE 后 **不会执行任何任务 action（含 doFirst）**，
+        // 于是 `test` 任务被判定 UP-TO-DATE 时这行证据消失 ⇒ 门禁假红
+        // （实测 sn=cnb-roh-1k4p8ri2m：SUM tests=1106 failed=0 modules=26 全过，
+        //  却因 grep 不到该行而 `TEST_GATE=RED`）。
+        // 改为在**配置期**打印（`println` 走 quiet 级别也能被重定向捕获），
+        // 命令一跑就输出，与任务是否实际执行无关。
         if (excludedTags.isNotEmpty()) {
-            val appliedTags = excludedTags
-            doFirst {
-                logger.lifecycle("excluding tests with tag: " + appliedTags.joinToString(", "))
-            }
+            println("excluding tests with tag: " + excludedTags.joinToString(", "))
         }
         testLogging {
             exceptionFormat = TestExceptionFormat.FULL
