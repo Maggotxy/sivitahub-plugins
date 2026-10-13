@@ -644,7 +644,7 @@
  ],
  "next_action": "两条并行：(A) 阻塞解除——须 CNB 根组织管理员提升 CPU 配额（events CPU core-hours）；扩容后重跑一次十门，回读十条 *_GATE= 行（RESOURCE_PACK_GATE / ASSET_BASELINE_GATE / ASSET_REPRO_GATE / DDL_CONSUMER_GATE / DDL_REGISTRATION_GATE / CMD_REFERENCE_GATE / COMPILE_GATE / TEST_GATE / SUMMARY_GATE / PACKAGE_GATE）与 GATE_SELFTEST=PASS=N FAIL=0，并专项回读 ASSET_REPRO_GATE= 与 REPRODUCIBLE=70 MISMATCH=0（本地已达 70；口径中的 129 是 provenance $counts.generator 张数，两者口径须分清、不互相冒充）。(B) 人在环——人类对 G-SMOKE-CRITERION-UNRETRIEVABLE 选一种修法：(1) 脚本把 PAPER_* 判据行落仓并 push 到证据分支（代价：冒烟 job 需 push 权限 + 并发写同一分支处理）；(2) 新增只 cat 证据文件的极短 stage，把判据行挪到总输出必然短到能被完整交付的位置（代价：改 .cnb.yml）。选定前冒烟不得作为 [R] 证据。其余仅剩 REQUIRES_HUMAN（H-001 / U-003 / W7-A2 四条 [R]）。",
  "updated_by": "WorkBuddy agent（W37-A7-ten-green-v23）",
- "updated_at": "2026-10-13T08:52:00Z",
+ "updated_at": "2026-10-13T08:55:00Z",
  "merged_gaps": [
   "G-001",
   "G-002",
@@ -733,7 +733,8 @@
   "COMPILE_GATE": "GREEN (ATTEMPTS=1 BUILD_EXIT=0 SECONDS=15)",
   "TEST_GATE": "GREEN (TEST_ATTEMPTS=1 TEST_EXIT=0 SECONDS=46)",
   "SUMMARY_GATE": "GREEN (SUM tests=1106 failed=0 errors=0 skipped=2 modules=26)",
-  "PACKAGE_GATE": "GREEN (JAR_COUNT=56 JAR_MISSING_PLUGIN_YML=0)"
+  "PACKAGE_GATE": "GREEN (JAR_COUNT=56 JAR_MISSING_PLUGIN_YML=0)",
+  "note": "两次独立运行同一 basis（97db653）均 10/10 GREEN：我方 cnb-1e4-1k4pandcc + 并发 agent cnb-3uv-1k4pam45s（PR #98）。"
  },
  "decisions_by_agent": [
   {
@@ -756,7 +757,7 @@
    "by": "WorkBuddy AI"
   }
  ],
- "status": "★★ 十门已在 CNB 云端、在**当前 main HEAD (97db653)** 上**全部取得且全部 GREEN**（10/10）—— sn=cnb-1e4-1k4pandcc，overall status=success。路径：event=api_trigger_gate + npc={\"name\":\"CodeBuddy\"}，**不传 config**，跑的就是仓库自身已提交 .cnb.yml:402 的 api_trigger_gate: *quality_gate 原定义。basis 由 Prepare 日志 `git checkout -f -B \"main\" \"97db653...\"` 机械证明，字面等于 main HEAD。判据行：GATE_SELFTEST=GREEN(PASS=181 FAIL=0) / RESOURCE_PACK_GATE / ASSET_BASELINE_GATE / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / DDL_CONSUMER_GATE / DDL_REGISTRATION_GATE / CMD_REFERENCE_GATE / COMPILE_GATE=GREEN(ATTEMPTS=1 SECONDS=15) / TEST_GATE=GREEN(TEST_ATTEMPTS=1, tests=1106 failed=0) / SUMMARY_GATE / PACKAGE_GATE=GREEN。★ Maven-429 已根除 + 缓存卷生效：compile 15s、test 46s，重试未触发。",
+ "status": "★★ 定版收口 —— 十门在 CNB 云端、在 main HEAD (97db653) 上**全部取得且全部 GREEN**（10/10），**两次独立运行互相印证**：① 我方 sn=cnb-1e4-1k4pandcc（npc=CodeBuddy，不传 config）；② 并发 agent sn=cnb-3uv-1k4pam45s（PR #98，终验）。两者 basis 均为 97db65328ec04da32a012d5ddd180a5a2404eb0d，字面等于当时 main HEAD。判据行：GATE_SELFTEST=GREEN(PASS=181 FAIL=0) / RESOURCE_PACK_GATE=GREEN / ASSET_BASELINE_GATE=GREEN / ASSET_REPRO_GATE=GREEN(REPRODUCIBLE=70 MISMATCH=0) / DDL_CONSUMER_GATE=GREEN / DDL_REGISTRATION_GATE=GREEN / CMD_REFERENCE_GATE=GREEN / COMPILE_GATE=GREEN(ATTEMPTS=1) / TEST_GATE=GREEN(TEST_ATTEMPTS=1, tests=1106 failed=0) / SUMMARY_GATE=GREEN / PACKAGE_GATE=GREEN。★ Maven-429 已根除（阿里云镜像 PR #94）+ 缓存卷（PR #95）：compile 15~23s、test 46s，重试未触发。main HEAD 现为 95186d26e3ec（Merge PR #98）。",
  "verdict": {
   "version": 23,
   "done": false,
@@ -928,14 +929,15 @@
    "#94",
    "#95",
    "#96",
-   "#97"
+   "#97",
+   "#98"
   ],
-  "main_head": "97db65328ec04da32a012d5ddd180a5a2404eb0d",
+  "main_head": "95186d26e3ec",
   "prs_open": [
    "#87"
   ],
   "next": "剩余仅 REQUIRES_HUMAN；由人类在 G-SMOKE 两种修法中二选一后即可收口。",
-  "note": "本轮期间存在并发 agent 在同一仓库推进（PR #95/#96/#97）；v23 按最新 main HEAD 重新取证。"
+  "note": "并发 agent 在本轮与我方同时推进（PR #95~#98）；PR #98 的终验（basis=97db653）与我方 cnb-1e4-1k4pandcc 独立互证。"
  },
  "maven_429_remediation": {
   "id": "MAVEN-429-SUSTAINED-WINDOW",
