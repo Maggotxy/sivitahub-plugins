@@ -1,0 +1,3 @@
+# Join-time protection message is shared, before player UI selection.
+overload-protection:
+  join-message: "Server load protection is active. Please try again shortly."

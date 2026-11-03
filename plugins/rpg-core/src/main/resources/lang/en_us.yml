@@ -2922,7 +2922,7 @@ community:
     pending: "Pending action {action} · approvals needed: {required}"
     pending-hint: "Pending action {action} still needs a second governance approval."
     approval-entry: "{player} · {role}"
-    effective: "Governance action {action} reached two approvals and is now effective."
+    effective: "Governance action {action} is now effective after {player} completed the two-person approval."
     submitted: "{player} submitted governance action {action}; one more governance role must approve."
     role-rejected: "Governance action {action} passed the two-approval gate, but the role change was not applied (precondition unmet); recorded for manual replay."
     no-pending: "There is no pending governance action."

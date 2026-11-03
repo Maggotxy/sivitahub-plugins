@@ -228,7 +228,9 @@ final class CommunityGovernanceHandler {
                 "action", outcome.action().key(),
                 "count", outcome.approvals().size(),
                 "required", outcome.requiredApprovals()));
-        if (outcome.effective()) out.add("community.governance.effective");
+        // The actor-aware event announcement has different placeholders from
+        // this command confirmation; keep the command's existing generic key.
+        if (outcome.effective()) out.add("community.governance.effective-ok");
         return out;
     }
 

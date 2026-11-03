@@ -1,0 +1,36 @@
+# Shared NPC identity plates, Dialog titles and map tooltips.
+# Keep names within HubNpcLabelPolicy's 24-codepoint limit.
+npcs:
+  guide:
+    name: "Guide Aqiong"
+    subtitle: "Start your journey here"
+  quests:
+    name: "Commissioner Shijian"
+    subtitle: "Your tasks and rewards"
+  ai:
+    name: "Companion Xiaoqi"
+    subtitle: "Advice based on your progress"
+  class:
+    name: "Class Mentor Lixin"
+    subtitle: "Choose a class and attributes"
+  skills:
+    name: "Archivist Moya"
+    subtitle: "Learn and manage skills"
+  forge:
+    name: "Smith Zhulan"
+    subtitle: "Forge your own equipment"
+  enhancement:
+    name: "Refiner Qingzhen"
+    subtitle: "Refine, limit break and mutate"
+  dungeon:
+    name: "Officer Suichuan"
+    subtitle: "Dungeons and hidden encounters"
+  market:
+    name: "Market Steward Guyu"
+    subtitle: "Player trading and deliveries"
+  economy:
+    name: "Merit Officer Hengshi"
+    subtitle: "Currencies and commissions"
+  wilderness:
+    name: "Frontier Guide Lindu"
+    subtitle: "Travel to the survival frontier"
