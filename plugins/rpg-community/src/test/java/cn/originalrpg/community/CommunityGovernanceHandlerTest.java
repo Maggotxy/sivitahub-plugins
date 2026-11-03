@@ -7,7 +7,9 @@ import cn.originalrpg.api.model.CommunityRolePower;
 import cn.originalrpg.api.service.CommunityGovernanceService;
 import cn.originalrpg.api.service.CommunityRoleAssignmentService;
 import org.junit.jupiter.api.Test;
+import org.yaml.snakeyaml.Yaml;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -75,7 +78,7 @@ final class CommunityGovernanceHandlerTest {
     // ---------------------------------------------------------------
 
     @Test
-    void twoDistinctGovernanceRolesAreReportedAsPendingUntilTheActionBecomesEffective() {
+    void twoDistinctGovernanceRolesAreReportedAsPendingUntilTheActionBecomesEffective() throws Exception {
         Fixture fixture = new Fixture();
         UUID treasurer = UUID.randomUUID();
         UUID officer = UUID.randomUUID();
@@ -93,7 +96,7 @@ final class CommunityGovernanceHandlerTest {
         CommunityGovernanceHandler.Rendering first = fixture.handler
                 .approve(treasurer, CommunityGovernanceAction.COMMUNITY_PROJECT).join();
         assertTrue(first.keys().contains("community.governance.success"));
-        assertFalse(first.keys().contains("community.governance.effective"), "单票不得生效");
+        assertFalse(first.keys().contains("community.governance.effective-ok"), "单票不得生效");
 
         // 第二票来自另一个治理角色 → 生效。
         fixture.service.outcomes.add(new CommunityApprovalOutcome(
@@ -104,8 +107,10 @@ final class CommunityGovernanceHandlerTest {
                 officer, CommunityRolePower.REQUIRED_APPROVALS));
         CommunityGovernanceHandler.Rendering second = fixture.handler
                 .approve(officer, CommunityGovernanceAction.COMMUNITY_PROJECT).join();
-        assertTrue(second.keys().contains("community.governance.effective"), "双批达成必须报生效");
+        assertTrue(second.keys().contains("community.governance.effective-ok"), "双批达成必须报生效");
         assertEquals(2, fixture.service.approveCalls.get());
+        assertBilingualRenderingHasNoUnresolvedPlaceholders(first);
+        assertBilingualRenderingHasNoUnresolvedPlaceholders(second);
     }
 
     @Test
@@ -126,7 +131,7 @@ final class CommunityGovernanceHandlerTest {
                 .approve(owner, CommunityGovernanceAction.COMMUNITY_PROJECT).join();
 
         assertTrue(out.keys().contains("community.governance.already-approved"), out.keys().toString());
-        assertFalse(out.keys().contains("community.governance.effective"));
+        assertFalse(out.keys().contains("community.governance.effective-ok"));
     }
 
     // ---------------------------------------------------------------
@@ -313,6 +318,35 @@ final class CommunityGovernanceHandlerTest {
     }
 
     // ---------------------------------------------------------------
+
+    /** Render the actual command output using the same packaged text as the server. */
+    private static void assertBilingualRenderingHasNoUnresolvedPlaceholders(
+            CommunityGovernanceHandler.Rendering rendering
+    ) throws Exception {
+        for (String locale : List.of("zh_cn", "en_us")) {
+            try (InputStream input = CommunityGovernanceHandlerTest.class.getClassLoader()
+                    .getResourceAsStream("lang/" + locale + ".yml")) {
+                assertNotNull(input, "Missing locale: " + locale);
+                Map<?, ?> bundle = new Yaml().load(input);
+                for (var message : rendering.messages()) {
+                    Object value = bundle;
+                    for (String segment : message.key().split("\\.")) {
+                        assertTrue(value instanceof Map<?, ?>, message.key());
+                        value = ((Map<?, ?>) value).get(segment);
+                    }
+                    assertTrue(value instanceof String, locale + ": " + message.key());
+                    String text = (String) value;
+                    for (var placeholder : message.placeholders().entrySet()) {
+                        text = text.replace("{" + placeholder.getKey() + "}",
+                                String.valueOf(placeholder.getValue()));
+                    }
+                    assertFalse(text.isBlank());
+                    assertFalse(java.util.regex.Pattern.compile("\\{[^{}]+}").matcher(text).find(),
+                            locale + " leaks a placeholder in " + message.key() + ": " + text);
+                }
+            }
+        }
+    }
 
     private static final class Fixture {
         private final Map<UUID, CommunityRole> roles = new HashMap<>();

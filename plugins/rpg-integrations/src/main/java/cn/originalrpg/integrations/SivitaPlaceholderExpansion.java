@@ -144,22 +144,20 @@ final class SivitaPlaceholderExpansion extends PlaceholderExpansion {
     ) {
         // 槽位号上限来自唯一来源 docs/reference/hud-layout.json（见 HudRailSpec），
         // 不在这里写死 4：资源包的槽位数变了，占位符必须同步跟上。
-        java.util.regex.Matcher matcher = java.util.regex.Pattern
-                .compile("skill_(1-" + HudRailSpec.slotCount() + ")_(id|name|cooldown|timer|status|glyph|selected)")
-                .matcher(parameter);
-        if (!matcher.matches()) return null;
-        int index = Integer.parseInt(matcher.group(1)) - 1;
+        SkillPlaceholderKey key = SkillPlaceholderKey.parse(parameter, HudRailSpec.slotCount());
+        if (key == null) return null;
+        int index = key.index();
         if (index >= slots.size()) {
-            return matcher.group(2).equals("status")
+            return key.property().equals("status")
                     ? localized(playerId, "betterhud.skill-empty", "待学习") : "";
         }
         SkillCooldownSnapshot skill = slots.get(index);
         if (skill.emptySlot()) {
-            return matcher.group(2).equals("status")
+            return key.property().equals("status")
                     ? localized(playerId, "betterhud.skill-empty", "待装配") : "";
         }
         long remaining = skill.remainingSeconds(now);
-        return switch (matcher.group(2)) {
+        return switch (key.property()) {
             case "id" -> skill.skillId();
             case "name" -> localized(playerId, "skills.names." + skill.skillId(), skill.skillId());
             case "cooldown" -> Long.toString(remaining);

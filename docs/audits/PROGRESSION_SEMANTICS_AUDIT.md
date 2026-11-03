@@ -1,4 +1,8 @@
-# 成长语义源码审计（Progression Semantics Audit）— 初稿（待 Codex 本地完整校验）
+# 成长语义源码审计（Progression Semantics Audit）— 历史初稿与当前复核
+
+> **当前状态（2026-11-03）**：下方第 1–7 节保留的是实施前历史初稿，不能据此判断当前代码仍存在这些缺陷。
+> 对提交 `c83226ff87c8ecb868277d9ca5bce575b4684abc` 的本地源码复核确认：本地 30 级、有效 120 级、阶段经验预算、技能点里程碑幂等，以及删除简化晋升入口，均已有实现。
+> 请先读[第 8 节：当前源码复核](#8-当前源码复核2026-11-03)与[当前综合审计](CURRENT_SOURCE_REVIEW.md)。本次仅建立源码证据，不继承旧文档中的测试通过或运行时结论。
 
 > 基线：`plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/ProgressionRules.java` + `PlayerProfile.java`
 > 目标模型（宪法 C-015）：`LOCAL_LEVEL_CAP=30, MAX_ASCENSION=3, effective 1-120`
@@ -9,7 +13,7 @@
 > 3转 local 1-30 => effective 91-120
 > ```
 
-## 1. 已确认的偏离
+## 1. 历史初稿：当时确认的偏离
 
 ### 1.1 `ProgressionRules.levelCap(asc)` 返回 30/60/90/120
 
@@ -134,3 +138,97 @@ SELECT player_uuid, ascension, level, experience FROM rpg_profiles WHERE experie
 # 启动 PostgreSQL 副本后
 psql -c "SELECT * FROM rpg_profiles WHERE ascension>0 AND level>30 LIMIT 20;"
 ```
+
+## 8. 当前源码复核（2026-11-03）
+
+### 8.1 基线与证据边界
+
+- 审计基线：`c83226ff87c8ecb868277d9ca5bce575b4684abc`，本节行号均对应该提交。
+- 已完成：本地生产 Java 源码扫描、关键服务与既有测试源码检查。
+- 未完成：本节未运行完整 Gradle 测试、生产数据库 dry-run、Paper 真人流程、PostgreSQL 故障注入。
+- 历史报告中的 `BUILD SUCCESSFUL`、局域网运行日志和阶段完成描述，属于其各自快照，不作为本基线新取得的 `[T][R][H]` 证据。
+- 本节及本轮国际化工作不修改成长数值、数据库结构或玩家资产。
+
+### 8.2 五项历史缺陷的当前状态
+
+| 历史问题 | 当前源码事实 `[S]` | 证据与仍需验证项 |
+|---|---|---|
+| `levelCap` 随转数返回 30/60/90/120 | `LOCAL_LEVEL_CAP=30`，合法转数下 `levelCap()` 始终返回 30 | `ProgressionRules.java:8,64–68`；已有 `ProgressionRulesTest`，本次未重跑 |
+| 有效等级超过 120、晋升后回退 | `effectiveLevel(ascension, localLevel)` 检查 0–3 转、1–30 本地等级；`PlayerProfile.effectiveLevel()` 委托此方法 | `ProgressionRules.java:53–60`、`PlayerProfile.java:30–32`；非法旧档仍需人工审查 |
+| 经验由有效等级平方叠加转数倍率膨胀 | 四段名义预算 280k/450k/700k/1050k，29 次本地升级按权重分配；累计经验使用逐级实走和 | `ProgressionRules.java:31,138–189`；名义预算与取整后实走和允许有微小差异，不能混用 |
+| 技能点重算导致重复或漏发 | 本地 3/6/.../30 共十个里程碑；幂等键包含玩家、转数、档位，数据库插入成功才加点 | `ProgressionRules.java:82–129`、`JdbcProfileService.java:565–623`；不是旧文档中的 `effective/3` 差分 |
+| `ProfileService.ascend()` 简化旁路 | 接口和 `JdbcProfileService` 均已无该方法；职业命令调用 `AscensionService`，事务内检查条件并更新档案 | `RpgClassesPlugin.java:429`、`JdbcAscensionService.java:60–135`；接口 Javadoc 中残留的旧名称不是可调用入口 |
+
+源码入口：
+[ProgressionRules](../../plugins/rpg-api/src/main/java/cn/originalrpg/api/rules/ProgressionRules.java)、
+[PlayerProfile](../../plugins/rpg-api/src/main/java/cn/originalrpg/api/model/PlayerProfile.java)、
+[ProfileService](../../plugins/rpg-api/src/main/java/cn/originalrpg/api/service/ProfileService.java)、
+[JdbcProfileService](../../plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcProfileService.java)、
+[JdbcAscensionService](../../plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcAscensionService.java)。
+
+### 8.3 当前调用点清单
+
+以下是生产源码扫描后的语义分组；测试文件单独检查，不计入扫描计数。`ascend(` 的六条命中包含一条 Javadoc，实际入口并未因此增加。
+
+| 扫描表达式 | 命中行数 | 文件数 |
+|---|---:|---:|
+| `ProgressionRules\.levelCap` | 10 | 8 |
+| `ProgressionRules\.experienceToNextLevel` | 5 | 4 |
+| `effectiveLevel\(\)` | 29 | 14 |
+| `\bascend\(` | 6 | 3 |
+
+复核命令（在仓库根运行；只读）：
+
+```bash
+rg -n 'ProgressionRules\.levelCap' plugins -g '*.java' -g '!**/src/test/**'
+rg -n 'ProgressionRules\.experienceToNextLevel' plugins -g '*.java' -g '!**/src/test/**'
+rg -n 'effectiveLevel\(\)' plugins -g '*.java' -g '!**/src/test/**'
+rg -n '\bascend\(' plugins -g '*.java' -g '!**/src/test/**'
+```
+
+| 文件与基线行号 | 当前语义 | 复核结果 |
+|---|---|---|
+| `rpg-core/.../JdbcProfileService.java:768–799` | 本地升级循环与本地 30 级封顶 | 已与新模型一致；最高转剩余 XP 见 8.5 |
+| `rpg-core/.../JdbcDungeonRewardService.java:140–144` | 在副本事务内复用档案升级/里程碑结算 | 没有第二套等级计算；附近旧注释仍称 receipt 为档位幂等键，应以被调用实现为准 |
+| `rpg-core/.../JdbcAscensionService.java:101,125–131` | 本地满级后晋升，新段本地等级为 1 | 有效等级衔接由统一规则保证 |
+| `rpg-classes/.../RpgClassesPlugin.java:429,568` | 单一晋升服务、本地等级上限 | 未发现简化旁路调用 |
+| `rpg-mobs/.../AdaptiveMobSafetyRules.java:33` | 最大开放转数 × 30 + 本地上限 | 这里得到 30/60/90/120 是有效上限，不能误改成固定 30 |
+| `rpg-mobs/.../listener/AdaptiveMobListener.java:229–253,360` | 怪物缩放与掉落门槛使用有效等级 | 输入来自 `PlayerProfile.effectiveLevel()` |
+| `rpg-mobs/.../MobGuideRules.java:70–75` | 有效等级用于怪物建议，本地等级用于满级/经验提示 | 两种语义已分开 |
+| `rpg-mobs/.../DelayedMobRewardQueue.java:152,316` | 自定义掉落的等级差门槛 | 使用有效等级 |
+| `rpg-mobs/.../ExperienceWriteBuffer.java:335,348` | 经验反馈的满级判断与下级所需经验 | 使用本地等级 |
+| `rpg-dungeons/.../DungeonCommand.java:182` | 全队副本最低等级 | 使用有效等级 |
+| `rpg-skills/.../SkillBookListener.java:79` | 技能书最低等级 | 使用有效等级 |
+| `rpg-community/.../CommunityCommand.java:431`、`RpgCommunityPlugin.java:145` | 师徒资格 | 使用有效等级 |
+| `rpg-community/.../AccountCommand.java:176` | 账号快照展示 | 使用有效等级 |
+| `rpg-guide/.../GuideCommand.java:226–229,592,1356–1394,1555–1592` | 本地升级/晋升提示与有效等级副本门槛 | 语义按用途分开，仍需双语客户端流程验收 |
+| `rpg-world/.../WorldEventListener.java:324,412,829` | 技能掉落、战斗等级差与队伍最低等级 | 使用有效等级 |
+| `rpg-economy/.../EconomicActivityListener.java:206,460` | 狩猎资格与审计来源 | 使用有效等级 |
+| `rpg-integrations/.../SivitaPlaceholderExpansion.java:103–107` | `local_level` 与 `effective_level` 两套明确显示字段 | 旧 `level` 仍是本地等级别名；不应解释为有效等级 |
+| `rpg-core/.../command/RpgCommand.java:132–148` | 本地满级、阶段经验与全程累计经验 | 使用统一规则；官网不在本仓库，未验证网站展示 |
+
+### 8.4 迁移状态与建议验证
+
+当前已有 `rpg_progression_anomalies` 数据表、`JdbcProgressionAnomalyService` 和只读迁移脚本；不能再以“需要新增异常表”概括当前缺口。`JdbcProfileService.java:701–733` 会记录不可解释档案，且清除旧复核签名，避免旧结论替新异常背书。
+
+本轮未连接生产数据库，**没有得出异常档案数为零的结论**。对授权的数据库副本，先按第 3 节执行只读统计，再以当前 `ProgressionRules.classifyAnomaly` 口径复核；固定 `experience > 1000000` 只是历史筛选条件，不能替代按转数的当前规则。继续禁止 `level % 30` 猜测迁移。
+
+当前 Gradle 项目路径带 `:plugins:` 前缀；第 7 节保留的历史命令不是本仓库正确路径。当前针对性命令为：
+
+```bash
+./gradlew :plugins:rpg-api:test --tests '*ProgressionRulesTest*'
+./gradlew :plugins:rpg-core:test --tests '*JdbcServicesTest*' --tests '*JdbcProgressionAnomalyServiceTest*'
+```
+
+上述命令要求项目指定的 JDK 25 与依赖；列出命令不代表本次已执行。
+
+### 8.5 仍需单独回归的当前边界
+
+最高转满级后的经验处理存在静态口径不一致，需在成长 Phase 的独立变更中验证：
+
+- `JdbcProfileService.java:784–790` 对三转本地 30 级使用 `Long.MAX_VALUE`，不会像较低转数那样钳制剩余 XP；后续合法经验仍可累计。
+- `ProgressionRules.java:250–251` 对所有合法等级使用“本转逐级经验和 + 1”作为异常检测上界。
+- 因此三转满级后持续累计的合法 XP 可能进入 `experience-jump` 人工复核队列。这是源码推导，**本轮未做 JDBC/真人复现**，不能混同为已经发生的数据事故。
+- 建议用正常 `grantExperience` 与副本结算分别覆盖三转 30 级后累计经验的边界，再明确满级经验究竟是丢弃、封顶还是历史累计；在设计决定前不自动修复旧档。
+
+本轮已完成的是更新审计证据与语义说明，不改变上述运行行为。

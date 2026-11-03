@@ -26,9 +26,18 @@ for arg in "$@"; do
     case "$arg" in
         --force) FORCE=1 ;;
         --check) CHECK_ONLY=1 ;;
-        *) echo "fetch-deps: 未知参数 $arg" >&2; exit 2 ;;
+        --help|-h)
+            echo "Usage: sh scripts/fetch-deps.sh [--check | --force]"
+            echo "  --check  Verify local dependencies without downloads or file changes."
+            echo "  --force  Download fresh copies; replace each file only after verification."
+            exit 0 ;;
+        *) echo "fetch-deps: unknown argument: $arg" >&2; exit 2 ;;
     esac
 done
+if [ "$FORCE" -eq 1 ] && [ "$CHECK_ONLY" -eq 1 ]; then
+    echo "fetch-deps: --force and --check are mutually exclusive" >&2
+    exit 2
+fi
 
 # 仓库根目录：本脚本在 scripts/ 下
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -36,7 +45,18 @@ ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 LIB_DIR="$ROOT/libs"
 VENDOR_DIR="$LIB_DIR/vendor"
 
-mkdir -p "$LIB_DIR"
+if [ "$CHECK_ONLY" -eq 0 ]; then mkdir -p "$LIB_DIR"; fi
+
+# Downloads stay beside their destination so a successful rename is atomic.
+# A failed download/check never removes the previously installed dependency.
+ACTIVE_DOWNLOAD=""
+cleanup_download() {
+    if [ -n "$ACTIVE_DOWNLOAD" ]; then rm -f -- "$ACTIVE_DOWNLOAD"; fi
+}
+trap cleanup_download 0
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # ---------------------------------------------------------------- 工具函数
 
@@ -62,7 +82,7 @@ PY
     elif have wget; then
         wget -q -O "$2" --user-agent="sivitahub-fetch-deps/1" "$1"
     else
-        echo "fetch-deps: 没有可用的下载器（python3 / curl / wget 全缺）" >&2
+        echo "fetch-deps: no downloader found (install python3, curl, or wget)" >&2
         return 1
     fi
 }
@@ -76,10 +96,10 @@ download() {
     while [ "$_attempt" -lt 4 ]; do
         _attempt=$((_attempt + 1))
         if download_once "$1" "$2"; then
-            [ "$_attempt" -gt 1 ] && echo "fetch-deps: [RETRY OK] 第 $_attempt 次成功：$1"
+            [ "$_attempt" -gt 1 ] && echo "fetch-deps: [RETRY OK] attempt $_attempt succeeded: $1"
             return 0
         fi
-        echo "fetch-deps: 下载失败（第 $_attempt/4 次）：$1" >&2
+        echo "fetch-deps: download failed (attempt $_attempt/4): $1" >&2
         if [ "$_attempt" -lt 4 ]; then sleep $((_attempt * 5)); fi
     done
     return 1
@@ -94,7 +114,7 @@ hash_of() {
     elif have python3; then
         python3 -c "import hashlib,sys;a=sys.argv[1];d=open(sys.argv[2],'rb').read();print(hashlib.new(a,d).hexdigest())" "$1" "$2"
     else
-        echo "fetch-deps: 没有 sha1sum/sha256sum 也没有 python3，无法校验" >&2
+        echo "fetch-deps: sha1sum/sha256sum or python3 is required to verify files" >&2
         return 1
     fi
 }
@@ -105,15 +125,15 @@ verify() {
     got256=$(hash_of sha256 "$f")
     got1=$(hash_of sha1 "$f")
     if [ "$got256" != "$want256" ]; then
-        echo "fetch-deps: [$name] sha256 不匹配" >&2
-        echo "  期望 $want256" >&2
-        echo "  实际 $got256" >&2
+        echo "fetch-deps: [$name] SHA-256 mismatch" >&2
+        echo "  expected $want256" >&2
+        echo "  actual   $got256" >&2
         return 1
     fi
     if [ "$got1" != "$want1" ]; then
-        echo "fetch-deps: [$name] sha1 不匹配" >&2
-        echo "  期望 $want1" >&2
-        echo "  实际 $got1" >&2
+        echo "fetch-deps: [$name] SHA-1 mismatch" >&2
+        echo "  expected $want1" >&2
+        echo "  actual   $got1" >&2
         return 1
     fi
     return 0
@@ -123,29 +143,50 @@ verify() {
 fetch() {
     name="$1"; url="$2"; want256="$3"; want1="$4"
     dest="$LIB_DIR/$name"
-    if [ "$FORCE" -eq 0 ] && [ -f "$dest" ]; then
+    if [ "$CHECK_ONLY" -eq 1 ]; then
+        if [ ! -f "$dest" ]; then
+            echo "fetch-deps: [MISS ] $name (offline check; no files changed)" >&2
+            return 1
+        fi
         if verify "$dest" "$want256" "$want1" "$name"; then
-            echo "fetch-deps: [OK   ] $name（已存在，校验通过）"
+            echo "fetch-deps: [OK   ] $name (verified)"
             return 0
         fi
-        echo "fetch-deps: [REDO ] $name 本地校验失败，重新下载"
-        rm -f "$dest"
+        echo "fetch-deps: [FAIL ] $name (checksum mismatch; file preserved)" >&2
+        return 1
     fi
-    if [ "$CHECK_ONLY" -eq 1 ]; then
-        echo "fetch-deps: [MISS ] $name（--check 模式下不存在）" >&2
+    if [ "$FORCE" -eq 0 ] && [ -f "$dest" ]; then
+        if verify "$dest" "$want256" "$want1" "$name"; then
+            echo "fetch-deps: [OK   ] $name (already present and verified)"
+            return 0
+        fi
+        echo "fetch-deps: [REDO ] $name (replacing only after a verified download)"
+    fi
+    if [ -d "$dest" ]; then
+        echo "fetch-deps: destination is a directory: $dest" >&2
         return 1
     fi
     echo "fetch-deps: [GET  ] $name <- $url"
-    if ! download "$url" "$dest"; then
-        echo "fetch-deps: [$name] 下载失败：$url" >&2
-        rm -f "$dest"
+    ACTIVE_DOWNLOAD=$(mktemp "$dest.part.XXXXXX") || return 1
+    if ! download "$url" "$ACTIVE_DOWNLOAD"; then
+        echo "fetch-deps: [$name] download failed; previous file preserved" >&2
+        cleanup_download
+        ACTIVE_DOWNLOAD=""
         return 1
     fi
-    if ! verify "$dest" "$want256" "$want1" "$name"; then
-        rm -f "$dest"
+    if ! verify "$ACTIVE_DOWNLOAD" "$want256" "$want1" "$name"; then
+        cleanup_download
+        ACTIVE_DOWNLOAD=""
         return 1
     fi
-    echo "fetch-deps: [OK   ] $name（校验通过）"
+    if ! mv -f -- "$ACTIVE_DOWNLOAD" "$dest"; then
+        echo "fetch-deps: [$name] cannot replace destination; previous file preserved" >&2
+        cleanup_download
+        ACTIVE_DOWNLOAD=""
+        return 1
+    fi
+    ACTIVE_DOWNLOAD=""
+    echo "fetch-deps: [OK   ] $name (downloaded and verified)"
     return 0
 }
 
@@ -219,10 +260,10 @@ fetch "BetonQuest-3.1.0.jar" \
 check_vendor() {
     name="$1"; dest="$VENDOR_DIR/$name"
     if [ -f "$dest" ]; then
-        echo "fetch-deps: [OK   ] vendor/$name（本地产物，脚本不校验）"
+        echo "fetch-deps: [OK   ] vendor/$name (present; run check-smoke-lock.py to verify vendor hashes)"
     else
         echo "fetch-deps: [MISS ] vendor/$name" >&2
-        echo "          这是 Sivita 自改版，公网不可得。请从生产机取回：" >&2
+        echo "          this pinned local build is missing; see vendor provenance:" >&2
         echo "          see libs/vendor/README.md" >&2
         FAILED="$FAILED vendor/$name"
     fi
@@ -235,7 +276,7 @@ check_vendor "worldguard-bukkit-7.0.18-Sivita.jar"
 # ---------------------------------------------------------------- 结果
 
 if [ -n "$FAILED" ]; then
-    echo "fetch-deps: 失败条目：$FAILED" >&2
+    echo "fetch-deps: failed dependencies:$FAILED" >&2
     exit 1
 fi
-echo "fetch-deps: 全部就绪（libs/ 5 个公开源 artifact + vendor 4 个本地取回）"
+echo "fetch-deps: ready (5 verified public artifacts + 4 local vendor files; verify vendor hashes separately)"
