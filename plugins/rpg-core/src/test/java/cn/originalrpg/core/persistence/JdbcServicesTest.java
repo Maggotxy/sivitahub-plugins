@@ -192,6 +192,7 @@ class JdbcServicesTest {
                         item_payload TEXT NOT NULL, price DECIMAL(19, 2) NOT NULL,
                         fee_rate DECIMAL(8, 6) NOT NULL, state VARCHAR(16) NOT NULL,
                         buyer_uuid VARCHAR(36), item_identity VARCHAR(36), open_item_identity VARCHAR(36),
+                        item_matcher VARCHAR(64), item_quantity INTEGER NOT NULL DEFAULT 0, crafter_uuid VARCHAR(36),
                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         completed_at TIMESTAMP NULL
                     )

@@ -7,6 +7,7 @@ import cn.originalrpg.api.model.MarketDelivery;
 import cn.originalrpg.api.model.BuyOrderOperationResult;
 import cn.originalrpg.api.model.MarketListing;
 import cn.originalrpg.api.model.MarketOrder;
+import cn.originalrpg.api.model.MarketGoods;
 import cn.originalrpg.api.model.MarketOperationResult;
 import cn.originalrpg.api.service.EquipmentService;
 import cn.originalrpg.api.service.EquipmentProgressService;
@@ -125,7 +126,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             case "mine" -> mine(player);
             case "buy" -> confirmPurchase(player, parseId(player, args), 0, null);
             case "cancel" -> confirmCancellation(player, parseId(player, args));
-            case "buyorder" -> buyOrder(player, args);
+            case "buyorder", "craftorder" -> buyOrder(player, args);
             case "claim" -> claim(player);
             case "stall" -> stall(player, args);
             default -> false;
@@ -335,6 +336,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         }
 
         UUID listingId = UUID.randomUUID();
+        var matchingGoods = MarketGoodsCapture.capture(item, equipment);
         preparingListings.put(player.getUniqueId(), listingId);
         meta = item.getItemMeta();
         meta.getPersistentDataContainer().set(listingMarker, PersistentDataType.STRING, listingId.toString());
@@ -345,7 +347,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
                 custom ? "fees.custom-equipment" : "fees.normal", custom ? "0.10" : "0.05"));
         int maximumOpen = Math.clamp(plugin.getConfig().getInt("listing.maximum-open-per-player", 12), 1, 100);
         market.prepare(listingId, player.getUniqueId(), payload, price, feeRate, maximumOpen,
-                        custom ? equipment.itemId(item) : java.util.Optional.empty())
+                        custom ? equipment.itemId(item) : java.util.Optional.empty(), matchingGoods)
                 .whenComplete((result, error) -> sync(() -> completePreparation(player, listingId, result, error)));
         return true;
     }
@@ -608,7 +610,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
     /**
      * Phase 4 买单簿入口。买走的是 {@code rpg_market_buy_orders}，结算与交付仍走
      * 与卖单同一套 {@code rpg_ledger} / {@code rpg_market_deliveries}（C-009 单一托管）。
-     * 这里只暴露「挂 / 查 / 撤」三条玩家可达路径，撮合由卖家侧流程在服务层调用。
+     * Matching consumes an existing ACTIVE listing; the confirmation displays
+     * the actual quantity and tax-inclusive quote before any funds move.
      */
     private boolean buyOrder(Player player, String[] args) {
         if (args.length < 2) {
@@ -619,6 +622,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             case "place" -> placeBuyOrder(player, args);
             case "list" -> listBuyOrders(player, args);
             case "cancel" -> cancelBuyOrder(player, args);
+            case "fill" -> confirmOrderFill(player, args);
+            case "mine" -> ownBuyOrders(player);
             default -> {
                 player.sendMessage(Component.text(
                         messages.text(player, "market.buy-order-usage"), NamedTextColor.YELLOW));
@@ -634,7 +639,11 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             return true;
         }
         String matcher = args[2] == null ? "" : args[2].strip().toLowerCase(Locale.ROOT);
-        if (!matcher.matches("[a-z0-9_.:-]{1,64}")) {
+        MarketOrder.Kind kind = args[0].equalsIgnoreCase("craftorder") ? MarketOrder.Kind.CRAFT : MarketOrder.Kind.BUY;
+        Material vanilla = matcher.startsWith("minecraft:") ? Material.matchMaterial(matcher) : null;
+        if (!MarketGoods.validMatcher(matcher)
+                || kind == MarketOrder.Kind.CRAFT && !MarketGoods.equipmentMatcher(matcher)
+                || matcher.startsWith("minecraft:") && (vanilla == null || !vanilla.isItem() || vanilla.isAir())) {
             player.sendMessage(Component.text(
                     messages.text(player, "market.buy-order-invalid-matcher"), NamedTextColor.RED));
             return true;
@@ -655,7 +664,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         UUID orderId = UUID.randomUUID();
         // 幂等键与订单 id 绑死：同一次下单重放不会二次托管。
         String idempotencyKey = "buy-order-place:" + orderId;
-        buyOrders.place(orderId, player.getUniqueId(), matcher, price, quantity, idempotencyKey)
+        buyOrders.place(orderId, player.getUniqueId(), matcher, price, quantity, kind, idempotencyKey)
                 .whenComplete((result, error) -> sync(() -> {
                     if (!ready(player)) return;
                     if (error != null || result.status() != BuyOrderOperationResult.Status.SUCCESS) {
@@ -672,7 +681,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
     private boolean listBuyOrders(Player player, String[] args) {
         String matcher = args.length >= 3 && !args[2].isBlank()
                 ? args[2].strip().toLowerCase(Locale.ROOT) : null;
-        buyOrders.activeOrders(matcher, 20).whenComplete((orders, error) -> sync(() -> {
+        MarketOrder.Kind kind = args[0].equalsIgnoreCase("craftorder") ? MarketOrder.Kind.CRAFT : MarketOrder.Kind.BUY;
+        buyOrders.activeOrders(matcher, kind, 20).whenComplete((orders, error) -> sync(() -> {
             if (!ready(player)) return;
             if (error != null) {
                 player.sendMessage(Component.text(messages.text(player, "market.load-failed"), NamedTextColor.RED));
@@ -688,11 +698,96 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             for (MarketOrder order : orders) {
                 player.sendMessage(Component.text(messages.text(player, "market.buy-order-list-entry", Map.of(
                         "id", order.orderId(), "price", order.price(),
-                        "quantity", order.quantity(), "status", order.status())), NamedTextColor.WHITE));
+                        "quantity", order.quantity(), "status", order.status(),
+                        "matcher", order.itemMatcher(), "kind", order.kind())), NamedTextColor.WHITE));
             }
         }));
         return true;
     }
+
+    private boolean ownBuyOrders(Player player) {
+        buyOrders.ownOrders(player.getUniqueId(), 100).whenComplete((orders, error) -> sync(() -> {
+            if (!ready(player)) return;
+            if (error != null) {
+                player.sendMessage(Component.text(messages.text(player, "market.load-failed"), NamedTextColor.RED));
+                return;
+            }
+            player.sendMessage(Component.text(messages.text(player, "market.buy-order-list-title",
+                    Map.of("count", orders.size())), NamedTextColor.GOLD));
+            for (MarketOrder order : orders) player.sendMessage(Component.text(messages.text(player,
+                    "market.buy-order-list-entry", Map.of("id", order.orderId(), "price", order.price(),
+                            "quantity", order.quantity(), "status", order.status(),
+                            "matcher", order.itemMatcher(), "kind", order.kind())), NamedTextColor.WHITE));
+        }));
+        return true;
+    }
+
+    private boolean confirmOrderFill(Player player, String[] args) {
+        if (args.length != 4) {
+            player.sendMessage(Component.text(messages.text(player, "market.order-fill-usage"), NamedTextColor.YELLOW));
+            return true;
+        }
+        UUID orderId;
+        UUID listingId;
+        try {
+            orderId = UUID.fromString(args[2]);
+            listingId = UUID.fromString(args[3]);
+        } catch (IllegalArgumentException exception) {
+            player.sendMessage(Component.text(messages.text(player, "market.id-invalid"), NamedTextColor.RED));
+            return true;
+        }
+        buyOrders.order(orderId).thenCombine(market.listing(listingId), (order, listing) ->
+                new OrderFillPreview(order.orElse(null), listing.orElse(null)))
+                .whenComplete((preview, error) -> sync(() -> {
+                    if (!ready(player)) return;
+                    MarketOrder order = error == null ? preview.order() : null;
+                    MarketListing listing = error == null ? preview.listing() : null;
+                    MarketGoods goods = listing == null ? null : listing.goods().orElse(null);
+                    if (order == null || listing == null || goods == null
+                            || !listing.sellerId().equals(player.getUniqueId())
+                            || listing.state() != MarketListing.State.ACTIVE || !MarketOrder.ACTIVE.equals(order.status())
+                            || order.buyerId().equals(player.getUniqueId())
+                            || !order.itemMatcher().equals(goods.matcher()) || goods.quantity() > order.quantity()
+                            || order.kind() == MarketOrder.Kind.CRAFT && !player.getUniqueId().equals(goods.crafterId())) {
+                        player.sendMessage(Component.text(messages.text(player, "market.order-fill-no-match"), NamedTextColor.RED));
+                        return;
+                    }
+                    BigDecimal gross = BigDecimal.valueOf(order.price()).multiply(BigDecimal.valueOf(goods.quantity()));
+                    BigDecimal fee = gross.multiply(listing.feeRate()).setScale(2, java.math.RoundingMode.HALF_UP);
+                    Dialog dialog = Dialog.create(builder -> builder.empty()
+                            .base(DialogBase.builder(Component.text(messages.text(player, "market.order-fill-title")))
+                                    .body(List.of(DialogBody.plainMessage(Component.text(messages.text(player,
+                                            "market.order-fill-summary", Map.of("matcher", goods.matcher(),
+                                                    "quantity", goods.quantity(), "gross", gross.toPlainString(),
+                                                    "fee", fee.toPlainString(), "payout", gross.subtract(fee).toPlainString()))))))
+                                    .build())
+                            .type(DialogType.confirmation(
+                                    ActionButton.builder(Component.text(messages.text(player, "market.order-fill-confirm"), NamedTextColor.GREEN))
+                                            .action(DialogAction.customClick((response, audience) -> {
+                                                if (audience instanceof Player seller && seller.getUniqueId().equals(player.getUniqueId())) {
+                                                    sync(() -> { if (ready(seller)) executeOrderFill(seller, orderId, listingId); });
+                                                }
+                                            }, callbackOptions())).build(),
+                                    ActionButton.create(Component.text(messages.text(player, "common.cancel")),
+                                            Component.empty(), 120, null))));
+                    player.showDialog(dialog);
+                }));
+        return true;
+    }
+
+    private void executeOrderFill(Player player, UUID orderId, UUID listingId) {
+        buyOrders.fillListing(orderId, player.getUniqueId(), listingId, "buy-order-fill:" + orderId + ":" + listingId)
+                .whenComplete((result, error) -> sync(() -> {
+                    if (!ready(player)) return;
+                    boolean success = error == null && (result.status() == BuyOrderOperationResult.Status.SUCCESS
+                            || result.status() == BuyOrderOperationResult.Status.DUPLICATE);
+                    player.sendMessage(Component.text(messages.text(player, success ? "market.order-fill-success"
+                            : "market.order-fill-failed", Map.of("status", error == null ? result.status() : "DATABASE")),
+                            success ? NamedTextColor.GREEN : NamedTextColor.RED));
+                }));
+    }
+
+    private record OrderFillPreview(MarketOrder order, MarketListing listing) { }
 
     private boolean cancelBuyOrder(Player player, String[] args) {
         if (args.length != 3) {
@@ -1064,15 +1159,15 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return List.of("sell", "list", "mine", "buy", "cancel", "buyorder", "claim", "stall").stream()
+            return List.of("sell", "list", "mine", "buy", "cancel", "buyorder", "craftorder", "claim", "stall").stream()
                     .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("stall")) {
             return List.of("create", "remove").stream()
                     .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
         }
-        if (args.length == 2 && args[0].equalsIgnoreCase("buyorder")) {
-            return List.of("place", "list", "cancel").stream()
+        if (args.length == 2 && (args[0].equalsIgnoreCase("buyorder") || args[0].equalsIgnoreCase("craftorder"))) {
+            return List.of("place", "list", "mine", "fill", "cancel").stream()
                     .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT))).toList();
         }
         return List.of();

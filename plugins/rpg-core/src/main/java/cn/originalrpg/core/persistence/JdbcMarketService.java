@@ -3,6 +3,7 @@ package cn.originalrpg.core.persistence;
 import cn.originalrpg.api.model.MarketDelivery;
 import cn.originalrpg.api.model.MarketListing;
 import cn.originalrpg.api.model.MarketOperationResult;
+import cn.originalrpg.api.model.MarketGoods;
 import cn.originalrpg.api.service.MarketService;
 
 import javax.sql.DataSource;
@@ -61,10 +62,13 @@ public final class JdbcMarketService implements MarketService {
             BigDecimal price,
             BigDecimal feeRate,
             int maximumOpenListings,
-            Optional<UUID> itemIdentity
+            Optional<UUID> itemIdentity,
+            Optional<MarketGoods> goods
     ) {
         if (!validListingInput(listingId, sellerId, itemPayload, price, feeRate)
-                || maximumOpenListings < 1 || maximumOpenListings > 100 || itemIdentity == null) {
+                || maximumOpenListings < 1 || maximumOpenListings > 100 || itemIdentity == null || goods == null
+                || goods.isPresent() && (MarketGoods.equipmentMatcher(goods.get().matcher()) != itemIdentity.isPresent())
+                || itemIdentity.isPresent() && feeRate.compareTo(new BigDecimal("0.10")) < 0) {
             return completed(MarketOperationResult.Status.INVALID, null, BigDecimal.ZERO);
         }
         if (!escrowEnabled()) {
@@ -92,8 +96,9 @@ public final class JdbcMarketService implements MarketService {
             }
             try (PreparedStatement insert = connection.prepareStatement("""
                     INSERT INTO rpg_market_listings
-                    (id, seller_uuid, item_payload, price, fee_rate, state, item_identity, open_item_identity)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING
+                    (id, seller_uuid, item_payload, price, fee_rate, state, item_identity, open_item_identity,
+                     item_matcher, item_quantity, crafter_uuid)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING
                     """)) {
                 insert.setString(1, listingId.toString());
                 insert.setString(2, sellerId.toString());
@@ -104,6 +109,9 @@ public final class JdbcMarketService implements MarketService {
                 String identity = itemIdentity.map(UUID::toString).orElse(null);
                 insert.setString(7, identity);
                 insert.setString(8, identity);
+                insert.setString(9, goods.map(MarketGoods::matcher).orElse(null));
+                insert.setInt(10, goods.map(MarketGoods::quantity).orElse(0));
+                insert.setString(11, goods.map(MarketGoods::crafterId).map(UUID::toString).orElse(null));
                 if (insert.executeUpdate() != 1) {
                     MarketListing replayed = selectListing(connection, listingId, false);
                     if (replayed != null) return new MarketOperationResult(
@@ -497,6 +505,8 @@ public final class JdbcMarketService implements MarketService {
     private MarketListing mapListing(ResultSet result) throws SQLException {
         String buyer = result.getString("buyer_uuid");
         Timestamp completed = result.getTimestamp("completed_at");
+        String matcher = result.getString("item_matcher");
+        String crafter = result.getString("crafter_uuid");
         return new MarketListing(
                 UUID.fromString(result.getString("id")),
                 UUID.fromString(result.getString("seller_uuid")),
@@ -506,7 +516,9 @@ public final class JdbcMarketService implements MarketService {
                 MarketListing.State.valueOf(result.getString("state")),
                 buyer == null ? null : UUID.fromString(buyer),
                 result.getTimestamp("created_at").toInstant(),
-                completed == null ? null : completed.toInstant()
+                completed == null ? null : completed.toInstant(),
+                matcher == null ? Optional.empty() : Optional.of(new MarketGoods(matcher,
+                        result.getInt("item_quantity"), crafter == null ? null : UUID.fromString(crafter)))
         );
     }
 
