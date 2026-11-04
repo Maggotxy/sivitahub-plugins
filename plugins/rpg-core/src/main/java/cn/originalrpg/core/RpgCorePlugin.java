@@ -106,6 +106,9 @@ import cn.originalrpg.core.persistence.JdbcCommunityStorageService;
 import cn.originalrpg.api.service.CivilizationHistoryService;
 import cn.originalrpg.core.persistence.JdbcCivilizationHistoryService;
 
+import cn.originalrpg.api.service.FieldJournalService;
+import cn.originalrpg.core.persistence.JdbcFieldJournalService;
+
 public final class RpgCorePlugin extends JavaPlugin {
     private Database database;
     private cn.originalrpg.core.persistence.MechanismRegistry mechanisms;
@@ -192,6 +195,7 @@ public final class RpgCorePlugin extends JavaPlugin {
             JdbcProfileService profiles = new JdbcProfileService(
                     database.dataSource(), databaseExecutor, startingEnergy, energyPerStamina,
                     chapters::maximumOpenAscension);
+            var fieldJournal = new JdbcFieldJournalService(database.dataSource(), databaseExecutor);
             JdbcEconomyService economy = new JdbcEconomyService(database.dataSource(), databaseExecutor, startingBalance);
             JdbcActivityEconomyService activityEconomy = new JdbcActivityEconomyService(
                     database.dataSource(), databaseExecutor, startingBalance, mechanisms);
@@ -287,6 +291,7 @@ public final class RpgCorePlugin extends JavaPlugin {
                         + " unfinished dungeon energy reservations (" + recoveredEntries.energy() + " energy restored).");
             }
             getServer().getServicesManager().register(ProfileService.class, profiles, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(FieldJournalService.class, fieldJournal, this, ServicePriority.Normal);
             getServer().getServicesManager().register(EconomyService.class, economy, this, ServicePriority.Normal);
             getServer().getServicesManager().register(ActivityEconomyService.class, activityEconomy, this, ServicePriority.Normal);
             getServer().getServicesManager().register(

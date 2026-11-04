@@ -1,5 +1,7 @@
 package cn.originalrpg.skills;
 
+import cn.originalrpg.api.rules.CombatTargetRules;
+
 import cn.originalrpg.api.event.AuthenticatedPlayerReadyEvent;
 import cn.originalrpg.api.event.AuthenticatedPlayerRevokedEvent;
 import cn.originalrpg.api.model.Archetype;
@@ -425,8 +427,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                 SkillMutationRules.HealPlan plan = SkillMutationRules.heal(progress.variant());
                 double equipmentMultiplier = healingMultiplier(profile, traits);
                 if (plan.damaging()) {
-                    org.bukkit.entity.Monster target = player.getWorld().getNearbyEntitiesByType(
-                                    org.bukkit.entity.Monster.class, player.getLocation(), plan.radius()).stream()
+                    org.bukkit.entity.Mob target = CombatTargetRules.nearbyPveTargets(player.getLocation(), plan.radius()).stream()
                             .min(java.util.Comparator.comparingDouble(monster -> monster.getLocation()
                                     .distanceSquared(player.getLocation())))
                             .orElse(null);
@@ -548,7 +549,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                         progress.variant(), borrowed, mastered,
                         plugin.getConfig().getInt("equipment-effects.borrowed-skill.duration-ticks", 60),
                         plugin.getConfig().getInt("equipment-effects.mastered-shadow-step.duration-ticks", 140));
-                LivingEntity target = aimedPvpOrNearestMonster(player, plan.radius());
+                LivingEntity target = aimedPvpOrNearestTarget(player, plan.radius());
                 if (target != null) {
                     double damage = plan.markedStrike() ? plan.damage() : Math.max(5.0, plan.damage() * 0.65);
                     mechanics.shadowStep(player, target, damage * powerMultiplier, id);
@@ -561,7 +562,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                 }
             }
             case "venom-blade" -> {
-                LivingEntity target = aimedPvpOrNearestMonster(player, 6.0);
+                LivingEntity target = aimedPvpOrNearestTarget(player, 6.0);
                 if (target == null) return noTarget(player);
                 int stacks = mechanics.venomBlade(player, target, 6.0 * powerMultiplier, id);
                 debuff(target, PotionEffectType.POISON, 50 + stacks * 10, 0);
@@ -573,8 +574,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                 mechanics.smokeBomb(player, 8.0);
             }
             case "toxic-burst" -> {
-                List<org.bukkit.entity.Monster> targets = List.copyOf(player.getWorld()
-                        .getNearbyEntitiesByType(org.bukkit.entity.Monster.class, player.getLocation(), 7.0));
+                List<org.bukkit.entity.Mob> targets = CombatTargetRules.nearbyPveTargets(player.getLocation(), 7.0);
                 if (targets.isEmpty()) return noTarget(player);
                 mechanics.toxicBurst(player, 7.0, 4.5 * powerMultiplier, id);
             }
@@ -588,13 +588,12 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                     mechanics.trailProjectile(player, fireball, org.bukkit.Particle.FLAME,
                             org.bukkit.Color.fromRGB(255, 102, 35), 50);
                 } else {
-                    List<org.bukkit.entity.Monster> targets = player.getWorld().getNearbyEntitiesByType(
-                                    org.bukkit.entity.Monster.class, player.getLocation(), plan.radius()).stream()
+                    List<org.bukkit.entity.Mob> targets = CombatTargetRules.nearbyPveTargets(player.getLocation(), plan.radius()).stream()
                             .sorted(java.util.Comparator.comparingDouble(monster -> monster.getLocation()
                                     .distanceSquared(player.getLocation())))
                             .limit(plan.maximumTargets()).toList();
                     if (targets.isEmpty()) return noTarget(player);
-                    for (org.bukkit.entity.Monster target : targets) {
+                    for (org.bukkit.entity.Mob target : targets) {
                         skillDamage(player, target, plan.damage() * powerMultiplier, id);
                         debuff(target, PotionEffectType.SLOWNESS, plan.slownessTicks(), 0);
                         visuals.impact(player, target.getLocation().add(0, 1, 0),
@@ -699,7 +698,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                 mechanics.lifeThread(player, () -> nearbyAllies(player, 12.0), amount);
             }
             case "omen-reversal" -> {
-                LivingEntity target = aimedPvpOrNearestMonster(player, 12.0);
+                LivingEntity target = aimedPvpOrNearestTarget(player, 12.0);
                 if (target == null) return noTarget(player);
                 skillDamage(player, target, 16.0 * powerMultiplier, id);
                 debuff(target, PotionEffectType.WEAKNESS, 200, 1);
@@ -747,14 +746,13 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                 mechanics.frontalWall(player, 8.0, 1.25);
             }
             case "void-cut" -> {
-                LivingEntity target = aimedPvpOrNearestMonster(player, 10.0);
+                LivingEntity target = aimedPvpOrNearestTarget(player, 10.0);
                 if (target == null) return noTarget(player);
                 mechanics.shadowStep(player, target, 18.0 * powerMultiplier, id);
                 debuff(target, PotionEffectType.WEAKNESS, 140, 1);
             }
             case "plague-bloom" -> {
-                List<org.bukkit.entity.Monster> targets = List.copyOf(player.getWorld()
-                        .getNearbyEntitiesByType(org.bukkit.entity.Monster.class, player.getLocation(), 9.0));
+                List<org.bukkit.entity.Mob> targets = CombatTargetRules.nearbyPveTargets(player.getLocation(), 9.0);
                 if (targets.isEmpty()) return noTarget(player);
                 mechanics.plagueBloom(player, player.getLocation().clone(), 9.0, 7,
                         3.0 * powerMultiplier, id);
@@ -762,8 +760,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
             case "vanished-horizon" -> {
                 LivingEntity aimedPlayer = aimedPvpOpponent(player, 12.0);
                 List<? extends LivingEntity> targets = aimedPlayer == null
-                        ? player.getWorld().getNearbyEntitiesByType(
-                                        org.bukkit.entity.Monster.class, player.getLocation(), 12.0).stream()
+                        ? CombatTargetRules.nearbyPveTargets(player.getLocation(), 12.0).stream()
                                 .sorted(java.util.Comparator.comparingDouble(monster -> monster.getLocation()
                                         .distanceSquared(player.getLocation())))
                                 .limit(3).toList()
@@ -772,8 +769,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                 mechanics.blinkChain(player, targets, 20.0 * powerMultiplier, id);
             }
             case "ash-domain" -> {
-                List<org.bukkit.entity.Monster> targets = List.copyOf(player.getWorld()
-                        .getNearbyEntitiesByType(org.bukkit.entity.Monster.class, player.getLocation(), 10.0));
+                List<org.bukkit.entity.Mob> targets = CombatTargetRules.nearbyPveTargets(player.getLocation(), 10.0);
                 if (targets.isEmpty()) return noTarget(player);
                 mechanics.damageZone(player, player.getLocation().clone(), 10.0, 6, 16L,
                         4.0 * powerMultiplier, id, org.bukkit.Particle.ASH,
@@ -786,8 +782,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                 mechanics.timeLock(player, targets, monster -> debuffDuration(monster, 80), 10.0);
             }
             case "axiomatic-break" -> {
-                List<org.bukkit.entity.Monster> targets = player.getWorld().getNearbyEntitiesByType(
-                                org.bukkit.entity.Monster.class, player.getLocation(), 14.0).stream()
+                List<org.bukkit.entity.Mob> targets = CombatTargetRules.nearbyPveTargets(player.getLocation(), 14.0).stream()
                         .sorted(java.util.Comparator.comparingDouble(monster -> monster.getLocation()
                                 .distanceSquared(player.getLocation())))
                         .limit(3).toList();
@@ -822,7 +817,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                 }
             }
             case "pack-hunt" -> {
-                player.getWorld().getNearbyEntitiesByType(org.bukkit.entity.Monster.class, player.getLocation(), 14.0)
+                CombatTargetRules.nearbyPveTargets(player.getLocation(), 14.0)
                         .stream().limit(8).forEach(monster -> visuals.ringAt(player,
                                 monster.getLocation(), 0.9, org.bukkit.Particle.SOUL,
                                 org.bukkit.Color.fromRGB(92, 214, 167), 12));
@@ -858,7 +853,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
                 }
             }
             case "rune-reversal" -> {
-                LivingEntity target = aimedPvpOrNearestMonster(player, 9.0);
+                LivingEntity target = aimedPvpOrNearestTarget(player, 9.0);
                 if (target == null) return noTarget(player);
                 skillDamage(player, target, 18.0 * powerMultiplier, id);
                 player.getActivePotionEffects().stream()
@@ -908,18 +903,17 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
         return true;
     }
 
-    private org.bukkit.entity.Monster nearestMonster(Player player, double radius) {
-        return player.getWorld().getNearbyEntitiesByType(
-                        org.bukkit.entity.Monster.class, player.getLocation(), radius).stream()
+    private org.bukkit.entity.Mob nearestPveTarget(Player player, double radius) {
+        return CombatTargetRules.nearbyPveTargets(player.getLocation(), radius).stream()
                 .min(java.util.Comparator.comparingDouble(monster -> monster.getLocation()
                         .distanceSquared(player.getLocation())))
                 .orElse(null);
     }
 
-    /** PVP requires an actual crosshair hit; PVE keeps forgiving nearest-monster targeting. */
-    private LivingEntity aimedPvpOrNearestMonster(Player player, double radius) {
+    /** PVP requires an actual crosshair hit; PVE keeps forgiving nearest eligible mob targeting. */
+    private LivingEntity aimedPvpOrNearestTarget(Player player, double radius) {
         LivingEntity aimed = aimedPvpOpponent(player, radius);
-        return aimed == null ? nearestMonster(player, radius) : aimed;
+        return aimed == null ? nearestPveTarget(player, radius) : aimed;
     }
 
     private Player aimedPvpOpponent(Player player, double radius) {
@@ -1159,8 +1153,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
 
     private List<LivingEntity> nearbyControlTargets(Player caster, double radius) {
         PartyService parties = partyService();
-        List<LivingEntity> result = new ArrayList<>(caster.getWorld().getNearbyEntitiesByType(
-                org.bukkit.entity.Monster.class, caster.getLocation(), radius));
+        List<LivingEntity> result = new ArrayList<>(CombatTargetRules.nearbyPveTargets(caster.getLocation(), radius));
         if (worldPvpEnabled(caster) && plugin.getConfig().getBoolean(
                 "skill-effects.pvp-controls-enabled", true)) {
             caster.getWorld().getNearbyPlayers(caster.getLocation(), radius).stream()

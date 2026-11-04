@@ -1,0 +1,159 @@
+# Reviewed against the official Minecraft 26.2 client data.
+# Names identify completion facts; Minecraft owns all partial progress.
+schema-version: 1
+minecraft-version: '26.2'
+source-client-sha1: 2dc72797acbc1b63fc16a11c4ac393605f453754
+entries:
+  overworld-explorer:
+    advancement: minecraft:adventure/adventuring_time
+    criteria:
+    - minecraft:badlands
+    - minecraft:bamboo_jungle
+    - minecraft:beach
+    - minecraft:birch_forest
+    - minecraft:cherry_grove
+    - minecraft:cold_ocean
+    - minecraft:dark_forest
+    - minecraft:deep_cold_ocean
+    - minecraft:deep_dark
+    - minecraft:deep_frozen_ocean
+    - minecraft:deep_lukewarm_ocean
+    - minecraft:deep_ocean
+    - minecraft:desert
+    - minecraft:dripstone_caves
+    - minecraft:eroded_badlands
+    - minecraft:flower_forest
+    - minecraft:forest
+    - minecraft:frozen_ocean
+    - minecraft:frozen_peaks
+    - minecraft:frozen_river
+    - minecraft:grove
+    - minecraft:ice_spikes
+    - minecraft:jagged_peaks
+    - minecraft:jungle
+    - minecraft:lukewarm_ocean
+    - minecraft:lush_caves
+    - minecraft:mangrove_swamp
+    - minecraft:meadow
+    - minecraft:mushroom_fields
+    - minecraft:ocean
+    - minecraft:old_growth_birch_forest
+    - minecraft:old_growth_pine_taiga
+    - minecraft:old_growth_spruce_taiga
+    - minecraft:pale_garden
+    - minecraft:plains
+    - minecraft:river
+    - minecraft:savanna
+    - minecraft:savanna_plateau
+    - minecraft:snowy_beach
+    - minecraft:snowy_plains
+    - minecraft:snowy_slopes
+    - minecraft:snowy_taiga
+    - minecraft:sparse_jungle
+    - minecraft:stony_peaks
+    - minecraft:stony_shore
+    - minecraft:sulfur_caves
+    - minecraft:sunflower_plains
+    - minecraft:swamp
+    - minecraft:taiga
+    - minecraft:warm_ocean
+    - minecraft:windswept_forest
+    - minecraft:windswept_gravelly_hills
+    - minecraft:windswept_hills
+    - minecraft:windswept_savanna
+    - minecraft:wooded_badlands
+  nether-explorer:
+    advancement: minecraft:nether/explore_nether
+    criteria:
+    - minecraft:basalt_deltas
+    - minecraft:crimson_forest
+    - minecraft:nether_wastes
+    - minecraft:soul_sand_valley
+    - minecraft:warped_forest
+  naturalist:
+    advancement: minecraft:husbandry/bred_all_animals
+    criteria:
+    - minecraft:armadillo
+    - minecraft:axolotl
+    - minecraft:bee
+    - minecraft:camel
+    - minecraft:cat
+    - minecraft:chicken
+    - minecraft:cow
+    - minecraft:donkey
+    - minecraft:fox
+    - minecraft:frog
+    - minecraft:goat
+    - minecraft:hoglin
+    - minecraft:horse
+    - minecraft:llama
+    - minecraft:mooshroom
+    - minecraft:mule
+    - minecraft:nautilus
+    - minecraft:ocelot
+    - minecraft:panda
+    - minecraft:pig
+    - minecraft:rabbit
+    - minecraft:sheep
+    - minecraft:sniffer
+    - minecraft:strider
+    - minecraft:turtle
+    - minecraft:wolf
+  forager:
+    advancement: minecraft:husbandry/balanced_diet
+    criteria:
+    - apple
+    - baked_potato
+    - beef
+    - beetroot
+    - beetroot_soup
+    - bread
+    - carrot
+    - chicken
+    - chorus_fruit
+    - cod
+    - cooked_beef
+    - cooked_chicken
+    - cooked_cod
+    - cooked_mutton
+    - cooked_porkchop
+    - cooked_rabbit
+    - cooked_salmon
+    - cookie
+    - dried_kelp
+    - enchanted_golden_apple
+    - glow_berries
+    - golden_apple
+    - golden_carrot
+    - honey_bottle
+    - melon_slice
+    - mushroom_stew
+    - mutton
+    - poisonous_potato
+    - porkchop
+    - potato
+    - pufferfish
+    - pumpkin_pie
+    - rabbit
+    - rabbit_stew
+    - rotten_flesh
+    - salmon
+    - spider_eye
+    - suspicious_stew
+    - sweet_berries
+    - tropical_fish
+  village-defender:
+    advancement: minecraft:adventure/hero_of_the_village
+    criteria:
+    - hero_of_the_village
+  armor-artisan:
+    advancement: minecraft:adventure/trim_with_all_exclusive_armor_patterns
+    criteria:
+    - armor_trimmed_minecraft:rib_armor_trim_smithing_template_smithing_trim
+    - armor_trimmed_minecraft:silence_armor_trim_smithing_template_smithing_trim
+    - armor_trimmed_minecraft:snout_armor_trim_smithing_template_smithing_trim
+    - armor_trimmed_minecraft:spire_armor_trim_smithing_template_smithing_trim
+    - armor_trimmed_minecraft:tide_armor_trim_smithing_template_smithing_trim
+    - armor_trimmed_minecraft:vex_armor_trim_smithing_template_smithing_trim
+    - armor_trimmed_minecraft:ward_armor_trim_smithing_template_smithing_trim
+    - armor_trimmed_minecraft:wayfinder_armor_trim_smithing_template_smithing_trim

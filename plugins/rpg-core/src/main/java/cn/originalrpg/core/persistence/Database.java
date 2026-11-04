@@ -924,6 +924,7 @@ public final class Database implements AutoCloseable {
                 "CREATE INDEX IF NOT EXISTS idx_rpg_daily_item_reward_receipt_player ON rpg_daily_item_reward_receipts (player_uuid, created_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_commission_claim_player_date ON rpg_commission_claims (player_uuid, evidence_date, state)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_payment_ledger_created ON rpg_payment_ledger (created_at)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_payment_ledger_player ON rpg_payment_ledger (player_uuid, created_at, id)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_commerce_purchase_period ON rpg_commerce_purchases (player_uuid, product_id, period_key)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_credit_ledger_created ON rpg_credit_ledger (created_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_skill_book_player_limit ON rpg_skill_book_uses (player_uuid, limit_group)",
@@ -1241,6 +1242,15 @@ public final class Database implements AutoCloseable {
                 """,
                 "CREATE INDEX IF NOT EXISTS idx_rpg_season_attunements_owner"
                         + " ON rpg_season_attunements (season_id, owner_uuid)",
+                """
+                CREATE TABLE IF NOT EXISTS rpg_field_journal_entries (
+                    player_uuid VARCHAR(36) NOT NULL,
+                    entry_id VARCHAR(48) NOT NULL,
+                    advancement_key VARCHAR(128) NOT NULL,
+                    recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (player_uuid, entry_id)
+                )
+                """,
                 // Existing communities receive a full inactivity grace period at migration.
                 "ALTER TABLE rpg_community_members ADD COLUMN IF NOT EXISTS last_authenticated_at"
                         + " TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
@@ -1299,7 +1309,6 @@ public final class Database implements AutoCloseable {
                 """,
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_storage_requests"
                         + " ON rpg_community_storage_requests (community_id, state, created_at)",
-                "CREATE INDEX IF NOT EXISTS idx_rpg_payment_ledger_player ON rpg_payment_ledger (player_uuid, created_at, id)",
         };
 
         try (Connection connection = dataSource.getConnection()) {

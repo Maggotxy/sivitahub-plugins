@@ -2,6 +2,11 @@ worlds:
   # Blood moons, hunt chains, and special drops belong only to vanilla
   # survival. The isolated authored hub deliberately never advances them.
   survival: world
+field-journal:
+  # Completion events and login reconcile immediately; this bounded pass
+  # recovers missed observations or a temporary database failure while online.
+  reconcile-interval-ticks: 200
+  players-per-pass: 2
 # RPG character assets are persistent progression, not a death wager. These
 # rules also apply to dungeon worlds loaded after server startup.
 asset-protection:

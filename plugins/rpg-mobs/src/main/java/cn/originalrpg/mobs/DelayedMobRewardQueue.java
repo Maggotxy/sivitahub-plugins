@@ -1,7 +1,6 @@
 package cn.originalrpg.mobs;
 
 import cn.originalrpg.api.model.PlayerProfile;
-import cn.originalrpg.api.rules.CombatRules;
 import cn.originalrpg.api.service.MarketService;
 import cn.originalrpg.api.service.ProfileService;
 import org.bukkit.Bukkit;
@@ -9,527 +8,207 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
+import java.time.Duration;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Bounded, per-player FIFO settlement for kills observed before the profile cache is ready.
+ * Server-thread adapter for the durable, per-player FIFO natural-mob reward protocol.
  *
- * <p>Every method that touches queue state or a Bukkit object runs on the server thread. Database
- * callbacks only schedule an immutable result back onto that thread. Each mailbox retry reuses the
- * delivery ID frozen at death, so {@link MarketService#enqueueDelivery} is the durable idempotency
- * boundary.</p>
+ * <p>All custom rewards, including cache-hit kills, enter the same journal. Bukkit
+ * objects are used only for original serialization and optional feedback. The
+ * filesystem worker receives immutable values; database completions return to the
+ * settlement heartbeat through its bounded completion queue. Recovery may run
+ * offline and does not reuse a departed player's session as an authorization token.</p>
  */
 public final class DelayedMobRewardQueue {
     private final Plugin plugin;
-    private final ProfileService profiles;
-    private final MarketService market;
-    private final ExperienceWriteBuffer experience;
     private final Feedback feedback;
-    private final Map<UUID, ArrayDeque<PendingReward>> queues = new HashMap<>();
-    private final Map<UUID, PlayerProfile> loadedProfiles = new HashMap<>();
-    private final Map<UUID, Integer> profileAttempts = new HashMap<>();
-    private final Map<UUID, Long> nextProfileAttemptAt = new HashMap<>();
-    private final Set<UUID> profileLoads = new HashSet<>();
-    private final Set<CompletableFuture<?>> activeMailboxWrites = java.util.concurrent.ConcurrentHashMap.newKeySet();
-    private final int maximumPending;
-    private final int maximumPerPlayer;
-    private final int maximumProfileLoads;
-    private final int maximumMailboxWrites;
-    private final int maximumSettlementsPerTick;
-    private final long retryMillis;
-    private final long retryMaximumMillis;
+    private final ExperienceWriteBuffer experience;
+    private final MobRewardJournal journal;
+    private final MobRewardIoCoordinator io;
+    private final MobRewardSettlement settlement;
+    private final Map<UUID, Player> feedbackSessions = new HashMap<>();
     private final long shutdownTimeoutMillis;
     private BukkitTask pumpTask;
-    private int pendingCount;
-    private int mailboxWrites;
-    private volatile boolean closed;
+    private boolean closed;
+    private long lastRejectionLog;
+    private long rejectedSinceLog;
 
-    public DelayedMobRewardQueue(
-            Plugin plugin,
-            ProfileService profiles,
-            MarketService market,
-            ExperienceWriteBuffer experience,
-            Feedback feedback
-    ) {
+    public DelayedMobRewardQueue(Plugin plugin, ProfileService profiles, MarketService market,
+                                 ExperienceWriteBuffer experience, Feedback feedback) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
-        this.profiles = Objects.requireNonNull(profiles, "profiles");
-        this.market = Objects.requireNonNull(market, "market");
-        this.experience = Objects.requireNonNull(experience, "experience");
         this.feedback = Objects.requireNonNull(feedback, "feedback");
-        maximumPending = Math.clamp(plugin.getConfig().getInt(
-                "delayed-rewards.maximum-pending", 512), 32, 4096);
-        maximumPerPlayer = Math.clamp(plugin.getConfig().getInt(
-                "delayed-rewards.maximum-per-player", 32), 4, 128);
-        maximumProfileLoads = Math.clamp(plugin.getConfig().getInt(
-                "delayed-rewards.maximum-profile-loads", 16), 1, 64);
-        maximumMailboxWrites = Math.clamp(plugin.getConfig().getInt(
-                "delayed-rewards.maximum-mailbox-writes", 32), 1, 128);
-        maximumSettlementsPerTick = Math.clamp(plugin.getConfig().getInt(
-                "delayed-rewards.maximum-settlements-per-tick", 16), 1, 64);
-        retryMillis = Math.clamp(plugin.getConfig().getLong(
-                "delayed-rewards.retry-ticks", 20L), 5L, 100L) * 50L;
-        retryMaximumMillis = Math.max(retryMillis, Math.clamp(plugin.getConfig().getLong(
+        Objects.requireNonNull(profiles, "profiles");
+        Objects.requireNonNull(market, "market");
+        this.experience = Objects.requireNonNull(experience, "experience");
+        int maximumPending = Math.clamp(plugin.getConfig().getInt("delayed-rewards.maximum-pending", 512), 32, 4096);
+        int maximumPerPlayer = Math.clamp(plugin.getConfig().getInt("delayed-rewards.maximum-per-player", 32), 4, 128);
+        long maximumBytes = Math.clamp(plugin.getConfig().getLong(
+                "delayed-rewards.maximum-payload-bytes", 16L * 1024 * 1024), 1024L * 1024, 256L * 1024 * 1024);
+        int maximumIo = Math.clamp(plugin.getConfig().getInt("delayed-rewards.maximum-journal-operations", 16), 1, 64);
+        int maximumProfiles = Math.clamp(plugin.getConfig().getInt("delayed-rewards.maximum-profile-loads", 16), 1, 64);
+        int maximumExperience = Math.clamp(plugin.getConfig().getInt("delayed-rewards.maximum-experience-writes", 16), 1, 64);
+        int maximumMailbox = Math.clamp(plugin.getConfig().getInt("delayed-rewards.maximum-mailbox-writes", 32), 1, 128);
+        int maximumSteps = Math.clamp(plugin.getConfig().getInt("delayed-rewards.maximum-settlements-per-tick", 16), 1, 64);
+        long retryMillis = Math.clamp(plugin.getConfig().getLong("delayed-rewards.retry-ticks", 20L), 5L, 100L) * 50L;
+        long retryMaximum = Math.max(retryMillis, Math.clamp(plugin.getConfig().getLong(
                 "delayed-rewards.retry-maximum-ticks", 200L), 20L, 1200L) * 50L);
         shutdownTimeoutMillis = Math.clamp(plugin.getConfig().getLong(
                 "delayed-rewards.shutdown-timeout-ms", 5000L), 1000L, 30_000L);
+        journal = new MobRewardJournal(plugin.getDataFolder().toPath().resolve("mob-reward-journal"),
+                maximumPending, maximumBytes);
+        io = new MobRewardIoCoordinator(journal, maximumIo, plugin.getLogger());
+        long startedNanos = System.nanoTime();
+        settlement = new MobRewardSettlement(io, new MobRewardSettlement.Authority() {
+            @Override public CompletionStage<Integer> effectiveLevel(UUID playerId) {
+                return profiles.get(playerId).thenApply(profile -> authoritativeLevel(playerId, profile));
+            }
+            @Override public CompletionStage<Boolean> experience(MobRewardIntent intent) {
+                return experience.apply(intent, feedbackSessions.get(intent.killId()));
+            }
+            @Override public CompletionStage<Boolean> delivery(MobRewardIntent intent, MobRewardIntent.Delivery delivery) {
+                return market.enqueueDelivery(delivery.deliveryId(), intent.playerId(), delivery.itemPayload(),
+                        delivery.source(intent.killId()));
+            }
+        }, new MobRewardSettlement.Observer() {
+            @Override public void recovered(int count) {
+                plugin.getLogger().info("Mob reward journal ready; recovered " + count + " immutable intent(s)");
+                if (journal.orphanedStagingFiles() > 0) plugin.getLogger().warning(
+                        "Retained " + journal.orphanedStagingFiles() + " unaccepted mob reward staging file(s); "
+                                + "they are NOT replayed. Inspect RECOVERY.md before maintenance.");
+            }
+            @Override public void ineligible(MobRewardIntent intent) {
+                safelyNotify(() -> feedback.levelGap(context(intent)));
+            }
+            @Override public void settled(MobRewardIntent intent) {
+                safelyNotify(() -> feedback.delivered(context(intent)));
+            }
+            @Override public void removed(MobRewardIntent intent) {
+                feedbackSessions.remove(intent.killId());
+            }
+            @Override public void failure(MobRewardIntent intent, String operation, Throwable error, int attempts) {
+                if (attempts == 1 || (attempts & (attempts - 1)) == 0) {
+                    plugin.getLogger().warning("Mob reward " + operation + " failed; retained for retry #" + attempts
+                            + (intent == null ? " (recovery; new custom rewards paused)" : " kill=" + intent.killId())
+                            + " cause=" + error);
+                }
+                if (intent != null && (operation.equals("persist") || operation.equals("decision"))) {
+                    safelyNotify(() -> feedback.saveDelayed(context(intent)));
+                }
+            }
+        }, new MobRewardSettlement.Limits(maximumPending, maximumPerPlayer, maximumBytes,
+                maximumIo, maximumProfiles, maximumExperience, maximumMailbox, maximumSteps, retryMillis, retryMaximum),
+                () -> TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos));
+    }
+
+    private static int authoritativeLevel(UUID playerId, PlayerProfile profile) {
+        if (profile == null || !playerId.equals(profile.playerId())) {
+            throw new IllegalStateException("Profile lookup did not return the requested player");
+        }
+        return profile.effectiveLevel();
     }
 
     public void start() {
         requirePrimaryThread();
-        pumpTask = Bukkit.getScheduler().runTaskTimer(plugin, this::pump, 1L, 1L);
-    }
-
-    public boolean hasPending(UUID playerId) {
-        requirePrimaryThread();
-        ArrayDeque<PendingReward> queue = queues.get(playerId);
-        return queue != null && !queue.isEmpty();
+        if (pumpTask != null || closed) throw new IllegalStateException("Mob reward queue already started or closed");
+        settlement.tick(); // Starts asynchronous recovery before accepting any new observation.
+        pumpTask = Bukkit.getScheduler().runTaskTimer(plugin, settlement::tick, 1L, 1L);
     }
 
     public boolean hasCapacity(UUID playerId) {
         requirePrimaryThread();
-        ArrayDeque<PendingReward> queue = queues.get(playerId);
-        return !closed && MobRewardReliabilityRules.hasCapacity(
-                pendingCount, queue == null ? 0 : queue.size(), maximumPending, maximumPerPlayer);
+        return settlement.hasCapacity(playerId);
     }
 
-    public boolean offer(PendingReward reward) {
+    /** Releases only the departed session's UI references; its accepted rewards still settle offline. */
+    public void forgetSession(Player session) {
         requirePrimaryThread();
-        Objects.requireNonNull(reward, "reward");
-        if (!hasCapacity(reward.playerId())) return false;
-        queues.computeIfAbsent(reward.playerId(), ignored -> new ArrayDeque<>()).addLast(reward);
-        pendingCount++;
-        return true;
+        feedbackSessions.values().removeIf(expected -> expected == session);
+        experience.forgetSession(session);
     }
 
+    /**
+     * Reserves bounded volatile space. QUEUED_NOT_DURABLE is deliberately not a
+     * promise of recovery: hard exit before the journal acknowledgement can lose
+     * this observation. No core XP or mailbox operation is issued before that ack.
+     */
+    public Admission offer(MobRewardIntent intent, Player session) {
+        requirePrimaryThread();
+        Objects.requireNonNull(session, "session");
+        if (!intent.playerId().equals(session.getUniqueId())) throw new IllegalArgumentException("Wrong reward session");
+        MobRewardSettlement.Admission result = settlement.offer(intent);
+        if (result == MobRewardSettlement.Admission.QUEUED_NOT_DURABLE) feedbackSessions.put(intent.killId(), session);
+        if (result != MobRewardSettlement.Admission.QUEUED_NOT_DURABLE
+                && result != MobRewardSettlement.Admission.ALREADY_PENDING) reportRejected();
+        return Admission.valueOf(result.name());
+    }
+
+    /** Rate-limited operator evidence for pre-acceptance backpressure. No reward is silently promised. */
+    public void reportRejected() {
+        requirePrimaryThread();
+        rejectedSinceLog++;
+        long now = System.currentTimeMillis();
+        if (now - lastRejectionLog >= 10_000L) {
+            plugin.getLogger().warning("Custom mob reward observations rejected BEFORE durable acceptance: "
+                    + rejectedSinceLog + "; status=" + settlement.status() + "; vanilla drops are unaffected");
+            rejectedSinceLog = 0;
+            lastRejectionLog = now;
+        }
+    }
+
+    /**
+     * Stops admission, revokes async continuations, and waits only for a bounded
+     * final journal pass. Accepted intents remain replayable without a DB drain.
+     */
     public void close() {
         requirePrimaryThread();
         if (closed) return;
         closed = true;
         if (pumpTask != null) pumpTask.cancel();
-        long startedNanos = System.nanoTime();
-        long deadlineNanos = startedNanos + TimeUnit.MILLISECONDS.toNanos(shutdownTimeoutMillis);
-        long inFlightDeadlineNanos = startedNanos
-                + TimeUnit.MILLISECONDS.toNanos(Math.max(250L, shutdownTimeoutMillis / 5L));
-        waitForInFlightMailboxWrites(inFlightDeadlineNanos);
-        drainMailboxDeliveries(deadlineNanos);
-        if (pendingCount > 0) {
-            plugin.getLogger().severe("Stopping with " + pendingCount
-                    + " delayed mob reward settlement(s) not yet durable");
-        }
-        queues.clear();
-        loadedProfiles.clear();
-        profileAttempts.clear();
-        nextProfileAttemptAt.clear();
-        profileLoads.clear();
-        pendingCount = 0;
+        MobRewardSettlement.Status before = settlement.status();
+        List<MobRewardIntent> unconfirmed = settlement.close();
+        MobRewardIoCoordinator.ShutdownReport result = io.close(Duration.ofMillis(shutdownTimeoutMillis), unconfirmed);
+        feedbackSessions.clear();
+        plugin.getLogger().info("Mob reward settlement stopped; known journal-owned pending=" + before.durable()
+                + ", startupRecoveryIncomplete=" + before.recovering()
+                + ", final-pass unconfirmed=" + result.unconfirmed().size() + ", timedOut=" + result.timedOut());
+        if (rejectedSinceLog > 0) plugin.getLogger().warning("Additional mob rewards rejected before acceptance: " + rejectedSinceLog);
     }
 
-    private void pump() {
-        requirePrimaryThread();
-        if (closed || queues.isEmpty()) return;
-        long now = System.currentTimeMillis();
-        startProfileLoads(now);
-        int remaining = maximumSettlementsPerTick;
-        for (UUID playerId : new ArrayList<>(queues.keySet())) {
-            if (remaining <= 0) break;
-            ArrayDeque<PendingReward> queue = queues.get(playerId);
-            PlayerProfile profile = loadedProfiles.get(playerId);
-            if (queue == null || queue.isEmpty() || profile == null) continue;
-            PendingReward reward = queue.peekFirst();
-            if (reward == null || reward.mailboxWriteInFlight() || now < reward.nextAttemptAtMillis()) continue;
-            if (!reward.gated()) {
-                if (!CombatRules.allowsCustomDrops(reward.mobLevel(), profile.effectiveLevel())) {
-                    feedback.levelGap(reward);
-                    removeHead(playerId, queue);
-                    remaining--;
-                    continue;
-                }
-                if (reward.experience() > 0L && !experience.addReserved(reward.session(), reward.experience())) {
-                    plugin.getLogger().severe("Delayed mob experience reservation could not be transferred kill="
-                            + reward.killId() + " player=" + reward.playerId());
-                    reward.scheduleRetryAt(now + retryMillis);
-                    continue;
-                }
-                reward.markGated();
-            }
-            FrozenDelivery delivery = reward.nextDelivery();
-            if (delivery == null) {
-                feedback.delivered(reward);
-                removeHead(playerId, queue);
-                remaining--;
-                continue;
-            }
-            if (mailboxWrites >= maximumMailboxWrites) continue;
-            submitDelivery(reward, delivery);
-            remaining--;
-        }
+    private RewardFeedback context(MobRewardIntent intent) {
+        return new RewardFeedback(intent, feedbackSessions.get(intent.killId()));
     }
 
-    private void startProfileLoads(long now) {
-        for (UUID playerId : new ArrayList<>(queues.keySet())) {
-            if (profileLoads.size() >= maximumProfileLoads) return;
-            if (loadedProfiles.containsKey(playerId) || profileLoads.contains(playerId)
-                    || now < nextProfileAttemptAt.getOrDefault(playerId, 0L)) continue;
-            int attempts = profileAttempts.getOrDefault(playerId, 0);
-            ArrayDeque<PendingReward> queue = queues.get(playerId);
-            PendingReward first = queue == null ? null : queue.peekFirst();
-            if (first == null) continue;
-            int nextAttempt = attempts == Integer.MAX_VALUE ? attempts : attempts + 1;
-            profileAttempts.put(playerId, nextAttempt);
-            profileLoads.add(playerId);
-            CompletionStage<PlayerProfile> load;
-            try {
-                load = profiles.get(playerId);
-            } catch (RuntimeException exception) {
-                profileLoads.remove(playerId);
-                long delay = MobRewardReliabilityRules.retryDelayMillis(
-                        nextAttempt, retryMillis, retryMaximumMillis);
-                nextProfileAttemptAt.put(playerId, now + delay);
-                plugin.getLogger().warning("Delayed mob reward profile load could not start; retry #"
-                        + nextAttempt + " in " + delay + "ms player=" + playerId
-                        + " cause=" + exception.getMessage());
-                continue;
-            }
-            load.whenComplete((profile, error) -> runSync(() -> {
-                profileLoads.remove(playerId);
-                if (closed || !queues.containsKey(playerId)) return;
-                if (error != null || profile == null || !playerId.equals(profile.playerId())) {
-                    long delay = MobRewardReliabilityRules.retryDelayMillis(
-                            nextAttempt, retryMillis, retryMaximumMillis);
-                    nextProfileAttemptAt.put(playerId, System.currentTimeMillis() + delay);
-                    if (error != null) plugin.getLogger().warning(
-                            "Delayed mob reward profile load failed; retry #" + nextAttempt
-                                    + " in " + delay + "ms player=" + playerId
-                                    + " cause=" + error.getMessage());
-                    return;
-                }
-                profileAttempts.remove(playerId);
-                nextProfileAttemptAt.remove(playerId);
-                loadedProfiles.put(playerId, profile);
-            }));
-        }
-    }
-
-    private void submitDelivery(PendingReward reward, FrozenDelivery delivery) {
-        reward.markMailboxWriteInFlight(true);
-        mailboxWrites++;
-        CompletableFuture<Boolean> write;
-        try {
-            write = market.enqueueDelivery(delivery.deliveryId(), reward.playerId(), delivery.itemPayload(),
-                    "mob-kill:" + reward.killId() + ':' + delivery.kind()).toCompletableFuture();
-        } catch (RuntimeException exception) {
-            mailboxWrites--;
-            reward.markMailboxWriteInFlight(false);
-            handleDeliveryResult(reward, delivery, false, exception);
-            return;
-        }
-        activeMailboxWrites.add(write);
-        write.whenComplete((accepted, error) -> runSync(() -> {
-            activeMailboxWrites.remove(write);
-            mailboxWrites = Math.max(0, mailboxWrites - 1);
-            reward.markMailboxWriteInFlight(false);
-            handleDeliveryResult(reward, delivery, Boolean.TRUE.equals(accepted), error);
-        }));
-    }
-
-    private void handleDeliveryResult(
-            PendingReward reward, FrozenDelivery delivery, boolean accepted, Throwable error
-    ) {
-        if (closed || !isHead(reward)) return;
-        if (error == null && accepted) {
-            reward.advanceDelivery();
-            reward.resetDeliveryAttempts();
-            reward.scheduleRetryAt(0L);
-            return;
-        }
-        int attempts = reward.incrementDeliveryAttempts();
-        long now = System.currentTimeMillis();
-        long delay = MobRewardReliabilityRules.retryDelayMillis(
-                attempts, retryMillis, retryMaximumMillis);
-        reward.scheduleRetryAt(now + delay);
-        plugin.getLogger().warning(
-                "Delayed mob reward mailbox write failed; idempotent retry #" + attempts
-                        + " in " + delay + "ms delivery="
-                        + delivery.deliveryId()
-                        + (error == null ? "" : " cause=" + error.getMessage()));
-    }
-
-    private boolean isHead(PendingReward reward) {
-        ArrayDeque<PendingReward> queue = queues.get(reward.playerId());
-        return queue != null && queue.peekFirst() == reward;
-    }
-
-    private void removeHead(UUID playerId, ArrayDeque<PendingReward> queue) {
-        if (queue.pollFirst() != null) pendingCount--;
-        if (!queue.isEmpty()) return;
-        queues.remove(playerId);
-        loadedProfiles.remove(playerId);
-        profileAttempts.remove(playerId);
-        nextProfileAttemptAt.remove(playerId);
-    }
-
-    private void waitForInFlightMailboxWrites(long deadlineNanos) {
-        if (!activeMailboxWrites.isEmpty()) {
-            CompletableFuture<?>[] waits = activeMailboxWrites.stream()
-                    .map(write -> write.handle((result, error) -> null))
-                    .toArray(CompletableFuture[]::new);
-            long remaining = deadlineNanos - System.nanoTime();
-            if (remaining > 0L) {
-                try {
-                    CompletableFuture.allOf(waits).get(remaining, TimeUnit.NANOSECONDS);
-                } catch (Exception exception) {
-                    plugin.getLogger().warning("Timed out waiting for delayed mailbox writes: "
-                            + exception.getMessage());
-                }
-            }
-        }
-        // Every in-flight item keeps its current delivery index. Replaying the same stable ID is
-        // safe whether the original transaction committed, failed, or its callback was discarded.
-        for (ArrayDeque<PendingReward> queue : queues.values()) {
-            for (PendingReward reward : queue) reward.markMailboxWriteInFlight(false);
-        }
-        mailboxWrites = 0;
-        activeMailboxWrites.clear();
-    }
-
-    private void drainMailboxDeliveries(long deadlineNanos) {
-        for (UUID playerId : new ArrayList<>(queues.keySet())) {
-            ArrayDeque<PendingReward> queue = queues.get(playerId);
-            if (queue == null) continue;
-            while (!queue.isEmpty() && System.nanoTime() < deadlineNanos) {
-                PendingReward reward = queue.peekFirst();
-                if (reward == null) break;
-                if (!reward.gated()) {
-                    PlayerProfile profile = shutdownProfile(reward.playerId(), deadlineNanos);
-                    if (profile == null) break;
-                    if (!CombatRules.allowsCustomDrops(reward.mobLevel(), profile.effectiveLevel())) {
-                        removeHead(playerId, queue);
-                        continue;
-                    }
-                    if (reward.experience() > 0L
-                            && !experience.addReserved(reward.session(), reward.experience())) {
-                        plugin.getLogger().severe("Delayed mob experience could not enter shutdown drain kill="
-                                + reward.killId() + " player=" + reward.playerId());
-                        break;
-                    }
-                    reward.markGated();
-                }
-                FrozenDelivery delivery = reward.nextDelivery();
-                if (delivery == null) {
-                    // ExperienceWriteBuffer owns XP batching and its stable grant receipts.
-                    // The item mailbox is the only operation replayed synchronously here.
-                    removeHead(playerId, queue);
-                    continue;
-                }
-                CompletableFuture<Boolean> write;
-                try {
-                    write = market.enqueueDelivery(delivery.deliveryId(), reward.playerId(), delivery.itemPayload(),
-                            "mob-kill:" + reward.killId() + ':' + delivery.kind()).toCompletableFuture();
-                } catch (RuntimeException exception) {
-                    plugin.getLogger().severe("Delayed mailbox shutdown write could not start delivery="
-                            + delivery.deliveryId() + " cause=" + exception.getMessage());
-                    break;
-                }
-                long remaining = deadlineNanos - System.nanoTime();
-                if (remaining <= 0L) break;
-                try {
-                    if (!Boolean.TRUE.equals(write.get(remaining, TimeUnit.NANOSECONDS))) {
-                        plugin.getLogger().severe("Delayed mailbox shutdown write was rejected delivery="
-                                + delivery.deliveryId());
-                        break;
-                    }
-                    reward.advanceDelivery();
-                } catch (Exception exception) {
-                    plugin.getLogger().severe("Delayed mailbox shutdown write failed delivery="
-                            + delivery.deliveryId() + " cause=" + exception.getMessage());
-                    break;
-                }
-            }
-        }
-    }
-
-    private PlayerProfile shutdownProfile(UUID playerId, long deadlineNanos) {
-        PlayerProfile profile = loadedProfiles.get(playerId);
-        if (profile != null) return profile;
-        profile = profiles.cached(playerId).orElse(null);
-        if (profile != null) return profile;
-        CompletableFuture<PlayerProfile> load;
-        try {
-            load = profiles.get(playerId).toCompletableFuture();
-        } catch (RuntimeException exception) {
-            plugin.getLogger().severe("Delayed reward shutdown profile load could not start player="
-                    + playerId + " cause=" + exception.getMessage());
-            return null;
-        }
-        long remaining = deadlineNanos - System.nanoTime();
-        if (remaining <= 0L) return null;
-        try {
-            PlayerProfile loaded = load.get(remaining, TimeUnit.NANOSECONDS);
-            return loaded != null && playerId.equals(loaded.playerId()) ? loaded : null;
-        } catch (Exception exception) {
-            plugin.getLogger().severe("Delayed reward shutdown profile load failed player="
-                    + playerId + " cause=" + exception.getMessage());
-            return null;
-        }
-    }
-
-    private void runSync(Runnable action) {
-        if (closed || !plugin.isEnabled()) return;
-        try {
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                if (!closed && plugin.isEnabled()) action.run();
-            });
-        } catch (IllegalStateException ignored) {
-            // Disable won the race after the async callback observed the queue. The normal close
-            // drain replays mailbox writes by their stable IDs and ExperienceWriteBuffer owns XP.
-        }
+    private void safelyNotify(Runnable action) {
+        try { action.run(); }
+        catch (RuntimeException error) { plugin.getLogger().warning("Mob reward feedback failed: " + error); }
     }
 
     private static void requirePrimaryThread() {
-        if (!Bukkit.isPrimaryThread()) {
-            throw new IllegalStateException("Delayed mob rewards must be managed on the server thread");
-        }
+        if (!Bukkit.isPrimaryThread()) throw new IllegalStateException("Mob reward queue must run on the server thread");
     }
 
+    public enum Admission { QUEUED_NOT_DURABLE, ALREADY_PENDING, RECOVERING, PAUSED, CAPACITY, CLOSED, CONFLICT }
+
+    /** UI hooks run on the server thread and cannot affect the reward's authority. */
     public interface Feedback {
-        void levelGap(PendingReward reward);
-
-        void delivered(PendingReward reward);
+        void levelGap(RewardFeedback reward);
+        void delivered(RewardFeedback reward);
+        default void saveDelayed(RewardFeedback reward) { }
     }
 
-    public record FrozenDelivery(
-            UUID deliveryId,
-            String kind,
-            String itemPayload,
-            MobVisuals.DropKind visualKind,
-            String itemMessageKey,
-            boolean pityGuaranteed
-    ) {
-        public FrozenDelivery {
-            Objects.requireNonNull(deliveryId, "deliveryId");
-            Objects.requireNonNull(kind, "kind");
-            Objects.requireNonNull(itemPayload, "itemPayload");
-            Objects.requireNonNull(visualKind, "visualKind");
-            Objects.requireNonNull(itemMessageKey, "itemMessageKey");
-            if (kind.isBlank() || itemPayload.isBlank() || itemMessageKey.isBlank()) {
-                throw new IllegalArgumentException("Frozen delivery fields must not be blank");
-            }
-        }
-    }
-
-    public static final class PendingReward {
-        private final UUID killId;
-        private final UUID playerId;
-        private final Player session;
-        private final int mobLevel;
-        private final long experience;
-        private final long createdAtMillis;
-        private final List<FrozenDelivery> deliveries;
-        private int deliveryIndex;
-        private int deliveryAttempts;
-        private long nextAttemptAtMillis;
-        private boolean gated;
-        private boolean mailboxWriteInFlight;
-
-        public PendingReward(
-                UUID killId, Player session, int mobLevel, long experience,
-                long createdAtMillis, List<FrozenDelivery> deliveries
-        ) {
-            this.killId = Objects.requireNonNull(killId, "killId");
-            this.session = Objects.requireNonNull(session, "session");
-            playerId = session.getUniqueId();
-            if (mobLevel < 1 || experience < 0L || createdAtMillis < 0L) {
-                throw new IllegalArgumentException("Invalid delayed mob reward snapshot");
-            }
-            this.mobLevel = mobLevel;
-            this.experience = experience;
-            this.createdAtMillis = createdAtMillis;
-            this.deliveries = List.copyOf(deliveries);
-        }
-
-        public UUID killId() {
-            return killId;
-        }
-
-        public UUID playerId() {
-            return playerId;
-        }
-
-        Player session() {
-            return session;
-        }
-
-        public int mobLevel() {
-            return mobLevel;
-        }
-
-        public long experience() {
-            return experience;
-        }
-
-        public long createdAtMillis() {
-            return createdAtMillis;
-        }
-
-        public List<FrozenDelivery> deliveries() {
-            return deliveries;
-        }
-
+    /** A login session is only a short-lived presentation token, never journal data. */
+    public record RewardFeedback(MobRewardIntent intent, Player session) {
         public Player activeSession() {
-            Player current = Bukkit.getPlayer(playerId);
-            return current != null && current == session && current.isOnline() ? current : null;
-        }
-
-        private FrozenDelivery nextDelivery() {
-            return deliveryIndex >= deliveries.size() ? null : deliveries.get(deliveryIndex);
-        }
-
-        private void advanceDelivery() {
-            deliveryIndex++;
-        }
-
-        private int incrementDeliveryAttempts() {
-            if (deliveryAttempts < Integer.MAX_VALUE) deliveryAttempts++;
-            return deliveryAttempts;
-        }
-
-        private void resetDeliveryAttempts() {
-            deliveryAttempts = 0;
-        }
-
-        private void scheduleRetryAt(long millis) {
-            nextAttemptAtMillis = millis;
-        }
-
-        private long nextAttemptAtMillis() {
-            return nextAttemptAtMillis;
-        }
-
-        private boolean gated() {
-            return gated;
-        }
-
-        private void markGated() {
-            gated = true;
-        }
-
-        private boolean mailboxWriteInFlight() {
-            return mailboxWriteInFlight;
-        }
-
-        private void markMailboxWriteInFlight(boolean value) {
-            mailboxWriteInFlight = value;
+            if (session == null || !session.isOnline()) return null;
+            Player current = Bukkit.getPlayer(intent.playerId());
+            return ExperienceWriteBuffer.sameSession(session, current, current != null && current.isOnline()) ? current : null;
         }
     }
 }

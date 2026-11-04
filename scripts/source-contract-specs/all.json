@@ -742,64 +742,6 @@
    "plugins/rpg-world/src/main/java/cn/originalrpg/world/WorldEventListener.java"
   ]
  },
- "plugins/rpg-mobs/src/test/java/cn/originalrpg/mobs/MobRewardAsyncLifecycleContractTest.java": {
-  "pathFragments": [],
-  "checks": [
-   {
-    "method": "experienceBufferKeepsInFlightOwnershipUntilAuthorityIsKnown",
-    "ordered": [],
-    "required": [
-     "private final Map<UUID, InFlightWrite> inFlight",
-     "private final ConcurrentLinkedQueue<CompletedWrite> completedWrites",
-     "waitForInFlight(inFlightDeadlineNanos);",
-     "if (!future.isDone())",
-     "uncertain state at shutdown",
-     "drainKnownFailures(retry, deadlineNanos);",
-     "maximum-pending-players",
-     "retryDelayMillis(attempts, retryBaseMillis, retryMaximumMillis)"
-    ],
-    "forbidden": [
-     "Bukkit.getScheduler().runTask(plugin, () -> {\n                    inFlight.remove"
-    ]
-   },
-   {
-    "method": "delayedItemsUseStableMailboxReplayAndDoNotDiscardAtAnAttemptLimit",
-    "ordered": [],
-    "required": [
-     "activeMailboxWrites",
-     "waitForInFlightMailboxWrites(inFlightDeadlineNanos);",
-     "drainMailboxDeliveries(deadlineNanos);",
-     "delivery.deliveryId()",
-     "retryMaximumMillis",
-     "if (closed || !plugin.isEnabled()) return;",
-     "catch (IllegalStateException ignored)",
-     "if (!closed && plugin.isEnabled()) action.run();"
-    ],
-    "forbidden": [
-     "maximumAttempts",
-     "retry limit reached",
-     "expired before durable settlement"
-    ]
-   },
-   {
-    "method": "feedbackRequiresTheExactLoginSessionAndDisableDrainsItemsBeforeExperience",
-    "ordered": [
-     "delayedRewards.close()",
-     "experienceBuffer.shutdown()"
-    ],
-    "required": [
-     "current == expected && online",
-     "current == session && current.isOnline()"
-    ],
-    "forbidden": []
-   }
-  ],
-  "files": [
-   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/ExperienceWriteBuffer.java",
-   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/DelayedMobRewardQueue.java",
-   "plugins/rpg-mobs/src/main/java/cn/originalrpg/mobs/RpgMobsPlugin.java"
-  ]
- },
  "plugins/rpg-pets/src/test/java/cn/originalrpg/pets/PetRevivalLifecycleContractTest.java": {
   "pathFragments": [],
   "checks": [

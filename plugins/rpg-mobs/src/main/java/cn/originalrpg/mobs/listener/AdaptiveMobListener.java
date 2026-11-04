@@ -7,7 +7,9 @@ import cn.originalrpg.api.service.ProfileService;
 import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.MobAppearanceService;
 import cn.originalrpg.api.service.ChapterService;
-import cn.originalrpg.mobs.ExperienceWriteBuffer;
+import cn.originalrpg.mobs.MobRewardIntent;
+import cn.originalrpg.mobs.MobRewardReliabilityRules;
+import cn.originalrpg.api.event.AuthenticatedPlayerRevokedEvent;
 import cn.originalrpg.mobs.DelayedMobRewardQueue;
 import cn.originalrpg.mobs.AdaptiveMobSafetyRules;
 import cn.originalrpg.mobs.AdaptiveAssignmentPolicy;
@@ -34,6 +36,7 @@ import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.EventPriority;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -45,6 +48,8 @@ import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.util.Vector;
 
 import java.util.Optional;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -56,13 +61,11 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
     private final ProfileService profiles;
     private final ChapterService chapters;
     private final MessageService messages;
-    private final ExperienceWriteBuffer experienceBuffer;
     private final NamespacedKey mobLevel;
     private final NamespacedKey eliteAffix;
     private final NamespacedKey materialMarker;
     private final NamespacedKey assignmentCandidate;
     private final NamespacedKey assignmentRetryAfter;
-    private final NamespacedKey pickupOwner = key("rpgmarket:pickup_owner");
     private final NamespacedKey skillBook = key("rpgskills:skill_book");
     private final NamespacedKey skillBookInstance = key("rpgskills:book_instance");
     private final NamespacedKey dungeonBoss = key("rpgdungeons:boss");
@@ -103,10 +106,11 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
     private final MobAppearanceService appearances;
     private final MobAbilityController abilities;
     private DelayedMobRewardQueue delayedRewards;
+    private final Map<UUID, Map<String, Long>> rewardNotices = new HashMap<>();
 
     public AdaptiveMobListener(
             Plugin plugin, ProfileService profiles, ChapterService chapters,
-            MessageService messages, ExperienceWriteBuffer experienceBuffer,
+            MessageService messages,
             MobAppearanceService appearances, MobAbilityController abilities
     ) {
         this.plugin = plugin;
@@ -114,7 +118,6 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
         this.chapters = chapters;
         this.messages = messages;
         this.itemPresentation = new MobItemPresentation(messages);
-        this.experienceBuffer = experienceBuffer;
         this.appearances = appearances;
         this.abilities = abilities;
         this.visuals = new MobVisuals(plugin, messages);
@@ -349,117 +352,86 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
         if (level == null || killer == null) {
             return;
         }
-        java.util.UUID killerId = killer.getUniqueId();
-        Optional<PlayerProfile> profile = profiles.cached(killerId);
-        if (profile.isEmpty() || delayedRewards.hasPending(killerId)
-                || !experienceBuffer.hasCapacity(killerId)) {
-            queueDelayedReward(killer, entity.getUniqueId(), level,
-                    entity.getPersistentDataContainer().has(eliteAffix, PersistentDataType.STRING));
-            return;
-        }
-        if (!CombatRules.allowsCustomDrops(level, profile.get().effectiveLevel())) {
+        Optional<PlayerProfile> profile = profiles.cached(killer.getUniqueId());
+        if (profile.isPresent() && !CombatRules.allowsCustomDrops(level, profile.get().effectiveLevel())) {
             killer.sendActionBar(Component.text(messages.text(killer, "mobs.level-gap-drop"), NamedTextColor.DARK_GRAY));
             return;
         }
-        boolean elite = entity.getPersistentDataContainer().has(eliteAffix, PersistentDataType.STRING);
-        double chance = elite ? eliteMaterialChance : normalMaterialChance;
-        NamespacedKey materialPityKey = elite ? eliteMaterialFailures : normalMaterialFailures;
-        int materialPity = elite ? eliteMaterialPity : normalMaterialPity;
-        PityRules.Outcome materialOutcome = rollPity(killer, materialPityKey, materialPity, chance);
-        if (materialOutcome.dropped()) {
-            ItemStack material = mutationMaterial(killer, elite, true);
-            event.getDrops().add(material);
-            visuals.rareDrop(killer, elite ? MobVisuals.DropKind.CORE : MobVisuals.DropKind.SHARD);
-            if (materialOutcome.guaranteed()) notifyPity(killer, elite
-                    ? "mobs.items.mutation-core" : "mobs.items.mutation-shard");
-        }
-        if (elite) {
-            PityRules.Outcome bookOutcome = rollPity(
-                    killer, skillBookFailures, eliteSkillBookPity, eliteSkillBookChance);
-            if (bookOutcome.dropped()) {
-                event.getDrops().add(commonSkillBook(killer, true));
-                visuals.rareDrop(killer, MobVisuals.DropKind.SKILL_BOOK);
-                if (bookOutcome.guaranteed()) notifyPity(killer, "mobs.items.common-insight-book");
-            }
-        }
-        long experience = MobExperienceRules.reward(level, elite,
-                minimumExperiencePerKill, normalExperienceMultiplier, eliteExperienceMultiplier);
-        if (!experienceBuffer.add(killer, experience)) {
-            plugin.getLogger().severe("Mob experience buffer is full; reward was not accepted player=" + killerId);
-        }
+        queueReward(killer, entity.getUniqueId(), level,
+                entity.getPersistentDataContainer().has(eliteAffix, PersistentDataType.STRING), profile.orElse(null));
     }
 
-    private void queueDelayedReward(Player killer, UUID entityId, int level, boolean elite) {
+    /**
+     * Freezes the original roll, qualification snapshot and serialized items on
+     * the death tick. Vanilla event drops are untouched. A queue reservation is
+     * volatile; only the journal worker can acknowledge durable acceptance.
+     */
+    private void queueReward(Player killer, UUID entityId, int level, boolean elite, PlayerProfile profile) {
         if (delayedRewards == null || !delayedRewards.hasCapacity(killer.getUniqueId())) {
-            plugin.getLogger().severe("Delayed mob reward queue is full; refusing unbounded growth player="
-                    + killer.getUniqueId());
+            if (delayedRewards != null) delayedRewards.reportRejected();
+            notifyReward(killer, "mobs.reward-unaccepted", NamedTextColor.RED);
             return;
         }
-        double chance = elite ? eliteMaterialChance : normalMaterialChance;
-        NamespacedKey materialPityKey = elite ? eliteMaterialFailures : normalMaterialFailures;
-        int materialPity = elite ? eliteMaterialPity : normalMaterialPity;
-        PityRules.Outcome materialOutcome = rollPity(killer, materialPityKey, materialPity, chance);
-        long deathMillis = System.currentTimeMillis();
-        UUID killId = cn.originalrpg.mobs.MobRewardReliabilityRules.killId(
-                killer.getUniqueId(), entityId, deathMillis);
-        List<DelayedMobRewardQueue.FrozenDelivery> deliveries = new ArrayList<>(2);
-        if (materialOutcome.dropped()) {
-            String kind = "material";
-            deliveries.add(new DelayedMobRewardQueue.FrozenDelivery(
-                    cn.originalrpg.mobs.MobRewardReliabilityRules.deliveryId(killId, kind),
-                    kind,
-                    serialize(mutationMaterial(killer, elite, false)),
-                    elite ? MobVisuals.DropKind.CORE : MobVisuals.DropKind.SHARD,
-                    elite ? "mobs.items.mutation-core" : "mobs.items.mutation-shard",
-                    materialOutcome.guaranteed()));
-        }
-        if (elite) {
-            PityRules.Outcome bookOutcome = rollPity(
-                    killer, skillBookFailures, eliteSkillBookPity, eliteSkillBookChance);
-            if (bookOutcome.dropped()) {
-                String kind = "skill-book";
-                deliveries.add(new DelayedMobRewardQueue.FrozenDelivery(
-                        cn.originalrpg.mobs.MobRewardReliabilityRules.deliveryId(killId, kind),
-                        kind,
-                        serialize(commonSkillBook(killer, false)),
-                        MobVisuals.DropKind.SKILL_BOOK,
-                        "mobs.items.common-insight-book",
-                        bookOutcome.guaranteed()));
+        MobRewardIntent intent;
+        try {
+            double chance = elite ? eliteMaterialChance : normalMaterialChance;
+            NamespacedKey materialPityKey = elite ? eliteMaterialFailures : normalMaterialFailures;
+            int materialPity = elite ? eliteMaterialPity : normalMaterialPity;
+            MobRewardIntent.PityRoll materialRoll = freezePity(killer, materialPityKey, materialPity, chance);
+            long deathMillis = System.currentTimeMillis();
+            UUID killId = MobRewardReliabilityRules.killId(killer.getUniqueId(), entityId, deathMillis);
+            List<MobRewardIntent.PityRoll> rolls = new ArrayList<>(2);
+            List<MobRewardIntent.Delivery> deliveries = new ArrayList<>(2);
+            rolls.add(materialRoll);
+            if (materialRoll.dropped()) deliveries.add(new MobRewardIntent.Delivery(
+                    MobRewardReliabilityRules.deliveryId(killId, "material"), "material",
+                    serialize(mutationMaterial(killer, elite)), elite ? "CORE" : "SHARD",
+                    elite ? "mobs.items.mutation-core" : "mobs.items.mutation-shard", materialRoll.guaranteed()));
+            if (elite) {
+                MobRewardIntent.PityRoll bookRoll = freezePity(killer, skillBookFailures, eliteSkillBookPity, eliteSkillBookChance);
+                rolls.add(bookRoll);
+                if (bookRoll.dropped()) deliveries.add(new MobRewardIntent.Delivery(
+                        MobRewardReliabilityRules.deliveryId(killId, "skill-book"), "skill-book",
+                        serialize(commonSkillBook(killer)), "SKILL_BOOK", "mobs.items.common-insight-book", bookRoll.guaranteed()));
             }
+            long experience = MobExperienceRules.reward(level, elite,
+                    minimumExperiencePerKill, normalExperienceMultiplier, eliteExperienceMultiplier);
+            intent = new MobRewardIntent(killId, killer.getUniqueId(), deathMillis, level, experience,
+                    profile == null ? MobRewardIntent.Eligibility.UNKNOWN : MobRewardIntent.Eligibility.ELIGIBLE,
+                    profile == null ? 0 : profile.effectiveLevel(), deliveries, rolls);
+        } catch (RuntimeException error) {
+            plugin.getLogger().severe("Mob reward could not be frozen; NOT accepted player=" + killer.getUniqueId() + " cause=" + error);
+            notifyReward(killer, "mobs.reward-unaccepted", NamedTextColor.RED);
+            return;
         }
-        long experience = MobExperienceRules.reward(level, elite,
-                minimumExperiencePerKill, normalExperienceMultiplier, eliteExperienceMultiplier);
-        DelayedMobRewardQueue.PendingReward reward = new DelayedMobRewardQueue.PendingReward(
-                killId, killer, level, experience, deathMillis, deliveries);
-        if (!delayedRewards.offer(reward)) {
-            plugin.getLogger().severe("Delayed mob reward reservation unexpectedly failed kill=" + killId);
+        DelayedMobRewardQueue.Admission admission = delayedRewards.offer(intent, killer);
+        if (admission == DelayedMobRewardQueue.Admission.QUEUED_NOT_DURABLE) {
+            // Preserve the original PDC counter authority. Replays never restore
+            // these snapshots; player-data saving and reward fsync are separate
+            // durability boundaries, including the profile-missing candidate case.
+            for (MobRewardIntent.PityRoll roll : intent.pityRolls()) killer.getPersistentDataContainer().set(
+                    new NamespacedKey(plugin, roll.counter()), PersistentDataType.INTEGER, roll.after());
+        } else if (admission != DelayedMobRewardQueue.Admission.ALREADY_PENDING) {
+            notifyReward(killer, "mobs.reward-unaccepted", NamedTextColor.RED);
         }
     }
 
-    private ItemStack mutationMaterial(Player audience, boolean elite, boolean groundPickup) {
+    private ItemStack mutationMaterial(Player audience, boolean elite) {
         ItemStack material = new ItemStack(elite ? Material.ECHO_SHARD : Material.AMETHYST_SHARD);
         ItemMeta meta = material.getItemMeta();
         meta.setItemModel(new NamespacedKey("originalrpg", elite ? "mutation_core" : "mutation_shard"));
         meta.getPersistentDataContainer().set(materialMarker, PersistentDataType.BYTE, (byte) 1);
-        if (groundPickup) {
-            meta.getPersistentDataContainer().set(pickupOwner, PersistentDataType.STRING,
-                    audience.getUniqueId().toString());
-        }
         material.setItemMeta(meta);
         itemPresentation.refresh(audience, material);
         return material;
     }
 
-    private ItemStack commonSkillBook(Player audience, boolean groundPickup) {
+    private ItemStack commonSkillBook(Player audience) {
         ItemStack item = new ItemStack(Material.ENCHANTED_BOOK);
         ItemMeta meta = item.getItemMeta();
         meta.setItemModel(new NamespacedKey("originalrpg", "common_insight_skill_book"));
         meta.getPersistentDataContainer().set(skillBook, PersistentDataType.STRING, "common-insight");
         meta.getPersistentDataContainer().set(skillBookInstance, PersistentDataType.STRING, UUID.randomUUID().toString());
-        if (groundPickup) {
-            meta.getPersistentDataContainer().set(pickupOwner, PersistentDataType.STRING,
-                    audience.getUniqueId().toString());
-        }
         item.setItemMeta(meta);
         itemPresentation.refresh(audience, item);
         return item;
@@ -470,20 +442,50 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
     }
 
     @Override
-    public void levelGap(DelayedMobRewardQueue.PendingReward reward) {
+    public void levelGap(DelayedMobRewardQueue.RewardFeedback reward) {
         Player player = reward.activeSession();
         if (player != null) player.sendActionBar(Component.text(
                 messages.text(player, "mobs.level-gap-drop"), NamedTextColor.DARK_GRAY));
     }
 
     @Override
-    public void delivered(DelayedMobRewardQueue.PendingReward reward) {
+    public void delivered(DelayedMobRewardQueue.RewardFeedback reward) {
         Player player = reward.activeSession();
         if (player == null) return;
-        for (DelayedMobRewardQueue.FrozenDelivery delivery : reward.deliveries()) {
-            visuals.rareDrop(player, delivery.visualKind());
+        for (MobRewardIntent.Delivery delivery : reward.intent().deliveries()) {
+            visuals.rareDrop(player, MobVisuals.DropKind.valueOf(delivery.visualKind()));
             if (delivery.pityGuaranteed()) notifyPity(player, delivery.itemMessageKey());
         }
+        if (!reward.intent().deliveries().isEmpty()) notifyReward(player, "mobs.reward-mailbox", NamedTextColor.GOLD);
+    }
+
+    @Override
+    public void saveDelayed(DelayedMobRewardQueue.RewardFeedback reward) {
+        Player player = reward.activeSession();
+        if (player != null) notifyReward(player, "mobs.reward-save-delayed", NamedTextColor.YELLOW);
+    }
+
+    private void notifyReward(Player player, String messageKey, NamedTextColor color) {
+        long now = System.currentTimeMillis();
+        Map<String, Long> notices = rewardNotices.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>());
+        if (now - notices.getOrDefault(messageKey, 0L) < 10_000L) return;
+        notices.put(messageKey, now);
+        player.sendMessage(Component.text(messages.text(player, messageKey), color));
+    }
+
+    @EventHandler
+    public void onRewardSessionQuit(PlayerQuitEvent event) {
+        clearRewardSession(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onRewardSessionRevoked(AuthenticatedPlayerRevokedEvent event) {
+        clearRewardSession(event.player());
+    }
+
+    private void clearRewardSession(Player player) {
+        rewardNotices.remove(player.getUniqueId());
+        if (delayedRewards != null) delayedRewards.forgetSession(player);
     }
 
     private void clearAssignmentRecovery(PersistentDataContainer data) {
@@ -587,13 +589,12 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
         visuals.affixTrigger(monster, player, affix);
     }
 
-    private PityRules.Outcome rollPity(Player player, NamespacedKey key, int guarantee, double chance) {
-        PersistentDataContainer data = player.getPersistentDataContainer();
-        int failures = Math.max(0, data.getOrDefault(key, PersistentDataType.INTEGER, 0));
-        PityRules.Outcome outcome = PityRules.attempt(
-                failures, guarantee, chance, ThreadLocalRandom.current().nextDouble());
-        data.set(key, PersistentDataType.INTEGER, outcome.failures());
-        return outcome;
+    private MobRewardIntent.PityRoll freezePity(Player player, NamespacedKey key, int guarantee, double chance) {
+        int failures = Math.max(0, player.getPersistentDataContainer().getOrDefault(key, PersistentDataType.INTEGER, 0));
+        double random = ThreadLocalRandom.current().nextDouble();
+        PityRules.Outcome outcome = PityRules.attempt(failures, guarantee, chance, random);
+        return new MobRewardIntent.PityRoll(key.getKey(), failures, outcome.failures(), guarantee, chance,
+                random, outcome.dropped(), outcome.guaranteed());
     }
 
     private void notifyPity(Player player, String itemKey) {

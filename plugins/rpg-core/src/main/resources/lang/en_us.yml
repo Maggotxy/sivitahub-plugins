@@ -2675,6 +2675,9 @@ mobs:
   pity-drop: "Hunt guarantee triggered: {item}; its pity counter was reset."
   elite-name: "Elite {affix}"
   level-gap-drop: "The level gap reached 20; only vanilla drops are available."
+  reward-mailbox: "Your custom hunting drops are ready. Use /market claim to collect them."
+  reward-unaccepted: "Hunting reward processing is unavailable. This kill's custom reward was not accepted; vanilla drops are unaffected."
+  reward-save-delayed: "Saving this hunting reward is delayed. We will retry, but recovery across a restart is not guaranteed until the save succeeds."
   experience:
     gained: "+{amount} Growth XP | Ascension {ascension}, Lv. {level} | {experience}/{needed}"
     gained-cap: "+{amount} Growth XP | Ascension {ascension}, Lv. {level} is capped"
@@ -3362,4 +3365,65 @@ civilization:
   next: "[Next page]"
   show-projects: "[Community projects]"
   show-seasons: "[Season history]"
+
+journal:
+  title: Field Journal
+  button: '[Field Journal]'
+  intro: Six permanent collection routes beyond dungeons.
+  rule: Permanent journal badges; no bonus stats or currency.
+  help: Use /journal for the collection menu, /journal status for a summary, or /journal <entry-id> [page] for remaining goals.
+  not-ready: Log in and wait for your account to finish loading before opening the journal.
+  retry: Your discovery could not be recorded yet. It will retry automatically; reopening /journal also retries.
+  discovered: 'Journal stamp earned: {entry}. Click to review your collection.'
+  collection-count: 'Journal stamps: {count}/{total}'
+  criteria-progress: 'Completed conditions: {done}/{total}'
+  recorded-date: 'First recorded: {date} UTC'
+  recorded: Permanently recorded
+  pending: Goal complete; stamp pending recording
+  in-progress: In progress
+  unavailable: 'Unavailable: this server does not match the reviewed goal'
+  remaining-criterion: Still needed
+  click-details: Click to see the remaining conditions
+  close: Close journal
+  back: Back to the collection
+  previous: Previous conditions
+  next: Next conditions
+  page: Page {page}/{pages}
+  entries:
+    overworld-explorer:
+      name: Overworld Cartographer
+      description:
+      - Explore every required Overworld biome.
+      - Read the remaining biome list and plan your route.
+      action: Travel into this biome in the Overworld.
+    nether-explorer:
+      name: Nether Surveyor
+      description:
+      - Visit all five Nether biomes.
+      - Prepare fire protection and a safe return route.
+      action: Enter this biome in the Nether.
+    naturalist:
+      name: Master Naturalist
+      description:
+      - Complete every required animal-breeding condition.
+      - A horse and donkey produce the required mule.
+      action: Breed this animal using its preferred food.
+    forager:
+      name: Resourceful Forager
+      description:
+      - Eat every food required by A Balanced Diet.
+      - The list shows only foods you still need to eat.
+      action: Eat this food; collecting it alone does not count.
+    village-defender:
+      name: Village Defender
+      description:
+      - Defend a village and win a raid.
+      - Earn the actual Hero of the Village advancement.
+      action: Win a raid as a participating village defender.
+    armor-artisan:
+      name: Master Armor Artisan
+      description:
+      - Apply all eight required armor-trim templates.
+      - The list shows the templates still missing.
+      action: Use this template to apply an armor trim at a smithing table.
 

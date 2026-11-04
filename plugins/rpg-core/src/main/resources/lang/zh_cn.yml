@@ -2675,6 +2675,9 @@ mobs:
   pity-drop: "狩猎保底触发：{item}；保底计数已重置。"
   elite-name: "精英 {affix}"
   level-gap-drop: "等级差达到 20，本次只有原版掉落。"
+  reward-mailbox: "本次狩猎的自定义掉落已进入邮箱，请用 /market claim 领取。"
+  reward-unaccepted: "狩猎奖励处理暂不可用，本次自定义奖励未被接收；原版掉落不受影响。"
+  reward-save-delayed: "本次狩猎奖励保存延迟，系统会继续重试；保存成功前不能保证重启后恢复。"
   experience:
     gained: "+{amount} 成长经验｜{ascension}转 {level}级｜{experience}/{needed}"
     gained-cap: "+{amount} 成长经验｜{ascension}转 {level}级已达当前上限"
@@ -3360,4 +3363,65 @@ civilization:
   next: "[下一页]"
   show-projects: "[社群工程]"
   show-seasons: "[赛季历史]"
+
+journal:
+  title: 探索图鉴
+  button: '[探索图鉴]'
+  intro: 六条不依赖副本的永久收藏路线。
+  rule: 只收录永久图鉴徽章，不增加属性或货币。
+  help: /journal 打开图鉴；/journal status 查看摘要；/journal <目标ID> [页码] 查看尚缺条件。
+  not-ready: 请先登录，并等待账号加载完成后再打开图鉴。
+  retry: 发现尚未成功收录，系统会自动重试；再次打开 /journal 也会补录。
+  discovered: 获得图鉴徽章：{entry}。点击查看收藏。
+  collection-count: 已收录徽章：{count}/{total}
+  criteria-progress: 已完成条件：{done}/{total}
+  recorded-date: 首次收录：{date} UTC
+  recorded: 已永久收录
+  pending: 目标已完成，等待收录
+  in-progress: 探索中
+  unavailable: 暂不可用：本服目标与已核对的条件不一致
+  remaining-criterion: 尚未完成
+  click-details: 点击查看尚缺的具体条件
+  close: 关闭图鉴
+  back: 返回图鉴总览
+  previous: 上一页条件
+  next: 下一页条件
+  page: 第 {page}/{pages} 页
+  entries:
+    overworld-explorer:
+      name: 主世界绘图者
+      description:
+      - 探索全部要求的主世界生物群系。
+      - 查看尚缺群系，规划自己的远行路线。
+      action: 亲自进入这个主世界生物群系。
+    nether-explorer:
+      name: 下界勘察者
+      description:
+      - 走访下界全部五种生物群系。
+      - 出发前准备防火措施与安全返程路线。
+      action: 亲自进入这个下界生物群系。
+    naturalist:
+      name: 博物学家
+      description:
+      - 完成全部要求的动物繁育条件。
+      - 马与驴交配，才能获得所需的骡。
+      action: 使用这种动物喜爱的食物完成繁育。
+    forager:
+      name: 百味采食者
+      description:
+      - 吃下「均衡饮食」要求的每种食物。
+      - 清单只显示你尚未吃过的目标食物。
+      action: 亲自吃下这种食物；仅收集不计入。
+    village-defender:
+      name: 村庄守望者
+      description:
+      - 参与保卫村庄并赢得袭击。
+      - 以原版「村庄英雄」进度作为完成依据。
+      action: 参与防御并赢得一场村庄袭击。
+    armor-artisan:
+      name: 铠纹工匠
+      description:
+      - 使用全部八种指定盔甲纹饰模板。
+      - 清单会显示仍未应用的模板。
+      action: 在锻造台使用这种模板为盔甲添加纹饰。
 
