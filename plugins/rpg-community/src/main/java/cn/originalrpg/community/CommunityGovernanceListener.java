@@ -4,7 +4,6 @@ import cn.originalrpg.api.event.CommunityApprovalSubmittedEvent;
 import cn.originalrpg.api.event.CommunityGovernanceActionEffectiveEvent;
 import cn.originalrpg.api.event.CommunityRoleRejectionEvent;
 import cn.originalrpg.api.event.CommunityEventCompletedEvent;
-import cn.originalrpg.api.model.CommunityApprovalOutcome;
 import cn.originalrpg.api.model.CommunityGovernanceAction;
 import cn.originalrpg.api.model.CommunityRolePower;
 import cn.originalrpg.api.service.CommunityGovernanceService;
@@ -20,6 +19,8 @@ import org.bukkit.event.Listener;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Phase 6 治理事件消费者。
@@ -29,18 +30,36 @@ import java.util.UUID;
  * 提交人自动成为第一票；第二票必须由另一名治理角色投出，动作才生效。</p>
  */
 final class CommunityGovernanceListener implements Listener {
-    private final RpgCommunityPlugin plugin;
     private final CommunityGovernanceService governance;
-    private final MessageService messages;
+    private final Consumer<Runnable> onMain;
+    private final BiConsumer<UUID, GovernanceNotice> deliver;
+    private final Consumer<Throwable> reportFailure;
 
     CommunityGovernanceListener(
             RpgCommunityPlugin plugin,
             CommunityGovernanceService governance,
             MessageService messages
     ) {
-        this.plugin = plugin;
+        this(governance, action -> plugin.onMain(action), (recipient, notice) -> {
+            Player player = Bukkit.getPlayer(recipient);
+            // Authentication and online-session checks happen on the server thread,
+            // after the asynchronous authoritative audience read has completed.
+            if (!plugin.isAuthenticated(player)) return;
+            player.sendMessage(Component.text(messages.text(player, notice.key(),
+                    Map.of("action", notice.action().key(), "player", name(notice.actor()))), notice.color()));
+        }, error -> plugin.getLogger().warning("Community governance notification failed: " + error));
+    }
+
+    CommunityGovernanceListener(
+            CommunityGovernanceService governance,
+            Consumer<Runnable> onMain,
+            BiConsumer<UUID, GovernanceNotice> deliver,
+            Consumer<Throwable> reportFailure
+    ) {
         this.governance = governance;
-        this.messages = messages;
+        this.onMain = onMain;
+        this.deliver = deliver;
+        this.reportFailure = reportFailure;
     }
 
     /**
@@ -64,12 +83,11 @@ final class CommunityGovernanceListener implements Listener {
             submitted++;
             governance.submit(recipientId, CommunityGovernanceAction.COMMUNITY_EVENT,
                             CommunityGovernanceAction.COMMUNITY_EVENT.key(), key)
-                    .whenComplete((outcome, error) -> plugin.onMain(() -> {
-                        if (error != null || outcome == null) return;
-                        if (outcome.recorded()) {
-                            notifyApprovers(recipientId, outcome);
-                        }
-                    }));
+                    .whenComplete((outcome, error) -> {
+                        if (error != null) reportFailure.accept(error);
+                        // The committed CommunityApprovalSubmittedEvent is the
+                        // single notification path; do not send a second hint here.
+                    });
         }
         return submitted;
     }
@@ -79,47 +97,43 @@ final class CommunityGovernanceListener implements Listener {
         submitEventApprovals(event);
     }
 
-    /** 第二票达成 → 通知社群里的治理角色动作已生效。 */
+    /** Notify only this community's current governance members. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEffective(CommunityGovernanceActionEffectiveEvent event) {
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            online.sendMessage(Component.text(messages.text(online, "community.governance.effective",
-                    Map.of("action", event.action().key(),
-                            "player", name(event.actor()))), NamedTextColor.GREEN));
-        }
+        notifyCommunity(event.communityId(), null, new GovernanceNotice(
+                "community.governance.effective", event.actor(), event.action(), NamedTextColor.GREEN));
     }
 
-    /**
-     * 双批通过但角色没落地 → 通知在线治理角色，人工重放。
-     *
-     * <p>发布者：{@code JdbcCommunityService.decide()}。没有这条消费，
-     * 「审批耗完但角色没变」对玩家就是不可观测的。</p>
-     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onRoleRejection(CommunityRoleRejectionEvent event) {
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            online.sendMessage(Component.text(messages.text(online, "community.governance.role-rejected",
-                    Map.of("action", event.action().key(),
-                            "player", name(event.actor()))), NamedTextColor.RED));
-        }
+        notifyCommunity(event.communityId(), null, new GovernanceNotice(
+                "community.governance.role-rejected", event.actor(), event.action(), NamedTextColor.RED));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSubmitted(CommunityApprovalSubmittedEvent event) {
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            if (online.getUniqueId().equals(event.actor())) continue;
-            online.sendMessage(Component.text(messages.text(online, "community.governance.submitted",
-                    Map.of("action", event.action().key(),
-                            "player", name(event.actor()))), NamedTextColor.YELLOW));
-        }
+        notifyCommunity(event.communityId(), event.actor(), new GovernanceNotice(
+                "community.governance.submitted", event.actor(), event.action(), NamedTextColor.YELLOW));
     }
 
-    private void notifyApprovers(UUID actorId, CommunityApprovalOutcome outcome) {
-        for (Player online : Bukkit.getOnlinePlayers()) {
-            if (online.getUniqueId().equals(actorId)) continue;
-            online.sendMessage(Component.text(messages.text(online, "community.governance.pending-hint",
-                    Map.of("action", outcome.action().key())), NamedTextColor.GOLD));
-        }
+    private void notifyCommunity(UUID communityId, UUID excludedActor, GovernanceNotice notice) {
+        if (governance == null || !governance.enabled()) return;
+        governance.notificationRecipients(communityId).whenComplete((recipients, error) -> {
+            if (error != null) {
+                reportFailure.accept(error);
+                return;
+            }
+            if (recipients == null || recipients.isEmpty()) return;
+            onMain.accept(() -> {
+                if (!governance.enabled()) return;
+                for (UUID recipient : recipients) {
+                    if (!recipient.equals(excludedActor)) deliver.accept(recipient, notice);
+                }
+            });
+        });
+    }
+
+    record GovernanceNotice(String key, UUID actor, CommunityGovernanceAction action, NamedTextColor color) {
     }
 
     private static String name(UUID playerId) {
