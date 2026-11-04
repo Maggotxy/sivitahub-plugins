@@ -36,5 +36,6 @@ include(
     "plugins:rpg-community",
     "plugins:rpg-essentials",
     "plugins:rpg-pets",
-    "tools:db-migration"
+    "tools:db-migration",
+    "tools:runtime-smoke"
 )

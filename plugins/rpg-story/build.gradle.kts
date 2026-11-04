@@ -7,4 +7,5 @@ dependencies {
         rootProject.file("libs/BetonQuest-3.1.0.jar"),
     ))
     testImplementation(project(":plugins:rpg-api"))
+    testImplementation("io.papermc.paper:paper-api:${rootProject.property("paperApiVersion")}")
 }

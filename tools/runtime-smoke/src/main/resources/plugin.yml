@@ -1,0 +1,7 @@
+name: SivitaRuntimeProbe
+version: '${version}'
+main: cn.originalrpg.tools.smoke.SivitaRuntimeProbe
+api-version: '${paperApi}'
+description: Disposable verification probe; exclude from releases.
+depend: [RpgApi]
+softdepend: [RpgCore]

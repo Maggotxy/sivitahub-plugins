@@ -61,6 +61,7 @@ LOCK_FILE="$SCRIPT_DIR/runtime-smoke-plugins.lock.json"
 # 不从 plugin.yml 现场解析（那需要 YAML），而是由 scripts/gen-runtime-smoke-own-plugins.py 生成静态清单，
 # 生成时逐个读 plugin.yml 校验过。
 OWN_MANIFEST="$SCRIPT_DIR/runtime-smoke-own-plugins.txt"
+python3 "$SCRIPT_DIR/gen-runtime-smoke-own-plugins.py" --output "$OWN_MANIFEST"
 [ -f "$OWN_MANIFEST" ] || { echo "run-paper-smoke: 缺 $OWN_MANIFEST" >&2; exit 2; }
 
 [ -f "$LOCK_FILE" ] || { echo "run-paper-smoke: 缺插件锁清单 $LOCK_FILE" >&2; exit 2; }
@@ -114,6 +115,10 @@ count_lines() { # $1=文件
 for t in python3 java sha256sum curl; do
     have "$t" || die "缺少必需工具：$t（门禁镜像应提供 python3/java/curl/coreutils）"
 done
+# A disposable smoke must never inherit a production database or signing key.
+if [ -n "${RPG_DATABASE_URL:-}" ]; then
+    die "Runtime RPG_DATABASE_URL is set; use an isolated SIVITA_SMOKE_POSTGRES_URL instead"
+fi
 # 锁清单的存在性与内容已在上面预检过（含 SMOKE_LOCK_* 判据行），此处不重复。
 
 WORK=$(mktemp -d /tmp/paper-smoke.XXXXXX)
@@ -122,6 +127,17 @@ PLUGINS="$SERVER/plugins"
 CACHE="$WORK/cache"
 mkdir -p "$SERVER" "$PLUGINS" "$CACHE"
 log "工作目录（不进仓库）：$WORK"
+RPG_ITEM_SIGNING_KEY=$(python3 -c 'import base64,secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())')
+export RPG_ITEM_SIGNING_KEY
+unset RPG_ITEM_SIGNING_KEY_PREVIOUS RPG_ITEM_SIGNING_KEY_PREVIOUS_2 RPG_ITEM_SIGNING_KEY_PREVIOUS_3
+if [ -n "${SIVITA_SMOKE_POSTGRES_URL:-}" ]; then
+    RPG_DATABASE_URL=$SIVITA_SMOKE_POSTGRES_URL
+    RPG_DATABASE_USER=${SIVITA_SMOKE_POSTGRES_USER:?Dedicated smoke database user required}
+    RPG_DATABASE_PASSWORD=${SIVITA_SMOKE_POSTGRES_PASSWORD:?Dedicated smoke database password required}
+    export RPG_DATABASE_URL RPG_DATABASE_USER RPG_DATABASE_PASSWORD
+else
+    unset RPG_DATABASE_USER RPG_DATABASE_PASSWORD
+fi
 
 SERVER_LOG="$WORK/server.log"
 : > "$SERVER_LOG"
@@ -297,6 +313,13 @@ for index, entry in enumerate(lock["plugins"], start=1):
     if verify(dest, expect):
         say("插件 %-22s OK（缓存 sha512 已核对）%s" % (tag, filename))
         continue
+    # Compile inputs can also be exact runtime artifacts (for example Citizens).
+    # Reuse them only when the independent runtime SHA-512 lock also matches.
+    local_compile_input = os.path.join(root, "libs", filename)
+    if "local" not in entry and verify(local_compile_input, expect):
+        shutil.copyfile(local_compile_input, dest)
+        say("插件 %-22s OK（libs input，runtime sha512 已核对）%s" % (tag, filename))
+        continue
     if "local" in entry:
         src = os.path.join(root, entry["local"])
         if not verify(src, expect):
@@ -462,6 +485,17 @@ done < "$OWN_MANIFEST"
 log "自研插件 jar 已装入 plugins/：$(count_lines "$WORK/own-jars.txt") 个"
 tick "25 个自研插件 jar 已装入"
 
+# This tool is deliberately excluded from release packaging. It observes actual
+# Plugin.isEnabled() and registered services after ServerLoadEvent, so a plugin
+# which logs "Enabling" and then disables itself cannot produce a green gate.
+python3 - "$ROOT/tools/runtime-smoke/build/libs" "$PLUGINS" <<'PY'
+from pathlib import Path
+import shutil,sys
+inputs=[p for p in Path(sys.argv[1]).glob('*.jar') if not p.name.endswith('-sources.jar')]
+if len(inputs)!=1: raise SystemExit('smoke: expected exactly one runtime probe JAR; run assemble')
+shutil.copyfile(inputs[0],Path(sys.argv[2])/'SivitaRuntimeProbe.jar')
+PY
+
 # 社区插件装入 plugins/
 python3 - "$LOCK_FILE" "$CACHE" "$PLUGINS" <<'PY'
 import json, shutil, sys, os
@@ -488,6 +522,8 @@ EOF
 # level-type 里的冒号必须转义，否则被当成 properties key/value 分隔
 cat > "$SERVER/server.properties" <<EOF
 online-mode=false
+server-ip=127.0.0.1
+server-port=0
 max-players=1
 level-type=minecraft\\:flat
 spawn-protection=0
@@ -518,12 +554,19 @@ log "Paper PID=$JAVA_PID，等待日志出现 '$EULA_MARK'（上限 ${BOOT_TIMEO
 tick "Paper 进程已启动，开始等 Done ("
 
 STARTED=NO
+PROBE_READY=NO
 waited=0
 # 每 5 秒一行心跳：Paper 启动期日志本来就是逐行滚动的，这里只保证
 # 「哪怕日志被 Paper 缓冲住也一定有输出」，避免再被 CNB 的无输出看门狗杀掉。
 while [ "$waited" -lt "$BOOT_TIMEOUT" ]; do
     if grep -qF "$EULA_MARK" "$SERVER_LOG" 2>/dev/null; then
         STARTED=YES
+    fi
+    if grep -qF "SIVITA_PROBE_READY=YES" "$SERVER_LOG" 2>/dev/null; then
+        PROBE_READY=YES
+        break
+    fi
+    if grep -qF "SIVITA_PROBE_READY=NO" "$SERVER_LOG" 2>/dev/null; then
         break
     fi
     if ! kill -0 "$JAVA_PID" 2>/dev/null; then
@@ -568,7 +611,7 @@ tick "Paper 已停止，开始统计判据"
 : > "$WORK/own-missing.txt"
 while IFS="$(printf '\t')" read -r module pname; do
     [ -z "$module" ] && continue
-    if grep -qE "Enabling ${pname}( |$)" "$SERVER_LOG"; then
+    if grep -qF "SIVITA_PROBE_PLUGIN=${pname}:ENABLED" "$SERVER_LOG"; then
         printf '%s\n' "$pname" >> "$WORK/own-enabled.txt"
     else
         printf '%s\n' "$pname" >> "$WORK/own-missing.txt"
@@ -726,7 +769,7 @@ COMMUNITY_ERRORS=$(count_lines "$WORK/community-errors.txt")
 UNATTRIBUTED_ERRORS=$(count_lines "$WORK/unattributed-errors.txt")
 
 GATE=RED
-if [ "$STARTED" = "YES" ] && [ "$ENABLED" -eq "$TOTAL" ] && [ "$OWN_ERRORS" -eq 0 ]; then
+if [ "$STARTED" = "YES" ] && [ "$PROBE_READY" = "YES" ] && [ "$ENABLED" -eq "$TOTAL" ] && [ "$OWN_ERRORS" -eq 0 ]; then
     GATE=GREEN
 fi
 
@@ -777,6 +820,7 @@ echo "  （完整日志：$SERVER_LOG，assemble 日志：$WORK/assemble.log）"
 echo
 echo "PAPER_SMOKE_GATE=$GATE"
 echo "PAPER_STARTED=$STARTED"
+echo "PAPER_PROBE_READY=$PROBE_READY"
 echo "PAPER_PLUGINS_ENABLED=$ENABLED"
 echo "PAPER_OWN_ERRORS=$OWN_ERRORS"
 echo "PAPER_COMMUNITY_ERRORS=$COMMUNITY_ERRORS"
