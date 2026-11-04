@@ -1,0 +1,10 @@
+{
+  "project": "paper",
+  "version": "26.2",
+  "build": 100,
+  "channel": "STABLE",
+  "name": "paper-26.2-100.jar",
+  "sha256": "5953a1f1deaa3572be420c3a5b18406c4b752412a78be4acab7c8b467633caed",
+  "url": "https://fill-data.papermc.io/v1/objects/5953a1f1deaa3572be420c3a5b18406c4b752412a78be4acab7c8b467633caed/paper-26.2-100.jar",
+  "metadata_url": "https://fill.papermc.io/v3/projects/paper/versions/26.2/builds/100"
+}

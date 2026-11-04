@@ -1,0 +1,124 @@
+name: Developer verification
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'codex/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  transactions:
+    name: Core transactions on H2 and PostgreSQL 18.6
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: sivita_test
+          POSTGRES_USER: sivita_ci
+          POSTGRES_PASSWORD: sivita_ephemeral_ci_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd 'pg_isready -U sivita_ci -d sivita_test'
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@7ca78c16c887dc6c5f36fd6d0cb0f5c23d940e69 # v6
+        with:
+          gradle-version: '9.1.0'
+      - name: Core, API and migration behavior (H2)
+        run: gradle --no-daemon :plugins:rpg-api:test :plugins:rpg-core:test :tools:db-migration:test -PexcludeTags=env --continue
+      - name: Keep H2 evidence before the PostgreSQL rerun
+        if: always()
+        run: |
+          mkdir -p build/verification/h2
+          cp -R plugins/rpg-core/build/test-results/test build/verification/h2/core
+          cp -R tools/db-migration/build/test-results/test build/verification/h2/migration
+      - name: Real PostgreSQL market settlement and migration
+        env:
+          SIVITA_MARKET_TEST_POSTGRES_URL: jdbc:postgresql://localhost:5432/sivita_test
+          SIVITA_MARKET_TEST_POSTGRES_USER: sivita_ci
+          SIVITA_MARKET_TEST_POSTGRES_PASSWORD: sivita_ephemeral_ci_only
+          SIVITA_MIGRATION_TEST_POSTGRES_URL: jdbc:postgresql://localhost:5432/sivita_test
+          SIVITA_MIGRATION_TEST_POSTGRES_USER: sivita_ci
+          SIVITA_MIGRATION_TEST_POSTGRES_PASSWORD: sivita_ephemeral_ci_only
+        run: |
+          gradle --no-daemon :plugins:rpg-core:test --tests cn.originalrpg.core.persistence.JdbcMarketBuyOrderServiceTest -PexcludeTags=env --rerun-tasks
+          gradle --no-daemon :tools:db-migration:test -PexcludeTags=env --rerun-tasks
+      - name: Preserve transaction evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: transactions-${{ github.sha }}
+          path: |
+            build/verification/
+            plugins/rpg-core/build/test-results/
+            plugins/rpg-core/build/reports/tests/
+            tools/db-migration/build/test-results/
+          retention-days: 7
+
+  all-plugins:
+    name: All 25 plugins and pinned upstream dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@7ca78c16c887dc6c5f36fd6d0cb0f5c23d940e69 # v6
+        with:
+          gradle-version: '9.1.0'
+      - name: Resolve exact upstream JARs and verify hashes
+        run: sh scripts/fetch-deps.sh
+      - name: Execute tests and build every module
+        run: gradle --no-daemon test assemble -PexcludeTags=env --continue
+      - name: Preserve build evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: plugin-tests-${{ github.sha }}
+          path: |
+            plugins/*/build/test-results/
+            plugins/*/build/reports/tests/
+          retention-days: 7
+
+  content-and-contracts:
+    name: Content, schema, source contracts and economy model
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install the pinned YAML parser
+        run: python3 -m pip install PyYAML==6.0.3
+      - name: Validate source and content
+        run: |
+          sh scripts/check-source-contract.sh --all
+          sh scripts/check-mechanics-spec.sh
+          sh scripts/check-ddl-consumers.sh
+          python3 scripts/check-locales.py
+          python3 scripts/check-navigation.py
+          python3 scripts/check-content-assets.py
+          python3 scripts/check-story-package.py
+          python3 -m unittest discover -s scripts/tests
+          python3 -m unittest discover -s tools/economy-sim -p 'test_*.py'
+          python3 tools/economy-sim/run.py --output build/verification/economy.json
