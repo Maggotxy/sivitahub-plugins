@@ -11,6 +11,10 @@ import org.h2.mvstore.db.MVTable;
 import org.h2.table.Table;
 import org.junit.jupiter.api.Test;
 
+import javax.sql.DataSource;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -19,6 +23,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -28,7 +33,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -56,11 +60,9 @@ public class JdbcActivityEconomyCreationVisibilityTest {
 
     private void verifyRewardAndRetry(CreatedRow row) throws Exception {
         try (Fixture fixture = new Fixture()) {
-            fixture.pauseCreatorAfterStorageCommit(row);
-
             // This must finish while the creator is still paused before cache
             // invalidation. Moving the assertion after release hides the bug.
-            ActivityRewardResult first = fixture.reward("visibility:first");
+            ActivityRewardResult first = fixture.rewardDuringConcurrentCreation(row);
             assertEquals(ActivityRewardResult.Status.SUCCESS, first.status());
             assertEquals(EXISTING_GOLD, first.progress().gold());
             assertEquals(MAX_MERIT, first.progress().merit());
@@ -151,6 +153,9 @@ public class JdbcActivityEconomyCreationVisibilityTest {
         private final Connection creator;
         private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
         private final JdbcActivityEconomyService service;
+        private final AtomicBoolean observedMiss = new AtomicBoolean();
+        private final CountDownLatch initialMiss = new CountDownLatch(1);
+        private volatile String observedSelect;
         private Future<?> creatorCommit;
 
         private Fixture() throws Exception {
@@ -159,8 +164,6 @@ public class JdbcActivityEconomyCreationVisibilityTest {
             HikariConfig config = new HikariConfig();
             config.setJdbcUrl(url);
             config.setAutoCommit(false);
-            // Reuse the primed physical connection deterministically, as the
-            // production pool does, rather than relying on scheduling luck.
             config.setMaximumPoolSize(1);
             config.setMinimumIdle(1);
             config.setConnectionTimeout(2_000);
@@ -177,10 +180,10 @@ public class JdbcActivityEconomyCreationVisibilityTest {
                 }
             }
             creator.setAutoCommit(false);
-            service = new JdbcActivityEconomyService(dataSource, executor, new BigDecimal("7.00"));
+            service = new JdbcActivityEconomyService(observingDataSource(), executor, new BigDecimal("7.00"));
         }
 
-        private void pauseCreatorAfterStorageCommit(CreatedRow row) throws Exception {
+        private ActivityRewardResult rewardDuringConcurrentCreation(CreatedRow row) throws Exception {
             if (row == CreatedRow.ACCOUNT) insertWallet();
             else insertAccount();
             creator.commit();
@@ -190,14 +193,11 @@ public class JdbcActivityEconomyCreationVisibilityTest {
             if (row == CreatedRow.ACCOUNT) insertAccount();
             else insertWallet();
 
-            try (Connection reader = dataSource.getConnection();
-                 PreparedStatement query = reader.prepareStatement(row.select)) {
-                query.setString(1, player.toString());
-                try (ResultSet result = query.executeQuery()) {
-                    assertFalse(result.next(), "An uncommitted competing creation must not be visible");
-                }
-                reader.rollback();
-            }
+            observedSelect = row.select;
+            CompletableFuture<ActivityRewardResult> pending = service.reward(player, EconomyActivity.HUNTING,
+                    BigDecimal.ZERO, 1L, BigDecimal.ZERO, 100L, "visibility:first", "visibility-regression")
+                    .toCompletableFuture();
+            assertTrue(initialMiss.await(5, TimeUnit.SECONDS), "Service did not observe the uncommitted row as missing");
             gate.armed.set(true);
             creatorCommit = executor.submit(() -> {
                 try {
@@ -207,6 +207,54 @@ public class JdbcActivityEconomyCreationVisibilityTest {
                 }
             });
             assertTrue(gate.dataCommitted.await(5, TimeUnit.SECONDS), "Storage commit did not reach the gate");
+            return pending.get(5, TimeUnit.SECONDS);
+        }
+
+        /** Observes actual JDBC results; it never replaces or synthesizes one. */
+        private DataSource observingDataSource() {
+            return (DataSource) Proxy.newProxyInstance(DataSource.class.getClassLoader(),
+                    new Class<?>[]{DataSource.class}, (proxy, method, args) -> {
+                        Object result = invoke(method, dataSource, args);
+                        return result instanceof Connection connection ? observingConnection(connection) : result;
+                    });
+        }
+
+        private Connection observingConnection(Connection connection) {
+            return (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
+                    new Class<?>[]{Connection.class}, (proxy, method, args) -> {
+                        Object result = invoke(method, connection, args);
+                        if (method.getName().equals("prepareStatement") && args[0].equals(observedSelect)) {
+                            return observingStatement((PreparedStatement) result);
+                        }
+                        return result;
+                    });
+        }
+
+        private PreparedStatement observingStatement(PreparedStatement statement) {
+            return (PreparedStatement) Proxy.newProxyInstance(PreparedStatement.class.getClassLoader(),
+                    new Class<?>[]{PreparedStatement.class}, (proxy, method, args) -> {
+                        Object result = invoke(method, statement, args);
+                        if (!(result instanceof ResultSet rows)) return result;
+                        return Proxy.newProxyInstance(ResultSet.class.getClassLoader(),
+                                new Class<?>[]{ResultSet.class}, (rowProxy, rowMethod, rowArgs) -> {
+                                    Object value = invoke(rowMethod, rows, rowArgs);
+                                    if (rowMethod.getName().equals("next") && Boolean.FALSE.equals(value)
+                                            && observedMiss.compareAndSet(false, true)) {
+                                        initialMiss.countDown();
+                                        assertTrue(gate.dataCommitted.await(5, TimeUnit.SECONDS),
+                                                "Creator did not commit after the real empty SELECT");
+                                    }
+                                    return value;
+                                });
+                    });
+        }
+
+        private static Object invoke(Method method, Object receiver, Object[] args) throws Throwable {
+            try {
+                return method.invoke(receiver, args);
+            } catch (InvocationTargetException failure) {
+                throw failure.getCause();
+            }
         }
 
         private void insertAccount() throws SQLException {
