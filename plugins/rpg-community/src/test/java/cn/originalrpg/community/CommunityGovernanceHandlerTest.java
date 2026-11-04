@@ -317,6 +317,22 @@ final class CommunityGovernanceHandlerTest {
                 fixture.handler.approve(UUID.randomUUID(), null).join().keys());
     }
 
+    @Test
+    void revokedSessionCannotSubmitAfterAnAsynchronousPermissionLookup() {
+        Fixture fixture = new Fixture();
+        var current = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var permission = new CompletableFuture<Boolean>();
+        CommunityGovernanceHandler handler = new CommunityGovernanceHandler(fixture.service,
+                fixture.roleAssignments, (actor, capability) -> permission, true, actor -> current.get());
+        var pending = handler.assign(UUID.randomUUID(), UUID.randomUUID(), "TREASURER", "delayed-role");
+        current.set(false);
+        permission.complete(true);
+        assertTrue(pending.join().keys().contains("community.governance.not-allowed"));
+        assertEquals(0, fixture.roleAssignments.requestCalls.get());
+        handler.deny(UUID.randomUUID(), CommunityGovernanceAction.COMMUNITY_PROJECT).join();
+        assertEquals(0, fixture.service.denyCalls.get());
+    }
+
     // ---------------------------------------------------------------
 
     /** Render the actual command output using the same packaged text as the server. */

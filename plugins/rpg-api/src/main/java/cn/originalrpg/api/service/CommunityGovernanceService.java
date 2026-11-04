@@ -65,7 +65,11 @@ public interface CommunityGovernanceService {
     CompletionStage<CommunityApprovalOutcome> deny(
             UUID actor, CommunityGovernanceAction action, String subject);
 
-    /** 该玩家所在社群中，某动作当前待批准记录对应的具体目标（工程=动作键，角色变更=目标 UUID）。 */
+    /**
+     * Persisted pending subject: an action key for projects/events or a
+     * {@link cn.originalrpg.api.model.CommunityRoleIntent} for role assignment.
+     * Legacy UUID-only role subjects must never be interpreted as consent to an inferred role.
+     */
     CompletionStage<Optional<String>> subjects(UUID playerId, CommunityGovernanceAction action);
 
     /** 读取某动作当前的批准记录（角色 + UUID）。 */

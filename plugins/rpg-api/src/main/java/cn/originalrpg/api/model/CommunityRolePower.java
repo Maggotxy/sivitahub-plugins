@@ -77,10 +77,10 @@ public final class CommunityRolePower {
         return "community.roles.member";
     }
 
-    /** 只有这些角色允许被任命；OWNER 只能通过既有转让流程更换。 */
+    /** All non-owner roles require two existing governors; ownership has separate transfer/succession paths. */
     public static Optional<CommunityRole> assignable(String raw) {
         CommunityRole role = CommunityRole.parse(raw).orElse(null);
-        if (role == null || role == CommunityRole.OWNER || role.canApprove()) return Optional.empty();
+        if (role == null || role == CommunityRole.OWNER) return Optional.empty();
         return Optional.of(role);
     }
 }

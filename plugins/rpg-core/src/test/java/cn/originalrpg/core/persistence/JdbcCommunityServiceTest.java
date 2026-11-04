@@ -51,6 +51,14 @@ class JdbcCommunityServiceTest {
 
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
             statement.execute("""
+                    CREATE TABLE rpg_community_lifecycle_audit (
+                        audit_id VARCHAR(36) PRIMARY KEY, community_id VARCHAR(36) NOT NULL,
+                        proposal_id VARCHAR(36) NOT NULL, actor_uuid VARCHAR(36) NOT NULL,
+                        transition VARCHAR(32) NOT NULL, detail VARCHAR(256) NOT NULL,
+                        recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """);
+            statement.execute("""
                     CREATE TABLE rpg_profiles (
                         player_uuid VARCHAR(36) PRIMARY KEY, archetype VARCHAR(24) NOT NULL,
                         ascension INTEGER NOT NULL, level INTEGER NOT NULL, experience BIGINT NOT NULL,
@@ -120,7 +128,7 @@ class JdbcCommunityServiceTest {
                         normalized_name VARCHAR(40) UNIQUE NOT NULL, tag VARCHAR(8) NOT NULL,
                         normalized_tag VARCHAR(8) UNIQUE NOT NULL, owner_uuid VARCHAR(36) NOT NULL,
                         capacity INTEGER NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        dissolved_at TIMESTAMP NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )
                     """);
             statement.execute("""

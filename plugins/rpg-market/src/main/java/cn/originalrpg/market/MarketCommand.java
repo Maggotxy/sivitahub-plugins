@@ -14,6 +14,8 @@ import cn.originalrpg.api.service.EquipmentProgressService;
 import cn.originalrpg.api.service.MarketBuyOrderService;
 import cn.originalrpg.api.service.MarketService;
 import cn.originalrpg.api.service.MessageService;
+import cn.originalrpg.api.service.CommunityStorageService;
+import cn.originalrpg.api.rules.CommunityStorageRules;
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.registry.data.dialog.ActionButton;
 import io.papermc.paper.registry.data.dialog.DialogBase;
@@ -76,6 +78,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
     private final EquipmentService equipment;
     private final EquipmentProgressService equipmentProgress;
     private final MessageService messages;
+    private final CommunityStorageService communityStorage;
     private final NamespacedKey listingMarker;
     private final NamespacedKey deliveryMarker;
     private final NamespacedKey escrowReceipts;
@@ -98,7 +101,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             MarketBuyOrderService buyOrders,
             EquipmentService equipment,
             EquipmentProgressService equipmentProgress,
-            MessageService messages
+            MessageService messages,
+            CommunityStorageService communityStorage
     ) {
         this.plugin = plugin;
         this.market = market;
@@ -106,6 +110,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         this.equipment = equipment;
         this.equipmentProgress = equipmentProgress;
         this.messages = messages;
+        this.communityStorage = communityStorage;
         listingMarker = new NamespacedKey(plugin, "listing_id");
         deliveryMarker = new NamespacedKey(plugin, "delivery_id");
         escrowReceipts = new NamespacedKey(plugin, "escrow_receipts");
@@ -280,11 +285,31 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
 
     private boolean sell(Player player, String[] args) {
         if (args.length != 2) return false;
+        return prepareItem(player, args[1], false);
+    }
+
+    /** Uses the same saved marker/removal receipt as market sales, without publishing a priced listing. */
+    void depositCommunity(Player player) {
+        if (!ready(player)) return;
+        if (communityStorage == null || !communityStorage.enabled()) {
+            player.sendMessage(Component.text(messages.text(player, "community-storage.disabled"), NamedTextColor.YELLOW));
+            return;
+        }
+        prepareItem(player, null, true);
+    }
+
+    private boolean prepareItem(Player player, String priceText, boolean communityDeposit) {
         if (!listingPlayers.add(player.getUniqueId())) {
             player.sendMessage(Component.text(messages.text(player, "market.listing-pending"), NamedTextColor.YELLOW));
             return true;
         }
         ItemStack item = player.getInventory().getItemInMainHand();
+        var matchingGoods = MarketGoodsCapture.capture(item, equipment);
+        if (communityDeposit && matchingGoods.filter(CommunityStorageRules::accepts).isEmpty()) {
+            listingPlayers.remove(player.getUniqueId());
+            player.sendMessage(Component.text(messages.text(player, "community-storage.material-rejected"), NamedTextColor.RED));
+            return true;
+        }
         if (NestedItemPolicy.isContainerWithContents(item)) {
             listingPlayers.remove(player.getUniqueId());
             player.sendMessage(Component.text(messages.text(player, "market.system-item"), NamedTextColor.RED));
@@ -324,19 +349,20 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             player.sendMessage(Component.text(messages.text(player, "market.refined-bound"), NamedTextColor.RED));
             return true;
         }
-        BigDecimal price;
-        try {
-            BigDecimal minimum = new BigDecimal(plugin.getConfig().getString("listing.minimum-price", "1.00"));
-            BigDecimal maximum = new BigDecimal(plugin.getConfig().getString("listing.maximum-price", "1000000000000.00"));
-            price = MarketPricePolicy.normalize(args[1], minimum, maximum).orElseThrow(NumberFormatException::new);
-        } catch (NumberFormatException exception) {
-            listingPlayers.remove(player.getUniqueId());
-            player.sendMessage(Component.text(messages.text(player, "market.price-invalid"), NamedTextColor.RED));
-            return true;
+        BigDecimal price = BigDecimal.ZERO;
+        if (!communityDeposit) {
+            try {
+                BigDecimal minimum = new BigDecimal(plugin.getConfig().getString("listing.minimum-price", "1.00"));
+                BigDecimal maximum = new BigDecimal(plugin.getConfig().getString("listing.maximum-price", "1000000000000.00"));
+                price = MarketPricePolicy.normalize(priceText, minimum, maximum).orElseThrow(NumberFormatException::new);
+            } catch (NumberFormatException exception) {
+                listingPlayers.remove(player.getUniqueId());
+                player.sendMessage(Component.text(messages.text(player, "market.price-invalid"), NamedTextColor.RED));
+                return true;
+            }
         }
 
         UUID listingId = UUID.randomUUID();
-        var matchingGoods = MarketGoodsCapture.capture(item, equipment);
         preparingListings.put(player.getUniqueId(), listingId);
         meta = item.getItemMeta();
         meta.getPersistentDataContainer().set(listingMarker, PersistentDataType.STRING, listingId.toString());
@@ -346,9 +372,12 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         BigDecimal feeRate = new BigDecimal(plugin.getConfig().getString(
                 custom ? "fees.custom-equipment" : "fees.normal", custom ? "0.10" : "0.05"));
         int maximumOpen = Math.clamp(plugin.getConfig().getInt("listing.maximum-open-per-player", 12), 1, 100);
-        market.prepare(listingId, player.getUniqueId(), payload, price, feeRate, maximumOpen,
-                        custom ? equipment.itemId(item) : java.util.Optional.empty(), matchingGoods)
-                .whenComplete((result, error) -> sync(() -> completePreparation(player, listingId, result, error)));
+        var preparation = communityDeposit
+                ? communityStorage.prepare(listingId, player.getUniqueId(), payload, matchingGoods.orElseThrow())
+                : market.prepare(listingId, player.getUniqueId(), payload, price, feeRate, maximumOpen,
+                        custom ? equipment.itemId(item) : java.util.Optional.empty(), matchingGoods);
+        preparation.whenComplete((result, error) -> sync(() ->
+                completePreparation(player, listingId, result, error, communityDeposit)));
         return true;
     }
 
@@ -359,7 +388,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
     }
 
     private void completePreparation(
-            Player player, UUID listingId, MarketOperationResult result, Throwable error
+            Player player, UUID listingId, MarketOperationResult result, Throwable error, boolean communityDeposit
     ) {
         preparingListings.remove(player.getUniqueId(), listingId);
         listingPlayers.remove(player.getUniqueId());
@@ -371,7 +400,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             // an offline orphan is reconciled against PREPARED rows on login.
             clearListingMarker(current, listingId);
             current.saveData();
-            String key = error == null && result.status() == MarketOperationResult.Status.LISTING_LIMIT
+            String key = communityDeposit ? "community-storage.prepare-failed"
+                    : error == null && result.status() == MarketOperationResult.Status.LISTING_LIMIT
                     ? "market.listing-limit" : error == null
                     && result.status() == MarketOperationResult.Status.DUPLICATE_ITEM
                     ? "market.duplicate-item" : error == null
@@ -380,7 +410,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             current.sendMessage(Component.text(messages.text(current, key), NamedTextColor.RED));
             return;
         }
-        escrowPrepared(current, listingId, false);
+        escrowPrepared(current, listingId, false, communityDeposit);
     }
 
     private boolean list(Player player, int requestedPage) {
@@ -1129,12 +1159,14 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             Bukkit.getScheduler().runTaskLater(plugin, () -> recoverPreparedListings(player), 20L);
             return;
         }
-        market.preparedListings(playerId).whenComplete((listings, error) -> sync(() -> {
+        market.preparedListings(playerId).thenCombine(communityStorage.preparedDeposits(playerId),
+                PreparedEscrowBatch::combine).whenComplete((batch, error) -> sync(() -> {
             if (error != null) {
                 plugin.getLogger().warning("Market recovery lookup failed for " + player.getUniqueId() + ": " + error.getMessage());
                 return;
             }
             if (!ready(player)) return;
+            List<MarketListing> listings = batch.listings();
             Set<UUID> preparedIds = listings.stream().map(MarketListing::id)
                     .collect(java.util.stream.Collectors.toSet());
             UUID inFlight = preparingListings.get(playerId);
@@ -1142,7 +1174,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             retainEscrowReceipts(player, preparedIds);
             player.saveData();
             for (MarketListing listing : listings) {
-                escrowPrepared(player, listing.id(), true);
+                escrowPrepared(player, listing.id(), true, batch.communityIds().contains(listing.id()));
             }
             market.pendingDeliveries(player.getUniqueId(), 1).whenComplete((pending, pendingError) -> sync(() -> {
                 if (pendingError != null) {
@@ -1209,11 +1241,11 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         return true;
     }
 
-    private void escrowPrepared(Player player, UUID listingId, boolean recovery) {
+    private void escrowPrepared(Player player, UUID listingId, boolean recovery, boolean communityDeposit) {
         ItemStack marked = findByMarker(player, listingMarker, listingId);
         boolean receipt = escrowReceiptIds(player).contains(listingId);
         if (marked == null && !receipt) {
-            quarantinePrepared(player.getUniqueId(), listingId);
+            quarantinePrepared(player.getUniqueId(), listingId, communityDeposit);
             return;
         }
         if (marked != null) {
@@ -1222,7 +1254,9 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             removeListingItem(player, listingId);
             player.saveData();
         }
-        market.activate(listingId, player.getUniqueId()).whenComplete((activated, activationError) -> sync(() -> {
+        var activation = communityDeposit ? communityStorage.activate(listingId, player.getUniqueId())
+                : market.activate(listingId, player.getUniqueId());
+        activation.whenComplete((activated, activationError) -> sync(() -> {
             if (activationError != null || activated.status() != MarketOperationResult.Status.SUCCESS) {
                 if (ready(player) && !recovery) player.sendMessage(Component.text(
                         messages.text(player, "market.activation-recovery"), NamedTextColor.YELLOW));
@@ -1234,14 +1268,17 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             if (ready(player)) {
                 removeEscrowReceipt(player, listingId);
                 player.saveData();
-                if (!recovery) player.sendMessage(Component.text(messages.text(player, "market.listed", Map.of(
+                if (!recovery) player.sendMessage(Component.text(messages.text(player,
+                        communityDeposit ? "community-storage.deposited" : "market.listed", Map.of(
                         "id", listingId)), NamedTextColor.GREEN));
             }
         }));
     }
 
-    private void quarantinePrepared(UUID playerId, UUID listingId) {
-        market.quarantinePrepared(listingId, playerId).whenComplete((result, error) -> {
+    private void quarantinePrepared(UUID playerId, UUID listingId, boolean communityDeposit) {
+        var quarantine = communityDeposit ? communityStorage.quarantinePrepared(listingId, playerId)
+                : market.quarantinePrepared(listingId, playerId);
+        quarantine.whenComplete((result, error) -> {
             if (error != null || result.status() != MarketOperationResult.Status.SUCCESS) {
                 plugin.getLogger().severe("Could not quarantine ambiguous prepared listing player=" + playerId
                         + " listing=" + listingId + " status="

@@ -8,13 +8,12 @@ import cn.originalrpg.api.model.CommunityGovernanceAction;
 import cn.originalrpg.api.model.CommunityOperationResult;
 import cn.originalrpg.api.model.CommunityRole;
 import cn.originalrpg.api.model.CommunityRolePower;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import org.bukkit.event.Event;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -42,150 +41,24 @@ class JdbcCommunityGovernanceTest {
     private static final String PERIOD = "2026-W32";
     private static final BigDecimal GOAL = new BigDecimal("250000.00");
 
-    private HikariDataSource dataSource;
+    private CommunityDatabaseFixture fixture;
+    private DataSource dataSource;
     private ExecutorService executor;
     private JdbcCommunityService communities;
     private final List<Event> published = new ArrayList<>();
 
     @BeforeEach
     void setUp() throws Exception {
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:h2:mem:rpg_community_gov_" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE");
-        config.setAutoCommit(false);
-        config.setMaximumPoolSize(16);
-        dataSource = new HikariDataSource(config);
+        fixture = new CommunityDatabaseFixture();
+        dataSource = fixture.dataSource;
         executor = Executors.newVirtualThreadPerTaskExecutor();
-        // 治理开关显式打开：本测试就是要验证接线后的行为。
         communities = new JdbcCommunityService(dataSource, executor, null, true, published::add);
-
-        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
-            statement.execute("""
-                    CREATE TABLE rpg_profiles (
-                        player_uuid VARCHAR(36) PRIMARY KEY, archetype VARCHAR(24) NOT NULL,
-                        ascension INTEGER NOT NULL, level INTEGER NOT NULL, experience BIGINT NOT NULL,
-                        energy INTEGER NOT NULL, unspent_attribute_points INTEGER NOT NULL,
-                        skill_points INTEGER NOT NULL, defense INTEGER NOT NULL, strength INTEGER NOT NULL,
-                        agility INTEGER NOT NULL, intelligence INTEGER NOT NULL, stamina INTEGER NOT NULL,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_skill_point_grants (
-                        milestone_key VARCHAR(160) PRIMARY KEY,
-                        receipt VARCHAR(96) NOT NULL,
-                        player_uuid VARCHAR(36) NOT NULL,
-                        points INTEGER NOT NULL,
-                        ascension INTEGER NOT NULL,
-                        milestone_index INTEGER NOT NULL,
-                        to_local_level INTEGER NOT NULL,
-                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_accounts (
-                        player_uuid VARCHAR(36) PRIMARY KEY, balance DECIMAL(19, 2) NOT NULL,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_ledger (
-                        id VARCHAR(36) PRIMARY KEY, idempotency_key VARCHAR(96) UNIQUE NOT NULL,
-                        sender_uuid VARCHAR(36), receiver_uuid VARCHAR(36), amount DECIMAL(19, 2) NOT NULL,
-                        fee DECIMAL(19, 2) NOT NULL, reason VARCHAR(128) NOT NULL,
-                        reversal_of VARCHAR(96) UNIQUE,
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_identity (
-                        player_uuid VARCHAR(36) PRIMARY KEY, invite_code VARCHAR(16) UNIQUE NOT NULL,
-                        mentor_uuid VARCHAR(36), mentor_verified BOOLEAN NOT NULL DEFAULT FALSE,
-                        verified_mentees INTEGER NOT NULL DEFAULT 0, mentor_bound_at TIMESTAMP NULL,
-                        mentor_verified_at TIMESTAMP NULL,
-                        community_honor BIGINT NOT NULL DEFAULT 0,
-                        weekly_commemorations INTEGER NOT NULL DEFAULT 0,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_communities (
-                        id VARCHAR(36) PRIMARY KEY, name VARCHAR(40) NOT NULL,
-                        normalized_name VARCHAR(40) UNIQUE NOT NULL, tag VARCHAR(8) NOT NULL,
-                        normalized_tag VARCHAR(8) UNIQUE NOT NULL, owner_uuid VARCHAR(36) NOT NULL,
-                        capacity INTEGER NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_members (
-                        community_id VARCHAR(36) NOT NULL, player_uuid VARCHAR(36) UNIQUE NOT NULL,
-                        role VARCHAR(16) NOT NULL, lifetime_contribution DECIMAL(19, 2) NOT NULL DEFAULT 0,
-                        joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (community_id, player_uuid)
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_invites (
-                        community_id VARCHAR(36) NOT NULL, inviter_uuid VARCHAR(36) NOT NULL,
-                        target_uuid VARCHAR(36) NOT NULL, expires_at TIMESTAMP NOT NULL,
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (community_id, target_uuid)
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_projects (
-                        community_id VARCHAR(36) NOT NULL, period_key VARCHAR(24) NOT NULL,
-                        gold_contributed DECIMAL(19, 2) NOT NULL DEFAULT 0,
-                        verified_recruits INTEGER NOT NULL DEFAULT 0, completed_at TIMESTAMP NULL,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (community_id, period_key)
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_contributions (
-                        id VARCHAR(36) PRIMARY KEY, idempotency_key VARCHAR(80) UNIQUE NOT NULL,
-                        community_id VARCHAR(36) NOT NULL, player_uuid VARCHAR(36) NOT NULL,
-                        period_key VARCHAR(24) NOT NULL, amount DECIMAL(19, 2) NOT NULL,
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_project_rewards (
-                        player_uuid VARCHAR(36) NOT NULL, period_key VARCHAR(24) NOT NULL,
-                        community_id VARCHAR(36) NOT NULL,
-                        player_contribution DECIMAL(19, 2) NOT NULL,
-                        minimum_contribution DECIMAL(19, 2) NOT NULL,
-                        honor_awarded INTEGER NOT NULL,
-                        claimed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (player_uuid, period_key)
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_approvals (
-                        approval_id VARCHAR(36) PRIMARY KEY,
-                        community_id VARCHAR(36) NOT NULL,
-                        actor_uuid VARCHAR(36) NOT NULL,
-                        action VARCHAR(32) NOT NULL,
-                        subject VARCHAR(64),
-                        status VARCHAR(16) NOT NULL,
-                        requester_uuid VARCHAR(36),
-                        idempotency_key VARCHAR(96),
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE UNIQUE INDEX idx_rpg_community_approvals_unique
-                        ON rpg_community_approvals (community_id, action, subject, actor_uuid)
-                    """);
-            connection.commit();
-        }
     }
 
     @AfterEach
-    void tearDown() {
-        executor.close();
-        dataSource.close();
+    void tearDown() throws Exception {
+        if (executor != null) executor.close();
+        if (fixture != null) fixture.close();
     }
 
     // ---------------------------------------------------------------
@@ -549,6 +422,77 @@ class JdbcCommunityGovernanceTest {
                 .toCompletableFuture().join();
         assertEquals(CommunityApprovalOutcome.Status.INVALID, outcome.status());
         assertEquals(CommunityRole.MEMBER, roleOf(target));
+    }
+
+    @Test
+    void officerAndTreasurerAssignmentsKeepTwoCurrentGovernorsAndTheSignedRole() throws Exception {
+        UUID owner = player(15);
+        createCommunity(owner, "Wayfarers", "WAY");
+        UUID deputy = join(owner, "WAY", CommunityRole.OFFICER);
+        UUID target = join(owner, "WAY");
+        var first = communities.request(owner, target, CommunityRole.TREASURER, "treasurer-request")
+                .toCompletableFuture().join();
+        assertEquals(CommunityApprovalOutcome.Status.SUCCESS, first.status());
+        assertEquals(target + ":TREASURER", first.subject().orElseThrow());
+        assertEquals(CommunityRole.MEMBER, roleOf(target));
+        var substituted = communities.approveAssignment(deputy, target, "OFFICER", "swapped-role")
+                .toCompletableFuture().join();
+        assertEquals(CommunityApprovalOutcome.Status.INVALID, substituted.status());
+        assertEquals(CommunityRole.MEMBER, roleOf(target));
+        var second = communities.approve(deputy, CommunityGovernanceAction.ROLE_GRANT,
+                communities.subjects(deputy, CommunityGovernanceAction.ROLE_GRANT).toCompletableFuture().join().orElseThrow())
+                .toCompletableFuture().join();
+        assertTrue(second.effective());
+        assertEquals(CommunityRole.TREASURER, roleOf(target));
+
+        UUID next = join(owner, "WAY");
+        communities.request(owner, next, CommunityRole.OFFICER, "officer-request").toCompletableFuture().join();
+        var approved = communities.approve(target, CommunityGovernanceAction.ROLE_GRANT, next + ":OFFICER")
+                .toCompletableFuture().join();
+        assertTrue(approved.effective());
+        assertEquals(CommunityRole.OFFICER, roleOf(next));
+    }
+
+    @Test
+    void legacyUuidOnlyRoleRequestsCanBeDeniedButCannotBeApprovedOrInferred() throws Exception {
+        UUID owner = player(15);
+        createCommunity(owner, "Wayfarers", "WAY");
+        UUID deputy = join(owner, "WAY", CommunityRole.OFFICER);
+        UUID target = join(owner, "WAY");
+        communities.request(owner, target, CommunityRole.BUILDER, "before-upgrade").toCompletableFuture().join();
+        try (Connection connection = dataSource.getConnection(); var update = connection.prepareStatement(
+                "UPDATE rpg_community_approvals SET subject = ? WHERE subject = ?")) {
+            update.setString(1, target.toString());
+            update.setString(2, target + ":BUILDER");
+            update.executeUpdate();
+            connection.commit();
+        }
+        assertEquals(CommunityApprovalOutcome.Status.INVALID,
+                communities.approve(deputy, CommunityGovernanceAction.ROLE_GRANT, target.toString())
+                        .toCompletableFuture().join().status());
+        assertEquals(CommunityRole.MEMBER, roleOf(target));
+        assertEquals(CommunityApprovalOutcome.Status.SUCCESS,
+                communities.deny(deputy, CommunityGovernanceAction.ROLE_GRANT, target.toString())
+                        .toCompletableFuture().join().status());
+        assertTrue(communities.subjects(owner, CommunityGovernanceAction.ROLE_GRANT).toCompletableFuture().join().isEmpty());
+    }
+
+    @Test
+    void roleGrantCannotDemoteTheCurrentOwnerOrCountTheTargetAsTheirOwnSigner() throws Exception {
+        UUID owner = player(15);
+        createCommunity(owner, "Wayfarers", "WAY");
+        UUID deputy = join(owner, "WAY", CommunityRole.OFFICER);
+        UUID treasurer = join(owner, "WAY", CommunityRole.TREASURER);
+        assertEquals(CommunityApprovalOutcome.Status.NOT_ALLOWED,
+                communities.request(deputy, owner, CommunityRole.MEMBER, "demote-owner")
+                        .toCompletableFuture().join().status());
+        communities.request(owner, deputy, CommunityRole.TREASURER, "change-deputy").toCompletableFuture().join();
+        assertEquals(CommunityApprovalOutcome.Status.NOT_ALLOWED,
+                communities.approve(deputy, CommunityGovernanceAction.ROLE_GRANT, deputy + ":TREASURER")
+                        .toCompletableFuture().join().status());
+        assertTrue(communities.approve(treasurer, CommunityGovernanceAction.ROLE_GRANT, deputy + ":TREASURER")
+                .toCompletableFuture().join().effective());
+        assertEquals(CommunityRole.OWNER, roleOf(owner));
     }
 
     // ---------------------------------------------------------------

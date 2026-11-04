@@ -134,7 +134,22 @@ community:
   # Phase 6 社群治理「接线但不启用」：七角色能力判定与双批审批已接线，
   # 开关默认关闭；打开后 governance 服务才会写 rpg_community_approvals 或变更角色。
   governance-enabled: false
+  storage:
+    # Additional opt-in: pristine allowlisted construction materials only, no equipment/rare items.
+    enabled: false
+    maximum-stacks: 128
+  # Existing governance gates also control lifecycle mutations. Two current governors
+  # are always required; small communities receive no implicit administrator bypass.
+  lifecycle:
+    owner-inactivity-days: 30
+    candidate-membership-days: 7
+    succession-cooling-hours: 72
+    dissolution-cooling-hours: 72
 
+# Real-money support is isolated from Gold, Merit, Starlight, membership and items.
+# Disabled until a trusted payment bridge, deployment audience, finite quotas and
+# cosmetic prices are configured. Private signing keys never belong on Paper.
+# Also enable commerce.support_credit_payment.enabled through the mechanism registry.
 support-credit:
   enabled: false
   audience: ""

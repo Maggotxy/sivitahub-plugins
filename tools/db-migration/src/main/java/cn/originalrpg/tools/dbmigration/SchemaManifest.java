@@ -99,7 +99,10 @@ public final class SchemaManifest {
             "rpg_outbox",
             "rpg_equipment_states",
             "rpg_equipment_lifecycle_audit",
-            "rpg_season_attunements"
+            "rpg_season_attunements",
+            "rpg_community_lifecycle_proposals",
+            "rpg_community_lifecycle_audit",
+            "rpg_community_storage_requests"
     );
 
     private static final Map<String, List<List<String>>> UNIQUE_KEYS = buildUniqueKeys();
@@ -162,6 +165,12 @@ public final class SchemaManifest {
         keys.put("rpg_support_cosmetic_purchases", List.of(List.of("ledger_key")));
         keys.put("rpg_support_cosmetic_entitlements", List.of(List.of("purchase_id")));
         keys.put("rpg_earned_membership_grants", List.of(List.of("purchase_id"), List.of("debit_reference")));
+        keys.put("rpg_community_approvals", List.of(List.of("community_id", "action", "subject", "actor_uuid")));
+        keys.put("rpg_community_lifecycle_proposals", List.of(
+                List.of("active_community_id"), List.of("idempotency_key")));
+        keys.put("rpg_community_storage_requests", List.of(
+                List.of("active_listing_id"), List.of("idempotency_key")));
+        keys.put("rpg_outbox", List.of(List.of("idempotency_key")));
         return Map.copyOf(keys);
     }
 
@@ -169,7 +178,8 @@ public final class SchemaManifest {
         Map<String, List<List<String>>> indexes = new LinkedHashMap<>();
         indexes.put("rpg_market_listings", List.of(
                 List.of("state", "created_at"),
-                List.of("seller_uuid", "state", "created_at")
+                List.of("seller_uuid", "state", "created_at"),
+                List.of("custody_community_id", "state", "created_at")
         ));
         indexes.put("rpg_market_buy_orders", List.of(List.of("status", "created_at"), List.of("buyer_uuid", "status")));
         indexes.put("rpg_market_deliveries", List.of(List.of("player_uuid", "state", "created_at")));
@@ -211,10 +221,12 @@ public final class SchemaManifest {
         indexes.put("rpg_pet_revival_intents", List.of(List.of("player_uuid", "state", "created_at")));
         indexes.put("rpg_community_members", List.of(List.of("community_id", "role")));
         indexes.put("rpg_community_invites", List.of(List.of("target_uuid", "expires_at")));
-        indexes.put("rpg_community_projects", List.of(List.of("period_key", "gold_contributed")));
+        indexes.put("rpg_community_projects", List.of(List.of("period_key", "gold_contributed"),
+                List.of("completed_at", "community_id", "period_key")));
         indexes.put("rpg_community_contributions", List.of(
                 List.of("player_uuid", "period_key"),
-                List.of("player_uuid", "community_id", "period_key")
+                List.of("player_uuid", "community_id", "period_key"),
+                List.of("community_id", "period_key", "player_uuid")
         ));
         indexes.put("rpg_community_project_rewards", List.of(List.of("community_id", "period_key")));
         indexes.put("rpg_equipment_states", List.of(List.of("owner_uuid", "state")));
@@ -227,6 +239,9 @@ public final class SchemaManifest {
         indexes.put("rpg_outbox", List.of(List.of("processed_at", "created_at")));
         indexes.put("rpg_support_payment_orders", List.of(List.of("player_uuid", "accepted_at")));
         indexes.put("rpg_earned_membership_grants", List.of(List.of("player_uuid", "member_until")));
+        indexes.put("rpg_community_lifecycle_proposals", List.of(List.of("community_id", "created_at")));
+        indexes.put("rpg_community_lifecycle_audit", List.of(List.of("community_id", "recorded_at")));
+        indexes.put("rpg_community_storage_requests", List.of(List.of("community_id", "state", "created_at")));
         return Map.copyOf(indexes);
     }
 }

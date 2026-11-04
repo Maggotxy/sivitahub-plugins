@@ -105,6 +105,14 @@ final class CommunityMenu implements TrustedMenuHolder {
                 "community leaderboard");
         set(22, Material.COMPASS, messages.text(player, "community.menu.help"),
                 List.of(messages.text(player, "community.menu.help-lore")), "community help");
+        if (membership != null) {
+            set(20, Material.BARREL, messages.text(player, "community-storage.menu-entry"),
+                    List.of(messages.text(player, "community-storage.menu-entry-lore")), "community storage");
+            set(24, Material.WRITABLE_BOOK, messages.text(player, "community-lifecycle.menu-title"),
+                    messages.lines(player, "community-lifecycle.menu-lore"), "community lifecycle");
+        }
+        set(26, Material.FILLED_MAP, messages.text(player, "civilization.show-projects"),
+                List.of(messages.text(player, "civilization.scope")), "civilization projects");
     }
 
     String actionAt(int slot) {

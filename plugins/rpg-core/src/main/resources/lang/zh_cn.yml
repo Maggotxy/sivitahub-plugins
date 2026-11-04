@@ -3222,3 +3222,142 @@ support:
     aura-prismatic: "棱彩共鸣光环"
     trail-wings: "鞘翅翼迹"
     trail-comet: "鞘翅彗星尾迹"
+
+community-lifecycle:
+  role-intent: '已签署任命意图：{target} → {roleKey}'
+  menu-title: '社群治理'
+  menu-lore:
+    - '查看会长继任、解散提案与公开审计。'
+    - '必须由两名不同的现任治理成员签名并经过冷静期。'
+  disabled: '高级社群治理目前尚未开启。'
+  overview: '[{tag}] {name} · 会长：{owner} · 最近认证活动：{lastSeen}'
+  no-proposals: '此社群尚无继任或解散提案记录。'
+  no-history: '未找到此社群的治理审计记录。'
+  history-link: '[查看社群治理审计历史]'
+  proposal: '{action} · {id} · {state} · 当前有效签名：{signatures}/2 · 最早执行：{deadline}'
+  awaiting-signatures: '等待两名不同成员签名'
+  audit: '{time} · {transition} · 操作者 {actor} · 提案 {proposal} · {detail}'
+  policy: '继任要求会长连续 {inactiveDays} 天无认证活动，候选人入会满 {memberDays} 天。冷静期：继任 {successionHours} 小时，解散 {dissolutionHours} 小时。'
+  help:
+    - '/community lifecycle — 查看当前提案与时间规则'
+    - '/community succession propose — 会长离线期达标后提名自己继任'
+    - '/community dissolve propose — 现任会长发起解散提案'
+    - '/community succession|dissolve approve <提案ID> — 另一名治理成员签名'
+    - '/community succession|dissolve execute <提案ID> — 冷静期结束并重新核验资格后执行'
+    - '/community succession|dissolve cancel <提案ID> — 否决尚未执行的提案'
+    - '/community history [社群ID] — 查看永久保留的公开治理审计'
+    - '必须有两名不同的现任治理成员签名；成员少也不会放宽为单人执行。'
+    - '会长重新认证会撤销待继任提案。解散保留名称、贡献与个人荣誉，不退金币，不删除世界。'
+  action:
+    succession: '会长继任'
+    dissolution: '社群解散'
+  state:
+    pending: '等待签名'
+    cooling: '冷静期中'
+    executed: '已执行'
+    cancelled: '已取消'
+  button:
+    approve: '填写批准命令'
+    execute: '填写执行命令'
+    cancel: '填写否决命令'
+  result:
+    storage-pending: '仓库存在未完成移交或隔离物品，暂不能解散。请捐赠人完成托管恢复；无法确认的物品须先审核。'
+    success: '提案或签名已记录。审批通过不会自动执行决定。'
+    disabled: '高级社群治理尚未开启。'
+    invalid: '治理请求无效。'
+    not-member: '你当前不属于有效社群。'
+    not-allowed: '你的当前角色不能执行此操作；仅现任会长可以发起解散。'
+    owner-active: '会长近期仍有认证活动，尚不满足继任条件。'
+    membership-too-recent: '你的入会时间尚未达到继任候选要求。'
+    active-proposal: '此社群已有待处理治理提案；请先查看或否决，不能并行另开提案。'
+    not-found: '未找到属于此社群且类型匹配的提案。'
+    already-approved: '你已经签名，必须由另一名合资格治理成员签名。'
+    approvals-required: '需要两名不同、当前仍合资格的治理成员签名。'
+    cooling: '冷静期尚未结束，仍不能执行。'
+    executed: '治理决定已执行，持久审计历史仍可查询。'
+    cancelled: '提案已取消，不能再执行。'
+    conditions-changed: '会长、候选人、成员资格、认证活动或签名条件已改变，旧提案已取消；仍符合条件时请重新提案。'
+
+community-storage:
+  entry: '/community storage — 公共建材仓库、双签领用与审计历史'
+  menu-entry: '公共建材仓库'
+  menu-entry-lore: '捐赠原版建材，由两名治理成员批准明确收件人。'
+  menu-title: '[{tag}] 公共建材 · 第 {page} 页'
+  disabled: '公共仓库尚未开启；需同时开启 Core 仓库与高级社群治理。'
+  adapter-unavailable: '市场托管适配器不可用，没有移除任何物品。'
+  material-rejected: '仅接受未修改的原版建筑材料。装备、稀有材料、自定义名称、附魔与 PDC 物品不可存入；清单见 /communitystorage materials。'
+  material-rule: '允许的原版建材（每组 1–64 个，不接受元数据或自定义物品）：'
+  prepare-failed: '未能确认捐赠，请检查成员资格与仓库容量；未完成的移交会在登录时恢复核对。'
+  deposited: '物品组 {id} 已进入社群托管仓库；领用需要两名不同治理成员签名。'
+  capacity: '社群托管容量：{used}/{maximum} 组（包括未完成移交）。'
+  stock-state: '托管状态：{state}'
+  donor: '原捐赠人：{player}'
+  request-self: '点击为自己申请此组建材，需另一名治理成员批准。'
+  recovery-required: '捐赠人完成恢复或隔离审核前不可领用。'
+  invalid-target: '请输入准确的托管物品 UUID，以及已知玩家名称或 UUID；收件人必须仍属于同一社群。'
+  no-pending: '目前没有待审批的建材领用请求。'
+  request: '领用请求 {id} · 物品组 {listing} · 收件人 {recipient} · {state} · 当前签名 {signatures}/2'
+  mailbox-link: '[社群建材已到邮箱，点击 /market claim 领取]'
+  help:
+    - '/community storage 或 /communitystorage list [页码] — 查看公共建材仓库'
+    - '/communitystorage deposit — 捐赠主手中的一组未修改原版建材'
+    - '/communitystorage materials — 查看准确的允许材料清单'
+    - '/communitystorage withdraw <物品组ID> [玩家] — 治理成员提出明确收件人（默认自己）'
+    - '/communitystorage pending [页码] — 核对不可替换的收件人与当前签名'
+    - '/communitystorage approve <请求ID> — 另一名治理成员签名，并把建材送入收件人邮箱'
+    - '/communitystorage cancel <请求ID> — 治理成员否决尚未完成的领用'
+    - '退会不会自动收回已捐建材。解散时仅把仍在库的物品退回原捐赠人；已经批准领用的物品不会回滚。'
+    - '必须由两名不同的现任治理成员签名，没有单人或管理员绕过入口。'
+  stock:
+    prepared: '等待实物移除凭据'
+    active: '已入库'
+    quarantined: '隔离等待托管核对'
+    cancelled: '已移出托管'
+    sold: '已关闭'
+    expired: '已关闭'
+  request-state:
+    pending: '等待独立批准'
+    completed: '已送入现有邮箱'
+    cancelled: '已取消'
+  button:
+    previous: '上一页'
+    next: '下一页'
+    back: '社群中心'
+    materials: '允许材料清单'
+    deposit: '捐赠主手建材'
+    pending: '待审批领用'
+    history: '公开审计历史'
+    approve: '填写批准命令'
+    cancel: '填写否决命令'
+  result:
+    success: '领用意图已记录，准确物品与收件人还需另一名治理成员签名。'
+    disabled: '公共建材仓库尚未开启。'
+    invalid: '托管请求无效或与先前记录冲突。'
+    not-member: '你当前不属于有效社群。'
+    not-allowed: '仅现任治理成员可以提出、批准或否决领用。'
+    not-found: '未在此社群找到可领用物品组或对应请求。'
+    target-not-member: '收件人当前不属于此社群。'
+    active-request: '此物品组已有领用请求，请先查看或取消，不能直接替换收件人。'
+    already-approved: '你已经签名，必须由另一名现任治理成员签名。'
+    delivered: '获批建材已送入明确收件人的邮箱，对方可用 /market claim 领取。'
+    cancelled: '领用请求已取消，物品仍在社群托管仓库。'
+    conditions-changed: '成员资格、签名或托管状态已变化，旧请求已取消且没有释放建材。'
+
+civilization:
+  player-only: "请在完成认证的玩家会话内查看文明档案。"
+  not-ready: "请先完成认证，再查看文明档案。"
+  usage: "用法：/civilization [projects|seasons] [1-1000]"
+  pending: "正在读取档案，请稍候。"
+  failed: "档案暂时无法读取；没有改变进度或奖励。"
+  projects-title: "已完成的社群工程 · 第 {page} 页"
+  seasons-title: "已验证的赛季历史 · 第 {page} 页"
+  empty: "这一页还没有已完成的记录。"
+  project: "[{tag}] {name} · {period} · {date} | 累计贡献 {gold} 金币 · {contributors} 位贡献者 · {recruits} 位认证新人 · 已发放 {honor} 荣誉"
+  dissolved: "该社群已解散，已完成的建设仍保留在历史中。"
+  season: "赛季 {season} · 结算完成于 {date}"
+  scope: "社群建设与赛季里程碑；时间统一为 UTC。"
+  previous: "[上一页]"
+  next: "[下一页]"
+  show-projects: "[社群工程]"
+  show-seasons: "[赛季历史]"
+

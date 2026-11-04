@@ -114,7 +114,8 @@ final class CommunityRolePowerTest {
     void ownerIsNotAssignableThroughTheApprovalPath() {
         assertTrue(CommunityRolePower.assignable("OWNER").isEmpty());
         assertTrue(CommunityRolePower.assignable("LEADER").isEmpty());
-        assertTrue(CommunityRolePower.assignable("TREASURER").isEmpty());
+        assertTrue(CommunityRolePower.assignable("TREASURER").isPresent());
+        assertTrue(CommunityRolePower.assignable("OFFICER").isPresent());
         assertTrue(CommunityRolePower.assignable("not-a-role").isEmpty());
         assertTrue(CommunityRolePower.assignable(null).isEmpty());
         assertTrue(CommunityRolePower.assignable("recruiter").isPresent());

@@ -98,6 +98,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 
+import cn.originalrpg.api.service.CommunityLifecycleService;
+import cn.originalrpg.core.persistence.JdbcCommunityLifecycleService;
+import cn.originalrpg.core.persistence.CommunityLifecycleConfiguration;
+import cn.originalrpg.api.service.CommunityStorageService;
+import cn.originalrpg.core.persistence.JdbcCommunityStorageService;
+import cn.originalrpg.api.service.CivilizationHistoryService;
+import cn.originalrpg.core.persistence.JdbcCivilizationHistoryService;
+
 public final class RpgCorePlugin extends JavaPlugin {
     private Database database;
     private cn.originalrpg.core.persistence.MechanismRegistry mechanisms;
@@ -267,6 +275,11 @@ public final class RpgCorePlugin extends JavaPlugin {
             JdbcCommunityService communities = new JdbcCommunityService(
                     database.dataSource(), databaseExecutor, mechanisms, communityGovernanceEnabled,
                     event -> Bukkit.getPluginManager().callEvent(event));
+            var communityLifecycle = new JdbcCommunityLifecycleService(database.dataSource(), databaseExecutor,
+                    communityGovernanceEnabled, CommunityLifecycleConfiguration.load(getConfig()));
+            var communityStorage = new JdbcCommunityStorageService(database.dataSource(), databaseExecutor,
+                    communityGovernanceEnabled && getConfig().getBoolean("community.storage.enabled", false),
+                    getConfig().getInt("community.storage.maximum-stacks", 128), mechanisms);
             var recoveredEntries = StartupGate.await(
                     dungeonEntries.recoverAll(), startupTimeout, "Dungeon reservation recovery gate");
             if (recoveredEntries.reservations() > 0) {
@@ -322,6 +335,11 @@ public final class RpgCorePlugin extends JavaPlugin {
                     SeasonSettlementService.class, seasonSettlements, this, ServicePriority.Normal);
             getServer().getServicesManager().register(
                     CommunityService.class, communities, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(CommunityLifecycleService.class, communityLifecycle, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(CommunityStorageService.class, communityStorage, this, ServicePriority.Normal);
+            getServer().getServicesManager().register(CivilizationHistoryService.class,
+                    new JdbcCivilizationHistoryService(database.dataSource(), databaseExecutor),
+                    this, ServicePriority.Normal);
             getServer().getServicesManager().register(
                     CommunityGovernanceService.class, communities, this, ServicePriority.Normal);
             getServer().getServicesManager().register(

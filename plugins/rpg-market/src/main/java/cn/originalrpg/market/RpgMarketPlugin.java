@@ -5,6 +5,8 @@ import cn.originalrpg.api.service.EquipmentProgressService;
 import cn.originalrpg.api.service.MarketBuyOrderService;
 import cn.originalrpg.api.service.MarketService;
 import cn.originalrpg.api.service.MessageService;
+import cn.originalrpg.api.service.CommunityStorageService;
+import cn.originalrpg.api.service.CommunityStorageSessionService;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -33,9 +35,13 @@ public final class RpgMarketPlugin extends JavaPlugin {
                 getServer().getServicesManager().load(MarketBuyOrderService.class), "MarketBuyOrderService");
         MessageService messages = Objects.requireNonNull(
                 getServer().getServicesManager().load(MessageService.class), "MessageService");
+        CommunityStorageService communityStorage = Objects.requireNonNull(
+                getServer().getServicesManager().load(CommunityStorageService.class), "CommunityStorageService");
         MarketCommand command = new MarketCommand(
-                this, market, buyOrders, equipment, equipmentProgress, messages);
+                this, market, buyOrders, equipment, equipmentProgress, messages, communityStorage);
         marketCommand = command;
+        getServer().getServicesManager().register(CommunityStorageSessionService.class,
+                command::depositCommunity, this, org.bukkit.plugin.ServicePriority.Normal);
         PluginCommand pluginCommand = Objects.requireNonNull(getCommand("market"), "market command");
         pluginCommand.setExecutor(command);
         pluginCommand.setTabCompleter(command);

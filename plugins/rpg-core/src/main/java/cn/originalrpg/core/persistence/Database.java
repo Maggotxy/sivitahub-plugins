@@ -924,7 +924,6 @@ public final class Database implements AutoCloseable {
                 "CREATE INDEX IF NOT EXISTS idx_rpg_daily_item_reward_receipt_player ON rpg_daily_item_reward_receipts (player_uuid, created_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_commission_claim_player_date ON rpg_commission_claims (player_uuid, evidence_date, state)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_payment_ledger_created ON rpg_payment_ledger (created_at)",
-                "CREATE INDEX IF NOT EXISTS idx_rpg_payment_ledger_player ON rpg_payment_ledger (player_uuid, created_at, id)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_commerce_purchase_period ON rpg_commerce_purchases (player_uuid, product_id, period_key)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_credit_ledger_created ON rpg_credit_ledger (created_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_skill_book_player_limit ON rpg_skill_book_uses (player_uuid, limit_group)",
@@ -952,6 +951,8 @@ public final class Database implements AutoCloseable {
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_members_community ON rpg_community_members (community_id, role)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_invites_target ON rpg_community_invites (target_uuid, expires_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_projects_period ON rpg_community_projects (period_key, gold_contributed)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_community_projects_completed ON rpg_community_projects (completed_at, community_id, period_key)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_community_contribution_history ON rpg_community_contributions (community_id, period_key, player_uuid)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_contribution_player ON rpg_community_contributions (player_uuid, period_key)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_contribution_scope ON rpg_community_contributions (player_uuid, community_id, period_key)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_reward_community ON rpg_community_project_rewards (community_id, period_key)",
@@ -1240,6 +1241,65 @@ public final class Database implements AutoCloseable {
                 """,
                 "CREATE INDEX IF NOT EXISTS idx_rpg_season_attunements_owner"
                         + " ON rpg_season_attunements (season_id, owner_uuid)",
+                // Existing communities receive a full inactivity grace period at migration.
+                "ALTER TABLE rpg_community_members ADD COLUMN IF NOT EXISTS last_authenticated_at"
+                        + " TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                "ALTER TABLE rpg_communities ADD COLUMN IF NOT EXISTS dissolved_at TIMESTAMP NULL",
+                """
+                CREATE TABLE IF NOT EXISTS rpg_community_lifecycle_proposals (
+                    proposal_id VARCHAR(36) PRIMARY KEY,
+                    community_id VARCHAR(36) NOT NULL,
+                    active_community_id VARCHAR(36) UNIQUE,
+                    action VARCHAR(24) NOT NULL,
+                    proposer_uuid VARCHAR(36) NOT NULL,
+                    incumbent_owner_uuid VARCHAR(36) NOT NULL,
+                    candidate_uuid VARCHAR(36),
+                    candidate_joined_at TIMESTAMP,
+                    owner_last_authenticated_at TIMESTAMP NOT NULL,
+                    state VARCHAR(16) NOT NULL,
+                    idempotency_key VARCHAR(96) UNIQUE NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    execute_after TIMESTAMP,
+                    finished_at TIMESTAMP
+                )
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_rpg_community_lifecycle_recent"
+                        + " ON rpg_community_lifecycle_proposals (community_id, created_at)",
+                """
+                CREATE TABLE IF NOT EXISTS rpg_community_lifecycle_audit (
+                    audit_id VARCHAR(36) PRIMARY KEY,
+                    community_id VARCHAR(36) NOT NULL,
+                    proposal_id VARCHAR(36) NOT NULL,
+                    actor_uuid VARCHAR(36) NOT NULL,
+                    transition VARCHAR(32) NOT NULL,
+                    detail VARCHAR(256) NOT NULL,
+                    recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_rpg_community_lifecycle_audit_recent"
+                        + " ON rpg_community_lifecycle_audit (community_id, recorded_at)",
+                // Construction supplies share the one market escrow; this scope is never public trade.
+                "ALTER TABLE rpg_market_listings ADD COLUMN IF NOT EXISTS custody_community_id VARCHAR(36)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_market_community_custody"
+                        + " ON rpg_market_listings (custody_community_id, state, created_at)",
+                """
+                CREATE TABLE IF NOT EXISTS rpg_community_storage_requests (
+                    request_id VARCHAR(36) PRIMARY KEY,
+                    community_id VARCHAR(36) NOT NULL,
+                    listing_id VARCHAR(36) NOT NULL,
+                    active_listing_id VARCHAR(36) UNIQUE,
+                    proposer_uuid VARCHAR(36) NOT NULL,
+                    recipient_uuid VARCHAR(36) NOT NULL,
+                    recipient_joined_at TIMESTAMP NOT NULL,
+                    state VARCHAR(16) NOT NULL,
+                    idempotency_key VARCHAR(96) UNIQUE NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP
+                )
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_rpg_community_storage_requests"
+                        + " ON rpg_community_storage_requests (community_id, state, created_at)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_payment_ledger_player ON rpg_payment_ledger (player_uuid, created_at, id)",
         };
 
         try (Connection connection = dataSource.getConnection()) {

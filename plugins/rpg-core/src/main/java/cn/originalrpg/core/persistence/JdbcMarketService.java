@@ -177,7 +177,7 @@ public final class JdbcMarketService implements MarketService {
         int boundedOffset = Math.clamp(offset, 0, 1_000_000);
         int bounded = Math.clamp(limit, 1, 100);
         return async(connection -> listings(connection,
-                "SELECT * FROM rpg_market_listings WHERE state = ? ORDER BY created_at DESC, id LIMIT ? OFFSET ?",
+                "SELECT * FROM rpg_market_listings WHERE state = ? AND custody_community_id IS NULL ORDER BY created_at DESC, id LIMIT ? OFFSET ?",
                 statement -> {
                     statement.setString(1, MarketListing.State.ACTIVE.name());
                     statement.setInt(2, bounded);
@@ -191,7 +191,7 @@ public final class JdbcMarketService implements MarketService {
         int bounded = Math.clamp(limit, 1, 100);
         return async(connection -> listings(connection, """
                 SELECT * FROM rpg_market_listings
-                WHERE seller_uuid = ? AND state = ?
+                WHERE seller_uuid = ? AND state = ? AND custody_community_id IS NULL
                 ORDER BY created_at DESC, id LIMIT ?
                 """, statement -> {
             statement.setString(1, sellerId.toString());
@@ -204,7 +204,7 @@ public final class JdbcMarketService implements MarketService {
     public CompletionStage<List<MarketListing>> preparedListings(UUID sellerId) {
         if (sellerId == null) return CompletableFuture.completedFuture(List.of());
         return async(connection -> listings(connection,
-                "SELECT * FROM rpg_market_listings WHERE seller_uuid = ? AND state = ? ORDER BY created_at",
+                "SELECT * FROM rpg_market_listings WHERE seller_uuid = ? AND state = ? AND custody_community_id IS NULL ORDER BY created_at",
                 statement -> {
                     statement.setString(1, sellerId.toString());
                     statement.setString(2, MarketListing.State.PREPARED.name());
@@ -303,7 +303,7 @@ public final class JdbcMarketService implements MarketService {
             List<UUID> candidates = new ArrayList<>();
             try (PreparedStatement query = connection.prepareStatement("""
                     SELECT id FROM rpg_market_listings
-                    WHERE state = ? AND created_at < ?
+                    WHERE state = ? AND created_at < ? AND custody_community_id IS NULL
                     ORDER BY created_at, id LIMIT ?
                     """)) {
                 query.setString(1, MarketListing.State.ACTIVE.name());
@@ -464,7 +464,10 @@ public final class JdbcMarketService implements MarketService {
     }
 
     private MarketListing selectListing(Connection connection, UUID id, boolean lock) throws SQLException {
-        String sql = "SELECT * FROM rpg_market_listings WHERE id = ?" + (lock ? " FOR UPDATE" : "");
+        // Every direct-ID market operation shares this scope check, including prepare replay,
+        // publication, quarantine, purchase and cancellation. Custody has a separate policy API.
+        String sql = "SELECT * FROM rpg_market_listings WHERE id = ? AND custody_community_id IS NULL"
+                + (lock ? " FOR UPDATE" : "");
         try (PreparedStatement query = connection.prepareStatement(sql)) {
             query.setString(1, id.toString());
             try (ResultSet result = query.executeQuery()) {
@@ -567,7 +570,7 @@ public final class JdbcMarketService implements MarketService {
     private int openListingCount(Connection connection, UUID sellerId) throws SQLException {
         try (PreparedStatement query = connection.prepareStatement("""
                 SELECT COUNT(*) FROM rpg_market_listings
-                WHERE seller_uuid = ? AND state IN ('PREPARED', 'ACTIVE')
+                WHERE seller_uuid = ? AND state IN ('PREPARED', 'ACTIVE') AND custody_community_id IS NULL
                 """)) {
             query.setString(1, sellerId.toString());
             try (ResultSet result = query.executeQuery()) {

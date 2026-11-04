@@ -53,6 +53,8 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
     private final CommunityRoleAssignmentService roleAssignments;
     private final ProfileService profiles;
     private final MessageService messages;
+    private final CommunityLifecycleController lifecycle;
+    private final java.util.function.BooleanSupplier governanceEnabled;
     private final Map<UUID, PendingCreate> pendingCreates = new HashMap<>();
     private final Map<UUID, PendingTransfer> pendingTransfers = new HashMap<>();
     private final Map<UUID, OperationLease> operations = new ConcurrentHashMap<>();
@@ -63,14 +65,25 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
             CommunityGovernanceService governance,
             CommunityRoleAssignmentService roleAssignments,
             ProfileService profiles,
-            MessageService messages
+            MessageService messages,
+            CommunityLifecycleController lifecycle
     ) {
+        this(plugin, communities, governance, roleAssignments, profiles, messages, lifecycle,
+                plugin::communityGovernanceEnabled);
+    }
+
+    CommunityCommand(RpgCommunityPlugin plugin, CommunityService communities,
+                     CommunityGovernanceService governance, CommunityRoleAssignmentService roleAssignments,
+                     ProfileService profiles, MessageService messages, CommunityLifecycleController lifecycle,
+                     java.util.function.BooleanSupplier governanceEnabled) {
         this.plugin = plugin;
         this.communities = communities;
         this.governance = governance;
         this.roleAssignments = roleAssignments;
         this.profiles = profiles;
         this.messages = messages;
+        this.lifecycle = lifecycle;
+        this.governanceEnabled = governanceEnabled;
     }
 
     @Override
@@ -89,7 +102,8 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
             return true;
         }
         String action = args[0].toLowerCase(Locale.ROOT);
-        var governanceRoute = CommunityGovernanceCommandRouter.route(Arrays.copyOfRange(args, 1, args.length));
+        if (lifecycle != null && lifecycle.route(player, args)) return true;
+        var governanceRoute = CommunityGovernanceCommandRouter.route(args);
         if (governanceRoute.isPresent()) {
             dispatchGovernance(player, governanceRoute.orElseThrow());
             return true;
@@ -109,6 +123,7 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
             case "bond" -> bond(player, args);
             case "contribute", "donate" -> contribute(player, args);
             case "claim" -> claim(player);
+            case "storage" -> player.performCommand("communitystorage " + String.join(" ", Arrays.copyOfRange(args, 1, args.length)));
             default -> help(player);
         }
         return true;
@@ -123,14 +138,19 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
     ) {
         if (args.length == 1) {
             return filter(concat(List.of("help", "status", "browse", "create", "invite", "accept", "leave",
-                            "kick", "transfer", "code", "bond", "contribute", "claim", "leaderboard"),
+                            "kick", "transfer", "code", "bond", "contribute", "claim", "leaderboard",
+                            "lifecycle", "succession", "dissolve", "history", "storage"),
                             CommunityGovernanceCommandRouter.governanceSubcommands()), args[0]);
         }
-        if (args.length == 2 && Set.of("invite", "kick", "transfer").contains(args[0].toLowerCase(Locale.ROOT))) {
+        if (lifecycle != null) {
+            List<String> choices = lifecycle.complete(args);
+            if (!choices.isEmpty()) return choices;
+        }
+        if (args.length == 2 && Set.of("invite", "kick", "transfer", "assign").contains(args[0].toLowerCase(Locale.ROOT))) {
             return filter(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[1]);
         }
-        if (args.length == 2 && args[0].equalsIgnoreCase("assign")) {
-            return filter(governanceHandler().assignableRoleNames(), args[1]);
+        if (args.length == 3 && args[0].equalsIgnoreCase("assign")) {
+            return filter(governanceHandler().assignableRoleNames(), args[2]);
         }
         if (args.length == 2 && Set.of("approve", "approvals", "deny")
                 .contains(args[0].toLowerCase(Locale.ROOT))) {
@@ -172,6 +192,7 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
     void clear() {
         pendingCreates.clear();
         pendingTransfers.clear();
+        operations.values().forEach(lease -> lease.active().set(false));
         operations.clear();
     }
 
@@ -181,6 +202,8 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
         if (create != null && create.player() == player) pendingCreates.remove(playerId, create);
         PendingTransfer transfer = pendingTransfers.get(playerId);
         if (transfer != null && transfer.player() == player) pendingTransfers.remove(playerId, transfer);
+        OperationLease operation = operations.get(playerId);
+        if (operation != null && operation.player() == player) operation.active().set(false);
         // Do not reopen a mutation gate while its transaction is still in flight.
     }
 
@@ -212,6 +235,8 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
         for (String line : messages.lines(player, "community.governance.help")) {
             player.sendMessage(Component.text(line, NamedTextColor.GRAY));
         }
+        if (lifecycle != null) lifecycle.help(player);
+        player.sendMessage(Component.text(messages.text(player, "community-storage.entry"), NamedTextColor.AQUA));
     }
 
     private void status(Player player) {
@@ -520,7 +545,10 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
                                 return governance.isGovernanceMember(playerId).toCompletableFuture();
                             }
                         },
-                plugin.communityGovernanceEnabled());
+                governanceEnabled.getAsBoolean(), actor -> {
+                    OperationLease operation = operations.get(actor);
+                    return operation != null && operation.active().get();
+                });
     }
 
     private void dispatchGovernance(
@@ -542,16 +570,17 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
             }
         }
         CommunityGovernanceAction action = route.governanceAction();
+        UUID actorId = player.getUniqueId();
         switch (route.action()) {
-            case ASSIGN -> assign(player, handler, route.argument());
-            case APPROVE -> async(player, true, handler.approve(player.getUniqueId(), action));
-            case APPROVALS -> async(player, false, handler.approvals(player.getUniqueId(), action));
-            case DENY -> async(player, true, handler.deny(player.getUniqueId(), action));
+            case ASSIGN -> assign(player, handler, route.argument(), route.requestedRole());
+            case APPROVE -> async(player, true, () -> handler.approve(actorId, action));
+            case APPROVALS -> async(player, false, () -> handler.approvals(actorId, action));
+            case DENY -> async(player, true, () -> handler.deny(actorId, action));
             case ROLE_LOOKUP, ROLE_LIST -> throw new IllegalStateException("handled above");
         }
     }
 
-    private void assign(Player player, CommunityGovernanceHandler handler, String targetName) {
+    private void assign(Player player, CommunityGovernanceHandler handler, String targetName, String roleName) {
         OfflinePlayer target = knownPlayer(targetName);
         if (target == null) {
             send(player, "community.player-unknown");
@@ -561,16 +590,27 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
             send(player, "community.governance.assign-self");
             return;
         }
-        async(player, true, handler.assign(player.getUniqueId(), target.getUniqueId(),
-                "role-grant-" + UUID.randomUUID().toString().replace("-", "")));
+        UUID actorId = player.getUniqueId();
+        UUID targetId = target.getUniqueId();
+        String key = "role-grant-" + UUID.randomUUID().toString().replace("-", "");
+        async(player, true, () -> handler.assign(actorId, targetId, roleName, key));
     }
 
     /** 统一的异步执行：租约释放 + 会话校验 + 出错兜底 + 文案渲染。 */
     private void async(
-            Player player, boolean mutation, CompletableFuture<CommunityGovernanceHandler.Rendering> pending
+            Player player, boolean mutation,
+            java.util.function.Supplier<CompletableFuture<CommunityGovernanceHandler.Rendering>> operation
     ) {
         UUID sessionToken = start(player, mutation);
         if (sessionToken == null) return;
+        CompletableFuture<CommunityGovernanceHandler.Rendering> pending;
+        try {
+            pending = operation.get();
+        } catch (RuntimeException error) {
+            release(player, sessionToken);
+            failure(player, error);
+            return;
+        }
         pending.whenComplete((rendering, error) -> plugin.onMain(() -> {
             release(player, sessionToken);
             if (!plugin.isAuthenticated(player, sessionToken)) return;
@@ -776,7 +816,11 @@ final class CommunityCommand implements CommandExecutor, TabCompleter, Listener 
     private record MenuData(CommunityProfile profile, List<CommunityLeaderboardEntry> leaderboard) {
     }
 
-    private record OperationLease(Player player, UUID sessionToken) {
+    private record OperationLease(Player player, UUID sessionToken,
+                                  java.util.concurrent.atomic.AtomicBoolean active) {
+        private OperationLease(Player player, UUID sessionToken) {
+            this(player, sessionToken, new java.util.concurrent.atomic.AtomicBoolean(true));
+        }
     }
 
     private record PendingCreate(Player player, String name, String tag, String idempotencyKey, Instant expiresAt) {
