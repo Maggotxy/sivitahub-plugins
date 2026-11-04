@@ -35,10 +35,10 @@ set -eu
 # ------------------------------------------------------------------ 常量
 
 PAPER_MAJOR="26.2"
-PAPER_BUILDS_URL="https://fill.papermc.io/v3/projects/paper/versions/${PAPER_MAJOR}/builds"
+PAPER_BUILDS_URL="https://fill.papermc.io/v3/projects/paper/versions/${PAPER_MAJOR}/builds/100"
 # 下载器 User-Agent：实测 fill.papermc.io 对空 UA/curl 默认 UA 有 WAF 行为，
 # 带一个可识别的 UA 才稳定 200（本仓 fetch-deps.sh 同样带 UA）。
-UA="sivitahub-paper-smoke/1"
+UA="sivitahub-paper-smoke/1 (https://github.com/Maggotxy/sivitahub-plugins)"
 BOOT_TIMEOUT=300
 EULA_MARK="Done ("
 STOP_GRACE=120
@@ -140,28 +140,26 @@ trap cleanup EXIT INT TERM
 
 # ------------------------------------------------------------------ 1. Paper 26.2（校验 sha256）
 
-# 解析最新 STABLE build：取 `.downloads["server:default"].url` 与 `.checksums.sha256`
+# Verify the reviewed exact runtime, rather than silently changing the test
+# target when Paper publishes a newer build. This matches paperApiVersion.
 resolve_paper() {
-    python3 - "$PAPER_BUILDS_URL" "$UA" <<'PY'
+    python3 - "$PAPER_BUILDS_URL" "$UA" "$SCRIPT_DIR/runtime-smoke-paper.lock.json" <<'PY'
 import json, sys, urllib.request
 
-url, ua = sys.argv[1], sys.argv[2]
+url, ua, lock_path = sys.argv[1:]
+with open(lock_path, encoding="utf-8") as handle:
+    lock = json.load(handle)
+if url != lock["metadata_url"]:
+    raise SystemExit("resolve_paper: metadata URL differs from runtime lock")
 req = urllib.request.Request(url, headers={"User-Agent": ua})
 with urllib.request.urlopen(req, timeout=120) as resp:
-    builds = json.load(resp)
-
-stable = [b for b in builds if b.get("channel") == "STABLE"]
-if not stable:
-    print("resolve_paper: 没有任何 STABLE build", file=sys.stderr)
-    raise SystemExit(1)
-# fill API 按时间倒序返回，第一条即最新
-build = stable[0]
+    build = json.load(resp)
 dl = build["downloads"]["server:default"]
 url = dl["url"]
 sha256 = dl["checksums"]["sha256"]
-if not url or not sha256:
-    print("resolve_paper: download url / sha256 缺失", file=sys.stderr)
-    raise SystemExit(1)
+if (build["id"], build["channel"], dl["name"], sha256, url) != (
+        lock["build"], lock["channel"], lock["name"], lock["sha256"], lock["url"]):
+    raise SystemExit("resolve_paper: upstream artifact differs from reviewed runtime lock")
 print("%s\t%s\t%s\t%s" % (build["id"], dl["name"], sha256, url))
 PY
 }
