@@ -118,7 +118,7 @@ final class JdbcProgressionAnomalyServiceTest {
         assertEquals("negative-experience:-1",
                 await(service.inspect(negative, 0, 5, -1)).anomaly().reason());
         assertEquals(ProgressionAnomalyResult.Status.RECORDED,
-                await(service.inspect(jump, 3, 30, 999_999_999L)).status());
+                await(service.inspect(jump, 3, 29, 999_999_999L)).status());
         assertTrue(await(service.pending(jump)).orElseThrow().reason().startsWith("experience-jump:"));
         assertEquals(3, countAnomalies());
     }
@@ -231,6 +231,34 @@ final class JdbcProgressionAnomalyServiceTest {
         assertEquals(1, countAnomalies(), "读路径必须把不可解释的档案落进人工清单");
         assertEquals("local-level-out-of-range:31",
                 await(service.pending(player)).orElseThrow().reason());
+    }
+
+    @Test
+    void legitimateFinalCapRewardsDoNotCreateAnomaliesOrExtraMilestones() throws Exception {
+        UUID player = UUID.randomUUID();
+        insertProfile(player, ProgressionRules.MAX_ASCENSION, ProgressionRules.LOCAL_LEVEL_CAP - 1, 0);
+        JdbcProfileService profiles = new JdbcProfileService(dataSource, executor, 100, 2);
+        long finalStep = ProgressionRules.experienceToNextLocalLevel(3, 29);
+        long earnedAtCap = 2 * ProgressionRules.totalExperienceForAscension(3);
+
+        PlayerProfile capped = await(profiles.grantExperience(player, finalStep + earnedAtCap));
+        assertEquals(120, capped.effectiveLevel());
+        assertEquals(earnedAtCap, capped.experience());
+        assertEquals(2, capped.skillPoints(), "Only the final local milestone is granted");
+        profiles.evict(player);
+        PlayerProfile reloaded = await(profiles.get(player));
+        assertEquals(capped, reloaded);
+        assertEquals(0L, countAnomalies(), "Ordinary final-cap rewards must not flag a healthy profile");
+
+        await(profiles.grantExperience(player, Long.MAX_VALUE));
+        await(profiles.grantExperience(player, 1));
+        profiles.evict(player);
+        PlayerProfile saturated = await(profiles.get(player));
+        assertEquals(Long.MAX_VALUE, saturated.experience());
+        assertEquals(120, saturated.effectiveLevel());
+        assertEquals(2, saturated.skillPoints());
+        assertEquals(1L, number("SELECT COUNT(*) FROM rpg_skill_point_grants"));
+        assertEquals(0L, countAnomalies());
     }
 
     @Test

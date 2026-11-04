@@ -26,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 /** Coalesces high-frequency mob XP into one locked profile mutation per player and flush window. */
 public final class ExperienceWriteBuffer {
@@ -33,6 +34,8 @@ public final class ExperienceWriteBuffer {
     private final ProfileService profiles;
     private final MessageService messages;
     private final Map<UUID, PendingExperience> pending = new HashMap<>();
+    /** Failed immutable grants stay separate from XP earned after their first submission. */
+    private final Map<UUID, FrozenGrant> retrying = new HashMap<>();
     private final Map<UUID, InFlightWrite> inFlight = new HashMap<>();
     private final Map<UUID, FeedbackBatch> pendingFeedback = new HashMap<>();
     private final Map<UUID, Integer> failedAttempts = new HashMap<>();
@@ -47,14 +50,20 @@ public final class ExperienceWriteBuffer {
     private final long retryBaseMillis;
     private final long retryMaximumMillis;
     private final long shutdownTimeoutMillis;
+    private final LongSupplier clock;
     private BukkitTask flushTask;
     private BukkitTask feedbackTask;
     private boolean shuttingDown;
 
     ExperienceWriteBuffer(Plugin plugin, ProfileService profiles, MessageService messages) {
+        this(plugin, profiles, messages, System::currentTimeMillis);
+    }
+
+    ExperienceWriteBuffer(Plugin plugin, ProfileService profiles, MessageService messages, LongSupplier clock) {
         this.plugin = plugin;
         this.profiles = profiles;
         this.messages = messages;
+        this.clock = java.util.Objects.requireNonNull(clock, "clock");
         maxFlushesPerTick = Math.clamp(
                 plugin.getConfig().getInt("experience-write-buffer.max-player-flushes-per-tick", 8), 1, 32);
         maximumPendingPlayers = Math.clamp(
@@ -131,28 +140,32 @@ public final class ExperienceWriteBuffer {
         long inFlightDeadlineNanos = startedNanos
                 + TimeUnit.MILLISECONDS.toNanos(Math.max(250L, shutdownTimeoutMillis / 3L));
         waitForInFlight(inFlightDeadlineNanos);
-        Map<UUID, Long> retry = new HashMap<>();
-        pending.forEach((playerId, batch) -> retry.merge(playerId, batch.amount(), ExperienceWriteBuffer::saturatedAdd));
+        Map<UUID, FrozenGrant> retry = new HashMap<>();
+        retrying.values().forEach(grant -> retry.put(grant.grantId(), grant));
+        pending.forEach((playerId, batch) -> {
+            FrozenGrant grant = freeze(playerId, batch);
+            retry.put(grant.grantId(), grant);
+        });
         for (Map.Entry<UUID, InFlightWrite> entry : inFlight.entrySet()) {
             CompletableFuture<PlayerProfile> future = entry.getValue().future();
+            FrozenGrant grant = entry.getValue().grant();
             if (!future.isDone()) {
-                plugin.getLogger().severe("Mob experience write remained in an uncertain state at shutdown player="
-                        + entry.getKey() + " amount=" + entry.getValue().batch().amount());
+                plugin.getLogger().warning("Mob experience write remained in an uncertain state at shutdown player="
+                        + entry.getKey() + " grant=" + grant.grantId()
+                        + "; retrying the same durable receipt");
+                retry.put(grant.grantId(), grant);
                 continue;
             }
             try {
-                if (future.join() == null) {
-                    retry.merge(entry.getKey(), entry.getValue().batch().amount(),
-                            ExperienceWriteBuffer::saturatedAdd);
-                }
+                if (future.join() == null) retry.put(grant.grantId(), grant);
             } catch (CompletionException exception) {
-                retry.merge(entry.getKey(), entry.getValue().batch().amount(),
-                        ExperienceWriteBuffer::saturatedAdd);
+                retry.put(grant.grantId(), grant);
             }
         }
         drainKnownFailures(retry, deadlineNanos);
 
         pending.clear();
+        retrying.clear();
         inFlight.clear();
         completedWrites.clear();
         ready.clear();
@@ -162,9 +175,9 @@ public final class ExperienceWriteBuffer {
         retryAtMillis.clear();
     }
 
-    private void flushReady() {
+    void flushReady() {
         drainCompletedWrites();
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         int attempts = Math.min(ready.size(), maxFlushesPerTick);
         for (int index = 0; index < attempts; index++) {
             UUID playerId = ready.pollFirst();
@@ -174,25 +187,35 @@ public final class ExperienceWriteBuffer {
                 markReady(playerId);
                 continue;
             }
+            FrozenGrant retry = retrying.remove(playerId);
+            if (retry != null) {
+                submit(retry);
+                continue;
+            }
             PendingExperience batch = pending.remove(playerId);
             if (batch == null || batch.amount() <= 0L) {
                 releaseIfIdle(playerId);
                 continue;
             }
-            submit(playerId, batch);
+            submit(freeze(playerId, batch));
         }
     }
 
-    private void submit(UUID playerId, PendingExperience batch) {
+    private static FrozenGrant freeze(UUID playerId, PendingExperience batch) {
+        return new FrozenGrant(UUID.randomUUID(), playerId, batch);
+    }
+
+    private void submit(FrozenGrant grant) {
+        UUID playerId = grant.playerId();
         PlayerProfile before = profiles.cached(playerId).orElse(null);
         CompletableFuture<PlayerProfile> future;
         try {
-            future = profiles.grantExperience(playerId, batch.amount()).toCompletableFuture();
+            future = profiles.grantExperienceOnce(playerId, grant.grantId(), grant.batch().amount()).toCompletableFuture();
         } catch (RuntimeException exception) {
-            retry(playerId, batch, exception);
+            retry(grant, exception);
             return;
         }
-        InFlightWrite write = new InFlightWrite(batch, before, future);
+        InFlightWrite write = new InFlightWrite(grant, before, future);
         inFlight.put(playerId, write);
         future.whenComplete((result, error) -> completedWrites.add(
                 new CompletedWrite(playerId, write, result, error)));
@@ -205,25 +228,26 @@ public final class ExperienceWriteBuffer {
             if (current != completion.write()) continue;
             inFlight.remove(completion.playerId());
             if (completion.error() != null || completion.result() == null) {
-                retry(completion.playerId(), current.batch(), completion.error());
+                retry(current.grant(), completion.error());
                 continue;
             }
             failedAttempts.remove(completion.playerId());
             retryAtMillis.remove(completion.playerId());
-            recordPlayerFeedback(completion.playerId(), current.batch(), current.before(), completion.result());
+            recordPlayerFeedback(completion.playerId(), current.grant().batch(), current.before(), completion.result());
             if (pending.containsKey(completion.playerId())) markReady(completion.playerId());
             releaseIfIdle(completion.playerId());
         }
     }
 
-    private void retry(UUID playerId, PendingExperience batch, Throwable error) {
-        pending.merge(playerId, batch, PendingExperience::merge);
+    private void retry(FrozenGrant grant, Throwable error) {
+        UUID playerId = grant.playerId();
+        retrying.put(playerId, grant);
         int attempts = failedAttempts.merge(playerId, 1, ExperienceWriteBuffer::saturatedIncrement);
         long delay = MobRewardReliabilityRules.retryDelayMillis(attempts, retryBaseMillis, retryMaximumMillis);
-        retryAtMillis.put(playerId, System.currentTimeMillis() + delay);
+        retryAtMillis.put(playerId, clock.getAsLong() + delay);
         markReady(playerId);
         plugin.getLogger().warning("Buffered mob experience write will retry for " + playerId
-                + " in " + delay + "ms: " + message(error));
+                + " grant=" + grant.grantId() + " in " + delay + "ms: " + message(error));
     }
 
     private void waitForInFlight(long deadlineNanos) {
@@ -240,16 +264,17 @@ public final class ExperienceWriteBuffer {
         }
     }
 
-    private void drainKnownFailures(Map<UUID, Long> amounts, long deadlineNanos) {
-        Map<UUID, Long> remaining = new HashMap<>(amounts);
+    private void drainKnownFailures(Map<UUID, FrozenGrant> grants, long deadlineNanos) {
+        Map<UUID, FrozenGrant> remaining = new HashMap<>(grants);
         for (int attempt = 1; attempt <= shutdownAttempts && !remaining.isEmpty(); attempt++) {
             Map<UUID, CompletableFuture<PlayerProfile>> writes = new HashMap<>();
-            Map<UUID, Long> couldNotStart = new HashMap<>();
-            remaining.forEach((playerId, amount) -> {
+            Map<UUID, FrozenGrant> couldNotStart = new HashMap<>();
+            remaining.forEach((grantId, grant) -> {
                 try {
-                    writes.put(playerId, profiles.grantExperience(playerId, amount).toCompletableFuture());
+                    writes.put(grantId, profiles.grantExperienceOnce(
+                            grant.playerId(), grantId, grant.batch().amount()).toCompletableFuture());
                 } catch (RuntimeException exception) {
-                    couldNotStart.put(playerId, amount);
+                    couldNotStart.put(grantId, grant);
                 }
             });
             long waitNanos = deadlineNanos - System.nanoTime();
@@ -263,27 +288,30 @@ public final class ExperienceWriteBuffer {
                     // Individual futures below distinguish known failure from uncertain timeout.
                 }
             }
-            Map<UUID, Long> retry = new HashMap<>(couldNotStart);
+            Map<UUID, FrozenGrant> retry = new HashMap<>(couldNotStart);
             for (Map.Entry<UUID, CompletableFuture<PlayerProfile>> entry : writes.entrySet()) {
-                UUID playerId = entry.getKey();
+                UUID grantId = entry.getKey();
+                FrozenGrant grant = remaining.get(grantId);
                 CompletableFuture<PlayerProfile> write = entry.getValue();
                 if (!write.isDone()) {
-                    plugin.getLogger().severe("Mob experience shutdown write is uncertain player=" + playerId
-                            + " amount=" + remaining.get(playerId));
+                    plugin.getLogger().warning("Mob experience shutdown write is uncertain player=" + grant.playerId()
+                            + " grant=" + grantId + " amount=" + grant.batch().amount());
+                    // Replaying the same receipt is safe even if this request later commits.
+                    retry.put(grantId, grant);
                     continue;
                 }
                 try {
-                    if (write.join() == null) retry.put(playerId, remaining.get(playerId));
+                    if (write.join() == null) retry.put(grantId, grant);
                 } catch (CompletionException exception) {
-                    retry.put(playerId, remaining.get(playerId));
+                    retry.put(grantId, grant);
                 }
             }
             remaining = retry;
             if (System.nanoTime() >= deadlineNanos) break;
         }
-        remaining.forEach((playerId, amount) -> plugin.getLogger().severe(
+        remaining.forEach((grantId, grant) -> plugin.getLogger().severe(
                 "Mob experience could not be drained during normal shutdown player="
-                        + playerId + " amount=" + amount));
+                        + grant.playerId() + " grant=" + grantId + " amount=" + grant.batch().amount()));
     }
 
     private void markReady(UUID playerId) {
@@ -291,7 +319,9 @@ public final class ExperienceWriteBuffer {
     }
 
     private void releaseIfIdle(UUID playerId) {
-        if (!pending.containsKey(playerId) && !inFlight.containsKey(playerId)) trackedPlayers.remove(playerId);
+        if (!pending.containsKey(playerId) && !retrying.containsKey(playerId) && !inFlight.containsKey(playerId)) {
+            trackedPlayers.remove(playerId);
+        }
     }
 
     private void recordPlayerFeedback(
@@ -356,6 +386,7 @@ public final class ExperienceWriteBuffer {
     }
 
     private static Player activeSession(UUID playerId, Player expected) {
+        if (expected == null || !expected.isOnline()) return null;
         Player current = Bukkit.getPlayer(playerId);
         return sameSession(expected, current, current != null && current.isOnline()) ? current : null;
     }
@@ -386,10 +417,11 @@ public final class ExperienceWriteBuffer {
         }
     }
 
+    private record FrozenGrant(UUID grantId, UUID playerId, PendingExperience batch) { }
+
     private record InFlightWrite(
-            PendingExperience batch, PlayerProfile before, CompletableFuture<PlayerProfile> future
-    ) {
-    }
+            FrozenGrant grant, PlayerProfile before, CompletableFuture<PlayerProfile> future
+    ) { }
 
     private record CompletedWrite(
             UUID playerId, InFlightWrite write, PlayerProfile result, Throwable error

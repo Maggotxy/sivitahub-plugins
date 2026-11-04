@@ -50,8 +50,8 @@ final class ProgressionAnomalySchemaUpgradeTest {
     @Test
     void legacyTableWithoutReviewColumnsIsUpgradedByTheRealMigrationStatements() throws Exception {
         String ddl = readSource("Database.java");
-        // 只取本表相关的迁移语句：全库 migrate() 的顺序问题（CREATE INDEX 早于它自己的
-        // CREATE TABLE）在真机 PostgreSQL 上是既有事实，不属于本任务范围，此处不复现。
+        // 本用例只聚焦存量异常表的三列升级；完整生产 migrate() 的空库、重启和
+        // 技能点 schema 兼容性另由 DatabaseMigrationIntegrationTest 真实运行验证。
         List<String> statements = new ArrayList<>();
         for (String line : ddl.split("\n")) {
             String trimmed = line.strip();

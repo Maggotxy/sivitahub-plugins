@@ -327,8 +327,8 @@ public final class DelayedMobRewardQueue {
                 }
                 FrozenDelivery delivery = reward.nextDelivery();
                 if (delivery == null) {
-                    // XP has no idempotency key and is drained by ExperienceWriteBuffer. The item
-                    // mailbox is the only operation replayed synchronously here.
+                    // ExperienceWriteBuffer owns XP batching and its stable grant receipts.
+                    // The item mailbox is the only operation replayed synchronously here.
                     removeHead(playerId, queue);
                     continue;
                 }

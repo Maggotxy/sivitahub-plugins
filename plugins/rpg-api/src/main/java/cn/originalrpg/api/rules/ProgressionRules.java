@@ -204,7 +204,11 @@ public final class ProgressionRules {
         int stageStartEffective = effectiveLevel(ascension, 1);
         long before = totalExperienceToEffective(stageStartEffective);
         long now = totalExperienceToEffective(effectiveLevel(ascension, localLevel));
-        return Math.max(0L, now - before) + excessExperience;
+        long spent = Math.max(0L, now - before);
+        // Final-cap profiles keep earned XP even though they cannot level again.
+        // Match the saturating addition in the authoritative profile writer.
+        return excessExperience > Long.MAX_VALUE - spent
+                ? Long.MAX_VALUE : spent + excessExperience;
     }
 
     /**
@@ -247,6 +251,10 @@ public final class ProgressionRules {
         if (experience < 0) return "negative-experience:" + experience;
         if (ascension < 0 || ascension > MAX_ASCENSION) return "ascension-out-of-range:" + ascension;
         if (level < 1 || level > LOCAL_LEVEL_CAP) return "local-level-out-of-range:" + level;
+        // JdbcProfileService retains earned XP at the final cap, saturating at
+        // Long.MAX_VALUE. There is no next level to spend it on; a stage budget
+        // is therefore not a valid upper bound for this legitimate state.
+        if (ascension == MAX_ASCENSION && level == LOCAL_LEVEL_CAP) return null;
         long ceiling = walkedStageExperience(ascension) + 1;
         if (experience > ceiling) return "experience-jump:" + experience + ">" + ceiling;
         return null;

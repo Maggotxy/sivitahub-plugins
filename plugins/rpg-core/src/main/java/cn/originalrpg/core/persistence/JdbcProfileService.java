@@ -175,14 +175,51 @@ public final class JdbcProfileService implements ProfileService {
             long[] version = new long[1];
             PlayerProfile updated = inTransaction(connection -> {
                 PlayerProfile current = loadOrCreate(connection, playerId, true);
-                PlayerProfile leveled = withGrantedExperience(current, amount);
-                // 直接授予经验没有业务 receipt，幂等依据是「档案 + 本段档位」：
-                // 同一档位只落一行流水，重复授予到同一档位不再加点。
-                int granted = settleSkillPointMilestones(connection,
-                    skillPointContexts(current, leveled, profileSource(playerId)));
-                PlayerProfile settled = withSkillPoints(leveled, granted);
-                update(connection, settled);
-                return settled;
+                return applyExperience(connection, current, amount, profileSource(playerId));
+            }, version);
+            return new Committed<>(updated, version[0]);
+        }).thenApply(committed -> {
+            publish(committed.value(), committed.version());
+            return committed.value();
+        });
+    }
+
+    @Override
+    public CompletionStage<PlayerProfile> grantExperienceOnce(UUID playerId, UUID grantId, long amount) {
+        if (playerId == null || grantId == null || amount <= 0L) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Invalid idempotent XP grant"));
+        }
+        return AsyncJdbc.supply(executor, () -> {
+            long[] version = new long[1];
+            PlayerProfile updated = inTransaction(connection -> {
+                // The existing profile row lock serializes all grants to this player.
+                // Check the durable receipt after acquiring it so a concurrent replay
+                // observes the first committed write under READ COMMITTED.
+                PlayerProfile current = loadOrCreate(connection, playerId, true);
+                try (PreparedStatement query = connection.prepareStatement("""
+                        SELECT player_uuid, amount FROM rpg_experience_grants WHERE grant_id = ?
+                        """)) {
+                    query.setString(1, grantId.toString());
+                    try (ResultSet result = query.executeQuery()) {
+                        if (result.next()) {
+                            if (!playerId.toString().equals(result.getString("player_uuid"))
+                                    || amount != result.getLong("amount")) {
+                                throw new IllegalArgumentException("XP grant ID was reused with different content");
+                            }
+                            return current;
+                        }
+                    }
+                }
+                PlayerProfile granted = applyExperience(connection, current, amount, "xp-grant:" + grantId);
+                try (PreparedStatement insert = connection.prepareStatement("""
+                        INSERT INTO rpg_experience_grants (grant_id, player_uuid, amount) VALUES (?, ?, ?)
+                        """)) {
+                    insert.setString(1, grantId.toString());
+                    insert.setString(2, playerId.toString());
+                    insert.setLong(3, amount);
+                    insert.executeUpdate();
+                }
+                return granted;
             }, version);
             return new Committed<>(updated, version[0]);
         }).thenApply(committed -> {
@@ -545,11 +582,17 @@ public final class JdbcProfileService implements ProfileService {
         java.util.Objects.requireNonNull(source, "source");
         java.util.Objects.requireNonNull(receiptId, "receiptId");
         PlayerProfile profile = loadForUpdate(connection, playerId);
+        return applyExperience(connection, profile, amount, source.toString());
+    }
+
+    private PlayerProfile applyExperience(
+            Connection connection, PlayerProfile profile, long amount, String receipt
+    ) throws SQLException {
         PlayerProfile leveled = withGrantedExperience(profile, amount);
         // 技能点幂等同「档位」绑定，不与 receipt 绑定：receipt 只是审计备注。
         // 若把 receipt 混进唯一键，同一档位换一条 receipt 跨过会重复发点。
         int granted = settleSkillPointMilestones(connection,
-                skillPointContexts(profile, leveled, source.toString()));
+                skillPointContexts(profile, leveled, receipt));
         PlayerProfile updated = withSkillPoints(leveled, granted);
         update(connection, updated);
         return updated;

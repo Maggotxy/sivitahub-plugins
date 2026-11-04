@@ -140,6 +140,14 @@ public final class Database implements AutoCloseable {
                 )
                 """,
                 """
+                CREATE TABLE IF NOT EXISTS rpg_experience_grants (
+                    grant_id VARCHAR(36) PRIMARY KEY,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    amount BIGINT NOT NULL CHECK (amount > 0),
+                    granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                """
                 CREATE TABLE IF NOT EXISTS rpg_chapter_state (
                     singleton_id INTEGER PRIMARY KEY,
                     season_id VARCHAR(32) NOT NULL,
@@ -398,15 +406,14 @@ public final class Database implements AutoCloseable {
                 """,
                 """
                 CREATE TABLE IF NOT EXISTS rpg_skill_point_grants (
-                    source VARCHAR(96) NOT NULL,
-                    idempotency_key VARCHAR(96) NOT NULL,
+                    milestone_key VARCHAR(160) PRIMARY KEY,
+                    receipt VARCHAR(96) NOT NULL,
                     player_uuid VARCHAR(36) NOT NULL,
                     points INTEGER NOT NULL,
                     ascension INTEGER NOT NULL,
-                    from_local_level INTEGER NOT NULL,
+                    milestone_index INTEGER NOT NULL,
                     to_local_level INTEGER NOT NULL,
-                    granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE (source, idempotency_key)
+                    granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
                 """
@@ -903,6 +910,7 @@ public final class Database implements AutoCloseable {
                 "CREATE INDEX IF NOT EXISTS idx_rpg_energy_quota_period ON rpg_energy_recovery_quotas (source_id, period_key)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_skill_mutation_player ON rpg_skill_mutation_receipts (player_uuid, settled_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_skill_point_grants_player ON rpg_skill_point_grants (player_uuid, granted_at)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_experience_grants_player ON rpg_experience_grants (player_uuid, granted_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_hidden_path_audit_player ON rpg_hidden_path_audit (player_uuid, created_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_incident_compensations_player "
                         + "ON rpg_incident_compensations (player_uuid, applied_at)",
@@ -927,8 +935,6 @@ public final class Database implements AutoCloseable {
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_contribution_scope ON rpg_community_contributions (player_uuid, community_id, period_key)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_reward_community ON rpg_community_project_rewards (community_id, period_key)",
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_rpg_chapter_history_revision ON rpg_chapter_history (season_id, revision)",
-                "CREATE INDEX IF NOT EXISTS idx_rpg_season_settlement_transition ON "
-                        + "rpg_season_settlement_transitions (settlement_id, created_at)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_progression_anomalies (
                     player_uuid VARCHAR(36) PRIMARY KEY,
@@ -997,6 +1003,8 @@ public final class Database implements AutoCloseable {
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
+                "CREATE INDEX IF NOT EXISTS idx_rpg_season_settlement_transition ON "
+                        + "rpg_season_settlement_transitions (settlement_id, created_at)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_season_settlement_progress (
                     settlement_id VARCHAR(36) NOT NULL,
@@ -1140,7 +1148,8 @@ public final class Database implements AutoCloseable {
         };
 
         try (Connection connection = dataSource.getConnection()) {
-            executeMigrations(connection, List.of(migrations), postgres, migrationLockTimeoutMs);
+            executeMigrations(connection, List.of(migrations), postgres, migrationLockTimeoutMs,
+                    () -> SkillPointGrantSchema.prepare(connection, postgres));
         } catch (SQLException exception) {
             throw new IllegalStateException("Database migration failed", exception);
         }
@@ -1155,10 +1164,18 @@ public final class Database implements AutoCloseable {
     static void executeMigrations(
             Connection connection, Iterable<String> migrations, boolean postgres, long lockTimeoutMs
     ) throws SQLException {
+        executeMigrations(connection, migrations, postgres, lockTimeoutMs, () -> { });
+    }
+
+    private static void executeMigrations(
+            Connection connection, Iterable<String> migrations, boolean postgres, long lockTimeoutMs,
+            MigrationPreparation preparation
+    ) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             for (String sql : migrationCoordinationStatements(postgres, lockTimeoutMs)) {
                 statement.execute(sql);
             }
+            preparation.run();
             for (String sql : migrations) {
                 statement.execute(sql);
             }
@@ -1171,6 +1188,11 @@ public final class Database implements AutoCloseable {
             }
             throw exception;
         }
+    }
+
+    @FunctionalInterface
+    private interface MigrationPreparation {
+        void run() throws SQLException;
     }
 
     static List<String> migrationCoordinationStatements(boolean postgres, long lockTimeoutMs) {
