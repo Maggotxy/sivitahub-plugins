@@ -114,8 +114,8 @@ fi
 if [ ! -d datapacks ]; then
   echo "  [FAIL] 缺少 datapacks/ —— #minecraft:quick_actions 数据包没有纳入版本控制" >&2
   STATUS=1
-elif ! find datapacks -path '*/data/minecraft/tags/function/quick_actions.json' | grep -q .; then
-  echo "  [FAIL] datapacks/ 下找不到 data/minecraft/tags/function/quick_actions.json" >&2
+elif ! find datapacks -path '*/data/minecraft/tags/dialog/quick_actions.json' | grep -q .; then
+  echo "  [FAIL] datapacks/ 下找不到 data/minecraft/tags/dialog/quick_actions.json" >&2
   STATUS=1
 else
   echo "  [OK  ] datapacks/ 内已声明 #minecraft:quick_actions"

@@ -1470,6 +1470,7 @@ guide:
         - "使用 /companion 管理召回、收回、行为、改名与统一金币提前复苏；原始引擎命令无法绕过规则。"
 
 ai-npc:
+  language-changed: "回复生成期间你切换了语言，已改用当前语言的本地指南；再次提问可获得新的 AI 回答。"
   name: "同行者 · 小栖"
   greeting: "我已经读取你的实时角色摘要并给出下一步。也可以继续问构筑、地图或玩法问题。"
   listening: "已进入一次问答：请在 {seconds} 秒内直接发送问题。输入 /ainpc leave 可退出。"
@@ -1714,6 +1715,7 @@ class-branches:
   polymath: "百艺师"
 
 skills:
+  spirit-name: "兽灵"
   names:
     heal: "治愈术"
     war-cry: "狂吼"
@@ -2175,6 +2177,7 @@ performance:
     critical: "严重"
 
 story:
+  actor-name: "主城导览 · 栖枝"
   echo-name: "栖枝的巡路回声"
   start-needs-hub: "主城巡路只能在回声附近继续，或从起点附近开始。旧回声若仍在已安全收回；正在请求安全返回主城。若战斗或副本规则允许，抵达出生平台后请再次使用 /story start。"
   usage: "使用 /story status|next|start|claim|cancel|help。"
@@ -3170,3 +3173,8 @@ hidden-path:
     hidden_dungeon: "对应隐藏副本通关"
     skill_book: "领悟对应隐藏首领技能书"
     capacity: "该路线名额已满"
+
+session-lease:
+  no-valid-lease: 会话租约缺失：本节点未持有该玩家的有效会话（多服尚未启用）。
+  stale-process-token: 会话租约属于本节点旧进程，已被新的进程 token 接管。
+  held-by-other-node: 该玩家当前由另一个节点持有会话。

@@ -2,6 +2,7 @@ package cn.originalrpg.ainpc;
 
 import cn.originalrpg.api.event.AuthenticatedPlayerRevokedEvent;
 import cn.originalrpg.api.event.AuthenticatedPlayerReadyEvent;
+import cn.originalrpg.api.event.PlayerLocaleChangeEvent;
 import cn.originalrpg.api.model.PlayerProfile;
 import cn.originalrpg.api.model.CoreAttribute;
 import cn.originalrpg.api.model.EquipmentSnapshot;
@@ -159,6 +160,13 @@ final class AiNpcController implements CommandExecutor, TabCompleter, Listener {
     }
 
     @EventHandler
+    public void onLocaleChange(PlayerLocaleChangeEvent event) {
+        // The next request must not feed the provider a transcript in the old language.
+        // Keep the outstanding request token/cooldown: changing language is not a retry bypass.
+        histories.remove(event.player().getUniqueId());
+    }
+
+    @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         clearSession(event.getPlayer().getUniqueId());
     }
@@ -279,13 +287,22 @@ final class AiNpcController implements CommandExecutor, TabCompleter, Listener {
                     return;
                 }
                 inFlight.remove(playerId, request);
-                history.add(question, finalAnswer);
                 Player online = Bukkit.getPlayer(playerId);
                 if (online != request.playerSession() || !online.isOnline()) return;
-                String prefix = messages.text(online, remote ? "ai-npc.response-prefix" : "ai-npc.fallback-prefix");
+                AiResponsePresentation displayed = AiResponsePresentation.select(locale, messages.locale(online),
+                        finalAnswer, remote, currentLocale -> runtime.knowledge().answer(currentLocale, question));
+                String displayedAnswer = displayed.answer();
+                boolean displayedRemote = displayed.remote();
+                histories.computeIfAbsent(playerId,
+                        ignored -> new ConversationHistory(historyTurns, Duration.ofMinutes(historyTtlMinutes)))
+                        .add(question, displayedAnswer);
+                String prefix = messages.text(online, displayedRemote
+                        ? "ai-npc.response-prefix" : "ai-npc.fallback-prefix");
                 online.sendMessage(Component.text(prefix + " ", NamedTextColor.AQUA)
-                        .append(Component.text(finalAnswer, NamedTextColor.GRAY)));
-                if (!remote && runtime.client().configured()) {
+                        .append(Component.text(displayedAnswer, NamedTextColor.GRAY)));
+                if (displayed.languageChanged()) {
+                    online.sendMessage(text(online, "ai-npc.language-changed"));
+                } else if (!displayedRemote && runtime.client().configured()) {
                     online.sendMessage(Component.text(messages.text(online, "ai-npc.fallback-note"), NamedTextColor.DARK_GRAY));
                 }
             });

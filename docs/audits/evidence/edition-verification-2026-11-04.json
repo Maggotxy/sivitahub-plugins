@@ -1,0 +1,510 @@
+{
+  "date": "2026-11-04",
+  "evidence_levels": [
+    "S",
+    "T",
+    "M"
+  ],
+  "runtime_verified": false,
+  "human_verified": false,
+  "source_base": "b78ff859ed14588d8d04d1faa9d0ddf44730ba6b",
+  "toolchain": {
+    "java": "Temurin 25.0.5+8",
+    "gradle": "9.1.0"
+  },
+  "gradle": {
+    "command": "test jar -PexcludeTags=env --continue",
+    "exit_code": 1,
+    "failed_tasks": [
+      ":plugins:rpg-story:compileJava"
+    ],
+    "log_sha256": "571dff168edefbef2a427e2566c170db73b2a4405afce54b8b2aa309859be627"
+  },
+  "plugin_tests": [
+    {
+      "module": "rpg-admin",
+      "suites": 9,
+      "tests": 35,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-ai-npc",
+      "suites": 6,
+      "tests": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-api",
+      "suites": 27,
+      "tests": 114,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-classes",
+      "suites": 5,
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-combat",
+      "suites": 4,
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-commerce",
+      "suites": 3,
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-community",
+      "suites": 6,
+      "tests": 29,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-core",
+      "suites": 36,
+      "tests": 341,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-cosmetics",
+      "suites": 6,
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-dungeons",
+      "suites": 23,
+      "tests": 72,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-economy",
+      "suites": 8,
+      "tests": 31,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-enhancement",
+      "suites": 6,
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-essentials",
+      "suites": 1,
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-guide",
+      "suites": 18,
+      "tests": 57,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-hub",
+      "suites": 18,
+      "tests": 40,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-integrations",
+      "suites": 6,
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-items",
+      "suites": 29,
+      "tests": 107,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-market",
+      "suites": 13,
+      "tests": 50,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-mobs",
+      "suites": 12,
+      "tests": 36,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-performance",
+      "suites": 6,
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-pets",
+      "suites": 6,
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-skills",
+      "suites": 20,
+      "tests": 72,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-sulfur",
+      "suites": 2,
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "module": "rpg-world",
+      "suites": 4,
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ],
+  "tool_tests": [
+    {
+      "module": "db-migration",
+      "suites": 8,
+      "tests": 26,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2
+    }
+  ],
+  "python_tests": {
+    "script_fixtures": 79,
+    "edition_package_repeat_after_provenance_change": 12,
+    "economy_model": 25
+  },
+  "source_checks": [
+    {
+      "name": "source-contracts",
+      "command": [
+        "bash",
+        "scripts/check-source-contract.sh",
+        "--all"
+      ],
+      "exit_code": 0,
+      "tail": [
+        "SOURCE_CONTRACT_CHECKS=469 SPECS=79",
+        "SOURCE_CONTRACT_GATE=GREEN",
+        "SOURCE_CONTRACT_SPEC_FILES=3"
+      ]
+    },
+    {
+      "name": "ddl-consumers",
+      "command": [
+        "bash",
+        "scripts/check-ddl-consumers.sh"
+      ],
+      "exit_code": 0,
+      "tail": [
+        "反向检查扫描文件数: 569",
+        "代码引用的 rpg_* 表名: 82 个（去重后）",
+        "反向豁免清单: 0 条（脚本内 DDL_TABLE_EXEMPT，可审计）",
+        "DDL_REGISTRATION_GATE=GREEN",
+        "DDL_CONSUMER_GATE=GREEN"
+      ]
+    },
+    {
+      "name": "mechanics-spec",
+      "command": [
+        "bash",
+        "scripts/check-mechanics-spec.sh"
+      ],
+      "exit_code": 0,
+      "tail": [
+        "MECHANICS_SPEC_GATE=GREEN",
+        "MECHANICS_SPEC_ENTRIES=140",
+        "MECHANICS_SPEC_BY_KIND=config:81,behavior:56,java-const:3",
+        "MECHANICS_SPEC_WEAK=0"
+      ]
+    },
+    {
+      "name": "locales",
+      "command": [
+        "python",
+        "scripts/check-locales.py"
+      ],
+      "exit_code": 0,
+      "tail": [
+        "PASS plugins/rpg-essentials/src/main/resources/config.yml:messages: 4 matching message keys",
+        "PASS plugins/rpg-hub/src/main/resources/lang: 202 matching message keys",
+        "PASS plugins/rpg-pets/src/main/resources/config.yml:messages: 110 matching message keys",
+        "PASS 6 bilingual groups, 3015 keys per locale; duplicate keys, types and placeholders checked.",
+        "This verifies shipped YAML only; Java arguments, installed overrides and visual layout need separate checks."
+      ]
+    },
+    {
+      "name": "story-package",
+      "command": [
+        "python",
+        "scripts/check-story-package.py"
+      ],
+      "exit_code": 0,
+      "tail": [
+        "BetonQuest 3.1 dialogue structure: 1 conversations, 14 options, 15 bilingual_texts, 3 actions",
+        "Static validation only; load with the pinned plugins for runtime verification."
+      ]
+    },
+    {
+      "name": "content-assets",
+      "command": [
+        "python",
+        "scripts/check-content-assets.py"
+      ],
+      "exit_code": 0,
+      "tail": [
+        "CONTENT_ASSET_GATE=GREEN items=81 skills=42 dungeons=6 mob_models=15 references=1529"
+      ]
+    },
+    {
+      "name": "navigation",
+      "command": [
+        "python",
+        "scripts/check-navigation.py"
+      ],
+      "exit_code": 0,
+      "tail": [
+        "DATAPACK_CHECK=GREEN native_dialogs=1 actions=8 format=107.1"
+      ]
+    },
+    {
+      "name": "repo-artifacts",
+      "command": [
+        "bash",
+        "scripts/check-repo-artifacts.sh"
+      ],
+      "exit_code": 0,
+      "tail": [
+        "  [OK  ] docs/DATAPACK_DEPLOYMENT.md 覆盖 datapacks/",
+        "  [OK  ] docs/DATAPACK_DEPLOYMENT.md 覆盖 world/datapacks",
+        "  [OK  ] datapacks/ 内已声明 #minecraft:quick_actions",
+        "  [OK  ] scripts/install-datapacks.sh 存在",
+        "REPO_ARTIFACT_GATE=GREEN"
+      ]
+    },
+    {
+      "name": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "tail": []
+    }
+  ],
+  "jar_validation": {
+    "source_provenance": {
+      "schema_version": 1,
+      "algorithm": "sha256-path-nul-content-sha256-v1",
+      "source_fingerprint": "bc587ab26bf7ee1730834b9edcafc5487cf49bc613a5d7cd0f003632851049f6",
+      "source_files": 643
+    },
+    "jars": [
+      {
+        "module": "rpg-admin",
+        "sha256": "d1b085fe0ff8e53411d0b57742e41153a73c1cec00bee9034d58f3856d75eb54",
+        "bytes": 69285
+      },
+      {
+        "module": "rpg-ai-npc",
+        "sha256": "8d6f61c8e7dfdc9c0efed21a9d25eb95013aa7ee199cddae1d62da2d3dec7c2d",
+        "bytes": 48866
+      },
+      {
+        "module": "rpg-api",
+        "sha256": "4e172d507ad2d6ae45f2eaf0c953d9077ada300c7873ead2dc97294a363d139f",
+        "bytes": 304449
+      },
+      {
+        "module": "rpg-classes",
+        "sha256": "04c9c5719c7f61881642836a2048264713710e7b3392a5267aebc7e872e96034",
+        "bytes": 51035
+      },
+      {
+        "module": "rpg-combat",
+        "sha256": "5aa6bf014bdef6eb43664c251dc97e179a42976952fbb278415dc6fbabc31c73",
+        "bytes": 31370
+      },
+      {
+        "module": "rpg-commerce",
+        "sha256": "b197287e95822ea618f6a4b2235949626dd561cd8ab9f68e76788276c3a81924",
+        "bytes": 40356
+      },
+      {
+        "module": "rpg-community",
+        "sha256": "2932a49bb25f1370c00875a65ebbc237e27d9a793cfc47d55321e023b96a04c7",
+        "bytes": 70887
+      },
+      {
+        "module": "rpg-core",
+        "sha256": "dc185c077474d91c322dbf95296e002e621d2589f3385d73c26d81936808e0c5",
+        "bytes": 638070
+      },
+      {
+        "module": "rpg-cosmetics",
+        "sha256": "96d3c2d6e5d09d4a986f0997be3983580bfbd65a79e4fe88b0687994c9632558",
+        "bytes": 44471
+      },
+      {
+        "module": "rpg-dungeons",
+        "sha256": "fb228579f02a898fc32f06e6206439f6ef9461b76f3161ad8b7395186df15b92",
+        "bytes": 184391
+      },
+      {
+        "module": "rpg-economy",
+        "sha256": "822cac8cf9d7984d23a349b2add41495d384207e7b6e5b7bbdcf8d9dde473e85",
+        "bytes": 101160
+      },
+      {
+        "module": "rpg-enhancement",
+        "sha256": "ce6f3dd9004fe5b9f49b0b8ceed0053a4c509d1060e2ac334099670ce34abe8b",
+        "bytes": 52028
+      },
+      {
+        "module": "rpg-essentials",
+        "sha256": "133fdbb6dea246f7939ea2dba02342c8e4db5d5bfe49c637d2672986b93371ef",
+        "bytes": 10100
+      },
+      {
+        "module": "rpg-guide",
+        "sha256": "269175878221f8fe3dd92926bc23c7b9ea43e5cb388f8f4959c8f9783e0527e1",
+        "bytes": 146943
+      },
+      {
+        "module": "rpg-hub",
+        "sha256": "ffd129957c1977bc21e0e74e19955678cb431a84f3a310c7e79a05b670841f08",
+        "bytes": 147109
+      },
+      {
+        "module": "rpg-integrations",
+        "sha256": "0d827b34a1faac4418082c2486b8797cf4e2b4cbea0ad125ce196ed63ede1bcf",
+        "bytes": 33490
+      },
+      {
+        "module": "rpg-items",
+        "sha256": "a725c9f777f923cc78026206156aa9fab59f8e38fb6c1fe094931e92652dd5c3",
+        "bytes": 144834
+      },
+      {
+        "module": "rpg-market",
+        "sha256": "5579616cc04fb5cb40e846a4b02fe8323307a5f24a6fc080e7a46a640bf5fefb",
+        "bytes": 65110
+      },
+      {
+        "module": "rpg-mobs",
+        "sha256": "882b58f780584b024db2706440816f58357ac5add52c5abe0cd9e251a78fbdb1",
+        "bytes": 147319
+      },
+      {
+        "module": "rpg-performance",
+        "sha256": "86ba0d83055b0d117e1b0fa3356e0b452fe033b2f0300659bdfe29b7dee8f007",
+        "bytes": 20890
+      },
+      {
+        "module": "rpg-pets",
+        "sha256": "7a2575e676b5fa7eb1b2d152a293f145723464ad4ef2109659e5e5bda196fdef",
+        "bytes": 67267
+      },
+      {
+        "module": "rpg-skills",
+        "sha256": "97050cffb05a41db53d73f4571161f8c6f75fa4dafd182fe06f6f6d0869c7fec",
+        "bytes": 195900
+      },
+      {
+        "module": "rpg-sulfur",
+        "sha256": "4adce129d41b2d3628610b0d8e987427e3561fee8b368440981c7d729e4a7e46",
+        "bytes": 23188
+      },
+      {
+        "module": "rpg-world",
+        "sha256": "07ec58aafbfa1ff891810f2d0d913e4c0efe26c6793880abe3874146be6cc71d",
+        "bytes": 46138
+      }
+    ],
+    "missing": [
+      "rpg-story"
+    ]
+  },
+  "client_resource_pack": {
+    "files": 597,
+    "bytes": 343021,
+    "sha256": "3e1f31a62d56dd9240eb08d47f4726155079727be9ac197213a6d7b7061bbbe0"
+  },
+  "server_candidates": {
+    "models": 15,
+    "hud_slots": 4,
+    "payload_files": 80
+  },
+  "economy_model": {
+    "scenarios": 15,
+    "simulated_uncalibrated": 14,
+    "expected_fail_fast": 1,
+    "calibration": "NEEDS_TUNING",
+    "report_sha256": "389806cf8c6dcf6511a4a6eef5c14b0102cbbc49e595e8eb0d708d7ce95b44c5"
+  },
+  "edition_package": {
+    "result": "REJECTED_MISSING_STORY_JAR",
+    "partial_output_produced": false
+  },
+  "blocker": {
+    "file": "libs/Citizens-2.0.43-b4231.jar",
+    "sha256": "7f5bf10d581b0759779e9fc03570bef605065ffe1770430513232373a52a2e9a",
+    "http_status_observed": 403
+  }
+}

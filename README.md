@@ -11,7 +11,7 @@
 | 目标 | 入口 |
 |---|---|
 | 了解玩法与设计 | [玩法规格](docs/GAME_DESIGN.md)、[经济与长期成长](docs/ECONOMY.md)、[任务与剧情](docs/STORY.md) |
-| 阅读本轮深度审计 | [当前源码审计与完善顺序](docs/audits/CURRENT_SOURCE_REVIEW.md)、[交付验证](docs/audits/INTERNATIONAL_READINESS_DELIVERY.md)、[成长语义复核](docs/audits/PROGRESSION_SEMANTICS_AUDIT.md) |
+| 查看实际项目完善结果 | [运行版英文与玩法交付记录](docs/audits/PLAYABLE_ENGLISH_EDITION_DELIVERY.md)、[全部 25 插件矩阵](docs/audits/FULL_PLUGIN_GAMEPLAY_REVIEW.md)、[成长语义复核](docs/audits/PROGRESSION_SEMANTICS_AUDIT.md) |
 | 向国际玩家介绍项目 | [English README](README.en.md)、[Player guide](docs/en/PLAYER_GUIDE.md)、[双语术语表](docs/en/GLOSSARY.md) |
 | 构建和参与开发 | [开发上手](docs/en/GETTING_STARTED.md)、[架构说明](docs/en/ARCHITECTURE.md)、[贡献规范](docs/en/CONTRIBUTING.md) |
 | 检查英文覆盖 | [国际化审计](docs/audits/LOCALIZATION_REVIEW.md)、[英文配置预设](examples/en_us/README.md) |
@@ -29,7 +29,9 @@
 - Gold / Merit / Starlight 三类游戏财富、事务账本、原版物资和自制装备托管市场、委托与可恢复邮箱。
 - 主城、服务 NPC、可选故事引导、伙伴、外观与只读 AI 建议；大量菜单、帮助和错误消息已有中英文资源。
 
-“源码存在”“功能默认启用”“测试通过”“真实多人环境可用”是不同状态。经济仿真目前仍有未实现的引擎部分，多服会话与 Outbox 也尚未完成整个运行闭环。默认关闭的能力、当前缺陷和后续验收见[当前审计](docs/audits/CURRENT_SOURCE_REVIEW.md)及[英文路线图](docs/en/ROADMAP.md)。
+“源码存在”“功能默认启用”“测试通过”“真实多人环境可用”是不同状态。经济仿真已实现 15 场景的离线模型，结果仍需真实服数据校准；多服会话与 Outbox 尚未完成整个运行闭环。本轮已完成 24 个实际插件构建与 1,138 项插件测试，Story 的固定 Citizens 依赖下载受阻，完整 25 插件发行包仍被打包器拒绝。具体证据和剩余验收见[本轮交付](docs/audits/PLAYABLE_ENGLISH_EDITION_DELIVERY.md)及[英文路线图](docs/en/ROADMAP.md)。
+
+项目英文版包括运行时语言切换、支持物品的旧名称刷新、共享 NPC/地图标签、双语序章，以及可从公开源码构建的客户端资源包、15 个服务端模型与四槽 HUD 配置候选。构建命令见[英文版上手](docs/en/GETTING_STARTED.md)和[资源说明](resource-pack/README.md)。服务端模型/HUD 候选仍需固定第三方插件编译与客户端验收。
 
 ```text
 plugins/        25 个独立 Gradle 插件模块

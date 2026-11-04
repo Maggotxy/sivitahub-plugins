@@ -327,7 +327,7 @@ final class HubNpcManager {
             showAiConversation(player);
             return;
         }
-        String name = npcName(role);
+        String name = hubMessages.npcName(player, role);
         JourneyProgress journey = journeys.progress(player.getUniqueId());
         JourneyStep next = journey.nextStep().orElse(null);
         List<DialogBody> body = new ArrayList<>();
@@ -381,7 +381,7 @@ final class HubNpcManager {
     }
 
     private void showAiConversation(Player player) {
-        String name = npcName(HubRole.AI);
+        String name = hubMessages.npcName(player, HubRole.AI);
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(Component.text(name, NamedTextColor.AQUA))
                         .externalTitle(Component.text(name))
@@ -511,7 +511,7 @@ final class HubNpcManager {
     private void showNotice(Player player, HubRole role, boolean recommendation) {
         String key = "npc-dialog.roles." + role.id() + (recommendation ? ".advice" : ".detail");
         Dialog notice = Dialog.create(builder -> builder.empty()
-                .base(DialogBase.builder(Component.text(npcName(role), NamedTextColor.GOLD))
+                .base(DialogBase.builder(Component.text(hubMessages.npcName(player, role), NamedTextColor.GOLD))
                         .canCloseWithEscape(true)
                         .pause(false)
                         .body(List.of(DialogBody.plainMessage(Component.text(
@@ -540,8 +540,7 @@ final class HubNpcManager {
     }
 
     private String npcName(HubRole role) {
-        ConfigurationSection section = plugin.getConfig().getConfigurationSection("npcs." + role.id());
-        return section == null ? role.id() : section.getString("name", role.id());
+        return hubMessages.npcName(null, role);
     }
 
     private void startMotionTask() {

@@ -52,7 +52,7 @@ public final class RpgStoryPlugin extends JavaPlugin {
         JourneyService journeys = requireService(JourneyService.class);
         GuideMenuService guideMenus = requireService(GuideMenuService.class);
 
-        actor = new StoryActorManager(this);
+        actor = new StoryActorManager(this, messages);
         actor.ensureRegistryEntry();
         escorts = new EscortManager(this, profiles, economy, messages, journeys);
         integrationBridge.attach(escorts, journeys, guideMenus);
@@ -61,7 +61,7 @@ public final class RpgStoryPlugin extends JavaPlugin {
         StoryCommand command = new StoryCommand(this, escorts, actor, messages, integrationBridge);
         register("story", command);
         register("storyadmin", command);
-        getServer().getPluginManager().registerEvents(new StoryListener(this, escorts), this);
+        getServer().getPluginManager().registerEvents(new StoryListener(messages), this);
         escorts.startTicker();
         getServer().getScheduler().runTaskLater(this,
                 () -> getLogger().info("Reserved story actor ready=" + actor.spawnAtHub() + " " + actor.status()), 80L);

@@ -1,98 +1,102 @@
-# 国际化源码复核 / Localization review
+# 国际化源码与运行路径复核 / Localization review
 
-> 本分支的实际交付、17 项 Java 与 29 项 Python 验证结果、完整构建阻塞及运行证据边界，见 [国际化交付与验证记录](INTERNATIONAL_READINESS_DELIVERY.md)。
-审计日期：2026-11-03。源码基线：`c83226ff87c8ecb868277d9ca5bce575b4684abc`。
+审计日期：2026-11-04。修改基于 `codex/international-readiness` 的 `b78ff85` 工作树；完整构建与发行证据见 [交付记录](INTERNATIONAL_READINESS_DELIVERY.md)。
 
-**结论：仓库已有规模较完整的中英文消息资源；本轮补齐英文开发与使用文档、修复一处消息调用问题，并新增可独立运行的语言资源门禁。资源一致性通过不等于整个部署已完成英文真人验收。**
+**本轮已扩展到实际运行界面：语言回退、已有玩家语言切换、共享 NPC 与地图标签、旧物品显示、异步 AI 回复和可安装的双语剧情入口。下列源码与行为测试证据不能替代 Paper 服务器、外部插件和真人客户端验收。**
 
-English summary: the source already ships substantial bilingual content. This change adds an independent locale gate and fixes governance confirmation rendering. Shared NPC/map labels, installed overrides, third-party plugins, and real client layout still require separate international release checks. See the [English documentation](../en/README.md).
+English summary: this change implements runtime localization and a bilingual story package. It preserves custom server text and player item names, uses saved player language for private UI, and uses the server default for shared entities/maps. Static text parity and focused tests do not certify an entire deployed server or every third-party UI.
 
-## 1. 已验证的语言边界 `[S][T]`
+## 1. 资源门禁 `[S][T]`
 
-下表以 YAML 的**叶子键**为计数单位：一个字符串或一个字符串列表算一个键；不是句子数、页面数、调用次数或翻译完成百分比。数值由 `scripts/check-locales.py` 对本次工作树实测。
+`scripts/check-locales.py` 在当前工作树的结果如下。一个字符串或一个字符串列表算一个叶子键；这不是句子数、界面数、调用次数或完成百分比。
 
-| 消息来源 | 中文叶子键 | 英文叶子键 | 用途 |
-|---|---:|---:|---|
-| [`rpg-core/lang`](../../plugins/rpg-core/src/main/resources/lang/en_us.yml) | 2,670 | 2,670 | 共用界面、职业、装备、技能、市场、经济、任务等 |
-| [`rpg-hub/lang`](../../plugins/rpg-hub/src/main/resources/lang/en_us.yml) | 188 | 188 | 主城、传送、原生 NPC 对话与引路 |
-| [`rpg-classes/config.yml:menu-text`](../../plugins/rpg-classes/src/main/resources/config.yml) | 4 | 4 | 隐藏路线入口 |
-| [`rpg-essentials/config.yml:messages`](../../plugins/rpg-essentials/src/main/resources/config.yml) | 4 | 4 | 工具插件桥接提示 |
-| [`rpg-pets/config.yml:messages`](../../plugins/rpg-pets/src/main/resources/config.yml) | 110 | 110 | 灵契伙伴界面和提示 |
-| [`rpg-ai-npc/knowledge.yml`](../../plugins/rpg-ai-npc/src/main/resources/knowledge.yml) | 19 | 19 | 本地降级问答，含关键词列表 |
-| **合计** | **2,995** | **2,995** | **六组中英文资源** |
+| 资源组 | 每种语言的叶子键 | 用途 |
+|---|---:|---|
+| [Core lang](../../plugins/rpg-core/src/main/resources/lang/en_us.yml) | 2,676 | 共用菜单、职业、装备、任务、经济等 |
+| [Hub lang](../../plugins/rpg-hub/src/main/resources/lang/en_us.yml) | 202 | 主城对话、引路、共享标签及地图 |
+| Classes `menu-text` | 4 | 隐藏路线入口 |
+| Essentials `messages` | 4 | 工具插件桥接提示 |
+| Pets `messages` | 110 | 灵契伙伴界面 |
+| AI `knowledge.yml` | 19 | 本地关键词、问答及通用降级 |
+| **合计** | **3,015** | **六组中英文资源** |
 
-门禁检查：YAML 安全解析、重复键、嵌套及点号路径冲突、必需语言组、双语键集合、字符串/列表类型、非空内容和 `{name}` 占位符集合。列表允许翻译时调整分行，关键词列表允许语言相关的不同长度；占位符允许调整顺序和重复次数。
+门禁使用 PyYAML 安全解析，拒绝重复键、递归别名、非文本叶子、空内容和点号路径冲突；比较中英键集合、字符串/列表类型及 `{name}` 占位符集合。分行、关键词数量、占位符顺序允许因语言不同而变化。它不验证 Java 调用参数、外部部署配置或视觉排版。
 
-门禁会发现后续新增的资源根目录语言组，以及插件资源 YAML 中的 `zh_cn` / `en_us` 分组，同时要求当前六组不能静默消失。它不解析 Java 调用参数，不验证占位符传入值，不覆盖服务器已安装的配置、第三方消息、图片内文字或客户端视觉布局。
+新增 [BetonQuest 剧情包](../../examples/betonquest/QuestPackages/sivita_story/package.yml) 使用上游的 `en-US` / `zh-CN` 格式，单独由 `scripts/check-story-package.py` 检查：1 个对话、14 个选项、15 组双语文本、3 个可达业务动作。它不计入上述 3,015 键。
 
-## 2. 真实语言选择机制 `[S]`
+## 2. 语言选择、旧配置与自定义文本 `[S][T]`
 
-[`YamlMessageService`](../../plugins/rpg-core/src/main/java/cn/originalrpg/core/i18n/YamlMessageService.java) 从 `RpgCore/config.yml` 读取 `language.default`，默认 `zh_cn`；`language.allow-player-selection` 默认开启。`/language en_us` 经 [`LanguageCommand`](../../plugins/rpg-core/src/main/java/cn/originalrpg/core/command/LanguageCommand.java) 写入玩家 PersistentDataContainer，并保存玩家数据。
+[YamlMessageService](../../plugins/rpg-core/src/main/java/cn/originalrpg/core/i18n/YamlMessageService.java) 使用玩家 PDC 保存的选择，缺省使用 `RpgCore/config.yml` 的 `language.default`。原始默认值仍是 `zh_cn`；英文部署设置 `en_us`。`/language` 不自动读取 Minecraft 客户端语言。
 
-- 当前实现根据玩家已保存的选择或服务器默认语言决定文本，**不自动读取 Minecraft 客户端语言**。
-- 切换后应重新打开菜单；世界中的共享实体名、已创建物品文本、网页和第三方插件不由该命令统一重写。
-- 核心语言包会补入缺失的新键，但保留已有运营自定义文本；已存在的键不会被新 JAR 文案强制覆盖。
-- Hub 另有独立语言文件；其缺失键有默认语言及内置包的回退路径。
-- Pets、Essentials 桥接、职业隐藏路线菜单和 AI 本地知识分属不同资源入口，不能只比较核心语言包就宣称全部覆盖。
+[LocaleBundle](../../plugins/rpg-api/src/main/java/cn/originalrpg/api/i18n/LocaleBundle.java) 的查找顺序是：请求语言的安装覆盖 → 同语言内置包 → 服务器默认语言 → 英文 → 中文。空、类型不匹配或占位符不匹配的覆盖在内存中忽略，并记录诊断。旧安装缺少新键时直接回退至同语言内置包，**不会把整份运营语言文件重新保存或覆盖**。合法自定义文案继续优先。
 
-英文为主的受权部署可把现有 `RpgCore/config.yml` 中的相应段修改为：
+占位符只替换一遍：玩家名或其他替换值中的 `{token}`、美元符号和反斜杠不会被当作第二层模板或正则替换指令。AI 知识使用严格的同语言查找；英文未知话题不会因中文自定义关键词而返回中文正文。
 
-```yaml
-language:
-  default: en_us
-  allow-player-selection: true
-```
+[PlayerLocaleChangeEvent](../../plugins/rpg-api/src/main/java/cn/originalrpg/api/event/PlayerLocaleChangeEvent.java) 在语言保存成功后同步发送，仅在实际解析语言改变时发送。`MessageService.textForLocale` / `linesForLocale` 提供显式语言读取，兼容旧服务实现。切换后的新界面按新语言生成；已打开的普通菜单仍需重新打开。
 
-这是语言设置示例，不是完整服务器配置。其他数据库、世界、签名密钥和插件配置应沿用已验证的部署方案。
+## 3. 已实现的实际运行路径 `[S]`
 
-## 3. 本轮实际修复 `[S]`
+| 表面 / 模块 | 本轮行为 |
+|---|---|
+| Hub NPC、原生个人对话、引路 | [HubMessages](../../plugins/rpg-hub/src/main/java/cn/originalrpg/hub/HubMessages.java) 将库存中文默认配置映射至当前语言；个人对话按玩家语言，共享实体名按服务器默认语言。合法自定义名称不被覆盖，可用 `names.<locale>` / `subtitles.<locale>` 配置不同语言。 |
+| Squaremap | 图层、主城安全区及 NPC 标记按服务器默认语言渲染；动态标签进行 HTML 转义。网页访客没有在线玩家语言上下文。 |
+| Story 演员与护送 | 共享演员名按服务器默认语言，私有护送回声与进度 bossbar 在玩家切换语言时刷新；自定义演员名保留。 |
+| Story 与 BetonQuest 语言同步 | [StoryListener](../../plugins/rpg-story/src/main/java/cn/originalrpg/story/StoryListener.java) 在认证就绪及实际语言变更事件后执行上游支持的 `questlang` 命令；不再从尚未成功执行的 `/language` 文本预判。英文首次登录也会同步。上游语言白名单与权限仍适用。 |
+| AI NPC | 切换时清理旧语言上下文；未完成的远程回答若返回时语言已变，不发送旧语言正文，而使用当前语言的本地回答和提示。保留并发、冷却和费用约束，不额外发起付费请求。 |
+| 世界怪物 | 血月稀有怪共享名称按服务器默认语言；迁移仅识别旧生成默认名，保留玩家自定义名。 |
+| 世界猎获材料 | [HuntMaterialPresentation](../../plugins/rpg-world/src/main/java/cn/originalrpg/world/HuntMaterialPresentation.java) 刷新猎获晶核和血月精粹的默认名称与数量说明；使用 `itemName`，保留玩家 `customName`。认证、切换语言和物品转移后刷新玩家背包、末影箱、光标，不改共享容器或锻造/交易输入。PDC、数量和模型不变。 |
+| 多节点准入 | 三个租约拒绝原因改为核心双语消息。准入及租约规则不变。 |
+| PlaceholderAPI / HUD | 离线文本回退使用服务器默认语言；新增 `%sivita_hud_ready%`，仅在线、资源包 `SUCCESSFULLY_LOADED`、角色缓存新鲜且已认证的技能快照可用时返回 `1`，否则 `0`。所有已定义数字占位符在无数据/空槽时保持可解析：通常为 `0`，`mana_max` 至少为 `1`；空槽 `id/timer/glyph` 保持空串，有效选择使用从 1 开始的槽号。技能快照的时间戳表示已学技能缓存加载时间，不作为空闲玩家的 HUD 过期判断。 |
+| 社群治理 | 成功确认使用不需参数的 `effective-ok`；广播的英文补齐 `{player}`。已有真实双批处理测试覆盖消息参数渲染。 |
 
-### 社群双批成功消息使用了错误的文本键
+本轮随后补齐四个普通物品生产者的实际刷新路径：
 
-[`CommunityGovernanceHandler.render`](../../plugins/rpg-community/src/main/java/cn/originalrpg/community/CommunityGovernanceHandler.java) 在双批达成时原先调用 `community.governance.effective`，却没有提供占位符。该键是事件公告，中文需要 `{action}` 和 `{player}`，英文原先需要 `{action}`。因此已启用治理功能时，命令成功提示可露出未替换的原始 token。
-
-本轮将命令确认改为两份资源中**已经存在且不需要占位符**的 `community.governance.effective-ok`。事件公告继续使用 `effective`，并补齐英文中缺失的 `{player}`，与 [`CommunityGovernanceListener`](../../plugins/rpg-community/src/main/java/cn/originalrpg/community/CommunityGovernanceListener.java) 已提供的参数一致。
-
-改动只影响消息选择和翻译。未改变治理开关、批准人数、权限、状态迁移、资金或数据库。治理功能默认关闭，故此问题不表示默认配置下所有玩家都能触发。
-
-已有安装若保留了旧 `plugins/RpgCore/lang/en_us.yml`，请在备份后单独核对并更新 `community.governance.effective`；不要为更新一个句子覆盖整份运营自定义语言包。命令改用的 `effective-ok` 本来就在基线资源内。
-
-[`CommunityGovernanceHandlerTest`](../../plugins/rpg-community/src/test/java/cn/originalrpg/community/CommunityGovernanceHandlerTest.java) 的真实第一票/第二票处理场景现增加双语资源渲染检查：将 handler 实际输出的参数应用到已打包文本，确认不存在未替换占位符。该测试避免只检查“键名存在”而漏掉调用参数错误。
-
-## 4. 已知剩余国际化工作 `[S]`
-
-| 优先级 | 可复核问题 | 影响与下一步 |
+| 生产者 | 识别和刷新范围 | 保留的事实 |
 |---|---|---|
-| P1 | [`HubNpcManager`](../../plugins/rpg-hub/src/main/java/cn/originalrpg/hub/HubNpcManager.java) 使用配置中的 `npcs.*.name` 创建共享名牌及对话标题；默认配置为中文 | 英文玩家仍可能看到中文 NPC 名称。英文专服可配置统一英文名称；双语同服需明确共享世界标签与个人对话标题的分别处理方案。英文标准称呼已在 Hub `wayfinding.roles.*` 中存在。 |
-| P1 | [`SquaremapHubIntegration`](../../plugins/rpg-hub/src/main/java/cn/originalrpg/hub/SquaremapHubIntegration.java) 写死中文地图图层/主城提示，NPC 标记复用默认配置名称 | `/language` 不影响浏览器地图。后续应独立配置地图语言，或提供双语共享标记，不能假设网页访客有在线玩家语言。 |
-| P1 | [`StoryActorManager`](../../plugins/rpg-story/src/main/java/cn/originalrpg/story/StoryActorManager.java) 使用 `actor.name`，默认“主城导览 · 栖枝” | 英文部署需配置共享剧情演员名称；角色 ID、UUID 和任务状态无需改变。 |
-| P1 | AuthMe、Citizens、BetonQuest、EssentialsX、MyPet、BetterHud 等实际部署配置不在当前公开源码树内 | 需要对受权部署逐一核对欢迎、认证、剧情、聊天、错误提示与 HUD，不能根据本仓语言包推断其英文状态。 |
-| P2 | [`SessionLeaseListener`](../../plugins/rpg-core/src/main/java/cn/originalrpg/core/SessionLeaseListener.java) 的三个拒绝准入提示为硬编码中文 | 多节点租约功能默认关闭；启用前应把拒绝原因迁入语言服务并验证加入阶段的可用性。 |
-| P2 | [`SkillMechanics.beastSpirits`](../../plugins/rpg-skills/src/main/java/cn/originalrpg/skills/SkillMechanics.java) 的狼实体元数据名称为“兽灵” | 默认隐藏名牌，但实体名称仍为中文；可在后续表现层改动中使用明确的共享或施放者语言策略。 |
-| P2 | 装备签名失败、外观对账等若干运营日志仍为中文 | 国际运维人员需要英文故障词典；统一日志时应保留稳定故障代码、环境变量名和审计字段。 |
+| `rpg-mobs` | `adaptive_material` 对应的异变核心/碎片，`skill_book=common-insight` 对应通用技能书；新创建和已有物品使用同一呈现器。 | 材质、数量、模型、拾取归属、技能书实例 UUID；无自带 lore 的物品不清空其他 lore。 |
+| `rpg-dungeons` | 直接从现有验证后的 RewardDefinition 读取六种核心材料、三种隐藏门票、三种技能书的名称键；源码不复制经济金额/数量或另造奖励身份。 | 奖励身份、门票目标、书实例、所有者、模型与数量。来源/用途 lore 按当前语言重绘。 |
+| `rpg-guide` | 起步基底、核心及绑定食物/床/箭；无 PDC 的旧领地铲必须原名称和 lore 同时匹配才迁移。 | 职业方向、绑定归属、不可破坏属性和原数量。不把 earned-shop 恢复核心误认成免费起步物资。 |
+| `rpg-pets` | `companion_signal` 对应的号角名称和 lore。 | 号角 owner、glint、自定义名称及宠物/冷却状态。 |
 
-列表是源码检查发现的具体问题，不是全项目所有文字的穷尽清单。不存在“2,995 键一致，因此游戏英文完成率 100%”的推论。
+[PlayerItemTextRefresh](../../plugins/rpg-api/src/main/java/cn/originalrpg/api/i18n/PlayerItemTextRefresh.java) 在认证、真实语言变更和物品变化后合并为下一主线程 tick 的工作。锁定的 Paper API JAR 中确有 `PlayerInventorySlotChangeEvent`，因此异步市场交付和收据清除也会触发检查；没有轮询数据库或定时全服扫描。只访问个人背包、末影箱和光标，打开容器/锻造等界面时延后，关闭事件重新排队。撤销认证、退出和所属插件关闭会清理连接引用，旧连接的排队任务不能吞掉新连接的刷新。
 
-## 5. 验证与后续验收
+[ItemTextPresentation](../../plugins/rpg-api/src/main/java/cn/originalrpg/api/i18n/ItemTextPresentation.java) 不写 PDC，仅在显示字段真正改变时写回，避免 slot event 循环。`listing_id`、`delivery_id`、`equipment_operation`、`ticket_entry_escrow` 和签名装备全部跳过；只有原生产者清理临时标记后才允许重绘。最后一个门票标记尤其不能遗漏：入场恢复会比较原始序列化 payload，语言刷新不得改变待确认票券。
 
-无需启动服务器的检查：
+锻造装备迁移由 `rpg-items` 的独立实现/测试负责，普通物品呈现器不会修改签名装备。以上是实现与定向测试覆盖，不能推导每种客户端转移和第三方插件组合都已通过验收。
+
+## 4. 可安装剧情入口 `[S][T]`
+
+[安装说明](../../examples/betonquest/README.md) 与 `examples/betonquest/QuestPackages/sivita_story/` 现在提供真实的 Citizens 9101 点击入口。包内采用 BetonQuest 3.1 文档的 `conversations`、`NPC_options`、`player_options`、`actions`、`npcs` 与 `npc_conversations` 结构；quest 文件格式标识为上游文档的 `3.0.0-QUEST-1`，不是插件版本号。
+
+对话只能调用已有 `sivita_story_begin prologue_escort`、`sivita_story_claim prologue_escort`、`sivita_story_open_journey`。开始条件复用已有 `sivita_story_eligible`。不在包内写进度标签、发货币、写经验或复制奖励金额。真实路线、状态与账本幂等仍由 `EscortManager` 和现有工厂控制；完成时自动领取，手动领取仅供到账检查/恢复。
+
+源码原本已有 `/story start/status/next/claim/cancel` 完整命令路径，但公开树没有将保留 NPC 绑定到该玩法的 QuestPackage。本包补齐该内容入口。静态检查验证双语文本、演员 ID、引用、分支可达性、出口和受控动作；**尚未声称通过实际 BetonQuest reload 或 Citizens 点击实测**。
+
+上游依据：[BetonQuest 3.1 对话](https://betonquest.org/3.1/Documentation/Advanced/Conversations/)、[包格式](https://betonquest.org/3.1/Documentation/Basics/Packages-%26-Templates/)、[NPC 绑定](https://betonquest.org/3.1/Documentation/Reference/Integrations-List/NPCs/)、[语言配置](https://betonquest.org/3.1/Documentation/Reference/Plugin-Config/)。
+
+## 5. 验证记录与剩余边界
+
+可复现的静态检查：
 
 ```bash
 python3 -m pip install PyYAML==6.0.3
 python3 scripts/check-locales.py
+python3 scripts/check-story-package.py
 python3 -m unittest discover -s scripts/tests -p 'test_locales.py' -v
+python3 -m unittest discover -s scripts/tests -p 'test_english_presets.py' -v
+python3 -m unittest discover -s scripts/tests -p 'test_story_package.py' -v
 ```
 
-本轮执行结果：六组资源通过，2,995 个键/语言；**13 个 Python 行为夹具测试通过**。夹具包含重复键、遗漏语言/嵌套键、遗漏或错拼占位符、含连字符占位符、类型错误、布尔键、递归别名、点号路径碰撞、嵌入式资源和空仓误报绿灯。
+本地语言门禁 13 个夹具、英文配置生成器 9 个夹具和剧情包 6 个夹具全部通过。测试包含错拼占位符、点号碰撞、重复键、缺翻译、悬空分支、不可达节点、错误演员，以及禁止奖励/标签旁路。英文配置生成器的 9 个既有测试单独验证新输出目录和白名单外值不变。
 
-Java 回归命令（是否运行及结果以本次 PR 的测试记录为准）：
+JDK 25 + 已解析的真实 Paper API + JUnit 的定向行为验证覆盖 LocaleBundle、ConfiguredDisplayText、StaticKnowledge、AiResponsePresentation、HuntMaterialPresentation、HudControlGlyphPolicy、HudReadinessPolicy 和 StoryLanguageSync，29 个测试通过。随后普通物品/HUD 补充运行 16 个行为测试，全部通过：HUD 数字值 5、显示字段与锁标记 3、刷新生命周期 5、延迟血月名称 3。前后两组共 45 个不同定向测试；完整 Gradle 构建与全项目计数以根交付记录为准。本定向运行不声称编译了全部 Story/Citizens 代码。
 
-```bash
-./gradlew :plugins:rpg-community:test \
-  --tests '*CommunityGovernanceHandlerTest*' \
-  --tests '*CommunityGovernanceMessagesTest*'
-```
+仍需明确区分：
 
-真实客户端仍需 `[R][H]`：英文首次进入与认证 → 切换/重登 → 主城对话与导览 → 职业和技能 → 锻造与概率预览 → 市场购买/取消/邮箱 → 副本组队与失败提示 → 英文/中文玩家同服。分别检查 GUI 缩放 2/3/4、英文长文本换行、资源包字体、键位说明、玩家名及物品文本。外部 AI 不可用时也应验证英文静态知识的降级路径。
-
-本次资源门禁和纯消息回归均不替代真实 Paper、PostgreSQL、第三方插件和真人客户端验证。
+- 原生 G 快捷对话及 Minecraft 原生翻译组件跟随**客户端语言/资源包**；插件普通菜单跟随 `/language` 保存偏好。英文发行配置可以使默认一致，但两个选择不是自动绑定。
+- Paper 官方明确说明 [GlobalTranslator 不自动翻译 ItemStack 名称和 lore](https://docs.papermc.io/paper/dev/component-api/i18n/)；已有物品必须靠显式重绘。未归属本插件、运营自定义文本、第三方物品不得据本报告强制改写。
+- 资源包成功状态只表示客户端报告加载成功，不能证明每个自定义字形、模型、纹理及打包版本都正确；HUD 仍需实际客户端视觉验收。
+- AuthMe、EssentialsX、Citizens、BetonQuest、MyPet、BetterHud 的独立消息和权限配置需要各自正确安装。英文文档、配置生成器和剧情示例不会自动修改正在运行的服务器。
+- 需实测首次认证、切换/重登、长英文菜单、共享 NPC/地图、已有/新物品、跨玩家转移、远程 AI 失效/途中切换、实际剧情完成/重复领取、HUD 资源包拒绝/失败/重载，以及 GUI 缩放 2/3/4。
+- 已改名、缺少身份标记的旧领地铲无法可靠推断来源，保留原样；嵌套容器物品在取回个人库存后刷新。运营自定义文案、earned-shop 其他商品、硫磺模块和未识别的外部物品不由本轮四个呈现器接管。市场预览的非装备副本仍可能显示卖家保存的语言；实际交付确认后会按接收者语言刷新。
+- 当前未宣称 `[R][H]` 真人验收完成。固定版本 Citizens 的构件访问问题及完整构建进展在根交付记录中独立追踪，不以近似依赖替代通过证明。

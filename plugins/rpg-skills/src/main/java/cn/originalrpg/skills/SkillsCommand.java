@@ -123,7 +123,7 @@ final class SkillsCommand implements CommandExecutor, TabCompleter, Listener, Sk
         this.skillDamage = skillDamage;
         this.sequences = new SkillSequenceController(plugin);
         this.visuals = new SkillVisuals(plugin, sequences);
-        this.mechanics = new SkillMechanics(skillDamage, visuals, sequences);
+        this.mechanics = new SkillMechanics(skillDamage, visuals, sequences, messages);
         this.skillSlotsKey = new NamespacedKey(plugin, "skill_slots");
         this.selectedSlotKey = new NamespacedKey(plugin, "selected_skill_slot");
         this.manaKey = new NamespacedKey(plugin, "mana");

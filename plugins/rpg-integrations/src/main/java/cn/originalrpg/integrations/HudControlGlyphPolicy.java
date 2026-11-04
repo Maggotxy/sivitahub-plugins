@@ -9,7 +9,7 @@ final class HudControlGlyphPolicy {
     }
 
     static String glyph(MessageService messages, Player player, boolean cast) {
-        String locale = messages == null || player == null ? "zh_cn" : messages.locale(player);
+        String locale = messages == null ? "en_us" : messages.locale(player);
         return glyphForLocale(locale, cast);
     }
 

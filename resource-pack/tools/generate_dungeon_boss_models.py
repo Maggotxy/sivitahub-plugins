@@ -10,8 +10,6 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageOps
-
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL_DIR = ROOT / "server" / "config-templates" / "BetterModel" / "models"
@@ -168,6 +166,8 @@ def color(hex_value: str) -> tuple[int, int, int, int]:
 
 
 def texture(spec: ModelSpec) -> Image.Image:
+    from PIL import Image, ImageDraw
+
     image = Image.new("RGBA", (64, 64), color(spec.palette[0]))
     draw = ImageDraw.Draw(image)
     palette = [color(value) for value in spec.palette]
@@ -329,6 +329,8 @@ def model(spec: ModelSpec, source: str) -> dict[str, object]:
 
 
 def review_sheet(specs: tuple[ModelSpec, ...], textures: dict[str, Image.Image]) -> Image.Image:
+    from PIL import Image, ImageDraw
+
     sheet = Image.new("RGBA", (1152, 768), (9, 12, 17, 255))
     draw = ImageDraw.Draw(sheet)
     for index, spec in enumerate(specs):
@@ -357,6 +359,8 @@ def review_sheet(specs: tuple[ModelSpec, ...], textures: dict[str, Image.Image])
 
 
 def concept_sheet(specs: tuple[ModelSpec, ...]) -> Image.Image | None:
+    from PIL import Image, ImageDraw, ImageOps
+
     images = []
     source_dir = ROOT / "resource-pack" / "ai" / "output" / "source" / "mobs"
     for spec in specs:

@@ -2,6 +2,7 @@ package cn.originalrpg.story;
 
 import cn.originalrpg.api.model.Archetype;
 import cn.originalrpg.api.event.AuthenticatedPlayerReadyEvent;
+import cn.originalrpg.api.event.PlayerLocaleChangeEvent;
 import cn.originalrpg.api.event.AuthenticatedPlayerRevokedEvent;
 import cn.originalrpg.api.model.CurrencyOperationResult;
 import cn.originalrpg.api.model.JourneyProgress;
@@ -100,6 +101,15 @@ final class EscortManager implements AutoCloseable, Listener {
         AuthenticatedSession previous = authenticatedPlayers.put(playerId,
                 new AuthenticatedSession(player, UUID.randomUUID()));
         if (previous != null) disconnectSession(previous);
+    }
+
+    @EventHandler
+    public void onLocaleChange(PlayerLocaleChangeEvent event) {
+        EscortSession session = usableSession(event.player().getUniqueId());
+        if (session == null || session.player != event.player()) return;
+        session.npc.setName(messages.text(event.player(), "story.echo-name"));
+        session.bossBar.name(Component.text(messages.text(event.player(), "story.progress", Map.of(
+                "current", session.waypoint, "total", session.route.size() - 1))));
     }
 
     @EventHandler

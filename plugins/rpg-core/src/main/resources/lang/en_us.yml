@@ -1470,6 +1470,7 @@ guide:
         - "Use /companion for recall, dismissal, behavior, naming, and unified-Gold early revival. Raw engine commands cannot bypass rules."
 
 ai-npc:
+  language-changed: "Your language changed while the reply was being prepared. This guidance uses your current language; ask again for a new AI response."
   name: "Companion Xiaoqi"
   greeting: "I read your live character summary and suggested a next step. You can also ask about builds, routes, or systems."
   listening: "One-question mode is active for {seconds} seconds. Type your question in chat, or use /ainpc leave."
@@ -1714,6 +1715,7 @@ class-branches:
   polymath: "Polymath"
 
 skills:
+  spirit-name: "Beast Spirit"
   names:
     heal: "Heal"
     war-cry: "War Cry"
@@ -2175,6 +2177,7 @@ performance:
     critical: "Critical"
 
 story:
+  actor-name: "Hub Guide Qizhi"
   echo-name: "Qizhi's Path Echo"
   start-needs-hub: "The hub tour can only continue near its echo or start near its first waypoint. Any remote echo was reclaimed safely; requesting a safe hub return. If combat and dungeon rules allow it, use /story start again at the spawn platform."
   usage: "Use /story status|next|start|claim|cancel|help."
@@ -3170,3 +3173,10 @@ hidden-path:
     hidden_dungeon: "completion of the matching hidden dungeon"
     skill_book: "reading the matching hidden-boss skill book"
     capacity: "all seats for this path are occupied"
+
+session-lease:
+  no-valid-lease: This node does not hold a valid session for your account. Please
+    contact the server team.
+  stale-process-token: Your session belongs to an earlier server process. Please reconnect.
+  held-by-other-node: Your account currently has an active session on another server
+    node.

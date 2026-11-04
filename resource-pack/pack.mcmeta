@@ -1,8 +1,14 @@
 {
   "pack": {
-    "description": "希维塔大陆 · SivitaHub 26.2 server resources",
+    "description": {
+      "translate": "resourcePack.originalrpg.name",
+      "fallback": "SivitaHub 26.2 Server Resources"
+    },
     "pack_format": 88,
-    "supported_formats": [88, 88],
+    "supported_formats": [
+      88,
+      88
+    ],
     "min_format": 88,
     "max_format": 88
   }

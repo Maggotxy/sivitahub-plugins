@@ -100,6 +100,7 @@ final class DungeonManager implements Listener {
     private final NamespacedKey participants;
     private final NamespacedKey waveMarker;
     private final Map<String, RewardDefinition> rewards;
+    private final DungeonItemPresentation itemPresentation;
     private final Map<UUID, BossBar> bossBars = new HashMap<>();
     private final Map<UUID, UUID> bossWorlds = new HashMap<>();
     private final Map<UUID, BossAttackState> bossAttacks = new HashMap<>();
@@ -176,6 +177,11 @@ final class DungeonManager implements Listener {
         participants = new NamespacedKey(plugin, "participants");
         waveMarker = new NamespacedKey(plugin, "wave_mob");
         rewards = resolveRewards();
+        itemPresentation = new DungeonItemPresentation(messages, rewards.entrySet().stream()
+                .map(entry -> new DungeonItemPresentation.TextSpec(entry.getKey(), entry.getValue().material(),
+                        entry.getValue().materialNameKey(), entry.getValue().hiddenDungeonId(),
+                        entry.getValue().ticketNameKey(), entry.getValue().skillBookId(),
+                        entry.getValue().skillBookNameKey())).toList());
         warmInstancesPerDungeon = Math.clamp(
                 plugin.getConfig().getInt("instance-pool.warm-per-dungeon", 2), 0, 8);
         maximumInstanceWorlds = Math.clamp(
@@ -1728,53 +1734,29 @@ final class DungeonManager implements Listener {
         return new DungeonRewardRequest(runId, dungeon, playerId, experience, deliveries, ticket);
     }
 
+    DungeonItemPresentation itemPresentation() {
+        return itemPresentation;
+    }
+
     private ItemStack hiddenTicket(Player player, RewardDefinition reward, String dungeon) {
-        ItemStack ticket = named(Material.PAPER, 1,
-                messages.text(player, reward.ticketNameKey()), NamedTextColor.LIGHT_PURPLE);
+        ItemStack ticket = new ItemStack(Material.PAPER, 1);
         ItemMeta meta = ticket.getItemMeta();
         meta.setItemModel(reward.ticketModel());
         meta.getPersistentDataContainer().set(ticketId, PersistentDataType.STRING, reward.hiddenDungeonId());
-        meta.lore(List.of(
-                Component.text(messages.text(player, "dungeon.items.ticket-source", Map.of(
-                        "dungeon", messages.text(player, "dungeon.names." + dungeon))), NamedTextColor.GRAY),
-                Component.text(messages.text(player, "dungeon.items.ticket-opens", Map.of(
-                        "dungeon", messages.text(player, "dungeon.names." + reward.hiddenDungeonId()))),
-                        NamedTextColor.LIGHT_PURPLE),
-                Component.text(messages.text(player, "dungeon.items.ticket-rule"), NamedTextColor.DARK_GRAY)
-        ));
         ticket.setItemMeta(meta);
+        itemPresentation.refresh(player, ticket);
         return ticket;
     }
 
-    private ItemStack skillBook(
-            Player player,
-            RewardDefinition reward,
-            String dungeon,
-            UUID instanceId
-    ) {
-        ItemStack item = named(Material.ENCHANTED_BOOK, 1,
-                messages.text(player, reward.skillBookNameKey()), NamedTextColor.GOLD);
+    private ItemStack skillBook(Player player, RewardDefinition reward, String dungeon, UUID instanceId) {
+        ItemStack item = new ItemStack(Material.ENCHANTED_BOOK, 1);
         ItemMeta meta = item.getItemMeta();
         meta.setItemModel(reward.skillBookModel());
         meta.getPersistentDataContainer().set(skillBook, PersistentDataType.STRING, reward.skillBookId());
         meta.getPersistentDataContainer().set(skillBookInstance, PersistentDataType.STRING, instanceId.toString());
-        meta.lore(List.of(
-                Component.text(messages.text(player, "dungeon.items.book-source", Map.of(
-                        "dungeon", messages.text(player, "dungeon.names." + dungeon))), NamedTextColor.GRAY),
-                Component.text(messages.text(player, skillBookUsageKey(reward.skillBookId())),
-                        NamedTextColor.AQUA)
-        ));
         item.setItemMeta(meta);
+        itemPresentation.refresh(player, item);
         return item;
-    }
-
-    private static String skillBookUsageKey(String skillBookId) {
-        return switch (skillBookId) {
-            case "ancient-echo" -> "dungeon.items.book-use-ancient-echo";
-            case "cinnabar-revelation" -> "dungeon.items.book-use-cinnabar-revelation";
-            case "silent-thunder" -> "dungeon.items.book-use-silent-thunder";
-            default -> throw new IllegalArgumentException("Unsupported hidden skill book: " + skillBookId);
-        };
     }
 
     private DungeonRewardDelivery delivery(
@@ -1794,22 +1776,12 @@ final class DungeonManager implements Listener {
     }
 
     private ItemStack bossMaterial(Player player, RewardDefinition reward, String id) {
-        boolean hidden = id.endsWith("-hidden");
-        ItemStack item = named(reward.material(), reward.materialAmount(),
-                messages.text(player, reward.materialNameKey()),
-                hidden ? NamedTextColor.LIGHT_PURPLE : NamedTextColor.AQUA);
+        ItemStack item = new ItemStack(reward.material(), reward.materialAmount());
         ItemMeta meta = item.getItemMeta();
         meta.setItemModel(reward.materialModel());
         meta.getPersistentDataContainer().set(bossMaterial, PersistentDataType.STRING, id);
-        meta.lore(List.of(
-                Component.text(messages.text(player, "dungeon.items.core-source", Map.of(
-                        "dungeon", messages.text(player, "dungeon.names." + id))), NamedTextColor.GRAY),
-                Component.text(messages.text(player, hidden
-                        ? "dungeon.items.core-tier-hidden" : "dungeon.items.core-tier-normal"),
-                        hidden ? NamedTextColor.LIGHT_PURPLE : NamedTextColor.AQUA),
-                Component.text(messages.text(player, "dungeon.items.core-use"), NamedTextColor.DARK_GRAY)
-        ));
         item.setItemMeta(meta);
+        itemPresentation.refresh(player, item);
         return item;
     }
 

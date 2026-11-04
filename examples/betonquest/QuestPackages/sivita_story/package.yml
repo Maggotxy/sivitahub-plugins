@@ -1,0 +1,101 @@
+# BetonQuest 3.1.0. This is the upstream quest-format version, not the plugin version.
+package:
+  version: 3.0.0-QUEST-1
+
+# Match RpgStory/config.yml actor.citizens-id if you change the reserved actor.
+npcs:
+  qizhi: "citizens 9101"
+npc_conversations:
+  qizhi: hub_orientation
+
+# All state changes and rewards remain in RpgStory and the RPG ledger.
+# This package deliberately contains no tag writes, currency actions or commands.
+actions:
+  begin_tour: "sivita_story_begin prologue_escort"
+  claim_tour: "sivita_story_claim prologue_escort"
+  open_journey: "sivita_story_open_journey"
+conditions:
+  tour_eligible: "sivita_story_eligible prologue_escort"
+
+conversations:
+  hub_orientation:
+    quester:
+      en-US: "Qizhi · Hub Guide"
+      zh-CN: "栖枝 · 主城导览"
+    first: greeting
+    stop: "false"
+    # Chat-based choices work without a custom font or an optional packet plugin.
+    conversationIO: simple
+    interceptor: none
+    NPC_options:
+      greeting:
+        text:
+          en-US: "Welcome to Sivita. I can introduce the hub, help you recover a completed tour reward, or show your next real journey goal. Choose a class before starting the tour."
+          zh-CN: "欢迎来到希维塔。我可以带你认识主城、核对已完成导览的奖励，或打开当前真实旅程目标。开始导览前，请先选择基础职业。"
+        pointers: "start_tour,explain_tour,claim_reward,next_goal,explain_journey,leave"
+      tour_briefing:
+        text:
+          en-US: "Follow your private path echo and watch the tour progress bar. It waits when you fall behind. Finishing the route requests the existing one-time reward automatically. If it does not arrive, use /story claim; you do not need to repeat the route. /story cancel stops the tour."
+          zh-CN: "跟随只有你能看见的路径回响，并查看导览进度条。落后时它会等待你。走完路线后，系统会自动申请现有的一次性奖励。若奖励尚未到账，用 /story claim 重试，无须重走；/story cancel 可停止导览。"
+        pointers: "start_tour,next_goal,back,leave"
+      tour_requested:
+        text:
+          en-US: "I will check whether your tour can start or resume. Follow the path echo if it appears; otherwise read the guidance message and try again when ready."
+          zh-CN: "我会核对你是否可以开始或继续导览。回响出现后请跟随它；若尚未就绪，请按系统提示处理后再试。"
+        actions: begin_tour
+      reward_requested:
+        text:
+          en-US: "I will check your tour record. Only a completed route can grant its reward, and a reward already recorded cannot be claimed again."
+          zh-CN: "我会核对你的导览记录。只有完成路线后才能领取奖励；已经记账的奖励不会重复发放。"
+        actions: claim_tour
+      journey_requested:
+        text:
+          en-US: "Your journey panel shows the next real action, where to do it, and what it teaches. You can reopen it at any time with /story next."
+          zh-CN: "旅程面板会显示下一项真实操作、前往地点及其作用。随时可用 /story next 再次打开。"
+        actions: open_journey
+      journey_briefing:
+        text:
+          en-US: "The journey teaches class selection, attributes, exploration, hunting, forging, revealing an item, and your first dungeon. Progress comes from doing those activities. The tour is optional; it does not complete them for you."
+          zh-CN: "旅程会带你熟悉选职、属性、探索、狩猎、锻造、揭示装备和首次副本。实际完成对应玩法才会推进进度；主城导览是可选介绍，不会替你完成这些目标。"
+        pointers: "next_goal,start_tour,back,leave"
+      farewell:
+        text:
+          en-US: "Safe travels. /story status shows your tour state, and /menu opens the hub's systems."
+          zh-CN: "一路平安。/story status 可查看导览状态，/menu 可打开主城各系统。"
+    player_options:
+      start_tour:
+        text:
+          en-US: "Start or resume my hub tour."
+          zh-CN: "开始或继续我的主城导览。"
+        conditions: tour_eligible
+        pointers: tour_requested
+      explain_tour:
+        text:
+          en-US: "How does the walking tour work?"
+          zh-CN: "步行导览要怎么完成？"
+        pointers: tour_briefing
+      claim_reward:
+        text:
+          en-US: "I finished the tour. Check my reward."
+          zh-CN: "我已走完导览，请核对奖励。"
+        pointers: reward_requested
+      next_goal:
+        text:
+          en-US: "Show my next journey goal."
+          zh-CN: "打开我的下一项旅程目标。"
+        pointers: journey_requested
+      explain_journey:
+        text:
+          en-US: "What will the core journey teach me?"
+          zh-CN: "主线旅程会带我体验哪些玩法？"
+        pointers: journey_briefing
+      back:
+        text:
+          en-US: "I have another question."
+          zh-CN: "我还有其他问题。"
+        pointers: greeting
+      leave:
+        text:
+          en-US: "I am ready to explore. Goodbye."
+          zh-CN: "我准备去探索了，再见。"
+        pointers: farewell

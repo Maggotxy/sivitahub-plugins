@@ -14,8 +14,6 @@ import io
 import json
 from pathlib import Path
 
-from PIL import Image
-
 
 ROOT = Path(__file__).resolve().parents[2]
 MODELS = ROOT / "server" / "config-templates" / "BetterModel" / "models"
@@ -56,6 +54,8 @@ PALETTES = {
 
 
 def recolor(source: str, palette: dict[str, tuple[int, int, int, int]]) -> str:
+    from PIL import Image
+
     raw = base64.b64decode(source.split(",", 1)[1])
     image = Image.open(io.BytesIO(raw)).convert("RGBA")
     pixels = [palette[SOURCE_COLORS.get(pixel, "base")] for pixel in image.getdata()]
@@ -71,24 +71,41 @@ def transform_vector(vector: list[float], x_scale: float, y_scale: float, z_scal
     vector[2] = round(vector[2] * z_scale, 3)
 
 
-def derive(identifier: str, x_scale: float, y_scale: float, z_scale: float) -> None:
-    model = copy.deepcopy(json.loads(SOURCE.read_text(encoding="utf-8")))
+# These reviewed proportions are shared by the legacy art workflow and the
+# public registration exporter. Neither path may silently invent a new rig.
+VARIANTS = {
+    "blood_moon_grave_knight": (0.78, 1.0, 0.82),
+    "blood_moon_rift_stalker": (0.68, 1.32, 0.72),
+}
+
+
+def derive_model(source: dict, identifier: str, texture_source: str) -> dict:
+    """Derive geometry only, accepting an already reviewed embedded PNG."""
+    x_scale, y_scale, z_scale = VARIANTS[identifier]
+    model = copy.deepcopy(source)
     model["name"] = identifier
     model["model_identifier"] = identifier
     model["visible_box"] = [2.2, round(2.2 * y_scale, 2), 0]
     texture = model["textures"][0]
     texture["name"] = identifier + ".png"
-    texture["source"] = recolor(texture["source"], PALETTES[identifier])
+    texture["source"] = texture_source
     for element in model["elements"]:
         transform_vector(element["from"], x_scale, y_scale, z_scale)
         transform_vector(element["to"], x_scale, y_scale, z_scale)
         transform_vector(element["origin"], x_scale, y_scale, z_scale)
     for group in model["groups"]:
         transform_vector(group["origin"], x_scale, y_scale, z_scale)
+    return model
+
+
+def derive(identifier: str) -> None:
+    source = json.loads(SOURCE.read_text(encoding="utf-8"))
+    texture_source = recolor(source["textures"][0]["source"], PALETTES[identifier])
+    model = derive_model(source, identifier, texture_source)
     target = MODELS / f"{identifier}.bbmodel"
     target.write_text(json.dumps(model, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
 
 if __name__ == "__main__":
-    derive("blood_moon_grave_knight", 0.78, 1.0, 0.82)
-    derive("blood_moon_rift_stalker", 0.68, 1.32, 0.72)
+    for identifier in VARIANTS:
+        derive(identifier)

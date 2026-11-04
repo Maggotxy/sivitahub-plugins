@@ -4,6 +4,16 @@ set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_DIR=$(cd -- "$SCRIPT_DIR/.." && pwd)
 
+# The public source distribution ships reviewed client assets. Its default build
+# must be reproducible without server/, website/node_modules, or live writes.
+if [[ "${1:-}" != "--deployment" ]]; then
+    exec python3 "$SCRIPT_DIR/tools/build_portable.py" "$@"
+fi
+shift
+[[ $# -eq 0 ]] || { echo "--deployment accepts no further arguments" >&2; exit 1; }
+# Explicit legacy deployment mode regenerates assets and may update server
+# properties. Use only within the private deployment project's maintenance flow.
+
 OUTPUT_DIR="${RESOURCE_PACK_OUTPUT_DIR:-$PROJECT_DIR/server/web/resourcepacks}"
 OUTPUT="$OUTPUT_DIR/sivita-hub-26.2.zip"
 TEMP_OUTPUT="$OUTPUT.tmp"
