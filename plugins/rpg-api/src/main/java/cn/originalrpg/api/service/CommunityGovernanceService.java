@@ -32,6 +32,16 @@ public interface CommunityGovernanceService {
      */
     CompletionStage<Boolean> isGovernanceMember(UUID playerId);
 
+    /**
+     * Current governance members in one community, resolved from the authoritative
+     * membership store. Notification consumers must use this scoped audience instead
+     * of broadcasting approvals to every online player. A service without this read
+     * capability fails closed, so an older provider cannot leak governance messages.
+     */
+    default CompletionStage<List<UUID>> notificationRecipients(UUID communityId) {
+        return java.util.concurrent.CompletableFuture.completedFuture(List.of());
+    }
+
     /** 该成员所处社群当前待处理的动作。 */
     CompletionStage<Optional<CommunityGovernanceAction>> pending(UUID playerId);
 

@@ -2,6 +2,7 @@ package cn.originalrpg.core.persistence;
 
 import cn.originalrpg.api.event.CommunityApprovalSubmittedEvent;
 import cn.originalrpg.api.event.CommunityGovernanceActionEffectiveEvent;
+import cn.originalrpg.api.event.CommunityRoleRejectionEvent;
 import cn.originalrpg.api.model.CommunityApprovalOutcome;
 import cn.originalrpg.api.model.CommunityGovernanceAction;
 import cn.originalrpg.api.model.CommunityOperationResult;
@@ -22,6 +23,8 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -607,6 +610,68 @@ class JdbcCommunityGovernanceTest {
     }
 
     // ---------------------------------------------------------------
+
+    @Test
+    void governanceNotificationsContainOnlyCurrentGovernanceMembersOfThatCommunity() throws Exception {
+        UUID owner = player(31);
+        createCommunity(owner, "Local Council", "LOC");
+        UUID deputy = join(owner, "LOC", CommunityRole.OFFICER);
+        UUID treasurer = join(owner, "LOC", CommunityRole.TREASURER);
+        join(owner, "LOC", CommunityRole.BUILDER);
+        join(owner, "LOC", CommunityRole.EVENT_HOST);
+        join(owner, "LOC", CommunityRole.RECRUITER);
+        join(owner, "LOC", CommunityRole.MEMBER);
+        UUID outsider = player(31);
+        createCommunity(outsider, "Other Council", "OUT");
+        UUID community = communities.profile(owner, PERIOD, GOAL).toCompletableFuture().join()
+                .membership().orElseThrow().community().communityId();
+
+        assertEquals(Set.of(owner, deputy, treasurer), Set.copyOf(
+                communities.notificationRecipients(community).toCompletableFuture().join()));
+        setRole(owner, deputy, CommunityRole.MEMBER);
+        assertEquals(Set.of(owner, treasurer), Set.copyOf(
+                communities.notificationRecipients(community).toCompletableFuture().join()),
+                "Audience reads must not retain removed governance privileges");
+        assertTrue(communities.notificationRecipients(UUID.randomUUID()).toCompletableFuture().join().isEmpty());
+        assertTrue(new JdbcCommunityService(dataSource, executor, null, false, published::add)
+                .notificationRecipients(community).toCompletableFuture().join().isEmpty());
+    }
+
+    @Test
+    void governanceEventsArePublishedOnlyAfterTheWriteIsVisibleToOtherConnections() throws Exception {
+        UUID owner = player(31);
+        createCommunity(owner, "Commit Council", "CMT");
+        UUID host = join(owner, "CMT", CommunityRole.EVENT_HOST);
+        AtomicInteger visibleRows = new AtomicInteger(-1);
+        JdbcCommunityService observed = new JdbcCommunityService(dataSource, executor, null, true, event -> {
+            try {
+                visibleRows.set(approvalRows(CommunityGovernanceAction.COMMUNITY_EVENT.key()));
+            } catch (Exception exception) {
+                throw new AssertionError(exception);
+            }
+        });
+
+        assertEquals(CommunityApprovalOutcome.Status.SUCCESS,
+                observed.submit(host, CommunityGovernanceAction.COMMUNITY_EVENT, "event", "commit-notification")
+                        .toCompletableFuture().join().status());
+        assertEquals(1, visibleRows.get(), "The event must not race ahead of its database commit");
+    }
+
+    @Test
+    void completingAnEventDoesNotEmitASpuriousRoleRejection() throws Exception {
+        UUID owner = player(31);
+        createCommunity(owner, "Event Council", "EVT");
+        UUID host = join(owner, "EVT", CommunityRole.EVENT_HOST);
+        communities.submit(host, CommunityGovernanceAction.COMMUNITY_EVENT, "event", "event-action")
+                .toCompletableFuture().join();
+        published.clear();
+
+        assertTrue(communities.approve(owner, CommunityGovernanceAction.COMMUNITY_EVENT, "event")
+                .toCompletableFuture().join().effective());
+        assertEquals(1, published.size());
+        assertTrue(published.getFirst() instanceof CommunityGovernanceActionEffectiveEvent);
+        assertFalse(published.stream().anyMatch(CommunityRoleRejectionEvent.class::isInstance));
+    }
 
     private boolean isGovernanceMember(UUID playerId) {
         return communities.isGovernanceMember(playerId).toCompletableFuture().join();

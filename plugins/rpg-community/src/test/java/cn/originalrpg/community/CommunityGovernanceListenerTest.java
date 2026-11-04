@@ -1,6 +1,9 @@
 package cn.originalrpg.community;
 
 import cn.originalrpg.api.event.CommunityEventCompletedEvent;
+import cn.originalrpg.api.event.CommunityApprovalSubmittedEvent;
+import cn.originalrpg.api.event.CommunityGovernanceActionEffectiveEvent;
+import cn.originalrpg.api.event.CommunityRoleRejectionEvent;
 import cn.originalrpg.api.model.CommunityApprovalOutcome;
 import cn.originalrpg.api.model.CommunityGovernanceAction;
 import cn.originalrpg.api.model.CommunityRole;
@@ -87,12 +90,81 @@ final class CommunityGovernanceListenerTest {
         assertEquals(0, new CommunityGovernanceListener(null, null, null).submitEventApprovals(event));
     }
 
+    @Test
+    void submittedNoticesUseTheCommunityAudienceAndWaitForTheServerThread() {
+        UUID community = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        UUID approver = UUID.randomUUID();
+        RecordingGovernance service = new RecordingGovernance(true);
+        service.audience = new CompletableFuture<>();
+        List<Runnable> scheduled = new ArrayList<>();
+        List<UUID> delivered = new ArrayList<>();
+        CommunityGovernanceListener listener = new CommunityGovernanceListener(service,
+                scheduled::add, (recipient, notice) -> delivered.add(recipient),
+                error -> { throw new AssertionError(error); });
+
+        listener.onSubmitted(new CommunityApprovalSubmittedEvent(community, actor,
+                CommunityGovernanceAction.COMMUNITY_EVENT, "event"));
+        assertEquals(List.of(community), service.audienceQueries);
+        assertTrue(delivered.isEmpty());
+        service.audience.complete(List.of(actor, approver));
+        assertTrue(delivered.isEmpty(), "Async callbacks must not use Bukkit player APIs");
+        assertEquals(1, scheduled.size());
+        scheduled.getFirst().run();
+        assertEquals(List.of(approver), delivered, "The requester receives no duplicate approval prompt");
+    }
+
+    @Test
+    void outcomeNoticesAreScopedToTheSameCommunity() {
+        UUID community = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        RecordingGovernance service = new RecordingGovernance(true);
+        service.audience = CompletableFuture.completedFuture(List.of(actor));
+        List<String> delivered = new ArrayList<>();
+        CommunityGovernanceListener listener = new CommunityGovernanceListener(service,
+                Runnable::run, (recipient, notice) -> delivered.add(recipient + ":" + notice.key()),
+                error -> { throw new AssertionError(error); });
+
+        listener.onEffective(new CommunityGovernanceActionEffectiveEvent(community, actor,
+                CommunityGovernanceAction.ROLE_GRANT, "role", UUID.randomUUID(), CommunityRole.BUILDER));
+        listener.onRoleRejection(new CommunityRoleRejectionEvent(community, actor,
+                CommunityGovernanceAction.ROLE_GRANT, "role", UUID.randomUUID(), CommunityRole.BUILDER));
+        assertEquals(List.of(community, community), service.audienceQueries);
+        assertEquals(List.of(actor + ":community.governance.effective",
+                actor + ":community.governance.role-rejected"), delivered);
+    }
+
+    @Test
+    void audienceFailuresAndDisabledGovernanceNeverBroadcast() {
+        UUID community = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        var event = new CommunityApprovalSubmittedEvent(community, actor,
+                CommunityGovernanceAction.COMMUNITY_EVENT, "event");
+        RecordingGovernance disabled = new RecordingGovernance(false);
+        List<UUID> delivered = new ArrayList<>();
+        List<Throwable> failures = new ArrayList<>();
+        new CommunityGovernanceListener(disabled, Runnable::run,
+                (recipient, notice) -> delivered.add(recipient), failures::add).onSubmitted(event);
+        new CommunityGovernanceListener(null, Runnable::run,
+                (recipient, notice) -> delivered.add(recipient), failures::add).onSubmitted(event);
+        assertTrue(disabled.audienceQueries.isEmpty());
+
+        RecordingGovernance failed = new RecordingGovernance(true);
+        failed.audience = CompletableFuture.failedFuture(new IllegalStateException("database unavailable"));
+        new CommunityGovernanceListener(failed, Runnable::run,
+                (recipient, notice) -> delivered.add(recipient), failures::add).onSubmitted(event);
+        assertTrue(delivered.isEmpty());
+        assertEquals(1, failures.size());
+    }
+
     private static final class RecordingGovernance implements CommunityGovernanceService {
         private final AtomicInteger submitCalls = new AtomicInteger();
         private final List<UUID> actors = new ArrayList<>();
         private final List<String> keys = new ArrayList<>();
         private final List<CommunityGovernanceAction> submittedActions = new ArrayList<>();
         private final boolean enabled;
+        private final List<UUID> audienceQueries = new ArrayList<>();
+        private CompletableFuture<List<UUID>> audience = CompletableFuture.completedFuture(List.of());
 
         private RecordingGovernance(boolean enabled) {
             this.enabled = enabled;
@@ -111,6 +183,12 @@ final class CommunityGovernanceListenerTest {
         @Override
         public CompletionStage<Boolean> isGovernanceMember(UUID playerId) {
             return CompletableFuture.completedFuture(true);
+        }
+
+        @Override
+        public CompletionStage<List<UUID>> notificationRecipients(UUID communityId) {
+            audienceQueries.add(communityId);
+            return audience;
         }
 
         @Override

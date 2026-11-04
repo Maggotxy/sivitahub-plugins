@@ -710,6 +710,31 @@ public final class JdbcCommunityService
     }
 
     @Override
+    public CompletionStage<List<UUID>> notificationRecipients(UUID communityId) {
+        if (!governanceEnabled || communityId == null) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
+            List<UUID> recipients = new ArrayList<>();
+            try (PreparedStatement query = connection.prepareStatement("""
+                    SELECT player_uuid, role FROM rpg_community_members
+                    WHERE community_id = ?
+                    """)) {
+                query.setString(1, communityId.toString());
+                try (ResultSet rows = query.executeQuery()) {
+                    while (rows.next()) {
+                        CommunityRole role = CommunityRole.parse(rows.getString("role")).orElse(null);
+                        if (CommunityRolePower.can(role, CommunityRolePower.Capability.GOVERNANCE_ACTION)) {
+                            recipients.add(UUID.fromString(rows.getString("player_uuid")));
+                        }
+                    }
+                }
+            }
+            return List.copyOf(recipients);
+        }));
+    }
+
+    @Override
     public CompletionStage<Optional<CommunityGovernanceAction>> pending(UUID playerId) {
         if (playerId == null) return CompletableFuture.completedFuture(Optional.empty());
         return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
@@ -824,7 +849,7 @@ public final class JdbcCommunityService
         if (!validKey(idempotencyKey)) {
             return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.INVALID, CommunityGovernanceAction.ROLE_GRANT));
         }
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
+        return AsyncJdbc.supply(executor, () -> inGovernanceTransaction((connection, committedEvents) -> {
             MemberRow actorRow = lockMemberRow(connection, actor);
             if (actorRow == null) return approval(CommunityApprovalOutcome.Status.NOT_MEMBER, CommunityGovernanceAction.ROLE_GRANT);
             if (!CommunityRolePower.can(actorRow.role(), CommunityRolePower.Capability.ASSIGN_ROLE)) {
@@ -839,7 +864,7 @@ public final class JdbcCommunityService
             // 提交人第一票；第二票必须由另一名治理角色投出。
             CommunityApprovalOutcome submitted = submitOnConnection(
                     connection, actorRow, CommunityGovernanceAction.ROLE_GRANT, cleanSubject,
-                    idempotencyKey);
+                    idempotencyKey, committedEvents);
             return submitted;
         }));
     }
@@ -849,7 +874,8 @@ public final class JdbcCommunityService
             MemberRow member,
             CommunityGovernanceAction action,
             String subject,
-            String idempotencyKey
+            String idempotencyKey,
+            List<Event> committedEvents
     ) throws SQLException {
         if (!CommunityRolePower.can(member.role(), CommunityRolePower.Capability.SUBMIT_APPROVAL)
                 || !roleQualified(member.role(), action)) {
@@ -865,7 +891,7 @@ public final class JdbcCommunityService
         }
         List<CommunityApprovalOutcome.GrantedApproval> recorded = approvals(
                 connection, member.communityId(), action, subject);
-        publish(new CommunityApprovalSubmittedEvent(member.communityId(), member.playerId(), action, subject));
+        committedEvents.add(new CommunityApprovalSubmittedEvent(member.communityId(), member.playerId(), action, subject));
         return new CommunityApprovalOutcome(CommunityApprovalOutcome.Status.SUCCESS, action,
                 Optional.of(subject), recorded, member.playerId(), requiredApprovals());
     }
@@ -909,7 +935,7 @@ public final class JdbcCommunityService
         CommunityRole finalRole = assignedRole;
         String finalSubject = cleanSubject;
         UUID finalTarget = roleTarget;
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
+        return AsyncJdbc.supply(executor, () -> inGovernanceTransaction((connection, committedEvents) -> {
             MemberRow actorRow = lockMemberRow(connection, actor);
             if (actorRow == null) return approval(CommunityApprovalOutcome.Status.NOT_MEMBER, action);
             if (action == CommunityGovernanceAction.ROLE_GRANT) {
@@ -930,7 +956,7 @@ public final class JdbcCommunityService
                 // 还没有人投票：这次调用是提交（提交即第一票）。
                 // 提交资格 = SUBMIT_APPROVAL ∪ 动作前置角色（例如工程需要 BUILDER），
                 // 不能用 APPROVE 判定，否则领域角色永远发不起本领域动作。
-                return submitOnConnection(connection, actorRow, action, finalSubject, idempotencyKey);
+                return submitOnConnection(connection, actorRow, action, finalSubject, idempotencyKey, committedEvents);
             }
             if (!CommunityRolePower.can(actorRow.role(), CommunityRolePower.Capability.APPROVE)) {
                 return approval(CommunityApprovalOutcome.Status.NOT_ALLOWED, action);
@@ -959,12 +985,12 @@ public final class JdbcCommunityService
                 roleApplied = applyRoleGrant(connection, actorRow.communityId(), roleTarget, finalRole);
             }
             deleteApprovals(connection, actorRow.communityId(), action, finalSubject);
-            publish(new CommunityGovernanceActionEffectiveEvent(actorRow.communityId(), actor, action,
+            committedEvents.add(new CommunityGovernanceActionEffectiveEvent(actorRow.communityId(), actor, action,
                     finalSubject, roleTarget, finalRole));
-            if (!roleApplied) {
+            if (action == CommunityGovernanceAction.ROLE_GRANT && !roleApplied) {
                 // 双批通过但角色没落地（目标被移出社群 / 目标角色不可任命）。
                 // 发一条显式事件让运营人工重放，而不是静默丢弃这次审批结果。
-                publish(new CommunityRoleRejectionEvent(actorRow.communityId(), actor, action,
+                committedEvents.add(new CommunityRoleRejectionEvent(actorRow.communityId(), actor, action,
                         finalSubject, roleTarget, finalRole));
             }
             return new CommunityApprovalOutcome(CommunityApprovalOutcome.Status.SUCCESS, action,
@@ -1021,8 +1047,24 @@ public final class JdbcCommunityService
         return action.key();
     }
 
-    private void publish(Event event) {
-        if (eventPublisher != null) eventPublisher.accept(event);
+    private <T> T inGovernanceTransaction(GovernanceOperation<T> operation) {
+        List<Event> committedEvents = new ArrayList<>();
+        T result = inTransaction(connection -> operation.apply(connection, committedEvents));
+        // Only a successful commit can announce a submitted or effective action.
+        // Notification failures must not turn a committed write into a reported
+        // transaction failure and encourage the caller to retry it.
+        if (eventPublisher != null) {
+            for (Event event : committedEvents) {
+                try {
+                    eventPublisher.accept(event);
+                } catch (RuntimeException exception) {
+                    System.getLogger(JdbcCommunityService.class.getName()).log(
+                            System.Logger.Level.WARNING,
+                            "A committed governance event could not be published", exception);
+                }
+            }
+        }
+        return result;
     }
 
     private boolean insertApproval(
@@ -1909,6 +1951,11 @@ public final class JdbcCommunityService
 
     private record ProjectRewardReceipt(
             int honorAwarded, BigDecimal playerContribution, BigDecimal minimumContribution) {
+    }
+
+    @FunctionalInterface
+    private interface GovernanceOperation<T> {
+        T apply(Connection connection, List<Event> committedEvents) throws SQLException;
     }
 
     @FunctionalInterface
