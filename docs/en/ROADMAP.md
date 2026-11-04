@@ -14,7 +14,7 @@ This English overview describes source baseline `c83226ff87c8ecb868277d9ca5bce57
 | Progression | Local 1–30, ascensions 0–3, effective 1–120, stage budgets and local skill-point milestones | Legacy-data review and current runtime/human regression evidence |
 | Transactions and recovery | Persistent services for profiles, wealth, market, delivery, progression, and other systems | PostgreSQL fault injection and complete gameplay recovery under Paper lifecycle failures |
 | English support | Extensive bilingual message data and player language selection; English documentation entry points | Remaining shared-world labels, third-party/operator interfaces, rendered UI and semantic acceptance |
-| Economy simulation | Fifteen scenario definitions and an initial runner | Fourteen scenarios are still `NEEDS_ENGINE`; the isolation check does not constitute a simulated economy |
+| Economy simulation | Fourteen executable cohort scenarios and an expected support-credit isolation rejection; actual config inputs and explicit behavior assumptions | Offline and uncalibrated; requires observed data and separate runtime fault/recovery tests |
 | Season and governance | State/services and guarded entry points exist | Default-off integration paths, full failure recovery, and human operational evidence |
 | Multiple servers | Some node/lease/outbox primitives exist | Complete player lease lifecycle, real event consumers, fencing, idempotent processing, and cross-node tests |
 

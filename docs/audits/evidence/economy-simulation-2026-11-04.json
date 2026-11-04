@@ -1,0 +1,5160 @@
+{
+  "behavior_assumptions": {
+    "calibration_relative_tolerance": 0.2,
+    "cohorts": {
+      "alt": {
+        "convert": 0,
+        "dungeons": 0,
+        "exit": 0,
+        "fishing": 0,
+        "forge": 0,
+        "hours": 0.5,
+        "kills": 0,
+        "list": 0,
+        "mining": 0,
+        "refine": 0,
+        "supply": 0,
+        "weekday": 0.9,
+        "weekend": 0.95
+      },
+      "automation": {
+        "convert": 1.0,
+        "dungeons": 0,
+        "exit": 0,
+        "fishing": 60,
+        "forge": 1.0,
+        "hours": 12,
+        "kills": 150,
+        "list": 1.0,
+        "mining": 60,
+        "refine": 0,
+        "supply": 0,
+        "weekday": 1.0,
+        "weekend": 1.0
+      },
+      "core": {
+        "convert": 0.25,
+        "dungeons": 1.2,
+        "exit": 0.08,
+        "fishing": 5,
+        "forge": 0.4,
+        "hours": 3,
+        "kills": 35,
+        "list": 0.25,
+        "mining": 5,
+        "refine": 1.0,
+        "supply": 0.3,
+        "weekday": 0.85,
+        "weekend": 0.95
+      },
+      "dormant": {
+        "convert": 0.8,
+        "dungeons": 0.7,
+        "exit": 0.1,
+        "fishing": 5,
+        "forge": 0.8,
+        "hours": 2,
+        "kills": 20,
+        "list": 0.4,
+        "mining": 5,
+        "refine": 2.0,
+        "supply": 0.8,
+        "weekday": 0.6,
+        "weekend": 0.8
+      },
+      "forger": {
+        "convert": 0.3,
+        "dungeons": 0.5,
+        "exit": 0.2,
+        "fishing": 2,
+        "forge": 1.5,
+        "hours": 3,
+        "kills": 50,
+        "list": 0.8,
+        "mining": 6,
+        "refine": 2.0,
+        "supply": 0.2,
+        "weekday": 0.85,
+        "weekend": 0.9
+      },
+      "hardcore": {
+        "convert": 0.4,
+        "dungeons": 2.5,
+        "exit": 0.12,
+        "fishing": 1,
+        "forge": 0.8,
+        "hours": 6,
+        "kills": 65,
+        "list": 0.3,
+        "mining": 3,
+        "refine": 2.0,
+        "supply": 0.5,
+        "weekday": 0.95,
+        "weekend": 0.98
+      },
+      "merchant": {
+        "convert": 0.6,
+        "dungeons": 0.3,
+        "exit": 0.02,
+        "fishing": 2,
+        "forge": 0.5,
+        "hours": 3,
+        "kills": 10,
+        "list": 0.9,
+        "mining": 3,
+        "refine": 0.2,
+        "supply": 0.1,
+        "weekday": 0.85,
+        "weekend": 0.9
+      },
+      "newcomer": {
+        "convert": 0.15,
+        "dungeons": 0.12,
+        "exit": 0.03,
+        "fishing": 8,
+        "forge": 0.15,
+        "hours": 1,
+        "kills": 24,
+        "list": 0.1,
+        "mining": 6,
+        "refine": 0.1,
+        "supply": 0.15,
+        "weekday": 0.75,
+        "weekend": 0.9
+      },
+      "organizer": {
+        "convert": 0.2,
+        "dungeons": 1.3,
+        "exit": 0.08,
+        "fishing": 4,
+        "forge": 0.4,
+        "hours": 3,
+        "kills": 20,
+        "list": 0.3,
+        "mining": 8,
+        "refine": 0.8,
+        "supply": 0.4,
+        "weekday": 0.8,
+        "weekend": 0.95
+      },
+      "weekend": {
+        "convert": 0.15,
+        "dungeons": 0.8,
+        "exit": 0.04,
+        "fishing": 4,
+        "forge": 0.2,
+        "hours": 2.5,
+        "kills": 30,
+        "list": 0.15,
+        "mining": 4,
+        "refine": 0.4,
+        "supply": 0.2,
+        "weekday": 0.1,
+        "weekend": 0.95
+      }
+    },
+    "content_gap_maximum_activity_loss": 0.5,
+    "default_mix": {
+      "core": 30,
+      "forger": 5,
+      "hardcore": 10,
+      "merchant": 7,
+      "newcomer": 20,
+      "organizer": 3,
+      "weekend": 25
+    },
+    "description": "Synthetic player decisions for sensitivity analysis, not measured player data. Prices, rewards, quotas, fees and drop probabilities come from repository configs. A day starts on a Monday; all scenarios use the same deterministic calendar.",
+    "effective_mob_level": 20,
+    "market_daily_sale_probability": 0.3,
+    "market_price_multiple_of_forge_cost": 6.0,
+    "version": 1
+  },
+  "calibration_status": "NEEDS_TUNING",
+  "conversion_certificate": {
+    "no_positive_value_cycle_under_this_vector": true,
+    "positive_reference_vector": {
+      "gold": "1.00",
+      "merit": "600.00",
+      "starlight": "1400.00"
+    },
+    "routes": [
+      {
+        "cost_value": "1400.00",
+        "reward_value": "1400.00",
+        "route": "gold-merit-to-starlight"
+      },
+      {
+        "cost_value": "600.00",
+        "reward_value": "600.00",
+        "route": "gold-to-merit"
+      },
+      {
+        "cost_value": "600.00",
+        "reward_value": "300.00",
+        "route": "merit-to-gold"
+      },
+      {
+        "cost_value": "1400.00",
+        "reward_value": "250.00",
+        "route": "starlight-to-gold"
+      },
+      {
+        "cost_value": "5600.00",
+        "reward_value": "600.00",
+        "route": "starlight-to-merit"
+      }
+    ]
+  },
+  "evidence": "M: offline synthetic model only",
+  "input_sha256": {
+    "behaviors": "4d1283913113a1c5e148653aa4bd848e0d024d9293d88adf3cfb8bebb2f27a43",
+    "plugins/rpg-commerce/src/main/resources/config.yml": "9d37c90ba2a9815e599e82c30f8c1658b75697332af166c9bc4101c77e8b3735",
+    "plugins/rpg-core/src/main/resources/config.yml": "716e062df1d7257422bf289ab90153e4d5f62c8914e9218710880862f3e5a0aa",
+    "plugins/rpg-economy/src/main/resources/config.yml": "17b9652d7a48ac2ac56e1c33384ca4ff76c15337e031f04111bd3a4b9b9ea79e",
+    "plugins/rpg-enhancement/src/main/resources/config.yml": "e3fc68f50b6858093dfe60a4a304f0159ba53fffdbd02de8fe9b305f24bb531d",
+    "plugins/rpg-items/src/main/java/cn/originalrpg/items/forge/ForgeRules.java": "1ab34dd12da61dc6f4d2c1a387362b9cd5e905e483c5454a5524e83f7b7ee7ac",
+    "plugins/rpg-items/src/main/resources/config.yml": "0000deb02f927811d7bfd1198f6dfe53a523bc524d2893f0ff7a21191764514d",
+    "plugins/rpg-market/src/main/resources/config.yml": "eb5edfbee70a02708695bf1b34e814269ee2c09625a060930914b4f009bcd14d",
+    "plugins/rpg-mobs/src/main/resources/config.yml": "2c2ee1d812a73bc6f2dc9db7fb4445395bef94b0b0d09412b714312666aa2530",
+    "scenarios": "cc9cfe17d568eeb0b95f707e44c85a9ed13b6d366a2e23d3ac58523a2a0f9be4"
+  },
+  "model_sha256": "b768844b081c3a1484a1a794c6c915a5df5e9a50b943be92b51f575eeec99348",
+  "parameters_read": {
+    "rpg-commerce:supply-shop.products": {
+      "arrows": {
+        "amount": 64,
+        "daily-limit": 2,
+        "material": "ARROW",
+        "member-price": "665.00",
+        "name": "Arrow Bundle",
+        "public-price": "700.00"
+      },
+      "cooked-beef": {
+        "amount": 16,
+        "daily-limit": 2,
+        "material": "COOKED_BEEF",
+        "member-price": "532.00",
+        "name": "Cooked Beef Rations",
+        "public-price": "560.00"
+      },
+      "ender-pearls": {
+        "amount": 8,
+        "daily-limit": 1,
+        "material": "ENDER_PEARL",
+        "member-price": "684.00",
+        "name": "Ender Pearl Pouch",
+        "public-price": "720.00"
+      },
+      "firework-rockets": {
+        "amount": 16,
+        "daily-limit": 2,
+        "material": "FIREWORK_ROCKET",
+        "member-price": "836.00",
+        "name": "Flight Rocket Bundle",
+        "public-price": "880.00"
+      },
+      "torches": {
+        "amount": 64,
+        "daily-limit": 2,
+        "material": "TORCH",
+        "member-price": "456.00",
+        "name": "Torch Crate",
+        "public-price": "480.00"
+      }
+    },
+    "rpg-core:commerce.admin-starlight": {
+      "daily-limit": 2000,
+      "maximum-per-grant": 500,
+      "timezone": "Asia/Shanghai",
+      "weekly-limit": 8000
+    },
+    "rpg-core:commerce.admin-starlight.daily-limit": 2000,
+    "rpg-core:commerce.admin-starlight.maximum-per-grant": 500,
+    "rpg-core:commerce.admin-starlight.weekly-limit": 8000,
+    "rpg-core:progression.starting-balance": "0.00",
+    "rpg-core:wealth-exchange.integrity-reference-values": {
+      "gold": "1.00",
+      "merit": "600.00",
+      "starlight": "1400.00"
+    },
+    "rpg-core:wealth-exchange.routes": {
+      "gold-merit-to-starlight": {
+        "cost": {
+          "gold": "200.00",
+          "merit": 2,
+          "starlight": 0
+        },
+        "limits": {
+          "daily": 5,
+          "weekly": 30
+        },
+        "reward": {
+          "gold": "0.00",
+          "merit": 0,
+          "starlight": 1
+        }
+      },
+      "gold-to-merit": {
+        "cost": {
+          "gold": "600.00",
+          "merit": 0,
+          "starlight": 0
+        },
+        "limits": {
+          "daily": 20,
+          "weekly": 80
+        },
+        "reward": {
+          "gold": "0.00",
+          "merit": 1,
+          "starlight": 0
+        }
+      },
+      "merit-to-gold": {
+        "cost": {
+          "gold": "0.00",
+          "merit": 1,
+          "starlight": 0
+        },
+        "limits": {
+          "daily": 20,
+          "weekly": 80
+        },
+        "reward": {
+          "gold": "300.00",
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "starlight-to-gold": {
+        "cost": {
+          "gold": "0.00",
+          "merit": 0,
+          "starlight": 1
+        },
+        "limits": {
+          "daily": 5,
+          "weekly": 20
+        },
+        "reward": {
+          "gold": "250.00",
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "starlight-to-merit": {
+        "cost": {
+          "gold": "0.00",
+          "merit": 0,
+          "starlight": 4
+        },
+        "limits": {
+          "daily": 4,
+          "weekly": 16
+        },
+        "reward": {
+          "gold": "0.00",
+          "merit": 1,
+          "starlight": 0
+        }
+      }
+    },
+    "rpg-economy:caps.DUNGEON": {
+      "gold": "5000.00",
+      "merit": 55
+    },
+    "rpg-economy:caps.DUNGEON.gold": "5000.00",
+    "rpg-economy:caps.GATHERING": {
+      "gold": "1800.00",
+      "merit": 12
+    },
+    "rpg-economy:caps.HUNTING": {
+      "gold": "2500.00",
+      "merit": 18
+    },
+    "rpg-economy:caps.HUNTING.gold": "2500.00",
+    "rpg-economy:commissions": {
+      "alchemist": {
+        "amount": 8,
+        "gold": "210.00",
+        "material": "FERMENTED_SPIDER_EYE",
+        "merit": 1,
+        "name": "Alchemist Commission"
+      },
+      "farmer": {
+        "amount": 64,
+        "gold": "90.00",
+        "material": "WHEAT",
+        "merit": 0,
+        "name": "Farm Produce Commission"
+      },
+      "fisher": {
+        "amount": 24,
+        "gold": "125.00",
+        "material": "COD",
+        "merit": 1,
+        "name": "Fisher Commission"
+      },
+      "iron": {
+        "amount": 24,
+        "gold": "180.00",
+        "material": "IRON_INGOT",
+        "merit": 1,
+        "name": "Blacksmith Commission"
+      },
+      "lumber": {
+        "amount": 32,
+        "gold": "70.00",
+        "material": "OAK_LOG",
+        "merit": 0,
+        "name": "Lumber Commission"
+      },
+      "mason": {
+        "amount": 64,
+        "gold": "55.00",
+        "material": "COBBLESTONE",
+        "merit": 0,
+        "name": "Mason Commission"
+      },
+      "redstone": {
+        "amount": 48,
+        "gold": "150.00",
+        "material": "REDSTONE",
+        "merit": 1,
+        "name": "Engineering Commission"
+      }
+    },
+    "rpg-economy:commissions-policy": {
+      "active-evidence": {
+        "daily-cap": 4,
+        "sources": {
+          "advancement": {
+            "daily-cap": 2,
+            "grant": 1
+          },
+          "fishing": {
+            "daily-cap": 1,
+            "grant": 1
+          },
+          "natural-mining": {
+            "daily-cap": 3,
+            "grant": 1
+          },
+          "raid": {
+            "daily-cap": 2,
+            "grant": 2
+          }
+        }
+      },
+      "default-evidence-cost": 1,
+      "default-offer-daily-limit": 1,
+      "maximum-gold-per-evidence": "250.00",
+      "maximum-merit-per-evidence": 2,
+      "minimum-play-minutes": 60,
+      "timezone": "Asia/Shanghai",
+      "total-daily-limit": 3,
+      "visible-per-day": 3
+    },
+    "rpg-economy:commissions-policy.default-evidence-cost": 1,
+    "rpg-economy:commissions-policy.total-daily-limit": 3,
+    "rpg-economy:commissions-policy.visible-per-day": 3,
+    "rpg-economy:rewards.dungeons": {
+      "ancient-ruins": {
+        "gold": "650.00",
+        "merit": 8
+      },
+      "ancient-ruins-hidden": {
+        "gold": "2200.00",
+        "merit": 28
+      },
+      "storm-vault": {
+        "gold": "1400.00",
+        "merit": 18
+      },
+      "storm-vault-hidden": {
+        "gold": "3200.00",
+        "merit": 40
+      },
+      "sulfur-depths": {
+        "gold": "900.00",
+        "merit": 12
+      },
+      "sulfur-depths-hidden": {
+        "gold": "2500.00",
+        "merit": 32
+      }
+    },
+    "rpg-economy:rewards.hunting": {
+      "base-gold": "6.00",
+      "blood-moon-merit": 1,
+      "blood-moon-multiplier": 1.5,
+      "elite-merit": 1,
+      "elite-multiplier": 4.0,
+      "gold-per-level": "0.55"
+    },
+    "rpg-economy:rewards.vanilla.fishing": {
+      "gold": "14.00",
+      "merit": 0
+    },
+    "rpg-enhancement:refinement.price": "400.00",
+    "rpg-items:forge": {
+      "base-success-rate": 0.65,
+      "catalyst-cost": 1,
+      "catalyst-materials": [
+        "LAPIS_LAZULI",
+        "GLOWSTONE_DUST"
+      ],
+      "core-cost": 8,
+      "gold-cost": "250.00",
+      "maximum-catalyst-cost": 8,
+      "maximum-success-rate": 0.95
+    },
+    "rpg-items:forge.base-success-rate": 0.65,
+    "rpg-items:forge.catalyst-cost": 1,
+    "rpg-items:forge.core-cost": 8,
+    "rpg-items:forge.maximum-success-rate": 0.95,
+    "rpg-market:fees.custom-equipment": "0.10",
+    "rpg-market:fees.normal": "0.05",
+    "rpg-market:listing.expiry-hours": 168,
+    "rpg-market:listing.maximum-open-per-player": 12,
+    "rpg-market:listing.maximum-price": "10000000.00",
+    "rpg-market:listing.minimum-price": "1.00",
+    "rpg-mobs:elite.base-chance": 0.06,
+    "rpg-mobs:elite.material-drop-chance": 0.35,
+    "rpg-mobs:elite.material-drop-pity": 4,
+    "rpg-mobs:normal.material-drop-chance": 0.025,
+    "rpg-mobs:normal.material-drop-pity": 40
+  },
+  "scenarios": [
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 8079687.0,
+          "merit": 72956,
+          "starlight": 27
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 180,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 424635000,
+          "faucet.merit": 52423,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 38943800,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 417316900,
+          "faucet.merit": 16273
+        },
+        "commissions": {
+          "faucet.gold": 101126000,
+          "faucet.merit": 4531,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 131,
+          "conversion_out.gold": 2620000,
+          "conversion_out.merit": 262,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 135,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 8100000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 4470000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 149,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 2100000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 84
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 5,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 20
+        },
+        "forge": {
+          "sink.gold": 26600000
+        },
+        "market_fee": {
+          "sink.gold": 8685000
+        },
+        "refinement": {
+          "sink.gold": 86720000
+        },
+        "supply:arrows": {
+          "sink.gold": 9450000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 7448000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 11808000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 12232000
+        },
+        "supply:torches": {
+          "sink.gold": 6960000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 18575000,
+        "cap_blocked.DUNGEON.merit": 3933,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 192362600,
+        "cap_blocked.HUNTING.merit": 2027,
+        "cap_blocked.HUNTING.starlight": 0,
+        "equipment_created": 724,
+        "equipment_exited": 164,
+        "forge_failed": 340,
+        "kills": 303735,
+        "weekday_play_minutes": 294990,
+        "weekend_play_minutes": 148650
+      },
+      "id": "S01",
+      "metrics": {
+        "equipment_create_exit_ratio": 4.414634146341464,
+        "equipment_created": 724,
+        "equipment_exited": 164,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.18134715025906736,
+        "market_expiries": 44,
+        "market_last_seven_day_sales_expiry_ratio": 7.0,
+        "market_oldest_open_days": 6,
+        "market_open_age_p50_days": 1,
+        "market_open_age_p90_days": 6,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 4,
+        "market_sales": 579,
+        "top_one_percent_share": 0.15468207478482768,
+        "wealth_gini": 0.454722,
+        "weekend_play_share": 0.3350689748444685,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.004725612557527769,
+            "days": 7,
+            "faucet_gold": 379103.0,
+            "gold_growth": 324703.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 2978.9266055045873,
+            "sink_faucet_ratio": 0.13980369451046284,
+            "sink_gold": 53000.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.010343975012993042,
+            "days": 7,
+            "faucet_gold": 392266.0,
+            "gold_growth": 327746.0,
+            "gold_growth_fraction": 1.0093716411613074,
+            "gold_net_growth_per_active_player_day": 2952.6666666666665,
+            "sink_faucet_ratio": 0.16218586367413948,
+            "sink_gold": 63620.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005060149194504145,
+            "days": 7,
+            "faucet_gold": 373583.0,
+            "gold_growth": 312683.0,
+            "gold_growth_fraction": 0.4792451210745974,
+            "gold_net_growth_per_active_player_day": 2977.9333333333334,
+            "sink_faucet_ratio": 0.1616775923957996,
+            "sink_gold": 60400.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.003872873592076902,
+            "days": 7,
+            "faucet_gold": 372949.0,
+            "gold_growth": 301189.0,
+            "gold_growth_fraction": 0.3120702660361484,
+            "gold_net_growth_per_active_player_day": 2982.069306930693,
+            "sink_faucet_ratio": 0.1866475040823276,
+            "sink_gold": 69610.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.008983480662416197,
+            "days": 7,
+            "faucet_gold": 386104.0,
+            "gold_growth": 322224.0,
+            "gold_growth_fraction": 0.25445680834480355,
+            "gold_net_growth_per_active_player_day": 3039.8490566037735,
+            "sink_faucet_ratio": 0.1625986780763732,
+            "sink_gold": 62780.0,
+            "start_day": 29
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004860988520391847,
+            "days": 7,
+            "faucet_gold": 388967.0,
+            "gold_growth": 321537.0,
+            "gold_growth_fraction": 0.20240975232051972,
+            "gold_net_growth_per_active_player_day": 3121.7184466019417,
+            "sink_faucet_ratio": 0.16847187550614834,
+            "sink_gold": 65530.0,
+            "start_day": 36
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.009638107826644236,
+            "days": 7,
+            "faucet_gold": 395606.0,
+            "gold_growth": 327496.0,
+            "gold_growth_fraction": 0.17145651338528922,
+            "gold_net_growth_per_active_player_day": 3004.5504587155965,
+            "sink_faucet_ratio": 0.17229263459098193,
+            "sink_gold": 68160.0,
+            "start_day": 43
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.008641503982830492,
+            "days": 7,
+            "faucet_gold": 384314.0,
+            "gold_growth": 313124.0,
+            "gold_growth_fraction": 0.13993880883705506,
+            "gold_net_growth_per_active_player_day": 2795.75,
+            "sink_faucet_ratio": 0.1731396722471729,
+            "sink_gold": 66540.0,
+            "start_day": 50
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006329674781309736,
+            "days": 7,
+            "faucet_gold": 392465.0,
+            "gold_growth": 317315.0,
+            "gold_growth_fraction": 0.12440300748578234,
+            "gold_net_growth_per_active_player_day": 2993.5377358490564,
+            "sink_faucet_ratio": 0.18460244862599212,
+            "sink_gold": 72450.0,
+            "start_day": 57
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.009369973399686626,
+            "days": 7,
+            "faucet_gold": 380606.0,
+            "gold_growth": 311446.0,
+            "gold_growth_fraction": 0.10859280122816567,
+            "gold_net_growth_per_active_player_day": 2966.152380952381,
+            "sink_faucet_ratio": 0.17908283106414508,
+            "sink_gold": 68160.0,
+            "start_day": 64
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006217721775984367,
+            "days": 7,
+            "faucet_gold": 391585.0,
+            "gold_growth": 322395.0,
+            "gold_growth_fraction": 0.10139919854390506,
+            "gold_net_growth_per_active_player_day": 2930.8636363636365,
+            "sink_faucet_ratio": 0.17018016522594073,
+            "sink_gold": 66640.0,
+            "start_day": 71
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005030505501309221,
+            "days": 7,
+            "faucet_gold": 385685.0,
+            "gold_growth": 321975.0,
+            "gold_growth_fraction": 0.09194404798823938,
+            "gold_net_growth_per_active_player_day": 3187.871287128713,
+            "sink_faucet_ratio": 0.1629827449861934,
+            "sink_gold": 62860.0,
+            "start_day": 78
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004505417764862247,
+            "days": 7,
+            "faucet_gold": 353528.0,
+            "gold_growth": 283988.0,
+            "gold_growth_fraction": 0.07426788774509765,
+            "gold_net_growth_per_active_player_day": 2839.88,
+            "sink_faucet_ratio": 0.18255979724378268,
+            "sink_gold": 64540.0,
+            "start_day": 85
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004568307950944204,
+            "days": 7,
+            "faucet_gold": 381324.0,
+            "gold_growth": 308934.0,
+            "gold_growth_fraction": 0.07520629550313901,
+            "gold_net_growth_per_active_player_day": 2860.5,
+            "sink_faucet_ratio": 0.18184011496784885,
+            "sink_gold": 69340.0,
+            "start_day": 92
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006599361802893885,
+            "days": 7,
+            "faucet_gold": 383851.0,
+            "gold_growth": 314881.0,
+            "gold_growth_fraction": 0.07129238547304526,
+            "gold_net_growth_per_active_player_day": 2942.8130841121497,
+            "sink_faucet_ratio": 0.17329640928381065,
+            "sink_gold": 66520.0,
+            "start_day": 99
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00810226863521786,
+            "days": 7,
+            "faucet_gold": 385630.0,
+            "gold_growth": 324700.0,
+            "gold_growth_fraction": 0.06862319924863197,
+            "gold_net_growth_per_active_player_day": 3063.2075471698113,
+            "sink_faucet_ratio": 0.15527837564504837,
+            "sink_gold": 59880.0,
+            "start_day": 106
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0037335915090404414,
+            "days": 7,
+            "faucet_gold": 386916.0,
+            "gold_growth": 314296.0,
+            "gold_growth_fraction": 0.06215884387429949,
+            "gold_net_growth_per_active_player_day": 2910.1481481481483,
+            "sink_faucet_ratio": 0.1805818317154111,
+            "sink_gold": 69870.0,
+            "start_day": 113
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.008410553760754377,
+            "days": 7,
+            "faucet_gold": 400854.0,
+            "gold_growth": 326484.0,
+            "gold_growth_fraction": 0.0607906108629301,
+            "gold_net_growth_per_active_player_day": 2915.035714285714,
+            "sink_faucet_ratio": 0.18353315671042325,
+            "sink_gold": 73570.0,
+            "start_day": 120
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007997320897499337,
+            "days": 7,
+            "faucet_gold": 396934.0,
+            "gold_growth": 327224.0,
+            "gold_growth_fraction": 0.05743678029374863,
+            "gold_net_growth_per_active_player_day": 2947.963963963964,
+            "sink_faucet_ratio": 0.17511727390447782,
+            "sink_gold": 69510.0,
+            "start_day": 127
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00958264901684683,
+            "days": 7,
+            "faucet_gold": 372079.0,
+            "gold_growth": 311069.0,
+            "gold_growth_fraction": 0.05163536586580439,
+            "gold_net_growth_per_active_player_day": 2934.6132075471696,
+            "sink_faucet_ratio": 0.16880823696043046,
+            "sink_gold": 62810.0,
+            "start_day": 134
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0037967159716058014,
+            "days": 7,
+            "faucet_gold": 380459.0,
+            "gold_growth": 314529.0,
+            "gold_growth_fraction": 0.049646202794484146,
+            "gold_net_growth_per_active_player_day": 3114.1485148514853,
+            "sink_faucet_ratio": 0.16553689096591223,
+            "sink_gold": 62980.0,
+            "start_day": 141
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00858012360740572,
+            "days": 7,
+            "faucet_gold": 369755.0,
+            "gold_growth": 306425.0,
+            "gold_growth_fraction": 0.04607937698065757,
+            "gold_net_growth_per_active_player_day": 2863.785046728972,
+            "sink_faucet_ratio": 0.17289827047639653,
+            "sink_gold": 63930.0,
+            "start_day": 148
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004902276617261056,
+            "days": 7,
+            "faucet_gold": 355227.0,
+            "gold_growth": 285607.0,
+            "gold_growth_fraction": 0.041056943118120776,
+            "gold_net_growth_per_active_player_day": 2720.0666666666666,
+            "sink_faucet_ratio": 0.18965337657328976,
+            "sink_gold": 67370.0,
+            "start_day": 155
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005513521912490382,
+            "days": 7,
+            "faucet_gold": 396819.0,
+            "gold_growth": 328999.0,
+            "gold_growth_fraction": 0.04542948948973829,
+            "gold_net_growth_per_active_player_day": 3103.764150943396,
+            "sink_faucet_ratio": 0.16889312255713562,
+            "sink_gold": 67020.0,
+            "start_day": 162
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00548159749412686,
+            "days": 7,
+            "faucet_gold": 381000.0,
+            "gold_growth": 306020.0,
+            "gold_growth_fraction": 0.04042018927828129,
+            "gold_net_growth_per_active_player_day": 2807.5229357798166,
+            "sink_faucet_ratio": 0.18761154855643045,
+            "sink_gold": 71480.0,
+            "start_day": 169
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007660336740546359,
+            "days": 5,
+            "faucet_gold": 252608.0,
+            "gold_growth": 202698.0,
+            "gold_growth_fraction": 0.025732929168747094,
+            "gold_net_growth_per_active_player_day": 2895.6857142857143,
+            "sink_faucet_ratio": 0.19975614390676463,
+            "sink_gold": 50460.0,
+            "start_day": 176
+          }
+        ]
+      },
+      "name": "20-player closed test over 180 days",
+      "name_zh": "20人封闭测试 180天",
+      "players": 20,
+      "population_mix": {
+        "core": 6,
+        "forger": 1,
+        "hardcore": 2,
+        "merchant": 1,
+        "newcomer": 6,
+        "weekend": 4
+      },
+      "seed": 2893297938,
+      "shock": {},
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 83714168.0,
+          "merit": 762932,
+          "starlight": 128
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 365,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 4492635000,
+          "faucet.merit": 554984,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 387079000,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 4282721800,
+          "faucet.merit": 166327
+        },
+        "commissions": {
+          "faucet.gold": 995163000,
+          "faucet.merit": 44452,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 1411,
+          "conversion_out.gold": 28220000,
+          "conversion_out.merit": 2822,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 1357,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 81420000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 43800000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 1460,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 22675000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 907
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 94,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 376
+        },
+        "forge": {
+          "sink.gold": 269550000
+        },
+        "market_fee": {
+          "sink.gold": 93975000
+        },
+        "refinement": {
+          "sink.gold": 902320000
+        },
+        "supply:arrows": {
+          "sink.gold": 99260000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 78792000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 102600000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 127160000
+        },
+        "supply:torches": {
+          "sink.gold": 69360000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 182980000,
+        "cap_blocked.DUNGEON.merit": 39798,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 1932138200,
+        "cap_blocked.HUNTING.merit": 19624,
+        "cap_blocked.HUNTING.starlight": 0,
+        "equipment_created": 7269,
+        "equipment_exited": 1804,
+        "forge_failed": 3513,
+        "kills": 3097947,
+        "weekday_play_minutes": 3015390,
+        "weekend_play_minutes": 1630650
+      },
+      "id": "S02",
+      "metrics": {
+        "equipment_create_exit_ratio": 4.029379157427938,
+        "equipment_created": 7269,
+        "equipment_exited": 1804,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.03814844373503591,
+        "market_expiries": 535,
+        "market_last_seven_day_sales_expiry_ratio": 10.090909090909092,
+        "market_oldest_open_days": 6,
+        "market_open_age_p50_days": 1,
+        "market_open_age_p90_days": 4,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 4,
+        "market_sales": 6265,
+        "top_one_percent_share": 0.02984104932739837,
+        "wealth_gini": 0.426438,
+        "weekend_play_share": 0.3509763153136865,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.0038883149829387043,
+            "days": 7,
+            "faucet_gold": 1895738.0,
+            "gold_growth": 1654258.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 3308.516,
+            "sink_faucet_ratio": 0.12041748385061649,
+            "sink_gold": 228280.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004877715177639347,
+            "days": 7,
+            "faucet_gold": 1978936.0,
+            "gold_growth": 1645626.0,
+            "gold_growth_fraction": 0.9947819505784466,
+            "gold_net_growth_per_active_player_day": 3140.507633587786,
+            "sink_faucet_ratio": 0.16160704540217571,
+            "sink_gold": 319810.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006538884905526999,
+            "days": 7,
+            "faucet_gold": 1967510.0,
+            "gold_growth": 1618230.0,
+            "gold_growth_fraction": 0.49038996522302,
+            "gold_net_growth_per_active_player_day": 3154.4444444444443,
+            "sink_faucet_ratio": 0.17251754756011406,
+            "sink_gold": 339430.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005869070853035443,
+            "days": 7,
+            "faucet_gold": 1973332.0,
+            "gold_growth": 1641052.0,
+            "gold_growth_fraction": 0.33367506324578894,
+            "gold_net_growth_per_active_player_day": 3217.749019607843,
+            "sink_faucet_ratio": 0.16638355836726917,
+            "sink_gold": 328330.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005856288661431079,
+            "days": 7,
+            "faucet_gold": 2003128.0,
+            "gold_growth": 1653318.0,
+            "gold_growth_fraction": 0.25206222864309275,
+            "gold_net_growth_per_active_player_day": 3143.1901140684413,
+            "sink_faucet_ratio": 0.17043843428877237,
+            "sink_gold": 341410.0,
+            "start_day": 29
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0068629416966314435,
+            "days": 7,
+            "faucet_gold": 1946351.0,
+            "gold_growth": 1594491.0,
+            "gold_growth_fraction": 0.1941545335126376,
+            "gold_net_growth_per_active_player_day": 3096.0990291262137,
+            "sink_faucet_ratio": 0.17741404299635574,
+            "sink_gold": 345310.0,
+            "start_day": 36
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005648607618222108,
+            "days": 7,
+            "faucet_gold": 1989193.0,
+            "gold_growth": 1633943.0,
+            "gold_growth_fraction": 0.1666102952235526,
+            "gold_net_growth_per_active_player_day": 3142.1980769230768,
+            "sink_faucet_ratio": 0.17411583491395757,
+            "sink_gold": 346350.0,
+            "start_day": 43
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005564101228199472,
+            "days": 7,
+            "faucet_gold": 1965959.0,
+            "gold_growth": 1621309.0,
+            "gold_growth_fraction": 0.14171144308524894,
+            "gold_net_growth_per_active_player_day": 3142.0717054263564,
+            "sink_faucet_ratio": 0.1715447778921127,
+            "sink_gold": 337250.0,
+            "start_day": 50
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006476419897006862,
+            "days": 7,
+            "faucet_gold": 1925249.0,
+            "gold_growth": 1599399.0,
+            "gold_growth_fraction": 0.12244458774143184,
+            "gold_net_growth_per_active_player_day": 3211.644578313253,
+            "sink_faucet_ratio": 0.16631614923576118,
+            "sink_gold": 320200.0,
+            "start_day": 57
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0061114534775193125,
+            "days": 7,
+            "faucet_gold": 1943395.0,
+            "gold_growth": 1602725.0,
+            "gold_growth_fraction": 0.10931427387385273,
+            "gold_net_growth_per_active_player_day": 3136.4481409001955,
+            "sink_faucet_ratio": 0.17012496172934477,
+            "sink_gold": 330620.0,
+            "start_day": 64
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007723966615931314,
+            "days": 7,
+            "faucet_gold": 1920584.0,
+            "gold_growth": 1588014.0,
+            "gold_growth_fraction": 0.09763771084379573,
+            "gold_net_growth_per_active_player_day": 3126.011811023622,
+            "sink_faucet_ratio": 0.17251002819975592,
+            "sink_gold": 331320.0,
+            "start_day": 71
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.008270728847671608,
+            "days": 7,
+            "faucet_gold": 2044437.0,
+            "gold_growth": 1690317.0,
+            "gold_growth_fraction": 0.09468308540633132,
+            "gold_net_growth_per_active_player_day": 3231.963671128107,
+            "sink_faucet_ratio": 0.1722576924600758,
+            "sink_gold": 352170.0,
+            "start_day": 78
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006840184411371731,
+            "days": 7,
+            "faucet_gold": 1960131.0,
+            "gold_growth": 1611561.0,
+            "gold_growth_fraction": 0.08246365570498461,
+            "gold_net_growth_per_active_player_day": 3153.7397260273974,
+            "sink_faucet_ratio": 0.17288130232112037,
+            "sink_gold": 338870.0,
+            "start_day": 85
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006303194100011012,
+            "days": 7,
+            "faucet_gold": 1994269.0,
+            "gold_growth": 1662539.0,
+            "gold_growth_fraction": 0.07859127835489078,
+            "gold_net_growth_per_active_player_day": 3221.9748062015506,
+            "sink_faucet_ratio": 0.1643609763778106,
+            "sink_gold": 327780.0,
+            "start_day": 92
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007788682491594504,
+            "days": 7,
+            "faucet_gold": 1974567.0,
+            "gold_growth": 1634187.0,
+            "gold_growth_fraction": 0.07162215074851484,
+            "gold_net_growth_per_active_player_day": 3242.434523809524,
+            "sink_faucet_ratio": 0.17243274095029443,
+            "sink_gold": 340480.0,
+            "start_day": 99
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006111606145502448,
+            "days": 7,
+            "faucet_gold": 1935215.0,
+            "gold_growth": 1592275.0,
+            "gold_growth_fraction": 0.06512114100672248,
+            "gold_net_growth_per_active_player_day": 3050.3352490421457,
+            "sink_faucet_ratio": 0.1710610965706653,
+            "sink_gold": 331040.0,
+            "start_day": 106
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00667130183158507,
+            "days": 7,
+            "faucet_gold": 1905866.0,
+            "gold_growth": 1567126.0,
+            "gold_growth_fraction": 0.06017399368527208,
+            "gold_net_growth_per_active_player_day": 3066.7827788649706,
+            "sink_faucet_ratio": 0.17238357785909397,
+            "sink_gold": 328540.0,
+            "start_day": 113
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005382123125713702,
+            "days": 7,
+            "faucet_gold": 1958883.0,
+            "gold_growth": 1609823.0,
+            "gold_growth_fraction": 0.05830501365972278,
+            "gold_net_growth_per_active_player_day": 3107.7664092664095,
+            "sink_faucet_ratio": 0.17390523068503835,
+            "sink_gold": 340660.0,
+            "start_day": 120
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00548129821279506,
+            "days": 7,
+            "faucet_gold": 1977680.0,
+            "gold_growth": 1637640.0,
+            "gold_growth_fraction": 0.05604480435841064,
+            "gold_net_growth_per_active_player_day": 3192.280701754386,
+            "sink_faucet_ratio": 0.16834877229885523,
+            "sink_gold": 332940.0,
+            "start_day": 127
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007863604767159168,
+            "days": 7,
+            "faucet_gold": 1968223.0,
+            "gold_growth": 1626133.0,
+            "gold_growth_fraction": 0.05269757600930694,
+            "gold_net_growth_per_active_player_day": 3176.041015625,
+            "sink_faucet_ratio": 0.1711645479196209,
+            "sink_gold": 336890.0,
+            "start_day": 134
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006979315318592526,
+            "days": 7,
+            "faucet_gold": 1878103.0,
+            "gold_growth": 1551873.0,
+            "gold_growth_fraction": 0.04777350770530914,
+            "gold_net_growth_per_active_player_day": 3091.3804780876494,
+            "sink_faucet_ratio": 0.17210451183987246,
+            "sink_gold": 323230.0,
+            "start_day": 141
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006716260065618864,
+            "days": 7,
+            "faucet_gold": 1981758.0,
+            "gold_growth": 1625388.0,
+            "gold_growth_fraction": 0.04775519122651861,
+            "gold_net_growth_per_active_player_day": 3149.9767441860463,
+            "sink_faucet_ratio": 0.17326535328733378,
+            "sink_gold": 343370.0,
+            "start_day": 148
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006653915906882316,
+            "days": 7,
+            "faucet_gold": 1925808.0,
+            "gold_growth": 1577338.0,
+            "gold_growth_fraction": 0.044231175780911854,
+            "gold_net_growth_per_active_player_day": 3129.6388888888887,
+            "sink_faucet_ratio": 0.17559902129391922,
+            "sink_gold": 338170.0,
+            "start_day": 155
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.008269096570946832,
+            "days": 7,
+            "faucet_gold": 1966888.0,
+            "gold_growth": 1620018.0,
+            "gold_growth_fraction": 0.04350377088913066,
+            "gold_net_growth_per_active_player_day": 3145.6660194174756,
+            "sink_faucet_ratio": 0.17299917433021098,
+            "sink_gold": 340270.0,
+            "start_day": 162
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006569960916372037,
+            "days": 7,
+            "faucet_gold": 1950582.0,
+            "gold_growth": 1597432.0,
+            "gold_growth_fraction": 0.04110885875586354,
+            "gold_net_growth_per_active_player_day": 3101.809708737864,
+            "sink_faucet_ratio": 0.17330724881086773,
+            "sink_gold": 338050.0,
+            "start_day": 169
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006237637907131633,
+            "days": 7,
+            "faucet_gold": 1975532.0,
+            "gold_growth": 1607592.0,
+            "gold_growth_fraction": 0.03973678574125504,
+            "gold_net_growth_per_active_player_day": 3115.4883720930234,
+            "sink_faucet_ratio": 0.17703585667050697,
+            "sink_gold": 349740.0,
+            "start_day": 176
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005504554759414606,
+            "days": 7,
+            "faucet_gold": 1915078.0,
+            "gold_growth": 1566108.0,
+            "gold_growth_fraction": 0.03723189977502405,
+            "gold_net_growth_per_active_player_day": 3005.965451055662,
+            "sink_faucet_ratio": 0.17313655109609113,
+            "sink_gold": 331570.0,
+            "start_day": 183
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0065948303632077454,
+            "days": 7,
+            "faucet_gold": 1958241.0,
+            "gold_growth": 1595621.0,
+            "gold_growth_fraction": 0.03657188684363398,
+            "gold_net_growth_per_active_player_day": 3140.986220472441,
+            "sink_faucet_ratio": 0.18211241619392096,
+            "sink_gold": 356620.0,
+            "start_day": 190
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006552308408966425,
+            "days": 7,
+            "faucet_gold": 1940710.0,
+            "gold_growth": 1595540.0,
+            "gold_growth_fraction": 0.03527978211151377,
+            "gold_net_growth_per_active_player_day": 3134.656188605108,
+            "sink_faucet_ratio": 0.17352927536829305,
+            "sink_gold": 336770.0,
+            "start_day": 197
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006556654340836833,
+            "days": 7,
+            "faucet_gold": 1946991.0,
+            "gold_growth": 1578891.0,
+            "gold_growth_fraction": 0.03372194488629388,
+            "gold_net_growth_per_active_player_day": 3059.8662790697676,
+            "sink_faucet_ratio": 0.18271784512614594,
+            "sink_gold": 355750.0,
+            "start_day": 204
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006301526274853998,
+            "days": 7,
+            "faucet_gold": 1979031.0,
+            "gold_growth": 1629931.0,
+            "gold_growth_fraction": 0.0336764224505461,
+            "gold_net_growth_per_active_player_day": 3253.3552894211575,
+            "sink_faucet_ratio": 0.17344346804067243,
+            "sink_gold": 343250.0,
+            "start_day": 211
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006173223692832533,
+            "days": 7,
+            "faucet_gold": 1964077.0,
+            "gold_growth": 1624007.0,
+            "gold_growth_fraction": 0.03246085954786295,
+            "gold_net_growth_per_active_player_day": 3159.546692607004,
+            "sink_faucet_ratio": 0.1712101918611134,
+            "sink_gold": 336270.0,
+            "start_day": 218
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006532880725866598,
+            "days": 7,
+            "faucet_gold": 1954123.0,
+            "gold_growth": 1613513.0,
+            "gold_growth_fraction": 0.03123712035758132,
+            "gold_net_growth_per_active_player_day": 3182.4714003944773,
+            "sink_faucet_ratio": 0.16777858916762148,
+            "sink_gold": 327860.0,
+            "start_day": 225
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006352717452997702,
+            "days": 7,
+            "faucet_gold": 1908238.0,
+            "gold_growth": 1563898.0,
+            "gold_growth_fraction": 0.029359483350529025,
+            "gold_net_growth_per_active_player_day": 3066.4666666666667,
+            "sink_faucet_ratio": 0.17583760516245878,
+            "sink_gold": 335540.0,
+            "start_day": 232
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0059843697508344725,
+            "days": 7,
+            "faucet_gold": 1935088.0,
+            "gold_growth": 1586148.0,
+            "gold_growth_fraction": 0.028927881022884887,
+            "gold_net_growth_per_active_player_day": 3067.984526112186,
+            "sink_faucet_ratio": 0.17807458885590732,
+            "sink_gold": 344590.0,
+            "start_day": 239
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0060434608190973365,
+            "days": 7,
+            "faucet_gold": 1907830.0,
+            "gold_growth": 1558690.0,
+            "gold_growth_fraction": 0.02762789063999984,
+            "gold_net_growth_per_active_player_day": 3050.27397260274,
+            "sink_faucet_ratio": 0.17828632530152058,
+            "sink_gold": 340140.0,
+            "start_day": 246
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005682354308866714,
+            "days": 7,
+            "faucet_gold": 1907319.0,
+            "gold_growth": 1578579.0,
+            "gold_growth_fraction": 0.027228167733126047,
+            "gold_net_growth_per_active_player_day": 3138.328031809145,
+            "sink_faucet_ratio": 0.16842489379070832,
+            "sink_gold": 321240.0,
+            "start_day": 253
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00457823171851558,
+            "days": 7,
+            "faucet_gold": 1891597.0,
+            "gold_growth": 1555847.0,
+            "gold_growth_fraction": 0.026124745197817267,
+            "gold_net_growth_per_active_player_day": 3086.998015873016,
+            "sink_faucet_ratio": 0.17236758146687692,
+            "sink_gold": 326050.0,
+            "start_day": 260
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006830671254686457,
+            "days": 7,
+            "faucet_gold": 1933800.0,
+            "gold_growth": 1593770.0,
+            "gold_growth_fraction": 0.026080184741119266,
+            "gold_net_growth_per_active_player_day": 3112.83203125,
+            "sink_faucet_ratio": 0.17319784879511843,
+            "sink_gold": 334930.0,
+            "start_day": 267
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0069580061137680385,
+            "days": 7,
+            "faucet_gold": 1926711.0,
+            "gold_growth": 1575111.0,
+            "gold_growth_fraction": 0.02511972493048706,
+            "gold_net_growth_per_active_player_day": 3017.4540229885056,
+            "sink_faucet_ratio": 0.17589560655438205,
+            "sink_gold": 338900.0,
+            "start_day": 274
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007169930368655177,
+            "days": 7,
+            "faucet_gold": 1973217.0,
+            "gold_growth": 1635887.0,
+            "gold_growth_fraction": 0.025449685863687822,
+            "gold_net_growth_per_active_player_day": 3213.9233791748525,
+            "sink_faucet_ratio": 0.16925659975562748,
+            "sink_gold": 333980.0,
+            "start_day": 281
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005787399744040242,
+            "days": 7,
+            "faucet_gold": 1966986.0,
+            "gold_growth": 1617826.0,
+            "gold_growth_fraction": 0.024544069900290597,
+            "gold_net_growth_per_active_player_day": 3046.75329566855,
+            "sink_faucet_ratio": 0.1723499811386558,
+            "sink_gold": 339010.0,
+            "start_day": 288
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.008245391301957858,
+            "days": 7,
+            "faucet_gold": 1876366.0,
+            "gold_growth": 1547236.0,
+            "gold_growth_fraction": 0.02291082279302552,
+            "gold_net_growth_per_active_player_day": 3069.9126984126983,
+            "sink_faucet_ratio": 0.17359619605130341,
+            "sink_gold": 325730.0,
+            "start_day": 295
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007133221352680579,
+            "days": 7,
+            "faucet_gold": 1969526.0,
+            "gold_growth": 1620536.0,
+            "gold_growth_fraction": 0.023458759028092125,
+            "gold_net_growth_per_active_player_day": 3190.031496062992,
+            "sink_faucet_ratio": 0.1715844319902352,
+            "sink_gold": 337940.0,
+            "start_day": 302
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.009058925255214862,
+            "days": 7,
+            "faucet_gold": 1947113.0,
+            "gold_growth": 1591783.0,
+            "gold_growth_fraction": 0.02251437346927004,
+            "gold_net_growth_per_active_player_day": 3031.967619047619,
+            "sink_faucet_ratio": 0.18310698968164663,
+            "sink_gold": 356530.0,
+            "start_day": 309
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007299403273782369,
+            "days": 7,
+            "faucet_gold": 1903965.0,
+            "gold_growth": 1553565.0,
+            "gold_growth_fraction": 0.02148997996736288,
+            "gold_net_growth_per_active_player_day": 3022.5,
+            "sink_faucet_ratio": 0.17909993093360435,
+            "sink_gold": 341000.0,
+            "start_day": 316
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007498329917427482,
+            "days": 7,
+            "faucet_gold": 1965591.0,
+            "gold_growth": 1624431.0,
+            "gold_growth_fraction": 0.021997520952157606,
+            "gold_net_growth_per_active_player_day": 3166.53216374269,
+            "sink_faucet_ratio": 0.16830052640656168,
+            "sink_gold": 330810.0,
+            "start_day": 323
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0077685367060787,
+            "days": 7,
+            "faucet_gold": 1928638.0,
+            "gold_growth": 1603798.0,
+            "gold_growth_fraction": 0.021250653814850234,
+            "gold_net_growth_per_active_player_day": 3239.9959595959594,
+            "sink_faucet_ratio": 0.16651128931401332,
+            "sink_gold": 321140.0,
+            "start_day": 330
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006904152658149353,
+            "days": 7,
+            "faucet_gold": 1963421.0,
+            "gold_growth": 1636261.0,
+            "gold_growth_fraction": 0.02122965128088118,
+            "gold_net_growth_per_active_player_day": 3146.6557692307692,
+            "sink_faucet_ratio": 0.16288406816469825,
+            "sink_gold": 319810.0,
+            "start_day": 337
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005112728136696306,
+            "days": 7,
+            "faucet_gold": 1984821.0,
+            "gold_growth": 1619151.0,
+            "gold_growth_fraction": 0.02057094380089976,
+            "gold_net_growth_per_active_player_day": 3101.82183908046,
+            "sink_faucet_ratio": 0.17516441029191046,
+            "sink_gold": 347670.0,
+            "start_day": 344
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006146580580390871,
+            "days": 7,
+            "faucet_gold": 1940305.0,
+            "gold_growth": 1595685.0,
+            "gold_growth_fraction": 0.019864188522469295,
+            "gold_net_growth_per_active_player_day": 3128.794117647059,
+            "sink_faucet_ratio": 0.17183896346192995,
+            "sink_gold": 333420.0,
+            "start_day": 351
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0055238245405111585,
+            "days": 7,
+            "faucet_gold": 1917362.0,
+            "gold_growth": 1573212.0,
+            "gold_growth_fraction": 0.019202977537374846,
+            "gold_net_growth_per_active_player_day": 3127.6580516898607,
+            "sink_faucet_ratio": 0.17492784356840282,
+            "sink_gold": 335400.0,
+            "start_day": 358
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007373069768145314,
+            "days": 1,
+            "faucet_gold": 262526.0,
+            "gold_growth": 215536.0,
+            "gold_growth_fraction": 0.0025813117513110873,
+            "gold_net_growth_per_active_player_day": 3315.9384615384615,
+            "sink_faucet_ratio": 0.18184865499036285,
+            "sink_gold": 47740.0,
+            "start_day": 365
+          }
+        ]
+      },
+      "name": "100-player launch-to-maturity cohort over 365 days",
+      "name_zh": "100人开荒至成熟 365天",
+      "players": 100,
+      "population_mix": {
+        "core": 30,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 3152641345,
+      "shock": {},
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 411139686.0,
+          "merit": 3703081,
+          "starlight": 750
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 365,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 21765785000,
+          "faucet.merit": 2695314,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 1949508400,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 21150971200,
+          "faucet.merit": 791051
+        },
+        "commissions": {
+          "faucet.gold": 5053885000,
+          "faucet.merit": 230621,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 7249,
+          "conversion_out.gold": 144980000,
+          "conversion_out.merit": 14498,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 7138,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 428280000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 210720000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 7024,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 114575000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 4583
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 479,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 1916
+        },
+        "forge": {
+          "sink.gold": 1356550000
+        },
+        "market_fee": {
+          "sink.gold": 481020000
+        },
+        "refinement": {
+          "sink.gold": 4413960000
+        },
+        "supply:arrows": {
+          "sink.gold": 483350000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 385784000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 493200000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 609840000
+        },
+        "supply:torches": {
+          "sink.gold": 334512000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 799075000,
+        "cap_blocked.DUNGEON.merit": 174542,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 7931034200,
+        "cap_blocked.HUNTING.merit": 79420,
+        "cap_blocked.HUNTING.starlight": 0,
+        "equipment_created": 36321,
+        "equipment_exited": 9203,
+        "forge_failed": 17941,
+        "kills": 14495649,
+        "weekday_play_minutes": 14756040,
+        "weekend_play_minutes": 7999710
+      },
+      "id": "S03",
+      "metrics": {
+        "equipment_create_exit_ratio": 3.946647832228621,
+        "equipment_created": 36321,
+        "equipment_exited": 9203,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.007640014968192591,
+        "market_expiries": 2822,
+        "market_last_seven_day_sales_expiry_ratio": 9.640625,
+        "market_oldest_open_days": 6,
+        "market_open_age_p50_days": 1,
+        "market_open_age_p90_days": 4,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 4,
+        "market_sales": 32068,
+        "top_one_percent_share": 0.03086056699784811,
+        "wealth_gini": 0.417428,
+        "weekend_play_share": 0.3515467519198444,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.004513267967902137,
+            "days": 7,
+            "faucet_gold": 9572692.0,
+            "gold_growth": 8299842.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 3191.0196078431372,
+            "sink_faucet_ratio": 0.12680341120345248,
+            "sink_gold": 1213850.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006198724954144341,
+            "days": 7,
+            "faucet_gold": 9667507.0,
+            "gold_growth": 8058117.0,
+            "gold_growth_fraction": 0.9708759516145006,
+            "gold_net_growth_per_active_player_day": 3140.3417770849574,
+            "sink_faucet_ratio": 0.16040226296189908,
+            "sink_gold": 1550690.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006065768443400744,
+            "days": 7,
+            "faucet_gold": 9610364.0,
+            "gold_growth": 7909494.0,
+            "gold_growth_fraction": 0.48352572591727366,
+            "gold_net_growth_per_active_player_day": 3047.9745664739885,
+            "sink_faucet_ratio": 0.17155645717477508,
+            "sink_gold": 1648720.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006858480956477543,
+            "days": 7,
+            "faucet_gold": 9434038.0,
+            "gold_growth": 7780488.0,
+            "gold_growth_fraction": 0.3206141163640041,
+            "gold_net_growth_per_active_player_day": 3041.629397967162,
+            "sink_faucet_ratio": 0.17079642884626922,
+            "sink_gold": 1611300.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005834024176829748,
+            "days": 7,
+            "faucet_gold": 9415057.0,
+            "gold_growth": 7708157.0,
+            "gold_growth_fraction": 0.24051957035242919,
+            "gold_net_growth_per_active_player_day": 3041.8930544593527,
+            "sink_faucet_ratio": 0.17730641460800503,
+            "sink_gold": 1669350.0,
+            "start_day": 29
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006105536584427622,
+            "days": 7,
+            "faucet_gold": 9482271.0,
+            "gold_growth": 7793681.0,
+            "gold_growth_fraction": 0.19603737268179589,
+            "gold_net_growth_per_active_player_day": 3023.1501163692783,
+            "sink_faucet_ratio": 0.17247345071660575,
+            "sink_gold": 1635440.0,
+            "start_day": 36
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006338707658170515,
+            "days": 7,
+            "faucet_gold": 9429166.0,
+            "gold_growth": 7757036.0,
+            "gold_growth_fraction": 0.16313505894527922,
+            "gold_net_growth_per_active_player_day": 3032.461297888976,
+            "sink_faucet_ratio": 0.171985518125357,
+            "sink_gold": 1621680.0,
+            "start_day": 43
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006324313974904407,
+            "days": 7,
+            "faucet_gold": 9450763.0,
+            "gold_growth": 7797603.0,
+            "gold_growth_fraction": 0.14098810426888622,
+            "gold_net_growth_per_active_player_day": 3019.9856700232376,
+            "sink_faucet_ratio": 0.17121474742303874,
+            "sink_gold": 1618110.0,
+            "start_day": 50
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006294702384705411,
+            "days": 7,
+            "faucet_gold": 9566543.0,
+            "gold_growth": 7848743.0,
+            "gold_growth_fraction": 0.12437707610265893,
+            "gold_net_growth_per_active_player_day": 3030.4027027027028,
+            "sink_faucet_ratio": 0.174650341298837,
+            "sink_gold": 1670800.0,
+            "start_day": 57
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006614961196919107,
+            "days": 7,
+            "faucet_gold": 9528443.0,
+            "gold_growth": 7830243.0,
+            "gold_growth_fraction": 0.11035791625971393,
+            "gold_net_growth_per_active_player_day": 3043.2347454333462,
+            "sink_faucet_ratio": 0.17340188738076096,
+            "sink_gold": 1652250.0,
+            "start_day": 64
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007022471173516295,
+            "days": 7,
+            "faucet_gold": 9466731.0,
+            "gold_growth": 7766261.0,
+            "gold_growth_fraction": 0.09857737297058147,
+            "gold_net_growth_per_active_player_day": 3026.6021044427125,
+            "sink_faucet_ratio": 0.1747192351826623,
+            "sink_gold": 1654020.0,
+            "start_day": 71
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006613878890326975,
+            "days": 7,
+            "faucet_gold": 9725269.0,
+            "gold_growth": 8059989.0,
+            "gold_growth_fraction": 0.09312559442026726,
+            "gold_net_growth_per_active_player_day": 3143.5214508580343,
+            "sink_faucet_ratio": 0.16719640351336298,
+            "sink_gold": 1626030.0,
+            "start_day": 78
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006505899786319148,
+            "days": 7,
+            "faucet_gold": 9750319.0,
+            "gold_growth": 8012909.0,
+            "gold_growth_fraction": 0.08469441184088888,
+            "gold_net_growth_per_active_player_day": 3085.448209472468,
+            "sink_faucet_ratio": 0.17204155064054827,
+            "sink_gold": 1677460.0,
+            "start_day": 85
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006848420628657229,
+            "days": 7,
+            "faucet_gold": 9651019.0,
+            "gold_growth": 7999799.0,
+            "gold_growth_fraction": 0.07795360753170821,
+            "gold_net_growth_per_active_player_day": 3121.263753413968,
+            "sink_faucet_ratio": 0.1666114220684883,
+            "sink_gold": 1607970.0,
+            "start_day": 92
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00604945428881103,
+            "days": 7,
+            "faucet_gold": 9661085.0,
+            "gold_growth": 7962685.0,
+            "gold_growth_fraction": 0.07198078992383113,
+            "gold_net_growth_per_active_player_day": 3121.3974911799296,
+            "sink_faucet_ratio": 0.17134721410690415,
+            "sink_gold": 1655400.0,
+            "start_day": 99
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006597357758217834,
+            "days": 7,
+            "faucet_gold": 9576623.0,
+            "gold_growth": 7838673.0,
+            "gold_growth_fraction": 0.06610169830265362,
+            "gold_net_growth_per_active_player_day": 3035.8919442292795,
+            "sink_faucet_ratio": 0.1756516884918619,
+            "sink_gold": 1682150.0,
+            "start_day": 106
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006804615209770198,
+            "days": 7,
+            "faucet_gold": 9691683.0,
+            "gold_growth": 7990043.0,
+            "gold_growth_fraction": 0.06320050541148449,
+            "gold_net_growth_per_active_player_day": 3121.110546875,
+            "sink_faucet_ratio": 0.17074846546260336,
+            "sink_gold": 1654840.0,
+            "start_day": 113
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005909706282960653,
+            "days": 7,
+            "faucet_gold": 9647024.0,
+            "gold_growth": 7941474.0,
+            "gold_growth_fraction": 0.05908229799354699,
+            "gold_net_growth_per_active_player_day": 3063.840277777778,
+            "sink_faucet_ratio": 0.17108903222382363,
+            "sink_gold": 1650500.0,
+            "start_day": 120
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007193089890322803,
+            "days": 7,
+            "faucet_gold": 9544243.0,
+            "gold_growth": 7851783.0,
+            "gold_growth_fraction": 0.05515626376288496,
+            "gold_net_growth_per_active_player_day": 3081.5474882260596,
+            "sink_faucet_ratio": 0.17200002137414147,
+            "sink_gold": 1641610.0,
+            "start_day": 127
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005888590905883565,
+            "days": 7,
+            "faucet_gold": 9791555.0,
+            "gold_growth": 8085165.0,
+            "gold_growth_fraction": 0.05382681182277633,
+            "gold_net_growth_per_active_player_day": 3178.130896226415,
+            "sink_faucet_ratio": 0.16918558901012148,
+            "sink_gold": 1656590.0,
+            "start_day": 134
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006925744185230326,
+            "days": 7,
+            "faucet_gold": 9564034.0,
+            "gold_growth": 7877064.0,
+            "gold_growth_fraction": 0.04976281046344771,
+            "gold_net_growth_per_active_player_day": 3030.805694497884,
+            "sink_faucet_ratio": 0.17144125585500847,
+            "sink_gold": 1639670.0,
+            "start_day": 141
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006084663961029835,
+            "days": 7,
+            "faucet_gold": 9547668.0,
+            "gold_growth": 7859918.0,
+            "gold_growth_fraction": 0.04730067715477248,
+            "gold_net_growth_per_active_player_day": 3073.882675009777,
+            "sink_faucet_ratio": 0.172817069047646,
+            "sink_gold": 1650000.0,
+            "start_day": 148
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006560739977545637,
+            "days": 7,
+            "faucet_gold": 9675855.0,
+            "gold_growth": 7971505.0,
+            "gold_growth_fraction": 0.04580556890213696,
+            "gold_net_growth_per_active_player_day": 3106.58807482463,
+            "sink_faucet_ratio": 0.17156623368167465,
+            "sink_gold": 1660050.0,
+            "start_day": 155
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006248788712337791,
+            "days": 7,
+            "faucet_gold": 9557764.0,
+            "gold_growth": 7843824.0,
+            "gold_growth_fraction": 0.04309777493568815,
+            "gold_net_growth_per_active_player_day": 3050.8844807467913,
+            "sink_faucet_ratio": 0.17270148122510662,
+            "sink_gold": 1650640.0,
+            "start_day": 162
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00660134400884642,
+            "days": 7,
+            "faucet_gold": 9615947.0,
+            "gold_growth": 7877037.0,
+            "gold_growth_fraction": 0.04149204831305723,
+            "gold_net_growth_per_active_player_day": 3050.7501936483345,
+            "sink_faucet_ratio": 0.17493960813219955,
+            "sink_gold": 1682210.0,
+            "start_day": 169
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007360066537943428,
+            "days": 7,
+            "faucet_gold": 9447527.0,
+            "gold_growth": 7750467.0,
+            "gold_growth_fraction": 0.0391989020234837,
+            "gold_net_growth_per_active_player_day": 3032.2640845070423,
+            "sink_faucet_ratio": 0.17491455700523534,
+            "sink_gold": 1652510.0,
+            "start_day": 176
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006754881143777931,
+            "days": 7,
+            "faucet_gold": 9535615.0,
+            "gold_growth": 7864105.0,
+            "gold_growth_fraction": 0.03827336571406323,
+            "gold_net_growth_per_active_player_day": 3081.5458463949844,
+            "sink_faucet_ratio": 0.17110170660203877,
+            "sink_gold": 1631560.0,
+            "start_day": 183
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006469874059679693,
+            "days": 7,
+            "faucet_gold": 9589979.0,
+            "gold_growth": 7905049.0,
+            "gold_growth_fraction": 0.037054435769322776,
+            "gold_net_growth_per_active_player_day": 3059.2294891640868,
+            "sink_faucet_ratio": 0.17017555512895283,
+            "sink_gold": 1631980.0,
+            "start_day": 190
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00666651944769553,
+            "days": 7,
+            "faucet_gold": 9536212.0,
+            "gold_growth": 7829332.0,
+            "gold_growth_fraction": 0.035388226188695436,
+            "gold_net_growth_per_active_player_day": 3040.517281553398,
+            "sink_faucet_ratio": 0.17422850918163313,
+            "sink_gold": 1661480.0,
+            "start_day": 197
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007119546017516518,
+            "days": 7,
+            "faucet_gold": 9378577.0,
+            "gold_growth": 7706687.0,
+            "gold_growth_fraction": 0.03364329964358656,
+            "gold_net_growth_per_active_player_day": 3016.3158512720156,
+            "sink_faucet_ratio": 0.17441238686849828,
+            "sink_gold": 1635740.0,
+            "start_day": 204
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00654165544273441,
+            "days": 7,
+            "faucet_gold": 9666303.0,
+            "gold_growth": 7960953.0,
+            "gold_growth_fraction": 0.03362213045765185,
+            "gold_net_growth_per_active_player_day": 3083.250580945004,
+            "sink_faucet_ratio": 0.1717926698552694,
+            "sink_gold": 1660600.0,
+            "start_day": 211
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006446288569025693,
+            "days": 7,
+            "faucet_gold": 9471167.0,
+            "gold_growth": 7780787.0,
+            "gold_growth_fraction": 0.031792296227682974,
+            "gold_net_growth_per_active_player_day": 3024.01360279829,
+            "sink_faucet_ratio": 0.17322363759397338,
+            "sink_gold": 1640630.0,
+            "start_day": 218
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006473267008780292,
+            "days": 7,
+            "faucet_gold": 9615616.0,
+            "gold_growth": 7909956.0,
+            "gold_growth_fraction": 0.03132421213931014,
+            "gold_net_growth_per_active_player_day": 3061.128482972136,
+            "sink_faucet_ratio": 0.1726680849152046,
+            "sink_gold": 1660310.0,
+            "start_day": 225
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007258630763514529,
+            "days": 7,
+            "faucet_gold": 9669429.0,
+            "gold_growth": 7940099.0,
+            "gold_growth_fraction": 0.030488551559159135,
+            "gold_net_growth_per_active_player_day": 3056.235180908391,
+            "sink_faucet_ratio": 0.17366382234152605,
+            "sink_gold": 1679230.0,
+            "start_day": 232
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0063603450107407675,
+            "days": 7,
+            "faucet_gold": 9615598.0,
+            "gold_growth": 7925648.0,
+            "gold_growth_fraction": 0.029532654461003106,
+            "gold_net_growth_per_active_player_day": 3081.51166407465,
+            "sink_faucet_ratio": 0.1717313889370167,
+            "sink_gold": 1651300.0,
+            "start_day": 239
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006227652993106236,
+            "days": 7,
+            "faucet_gold": 9606363.0,
+            "gold_growth": 7914473.0,
+            "gold_growth_fraction": 0.02864504967407689,
+            "gold_net_growth_per_active_player_day": 3084.362042088854,
+            "sink_faucet_ratio": 0.17025069737631193,
+            "sink_gold": 1635490.0,
+            "start_day": 246
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006120973649721942,
+            "days": 7,
+            "faucet_gold": 9677413.0,
+            "gold_growth": 7932783.0,
+            "gold_growth_fraction": 0.02791178504498848,
+            "gold_net_growth_per_active_player_day": 3091.4976617303196,
+            "sink_faucet_ratio": 0.17424388108681524,
+            "sink_gold": 1686230.0,
+            "start_day": 253
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005988336115577073,
+            "days": 7,
+            "faucet_gold": 9552799.0,
+            "gold_growth": 7898029.0,
+            "gold_growth_fraction": 0.027034909258060756,
+            "gold_net_growth_per_active_player_day": 3107.013768686074,
+            "sink_faucet_ratio": 0.1682564450482,
+            "sink_gold": 1607320.0,
+            "start_day": 260
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006587397968553344,
+            "days": 7,
+            "faucet_gold": 9666601.0,
+            "gold_growth": 7950231.0,
+            "gold_growth_fraction": 0.026497245777987375,
+            "gold_net_growth_per_active_player_day": 3062.492681047766,
+            "sink_faucet_ratio": 0.17284979487619279,
+            "sink_gold": 1670870.0,
+            "start_day": 267
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006539563230919096,
+            "days": 7,
+            "faucet_gold": 9699799.0,
+            "gold_growth": 8004839.0,
+            "gold_growth_fraction": 0.025990569723837776,
+            "gold_net_growth_per_active_player_day": 3081.154349499615,
+            "sink_faucet_ratio": 0.16981898284696414,
+            "sink_gold": 1647210.0,
+            "start_day": 274
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007181466546083299,
+            "days": 7,
+            "faucet_gold": 9532153.0,
+            "gold_growth": 7842513.0,
+            "gold_growth_fraction": 0.02481847408894365,
+            "gold_net_growth_per_active_player_day": 3049.188569206843,
+            "sink_faucet_ratio": 0.17334908493390738,
+            "sink_gold": 1652390.0,
+            "start_day": 281
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006150230815461389,
+            "days": 7,
+            "faucet_gold": 9566455.0,
+            "gold_growth": 7871495.0,
+            "gold_growth_fraction": 0.02430692983027252,
+            "gold_net_growth_per_active_player_day": 3066.417997662641,
+            "sink_faucet_ratio": 0.17197174920072272,
+            "sink_gold": 1645160.0,
+            "start_day": 288
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006599729395393609,
+            "days": 7,
+            "faucet_gold": 9490372.0,
+            "gold_growth": 7803662.0,
+            "gold_growth_fraction": 0.023525627866709028,
+            "gold_net_growth_per_active_player_day": 3065.0675569520818,
+            "sink_faucet_ratio": 0.17316075702828088,
+            "sink_gold": 1643360.0,
+            "start_day": 295
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006648685067815001,
+            "days": 7,
+            "faucet_gold": 9390147.0,
+            "gold_growth": 7700017.0,
+            "gold_growth_fraction": 0.022679617988067783,
+            "gold_net_growth_per_active_player_day": 3043.484980237154,
+            "sink_faucet_ratio": 0.17533058854137215,
+            "sink_gold": 1646380.0,
+            "start_day": 302
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006447167954127859,
+            "days": 7,
+            "faucet_gold": 9654795.0,
+            "gold_growth": 7939465.0,
+            "gold_growth_fraction": 0.022866289051017258,
+            "gold_net_growth_per_active_player_day": 3076.119721038357,
+            "sink_faucet_ratio": 0.1730311208057758,
+            "sink_gold": 1670580.0,
+            "start_day": 309
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0064566054745510615,
+            "days": 7,
+            "faucet_gold": 9471323.0,
+            "gold_growth": 7730733.0,
+            "gold_growth_fraction": 0.02176738501433652,
+            "gold_net_growth_per_active_player_day": 2975.647806004619,
+            "sink_faucet_ratio": 0.1779202335302048,
+            "sink_gold": 1685140.0,
+            "start_day": 316
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006606400055475019,
+            "days": 7,
+            "faucet_gold": 9540873.0,
+            "gold_growth": 7840973.0,
+            "gold_growth_fraction": 0.021607449540134792,
+            "gold_net_growth_per_active_player_day": 3052.149863760218,
+            "sink_faucet_ratio": 0.17295587101935012,
+            "sink_gold": 1650150.0,
+            "start_day": 323
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006518587454896448,
+            "days": 7,
+            "faucet_gold": 9693115.0,
+            "gold_growth": 7960645.0,
+            "gold_growth_fraction": 0.021473248756286447,
+            "gold_net_growth_per_active_player_day": 3087.9150504266872,
+            "sink_faucet_ratio": 0.17355308381258244,
+            "sink_gold": 1682270.0,
+            "start_day": 330
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006867658727965021,
+            "days": 7,
+            "faucet_gold": 9341808.0,
+            "gold_growth": 7671498.0,
+            "gold_growth_fraction": 0.020258285001671338,
+            "gold_net_growth_per_active_player_day": 2965.403169694627,
+            "sink_faucet_ratio": 0.17543820211248187,
+            "sink_gold": 1638910.0,
+            "start_day": 337
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006239254406054938,
+            "days": 7,
+            "faucet_gold": 9795447.0,
+            "gold_growth": 8077977.0,
+            "gold_growth_fraction": 0.020908119934535396,
+            "gold_net_growth_per_active_player_day": 3093.8249712753736,
+            "sink_faucet_ratio": 0.17111725478173687,
+            "sink_gold": 1676170.0,
+            "start_day": 344
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006814043384782174,
+            "days": 7,
+            "faucet_gold": 9415821.0,
+            "gold_growth": 7689731.0,
+            "gold_growth_fraction": 0.019495611418579997,
+            "gold_net_growth_per_active_player_day": 3004.974990230559,
+            "sink_faucet_ratio": 0.17743434162565325,
+            "sink_gold": 1670690.0,
+            "start_day": 351
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006421792568508781,
+            "days": 7,
+            "faucet_gold": 9685457.0,
+            "gold_growth": 7982737.0,
+            "gold_growth_fraction": 0.01985144719654411,
+            "gold_net_growth_per_active_player_day": 3088.099419729207,
+            "sink_faucet_ratio": 0.1714653216673204,
+            "sink_gold": 1660720.0,
+            "start_day": 358
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005204587237099863,
+            "days": 1,
+            "faucet_gold": 1271069.0,
+            "gold_growth": 1033269.0,
+            "gold_growth_fraction": 0.0025195143435173314,
+            "gold_net_growth_per_active_player_day": 3057.008875739645,
+            "sink_faucet_ratio": 0.17815712600968162,
+            "sink_gold": 226450.0,
+            "start_day": 365
+          }
+        ]
+      },
+      "name": "500-player long-term community over 365 days",
+      "name_zh": "500人长期社区 365天",
+      "players": 500,
+      "population_mix": {
+        "core": 150,
+        "forger": 30,
+        "hardcore": 40,
+        "merchant": 40,
+        "newcomer": 100,
+        "organizer": 20,
+        "weekend": 120
+      },
+      "seed": 561793308,
+      "shock": {},
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 27229410.0,
+          "merit": 252098,
+          "starlight": 112
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 90,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 1762880000,
+          "faucet.merit": 200827,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 94509800,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 1049548200,
+          "faucet.merit": 41078
+        },
+        "commissions": {
+          "faucet.gold": 243368000,
+          "faucet.merit": 10936,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 367,
+          "conversion_out.gold": 7340000,
+          "conversion_out.merit": 734,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 330,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 19800000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 10770000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 359,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 4375000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 175
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 20,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 80
+        },
+        "forge": {
+          "sink.gold": 65050000
+        },
+        "market_fee": {
+          "sink.gold": 19710000
+        },
+        "refinement": {
+          "sink.gold": 215640000
+        },
+        "supply:arrows": {
+          "sink.gold": 22610000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 19152000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 24480000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 32120000
+        },
+        "supply:torches": {
+          "sink.gold": 16608000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 7337355000,
+        "cap_blocked.DUNGEON.merit": 956697,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 480105000,
+        "cap_blocked.HUNTING.merit": 5062,
+        "cap_blocked.HUNTING.starlight": 0,
+        "equipment_created": 1746,
+        "equipment_exited": 445,
+        "forge_failed": 856,
+        "kills": 761376,
+        "weekday_play_minutes": 747540,
+        "weekend_play_minutes": 393450
+      },
+      "id": "S04",
+      "metrics": {
+        "equipment_create_exit_ratio": 3.9235955056179774,
+        "equipment_created": 1746,
+        "equipment_exited": 445,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.04337899543378995,
+        "market_expiries": 86,
+        "market_last_seven_day_sales_expiry_ratio": 11.090909090909092,
+        "market_oldest_open_days": 6,
+        "market_open_age_p50_days": 1,
+        "market_open_age_p90_days": 4,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 4,
+        "market_sales": 1314,
+        "top_one_percent_share": 0.022755088429282182,
+        "wealth_gini": 0.452899,
+        "weekend_play_share": 0.3448321194751926,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.004020203493241526,
+            "days": 7,
+            "faucet_gold": 2526985.0,
+            "gold_growth": 2260535.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 4289.440227703984,
+            "sink_faucet_ratio": 0.10203859540123902,
+            "sink_gold": 257850.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0045758382607382405,
+            "days": 7,
+            "faucet_gold": 2425562.0,
+            "gold_growth": 2106202.0,
+            "gold_growth_fraction": 0.931727223865147,
+            "gold_net_growth_per_active_player_day": 4187.280318091452,
+            "sink_faucet_ratio": 0.12686132121133165,
+            "sink_gold": 307710.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0043581942274484005,
+            "days": 7,
+            "faucet_gold": 2421600.0,
+            "gold_growth": 2095130.0,
+            "gold_growth_fraction": 0.47979303539462076,
+            "gold_net_growth_per_active_player_day": 4181.89620758483,
+            "sink_faucet_ratio": 0.13035596299966964,
+            "sink_gold": 315670.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005283781757052528,
+            "days": 7,
+            "faucet_gold": 2447359.0,
+            "gold_growth": 2109459.0,
+            "gold_growth_fraction": 0.32644729456672505,
+            "gold_net_growth_per_active_player_day": 4185.434523809524,
+            "sink_faucet_ratio": 0.13406288166141542,
+            "sink_gold": 328100.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0053245562801503,
+            "days": 7,
+            "faucet_gold": 2428518.0,
+            "gold_growth": 2086118.0,
+            "gold_growth_fraction": 0.24338334582070498,
+            "gold_net_growth_per_active_player_day": 4098.463654223969,
+            "sink_faucet_ratio": 0.1372853732193873,
+            "sink_gold": 333400.0,
+            "start_day": 29
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0053174432103177145,
+            "days": 7,
+            "faucet_gold": 2441137.0,
+            "gold_growth": 2105627.0,
+            "gold_growth_fraction": 0.19757335811475998,
+            "gold_net_growth_per_active_player_day": 4202.848303393213,
+            "sink_faucet_ratio": 0.1355761679905716,
+            "sink_gold": 330960.0,
+            "start_day": 36
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005560553831161583,
+            "days": 7,
+            "faucet_gold": 2485851.0,
+            "gold_growth": 2135131.0,
+            "gold_growth_fraction": 0.167289753383022,
+            "gold_net_growth_per_active_player_day": 4211.303747534516,
+            "sink_faucet_ratio": 0.13597757870443564,
+            "sink_gold": 338020.0,
+            "start_day": 43
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0047965323086757985,
+            "days": 7,
+            "faucet_gold": 2469059.0,
+            "gold_growth": 2125079.0,
+            "gold_growth_fraction": 0.14263996420507655,
+            "gold_net_growth_per_active_player_day": 4110.404255319149,
+            "sink_faucet_ratio": 0.13368655832039655,
+            "sink_gold": 330080.0,
+            "start_day": 50
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004022636731241778,
+            "days": 7,
+            "faucet_gold": 2463552.0,
+            "gold_growth": 2114822.0,
+            "gold_growth_fraction": 0.12423116319351128,
+            "gold_net_growth_per_active_player_day": 4066.9653846153847,
+            "sink_faucet_ratio": 0.1397494349622009,
+            "sink_gold": 344280.0,
+            "start_day": 57
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004731840414389427,
+            "days": 7,
+            "faucet_gold": 2492461.0,
+            "gold_growth": 2146931.0,
+            "gold_growth_fraction": 0.11218097216845369,
+            "gold_net_growth_per_active_player_day": 4112.894636015326,
+            "sink_faucet_ratio": 0.1347182563739212,
+            "sink_gold": 335780.0,
+            "start_day": 64
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004896396333904852,
+            "days": 7,
+            "faucet_gold": 2438782.0,
+            "gold_growth": 2100592.0,
+            "gold_growth_fraction": 0.09868868426519779,
+            "gold_net_growth_per_active_player_day": 4143.179487179487,
+            "sink_faucet_ratio": 0.13555537149281896,
+            "sink_gold": 330590.0,
+            "start_day": 71
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004212636044853232,
+            "days": 7,
+            "faucet_gold": 2458363.0,
+            "gold_growth": 2115653.0,
+            "gold_growth_fraction": 0.09046809352035305,
+            "gold_net_growth_per_active_player_day": 4116.056420233463,
+            "sink_faucet_ratio": 0.13444312333044386,
+            "sink_gold": 330510.0,
+            "start_day": 78
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005187955404434634,
+            "days": 6,
+            "faucet_gold": 2003831.0,
+            "gold_growth": 1728131.0,
+            "gold_growth_fraction": 0.06776644418501519,
+            "gold_net_growth_per_active_player_day": 4164.171084337349,
+            "sink_faucet_ratio": 0.13511618494773261,
+            "sink_gold": 270750.0,
+            "start_day": 85
+          }
+        ]
+      },
+      "name": "30 percent of players exhaust the highest-yield faucet",
+      "name_zh": "30%玩家集中刷最高收益活动",
+      "players": 100,
+      "population_mix": {
+        "core": 30,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 881981743,
+      "shock": {
+        "focus_highest_yield": 0.3
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 8871087.0,
+          "merit": 62154,
+          "starlight": 67
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 30,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 364040000,
+          "faucet.merit": 44887,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 31042200,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 540000000,
+          "faucet.merit": 13328
+        },
+        "commissions": {
+          "faucet.gold": 86923500,
+          "faucet.merit": 4130,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 100,
+          "conversion_out.gold": 2000000,
+          "conversion_out.merit": 200,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 125,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 7500000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 3510000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 117,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 725000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 29
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 1,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 4
+        },
+        "forge": {
+          "sink.gold": 20300000
+        },
+        "market_fee": {
+          "sink.gold": 4470000
+        },
+        "refinement": {
+          "sink.gold": 65600000
+        },
+        "supply:arrows": {
+          "sink.gold": 7630000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 6160000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 9792000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 9680000
+        },
+        "supply:torches": {
+          "sink.gold": 6000000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 16370000,
+        "cap_blocked.DUNGEON.merit": 3499,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 4494210000,
+        "cap_blocked.HUNTING.merit": 1541,
+        "cap_blocked.HUNTING.starlight": 0,
+        "equipment_created": 544,
+        "equipment_exited": 121,
+        "forge_failed": 268,
+        "kills": 251523,
+        "weekday_play_minutes": 248310,
+        "weekend_play_minutes": 126630
+      },
+      "id": "S05",
+      "metrics": {
+        "equipment_create_exit_ratio": 4.4958677685950414,
+        "equipment_created": 544,
+        "equipment_exited": 121,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.053691275167785234,
+        "market_expiries": 12,
+        "market_last_seven_day_sales_expiry_ratio": 20.166666666666668,
+        "market_oldest_open_days": 5,
+        "market_open_age_p50_days": 1,
+        "market_open_age_p90_days": 3,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 4,
+        "market_sales": 298,
+        "top_one_percent_share": 0.03062393174939118,
+        "wealth_gini": 0.407214,
+        "weekend_play_share": 0.33773403744599134,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.0032438953029651713,
+            "days": 7,
+            "faucet_gold": 2381353.0,
+            "gold_growth": 2125583.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 4285.449596774193,
+            "sink_faucet_ratio": 0.10083343376643446,
+            "sink_gold": 240120.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0037619960649521163,
+            "days": 7,
+            "faucet_gold": 2383347.0,
+            "gold_growth": 2057637.0,
+            "gold_growth_fraction": 0.9680341816809788,
+            "gold_net_growth_per_active_player_day": 4066.47628458498,
+            "sink_faucet_ratio": 0.1307866626219346,
+            "sink_gold": 311710.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004417818258388694,
+            "days": 7,
+            "faucet_gold": 2411310.0,
+            "gold_growth": 2077970.0,
+            "gold_growth_fraction": 0.4967393538948466,
+            "gold_net_growth_per_active_player_day": 4058.53515625,
+            "sink_faucet_ratio": 0.13388573016327224,
+            "sink_gold": 322840.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004118824144008994,
+            "days": 7,
+            "faucet_gold": 2405788.0,
+            "gold_growth": 2064588.0,
+            "gold_growth_fraction": 0.32974370686722493,
+            "gold_net_growth_per_active_player_day": 3993.4003868471955,
+            "sink_faucet_ratio": 0.13689901188300882,
+            "sink_gold": 329350.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007695787838789569,
+            "days": 2,
+            "faucet_gold": 638259.0,
+            "gold_growth": 545309.0,
+            "gold_growth_fraction": 0.06549646171204661,
+            "gold_net_growth_per_active_player_day": 4227.201550387597,
+            "sink_faucet_ratio": 0.1446121402126723,
+            "sink_gold": 92300.0,
+            "start_day": 29
+          }
+        ]
+      },
+      "name": "Tenfold hunting Gold faucet shock",
+      "name_zh": "某一Faucet异常放大10倍",
+      "players": 100,
+      "population_mix": {
+        "core": 30,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 967230467,
+      "shock": {
+        "faucet_multiplier": {
+          "factor": 10,
+          "key": "hunt.gold"
+        }
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 9238045.0,
+          "merit": 51313,
+          "starlight": 15800
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 4000000.0,
+          "merit": 0,
+          "starlight": 16000
+        }
+      },
+      "days": 30,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 302195000,
+          "faucet.merit": 37236,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 25760000,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 267925500,
+          "faucet.merit": 11095
+        },
+        "commissions": {
+          "faucet.gold": 73178000,
+          "faucet.merit": 3260,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 150,
+          "conversion_out.gold": 3000000,
+          "conversion_out.merit": 300,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 135,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 8100000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 5400000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 180,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 2050000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 82
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 67,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 268
+        },
+        "forge": {
+          "sink.gold": 17575000
+        },
+        "market_fee": {
+          "sink.gold": 3975000
+        },
+        "refinement": {
+          "sink.gold": 70840000
+        },
+        "supply:arrows": {
+          "sink.gold": 10710000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 7336000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 12816000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 11440000
+        },
+        "supply:torches": {
+          "sink.gold": 6912000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 15860000,
+        "cap_blocked.DUNGEON.merit": 3198,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 158329100,
+        "cap_blocked.HUNTING.merit": 1659,
+        "cap_blocked.HUNTING.starlight": 0,
+        "equipment_created": 462,
+        "equipment_exited": 93,
+        "forge_failed": 241,
+        "kills": 212476,
+        "weekday_play_minutes": 216930,
+        "weekend_play_minutes": 112650
+      },
+      "id": "S06",
+      "metrics": {
+        "equipment_create_exit_ratio": 4.967741935483871,
+        "equipment_created": 462,
+        "equipment_exited": 93,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.05660377358490566,
+        "market_expiries": 15,
+        "market_last_seven_day_sales_expiry_ratio": 24.75,
+        "market_oldest_open_days": 5,
+        "market_open_age_p50_days": 2,
+        "market_open_age_p90_days": 4,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 5,
+        "market_sales": 265,
+        "top_one_percent_share": 0.026522915570622623,
+        "wealth_gini": 0.498789,
+        "weekend_play_share": 0.3417986528308757,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.008523520685557045,
+            "days": 7,
+            "faucet_gold": 1640146.0,
+            "gold_growth": 1371346.0,
+            "gold_growth_fraction": 0.3428365,
+            "gold_net_growth_per_active_player_day": 2764.810483870968,
+            "sink_faucet_ratio": 0.1559007551766733,
+            "sink_gold": 255700.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.012924437899198364,
+            "days": 7,
+            "faucet_gold": 1538912.0,
+            "gold_growth": 1194012.0,
+            "gold_growth_fraction": 0.22229288524701257,
+            "gold_net_growth_per_active_player_day": 2492.7181628392486,
+            "sink_faucet_ratio": 0.22148764841654364,
+            "sink_gold": 340850.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.009876910197608073,
+            "days": 7,
+            "faucet_gold": 1558829.0,
+            "gold_growth": 1186739.0,
+            "gold_growth_fraction": 0.18075769820929796,
+            "gold_net_growth_per_active_player_day": 2557.627155172414,
+            "sink_faucet_ratio": 0.23148145178207488,
+            "sink_gold": 360840.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.013209482547978948,
+            "days": 7,
+            "faucet_gold": 1591178.0,
+            "gold_growth": 1207148.0,
+            "gold_growth_fraction": 0.1557188977382507,
+            "gold_net_growth_per_active_player_day": 2514.891666666667,
+            "sink_faucet_ratio": 0.23613322959467764,
+            "sink_gold": 375730.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00931711059958347,
+            "days": 2,
+            "faucet_gold": 361520.0,
+            "gold_growth": 278800.0,
+            "gold_growth_fraction": 0.031118693595275047,
+            "gold_net_growth_per_active_player_day": 2655.2380952380954,
+            "sink_faucet_ratio": 0.22936490373976542,
+            "sink_gold": 82920.0,
+            "start_day": 29
+          }
+        ]
+      },
+      "name": "20 percent dormant wealthy accounts return together",
+      "name_zh": "20%休眠富豪同时回归",
+      "players": 100,
+      "population_mix": {
+        "core": 10,
+        "dormant": 20,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 831762729,
+      "shock": {
+        "carry_gold": 200000,
+        "carry_starlight": 800,
+        "dormant_return": 0.2
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 14154718.0,
+          "merit": 127238,
+          "starlight": 90
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 60,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 750730000,
+          "faucet.merit": 92740,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 63569800,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 702705500,
+          "faucet.merit": 27304
+        },
+        "commissions": {
+          "faucet.gold": 167071500,
+          "faucet.merit": 7642,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 235,
+          "conversion_out.gold": 4700000,
+          "conversion_out.merit": 470,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 234,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 14040000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 6540000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 218,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 3025000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 121
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 6,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 24
+        },
+        "forge": {
+          "sink.gold": 42800000
+        },
+        "market_fee": {
+          "sink.gold": 180000
+        },
+        "refinement": {
+          "sink.gold": 137840000
+        },
+        "supply:arrows": {
+          "sink.gold": 17570000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 12656000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 16056000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 21384000
+        },
+        "supply:torches": {
+          "sink.gold": 10944000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 32915000,
+        "cap_blocked.DUNGEON.merit": 6882,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 319732300,
+        "cap_blocked.HUNTING.merit": 3273,
+        "cap_blocked.HUNTING.starlight": 0,
+        "concentration_delayed_sales": 1727,
+        "equipment_created": 1113,
+        "equipment_exited": 246,
+        "forge_failed": 599,
+        "kills": 509703,
+        "weekday_play_minutes": 509730,
+        "weekend_play_minutes": 254070
+      },
+      "id": "S07",
+      "metrics": {
+        "equipment_create_exit_ratio": 4.524390243902439,
+        "equipment_created": 1113,
+        "equipment_exited": 246,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.5,
+        "market_expiries": 736,
+        "market_last_seven_day_sales_expiry_ratio": 0.0,
+        "market_oldest_open_days": 6,
+        "market_open_age_p50_days": 3,
+        "market_open_age_p90_days": 6,
+        "market_sale_age_p50_days": 5,
+        "market_sale_age_p90_days": 6,
+        "market_sales": 12,
+        "top_one_percent_share": 0.03065238539956041,
+        "wealth_gini": 0.424222,
+        "weekend_play_share": 0.3326394344069128,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.004549641417088759,
+            "days": 7,
+            "faucet_gold": 1958238.0,
+            "gold_growth": 1719628.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 3332.6124031007753,
+            "sink_faucet_ratio": 0.11620650809554303,
+            "sink_gold": 227560.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004838623481430519,
+            "days": 7,
+            "faucet_gold": 2066987.0,
+            "gold_growth": 1754307.0,
+            "gold_growth_fraction": 1.0201665709095222,
+            "gold_net_growth_per_active_player_day": 3285.2191011235955,
+            "sink_faucet_ratio": 0.14200863382304776,
+            "sink_gold": 293530.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.003903521076747254,
+            "days": 7,
+            "faucet_gold": 1977637.0,
+            "gold_growth": 1656777.0,
+            "gold_growth_fraction": 0.4769165226177231,
+            "gold_net_growth_per_active_player_day": 3235.892578125,
+            "sink_faucet_ratio": 0.15453290973014763,
+            "sink_gold": 305610.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00696729980541685,
+            "days": 7,
+            "faucet_gold": 1981134.0,
+            "gold_growth": 1673584.0,
+            "gold_growth_fraction": 0.32618942556120867,
+            "gold_net_growth_per_active_player_day": 3262.346978557505,
+            "sink_faucet_ratio": 0.15337175577219916,
+            "sink_gold": 303850.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006697883618171831,
+            "days": 7,
+            "faucet_gold": 1994647.0,
+            "gold_growth": 1666477.0,
+            "gold_growth_fraction": 0.24491541814171516,
+            "gold_net_growth_per_active_player_day": 3180.2996183206105,
+            "sink_faucet_ratio": 0.16043941609718412,
+            "sink_gold": 320020.0,
+            "start_day": 29
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005759669400142054,
+            "days": 7,
+            "faucet_gold": 1924725.0,
+            "gold_growth": 1606245.0,
+            "gold_growth_fraction": 0.1896220097032467,
+            "gold_net_growth_per_active_player_day": 3131.0818713450294,
+            "sink_faucet_ratio": 0.16170102222395408,
+            "sink_gold": 311230.0,
+            "start_day": 36
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006030176906874552,
+            "days": 7,
+            "faucet_gold": 1986233.0,
+            "gold_growth": 1649533.0,
+            "gold_growth_fraction": 0.16369257254477465,
+            "gold_net_growth_per_active_player_day": 3196.7693798449613,
+            "sink_faucet_ratio": 0.16339976226354108,
+            "sink_gold": 324550.0,
+            "start_day": 43
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006470021977776616,
+            "days": 7,
+            "faucet_gold": 1957877.0,
+            "gold_growth": 1618457.0,
+            "gold_growth_fraction": 0.1380164551367235,
+            "gold_net_growth_per_active_player_day": 3204.8653465346533,
+            "sink_faucet_ratio": 0.16965825738797688,
+            "sink_gold": 332170.0,
+            "start_day": 50
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005606222907427245,
+            "days": 4,
+            "faucet_gold": 993290.0,
+            "gold_growth": 809710.0,
+            "gold_growth_fraction": 0.06067512286242167,
+            "gold_net_growth_per_active_player_day": 3090.4961832061067,
+            "sink_faucet_ratio": 0.1769674516002376,
+            "sink_gold": 175780.0,
+            "start_day": 57
+          }
+        ]
+      },
+      "name": "One seller controls at least half of completed sales",
+      "name_zh": "单一卖家控制50%成交",
+      "players": 100,
+      "population_mix": {
+        "core": 30,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 1338255267,
+      "shock": {
+        "monopolize_sales": 0.5
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 8725258.0,
+          "merit": 78354,
+          "starlight": 98
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 60,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 462810000,
+          "faucet.merit": 57242,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 40061000,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 438512800,
+          "faucet.merit": 16772
+        },
+        "commissions": {
+          "faucet.gold": 104486000,
+          "faucet.merit": 4655,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 162,
+          "conversion_out.gold": 3240000,
+          "conversion_out.merit": 324,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 145,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 8700000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 4110000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 137,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 1500000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 60
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 1,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 4
+        },
+        "forge": {
+          "sink.gold": 26050000
+        },
+        "market_fee": {
+          "sink.gold": 6540000
+        },
+        "refinement": {
+          "sink.gold": 85960000
+        },
+        "supply:arrows": {
+          "sink.gold": 10640000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 9184000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 10152000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 12584000
+        },
+        "supply:torches": {
+          "sink.gold": 5904000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 18025000,
+        "cap_blocked.DUNGEON.merit": 3938,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 189802100,
+        "cap_blocked.HUNTING.merit": 2038,
+        "cap_blocked.HUNTING.starlight": 0,
+        "equipment_created": 690,
+        "equipment_exited": 146,
+        "forge_failed": 352,
+        "kills": 313167,
+        "weekday_play_minutes": 318750,
+        "weekend_play_minutes": 153690
+      },
+      "id": "S08",
+      "metrics": {
+        "equipment_create_exit_ratio": 4.726027397260274,
+        "equipment_created": 690,
+        "equipment_exited": 146,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.04357798165137615,
+        "market_expiries": 31,
+        "market_last_seven_day_sales_expiry_ratio": 17.333333333333332,
+        "market_oldest_open_days": 6,
+        "market_open_age_p50_days": 2,
+        "market_open_age_p90_days": 4,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 4,
+        "market_sales": 436,
+        "top_one_percent_share": 0.030891496851768285,
+        "wealth_gini": 0.43415,
+        "weekend_play_share": 0.32531115062230126,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.0047026692859263594,
+            "days": 7,
+            "faucet_gold": 1957718.0,
+            "gold_growth": 1689598.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 3206.068311195446,
+            "sink_faucet_ratio": 0.12901245225308242,
+            "sink_gold": 252570.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004097880454810092,
+            "days": 7,
+            "faucet_gold": 1640443.0,
+            "gold_growth": 1373333.0,
+            "gold_growth_fraction": 0.8128164214209533,
+            "gold_net_growth_per_active_player_day": 3179.011574074074,
+            "sink_faucet_ratio": 0.15731116533765574,
+            "sink_gold": 258060.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005462798709893645,
+            "days": 7,
+            "faucet_gold": 1347217.0,
+            "gold_growth": 1111847.0,
+            "gold_growth_fraction": 0.3630009947987728,
+            "gold_net_growth_per_active_player_day": 3046.1561643835616,
+            "sink_faucet_ratio": 0.16550414669648617,
+            "sink_gold": 222970.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.007302158212295816,
+            "days": 7,
+            "faucet_gold": 1169134.0,
+            "gold_growth": 972384.0,
+            "gold_growth_fraction": 0.23291873244517433,
+            "gold_net_growth_per_active_player_day": 3285.0810810810813,
+            "sink_faucet_ratio": 0.1641813513249978,
+            "sink_gold": 191950.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005474793739728306,
+            "days": 7,
+            "faucet_gold": 962773.0,
+            "gold_growth": 793103.0,
+            "gold_growth_fraction": 0.15408549410335248,
+            "gold_net_growth_per_active_player_day": 3159.772908366534,
+            "sink_faucet_ratio": 0.17197200170756763,
+            "sink_gold": 165570.0,
+            "start_day": 29
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006724319213621433,
+            "days": 7,
+            "faucet_gold": 974912.0,
+            "gold_growth": 795062.0,
+            "gold_growth_fraction": 0.13384285044522423,
+            "gold_net_growth_per_active_player_day": 3046.214559386973,
+            "sink_faucet_ratio": 0.1793495207772599,
+            "sink_gold": 174850.0,
+            "start_day": 36
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004740182860821617,
+            "days": 7,
+            "faucet_gold": 902838.0,
+            "gold_growth": 752578.0,
+            "gold_growth_fraction": 0.1117359261101948,
+            "gold_net_growth_per_active_player_day": 3272.0782608695654,
+            "sink_faucet_ratio": 0.16321865052202056,
+            "sink_gold": 147360.0,
+            "start_day": 43
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.003788830718880271,
+            "days": 7,
+            "faucet_gold": 1038588.0,
+            "gold_growth": 855858.0,
+            "gold_growth_fraction": 0.11429872574505152,
+            "gold_net_growth_per_active_player_day": 3193.5,
+            "sink_faucet_ratio": 0.16818988857949446,
+            "sink_gold": 174680.0,
+            "start_day": 50
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.008421725920793134,
+            "days": 4,
+            "faucet_gold": 465075.0,
+            "gold_growth": 381495.0,
+            "gold_growth_fraction": 0.04572217595346368,
+            "gold_net_growth_per_active_player_day": 3205.840336134454,
+            "sink_faucet_ratio": 0.1765951728215879,
+            "sink_gold": 82130.0,
+            "start_day": 57
+          }
+        ]
+      },
+      "name": "Four weeks without new content",
+      "name_zh": "连续四周没有新内容",
+      "players": 100,
+      "population_mix": {
+        "core": 30,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 864197432,
+      "shock": {
+        "no_new_content_weeks": 4
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 13891334.0,
+          "merit": 125244,
+          "starlight": 107
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 60,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 736760000,
+          "faucet.merit": 90930,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 63114800,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 697712100,
+          "faucet.merit": 27081
+        },
+        "commissions": {
+          "faucet.gold": 165840500,
+          "faucet.merit": 7688,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 238,
+          "conversion_out.gold": 4760000,
+          "conversion_out.merit": 476,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 247,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 14820000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 6900000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 230,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 2875000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 115
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 4,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 16
+        },
+        "forge": {
+          "sink.gold": 44700000
+        },
+        "market_fee": {
+          "sink.gold": 4695000
+        },
+        "refinement": {
+          "sink.gold": 140440000
+        },
+        "supply:arrows": {
+          "sink.gold": 15750000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 12488000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 16920000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 19800000
+        },
+        "supply:torches": {
+          "sink.gold": 9696000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 33500000,
+        "cap_blocked.DUNGEON.merit": 7038,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 316178100,
+        "cap_blocked.HUNTING.merit": 3298,
+        "cap_blocked.HUNTING.starlight": 0,
+        "equipment_created": 1173,
+        "equipment_exited": 258,
+        "forge_failed": 615,
+        "kills": 505269,
+        "weekday_play_minutes": 505440,
+        "weekend_play_minutes": 252090
+      },
+      "id": "S09",
+      "metrics": {
+        "equipment_create_exit_ratio": 4.546511627906977,
+        "equipment_created": 1173,
+        "equipment_exited": 258,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.06389776357827476,
+        "market_expiries": 501,
+        "market_last_seven_day_sales_expiry_ratio": 0.5185185185185185,
+        "market_oldest_open_days": 6,
+        "market_open_age_p50_days": 3,
+        "market_open_age_p90_days": 5,
+        "market_sale_age_p50_days": 2,
+        "market_sale_age_p90_days": 5,
+        "market_sales": 313,
+        "top_one_percent_share": 0.030804103183299136,
+        "wealth_gini": 0.437821,
+        "weekend_play_share": 0.33277889984555065,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.004087716412181395,
+            "days": 7,
+            "faucet_gold": 1997810.0,
+            "gold_growth": 1743120.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 3391.284046692607,
+            "sink_faucet_ratio": 0.11877505868926475,
+            "sink_gold": 237290.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0051124172627159395,
+            "days": 7,
+            "faucet_gold": 1868181.0,
+            "gold_growth": 1581751.0,
+            "gold_growth_fraction": 0.9074251916104457,
+            "gold_net_growth_per_active_player_day": 3228.0632653061225,
+            "sink_faucet_ratio": 0.14871685345263655,
+            "sink_gold": 277830.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005211786244638777,
+            "days": 7,
+            "faucet_gold": 2013708.0,
+            "gold_growth": 1691588.0,
+            "gold_growth_fraction": 0.508768009345325,
+            "gold_net_growth_per_active_player_day": 3203.7651515151515,
+            "sink_faucet_ratio": 0.1545755392539534,
+            "sink_gold": 311270.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006014450508722272,
+            "days": 7,
+            "faucet_gold": 1884035.0,
+            "gold_growth": 1565705.0,
+            "gold_growth_fraction": 0.31211358450253457,
+            "gold_net_growth_per_active_player_day": 3182.3272357723577,
+            "sink_faucet_ratio": 0.1654587096311905,
+            "sink_gold": 311730.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0073783059611658534,
+            "days": 7,
+            "faucet_gold": 1964174.0,
+            "gold_growth": 1643344.0,
+            "gold_growth_fraction": 0.24966621919478155,
+            "gold_net_growth_per_active_player_day": 3209.65625,
+            "sink_faucet_ratio": 0.15875884723043884,
+            "sink_gold": 311830.0,
+            "start_day": 29
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006390005009763927,
+            "days": 7,
+            "faucet_gold": 1943680.0,
+            "gold_growth": 1601080.0,
+            "gold_growth_fraction": 0.1946481603324682,
+            "gold_net_growth_per_active_player_day": 3151.732283464567,
+            "sink_faucet_ratio": 0.16972958511689168,
+            "sink_gold": 329900.0,
+            "start_day": 36
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005658170705730063,
+            "days": 7,
+            "faucet_gold": 1941878.0,
+            "gold_growth": 1587018.0,
+            "gold_growth_fraction": 0.16150244622039714,
+            "gold_net_growth_per_active_player_day": 3069.667311411992,
+            "sink_faucet_ratio": 0.17462992010826633,
+            "sink_gold": 339110.0,
+            "start_day": 43
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006553395864279925,
+            "days": 7,
+            "faucet_gold": 1978284.0,
+            "gold_growth": 1624234.0,
+            "gold_growth_fraction": 0.14230682222603444,
+            "gold_net_growth_per_active_player_day": 3129.5452793834297,
+            "sink_faucet_ratio": 0.17302874612542993,
+            "sink_gold": 342300.0,
+            "start_day": 50
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0064803625953471,
+            "days": 4,
+            "faucet_gold": 1042524.0,
+            "gold_growth": 853494.0,
+            "gold_growth_fraction": 0.06546283740251453,
+            "gold_net_growth_per_active_player_day": 3149.4243542435424,
+            "sink_faucet_ratio": 0.17613982987442015,
+            "sink_gold": 183630.0,
+            "start_day": 57
+          }
+        ]
+      },
+      "name": "Market liquidity falls to 20 percent",
+      "name_zh": "市场流动性只有预期的20%",
+      "players": 100,
+      "population_mix": {
+        "core": 30,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 2114682030,
+      "shock": {
+        "liquidity": 0.2
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning",
+        "DUPLICATE_IDENTITY_ATTEMPTS_REJECTED_IN_MODEL"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 6886177.0,
+          "merit": 61742,
+          "starlight": 76
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 30,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 362055000,
+          "faucet.merit": 44809,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 31425800,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 346755400,
+          "faucet.merit": 13396
+        },
+        "commissions": {
+          "faucet.gold": 83439500,
+          "faucet.merit": 3804,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 130,
+          "conversion_out.gold": 2600000,
+          "conversion_out.merit": 260,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 111,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 6660000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 3600000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 120,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 1150000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 46
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 2,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 8
+        },
+        "forge": {
+          "sink.gold": 21025000
+        },
+        "market_fee": {
+          "sink.gold": 4605000
+        },
+        "refinement": {
+          "sink.gold": 68080000
+        },
+        "supply:arrows": {
+          "sink.gold": 7630000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 5880000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 8280000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 9768000
+        },
+        "supply:torches": {
+          "sink.gold": 5280000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 13220000,
+        "cap_blocked.DUNGEON.merit": 2927,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 157471400,
+        "cap_blocked.HUNTING.merit": 1481,
+        "cap_blocked.HUNTING.starlight": 0,
+        "duplicate_attempts": 5,
+        "duplicate_rejections": 5,
+        "equipment_created": 549,
+        "equipment_exited": 96,
+        "forge_failed": 292,
+        "kills": 251973,
+        "weekday_play_minutes": 250140,
+        "weekend_play_minutes": 127620
+      },
+      "id": "S10",
+      "metrics": {
+        "equipment_create_exit_ratio": 5.71875,
+        "equipment_created": 549,
+        "equipment_exited": 96,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.05863192182410423,
+        "market_expiries": 16,
+        "market_last_seven_day_sales_expiry_ratio": 13.777777777777779,
+        "market_oldest_open_days": 6,
+        "market_open_age_p50_days": 1,
+        "market_open_age_p90_days": 5,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 4,
+        "market_sales": 307,
+        "top_one_percent_share": 0.030633471803083973,
+        "wealth_gini": 0.437947,
+        "weekend_play_share": 0.33783354510800506,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.003507560826950674,
+            "days": 7,
+            "faucet_gold": 1960279.0,
+            "gold_growth": 1690199.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 3237.9291187739464,
+            "sink_faucet_ratio": 0.12925711085003716,
+            "sink_gold": 253380.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0056646763371783196,
+            "days": 7,
+            "faucet_gold": 1895752.0,
+            "gold_growth": 1579582.0,
+            "gold_growth_fraction": 0.934553860225926,
+            "gold_net_growth_per_active_player_day": 3140.3220675944335,
+            "sink_faucet_ratio": 0.16203068755828823,
+            "sink_gold": 307170.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006311524793982779,
+            "days": 7,
+            "faucet_gold": 1975876.0,
+            "gold_growth": 1641996.0,
+            "gold_growth_fraction": 0.5021730813164551,
+            "gold_net_growth_per_active_player_day": 3200.7719298245615,
+            "sink_faucet_ratio": 0.1638918636594604,
+            "sink_gold": 323830.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006851617571961231,
+            "days": 7,
+            "faucet_gold": 1935095.0,
+            "gold_growth": 1599405.0,
+            "gold_growth_fraction": 0.32562655022815573,
+            "gold_net_growth_per_active_player_day": 3111.682879377432,
+            "sink_faucet_ratio": 0.17003816350101675,
+            "sink_gold": 329040.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.008233841086867023,
+            "days": 2,
+            "faucet_gold": 469755.0,
+            "gold_growth": 374995.0,
+            "gold_growth_fraction": 0.05759246170664558,
+            "gold_net_growth_per_active_player_day": 3073.7295081967213,
+            "sink_faucet_ratio": 0.19597449734436037,
+            "sink_gold": 92060.0,
+            "start_day": 29
+          }
+        ]
+      },
+      "name": "One percent forged-equipment duplication attempts",
+      "name_zh": "高价值装备发生1%复制",
+      "players": 100,
+      "population_mix": {
+        "core": 30,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 1024911659,
+      "shock": {
+        "duplication_rate": 0.01
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {
+        "0": 2000,
+        "1": 2000,
+        "2": 1000
+      },
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 3311972.0,
+          "merit": 29350,
+          "starlight": 5036
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 14,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 171915000,
+          "faucet.merit": 21284,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 14803600,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 162311600,
+          "faucet.merit": 6270
+        },
+        "admin_starlight": {
+          "faucet.starlight": 5000
+        },
+        "commissions": {
+          "faucet.gold": 40789000,
+          "faucet.merit": 1905,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 58,
+          "conversion_out.gold": 1160000,
+          "conversion_out.merit": 116,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 59,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 3540000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 1620000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 54,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 350000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 14
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 2,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 8
+        },
+        "forge": {
+          "sink.gold": 9475000
+        },
+        "market_fee": {
+          "sink.gold": 1125000
+        },
+        "refinement": {
+          "sink.gold": 27680000
+        },
+        "supply:arrows": {
+          "sink.gold": 3220000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 3080000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 3744000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 4928000
+        },
+        "supply:torches": {
+          "sink.gold": 2640000
+        }
+      },
+      "guard_counters": {
+        "admin_quota_deferrals": 2,
+        "cap_blocked.DUNGEON.gold": 5550000,
+        "cap_blocked.DUNGEON.merit": 1292,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 73430800,
+        "cap_blocked.HUNTING.merit": 743,
+        "cap_blocked.HUNTING.starlight": 0,
+        "equipment_created": 267,
+        "equipment_exited": 36,
+        "forge_failed": 112,
+        "kills": 117633,
+        "weekday_play_minutes": 114990,
+        "weekend_play_minutes": 61980
+      },
+      "id": "S11",
+      "metrics": {
+        "equipment_create_exit_ratio": 7.416666666666667,
+        "equipment_created": 267,
+        "equipment_exited": 36,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.09333333333333334,
+        "market_expiries": 3,
+        "market_last_seven_day_sales_expiry_ratio": 20.666666666666668,
+        "market_oldest_open_days": 6,
+        "market_open_age_p50_days": 1,
+        "market_open_age_p90_days": 3,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 3,
+        "market_sales": 75,
+        "top_one_percent_share": 0.05419776342170768,
+        "wealth_gini": 0.522778,
+        "weekend_play_share": 0.35022885234785556,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.006071046224687612,
+            "days": 7,
+            "faucet_gold": 1923666.0,
+            "gold_growth": 1670336.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 3307.5960396039604,
+            "sink_faucet_ratio": 0.12490733838410618,
+            "sink_gold": 240280.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004010136818806381,
+            "days": 7,
+            "faucet_gold": 1974526.0,
+            "gold_growth": 1641636.0,
+            "gold_growth_fraction": 0.9828178282692823,
+            "gold_net_growth_per_active_player_day": 3132.8931297709923,
+            "sink_faucet_ratio": 0.16137543896611137,
+            "sink_gold": 318640.0,
+            "start_day": 8
+          }
+        ]
+      },
+      "name": "Concentrated administrator Starlight grants",
+      "name_zh": "管理员集中发放游戏星辉",
+      "players": 100,
+      "population_mix": {
+        "core": 30,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 1243335446,
+      "shock": {
+        "admin_starlight_grant": {
+          "per_grant": 500,
+          "total": 5000
+        }
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 11417382.0,
+          "merit": 106522,
+          "starlight": 111
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 60,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 629415000,
+          "faucet.merit": 76243,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 61177200,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 557314000,
+          "faucet.merit": 23136
+        },
+        "commissions": {
+          "faucet.gold": 161518000,
+          "faucet.merit": 7566,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 220,
+          "conversion_out.gold": 4400000,
+          "conversion_out.merit": 440,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 203,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 12180000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 5670000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 189,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 2425000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 97
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 3,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 12
+        },
+        "forge": {
+          "sink.gold": 40475000
+        },
+        "market_fee": {
+          "sink.gold": 10260000
+        },
+        "refinement": {
+          "sink.gold": 134280000
+        },
+        "supply:arrows": {
+          "sink.gold": 14210000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 11032000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 15192000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 23144000
+        },
+        "supply:torches": {
+          "sink.gold": 10608000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 126435000,
+        "cap_blocked.DUNGEON.merit": 19891,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 429109300,
+        "cap_blocked.HUNTING.merit": 6385,
+        "cap_blocked.HUNTING.starlight": 0,
+        "commission_rejected_without_play_or_evidence": 114,
+        "equipment_created": 1066,
+        "equipment_exited": 242,
+        "forge_failed": 553,
+        "kills": 491686,
+        "weekday_play_minutes": 234202,
+        "weekend_play_minutes": 502789
+      },
+      "id": "S12",
+      "metrics": {
+        "equipment_create_exit_ratio": 4.404958677685951,
+        "equipment_created": 1066,
+        "equipment_exited": 242,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.04093567251461988,
+        "market_expiries": 51,
+        "market_last_seven_day_sales_expiry_ratio": 11.88888888888889,
+        "market_oldest_open_days": 5,
+        "market_open_age_p50_days": 2,
+        "market_open_age_p90_days": 5,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 5,
+        "market_sales": 684,
+        "top_one_percent_share": 0.02566367885364464,
+        "wealth_gini": 0.387799,
+        "weekend_play_share": 0.6822186431041899,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.005224456833589538,
+            "days": 7,
+            "faucet_gold": 1685106.0,
+            "gold_growth": 1441776.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 2889.3306613226455,
+            "sink_faucet_ratio": 0.13695280890341616,
+            "sink_gold": 230780.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005522117705563046,
+            "days": 7,
+            "faucet_gold": 1683841.0,
+            "gold_growth": 1380181.0,
+            "gold_growth_fraction": 0.9572783844369722,
+            "gold_net_growth_per_active_player_day": 2690.411306042885,
+            "sink_faucet_ratio": 0.175675731853542,
+            "sink_gold": 295810.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.0059296776172039715,
+            "days": 7,
+            "faucet_gold": 1659668.0,
+            "gold_growth": 1307168.0,
+            "gold_growth_fraction": 0.46321329488720064,
+            "gold_net_growth_per_active_player_day": 2548.085769980507,
+            "sink_faucet_ratio": 0.2063063215052649,
+            "sink_gold": 342400.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005938684825845157,
+            "days": 7,
+            "faucet_gold": 1707352.0,
+            "gold_growth": 1364672.0,
+            "gold_growth_fraction": 0.33049907668089484,
+            "gold_net_growth_per_active_player_day": 2619.332053742802,
+            "sink_faucet_ratio": 0.19309433555587835,
+            "sink_gold": 329680.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006216701972474896,
+            "days": 7,
+            "faucet_gold": 1702477.0,
+            "gold_growth": 1387207.0,
+            "gold_growth_fraction": 0.2525042334108814,
+            "gold_net_growth_per_active_player_day": 2693.6058252427183,
+            "sink_faucet_ratio": 0.18180568665538507,
+            "sink_gold": 309520.0,
+            "start_day": 29
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005735989918923417,
+            "days": 7,
+            "faucet_gold": 1672710.0,
+            "gold_growth": 1328300.0,
+            "gold_growth_fraction": 0.19303869028415038,
+            "gold_net_growth_per_active_player_day": 2604.5098039215686,
+            "sink_faucet_ratio": 0.20198360743942465,
+            "sink_gold": 337860.0,
+            "start_day": 36
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005391699523266524,
+            "days": 7,
+            "faucet_gold": 1669456.0,
+            "gold_growth": 1327206.0,
+            "gold_growth_fraction": 0.16167095286031558,
+            "gold_net_growth_per_active_player_day": 2649.11377245509,
+            "sink_faucet_ratio": 0.19796867961779166,
+            "sink_gold": 330500.0,
+            "start_day": 43
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005360580482748408,
+            "days": 7,
+            "faucet_gold": 1679200.0,
+            "gold_growth": 1337610.0,
+            "gold_growth_fraction": 0.14026200360509242,
+            "gold_net_growth_per_active_player_day": 2577.28323699422,
+            "sink_faucet_ratio": 0.19475940924249643,
+            "sink_gold": 327040.0,
+            "start_day": 50
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006654328758286597,
+            "days": 4,
+            "faucet_gold": 634432.0,
+            "gold_growth": 543262.0,
+            "gold_growth_fraction": 0.04995916910977624,
+            "gold_net_growth_per_active_player_day": 2065.6349809885933,
+            "sink_faucet_ratio": 0.13936875819630787,
+            "sink_gold": 88420.0,
+            "start_day": 57
+          }
+        ]
+      },
+      "name": "70 percent of expected playtime occurs on weekends",
+      "name_zh": "玩家活动集中于周末",
+      "players": 100,
+      "population_mix": {
+        "core": 30,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 3540742167,
+      "shock": {
+        "weekend_concentration": 0.7
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 9995429.0,
+          "merit": 80960,
+          "starlight": 46
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 60,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 474675000,
+          "faucet.merit": 59747,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 60459000,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 515130900,
+          "faucet.merit": 15447
+        },
+        "commissions": {
+          "faucet.gold": 131695000,
+          "faucet.merit": 5994,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 124,
+          "conversion_out.gold": 2480000,
+          "conversion_out.merit": 248,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 175,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 10500000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 4740000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 158,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 1650000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 66
+        },
+        "exchange:starlight-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 3,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 12
+        },
+        "forge": {
+          "sink.gold": 25950000
+        },
+        "market_fee": {
+          "sink.gold": 6585000
+        },
+        "refinement": {
+          "sink.gold": 85320000
+        },
+        "supply:arrows": {
+          "sink.gold": 13020000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 8904000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 12456000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 15048000
+        },
+        "supply:torches": {
+          "sink.gold": 8544000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 3350000,
+        "cap_blocked.DUNGEON.merit": 1069,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 30300,
+        "cap_blocked.HUNTING.merit": 0,
+        "cap_blocked.HUNTING.starlight": 0,
+        "commission_rejected_without_play_or_evidence": 4887,
+        "equipment_created": 715,
+        "equipment_exited": 183,
+        "forge_failed": 323,
+        "kills": 256695,
+        "shared_inventory_alt_rejections": 4887,
+        "weekday_play_minutes": 366240,
+        "weekend_play_minutes": 149550
+      },
+      "id": "S13",
+      "metrics": {
+        "equipment_create_exit_ratio": 3.907103825136612,
+        "equipment_created": 715,
+        "equipment_exited": 183,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.04328018223234624,
+        "market_expiries": 30,
+        "market_last_seven_day_sales_expiry_ratio": 10.666666666666666,
+        "market_oldest_open_days": 6,
+        "market_open_age_p50_days": 1,
+        "market_open_age_p90_days": 5,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 5,
+        "market_sales": 439,
+        "top_one_percent_share": 0.025918504537558427,
+        "wealth_gini": 0.54316,
+        "weekend_play_share": 0.2899435816902228,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.005703321965686475,
+            "days": 7,
+            "faucet_gold": 1359824.0,
+            "gold_growth": 1199844.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 1983.2132231404958,
+            "sink_faucet_ratio": 0.11470602077915966,
+            "sink_gold": 155980.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004306261303935923,
+            "days": 7,
+            "faucet_gold": 1387320.0,
+            "gold_growth": 1181860.0,
+            "gold_growth_fraction": 0.985011384813359,
+            "gold_net_growth_per_active_player_day": 1940.6568144499179,
+            "sink_faucet_ratio": 0.14377360666609001,
+            "sink_gold": 199460.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004278251892249772,
+            "days": 7,
+            "faucet_gold": 1419716.0,
+            "gold_growth": 1200646.0,
+            "gold_growth_fraction": 0.5041121818664284,
+            "gold_net_growth_per_active_player_day": 1968.272131147541,
+            "sink_faucet_ratio": 0.14775490309329473,
+            "sink_gold": 209770.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005262166881568312,
+            "days": 7,
+            "faucet_gold": 1389413.0,
+            "gold_growth": 1168023.0,
+            "gold_growth_fraction": 0.32604938099292363,
+            "gold_net_growth_per_active_player_day": 1940.2375415282393,
+            "sink_faucet_ratio": 0.15426658596112172,
+            "sink_gold": 214340.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005558422995989995,
+            "days": 7,
+            "faucet_gold": 1377585.0,
+            "gold_growth": 1157095.0,
+            "gold_growth_fraction": 0.2435798199425603,
+            "gold_net_growth_per_active_player_day": 1944.6974789915967,
+            "sink_faucet_ratio": 0.15504669403339902,
+            "sink_gold": 213590.0,
+            "start_day": 29
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005213864880906041,
+            "days": 7,
+            "faucet_gold": 1392813.0,
+            "gold_growth": 1163863.0,
+            "gold_growth_fraction": 0.19701554032963023,
+            "gold_net_growth_per_active_player_day": 1917.4019769357496,
+            "sink_faucet_ratio": 0.15684086808494752,
+            "sink_gold": 218450.0,
+            "start_day": 36
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.00538830199636589,
+            "days": 7,
+            "faucet_gold": 1329028.0,
+            "gold_growth": 1115718.0,
+            "gold_growth_fraction": 0.1577804800821797,
+            "gold_net_growth_per_active_player_day": 1862.6343906510851,
+            "sink_faucet_ratio": 0.1564376371302937,
+            "sink_gold": 207910.0,
+            "start_day": 43
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006926172082377207,
+            "days": 7,
+            "faucet_gold": 1369278.0,
+            "gold_growth": 1144518.0,
+            "gold_growth_fraction": 0.13979615854259575,
+            "gold_net_growth_per_active_player_day": 1888.6435643564357,
+            "sink_faucet_ratio": 0.15592889099218712,
+            "sink_gold": 213510.0,
+            "start_day": 50
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.006128661875470593,
+            "days": 4,
+            "faucet_gold": 794622.0,
+            "gold_growth": 663862.0,
+            "gold_growth_fraction": 0.07114153496406338,
+            "gold_net_growth_per_active_player_day": 1952.535294117647,
+            "sink_faucet_ratio": 0.15763469926581444,
+            "sink_gold": 125260.0,
+            "start_day": 57
+          }
+        ]
+      },
+      "name": "Alt accounts attempt commissions with shared stock",
+      "name_zh": "大量小号尝试共享库存做委托",
+      "players": 100,
+      "population_mix": {
+        "alt": 30,
+        "core": 40,
+        "newcomer": 30
+      },
+      "seed": 47172776,
+      "shock": {
+        "alt_shared_inventory": true
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "admin_daily_grants": {},
+      "admin_unissued": 0,
+      "alerts": [
+        "UNCALIBRATED: synthetic player decisions; no observed seven-day ledger supplied",
+        "MODEL_GOLD_STOCK_GROWTH: modeled sinks are below faucets; inspect omitted sinks and calibrate before tuning"
+      ],
+      "balances": {
+        "closing": {
+          "gold": 6824186.0,
+          "merit": 60948,
+          "starlight": 68
+        },
+        "conservation": true,
+        "opening": {
+          "gold": 0.0,
+          "merit": 0,
+          "starlight": 0
+        }
+      },
+      "days": 30,
+      "flows_integer_units": {
+        "DUNGEON": {
+          "faucet.gold": 359810000,
+          "faucet.merit": 44383,
+          "faucet.starlight": 0
+        },
+        "GATHERING": {
+          "faucet.gold": 31327800,
+          "faucet.merit": 0,
+          "faucet.starlight": 0
+        },
+        "HUNTING": {
+          "faucet.gold": 349667800,
+          "faucet.merit": 13690
+        },
+        "commissions": {
+          "faucet.gold": 75307000,
+          "faucet.merit": 3064,
+          "faucet.starlight": 0
+        },
+        "exchange:gold-merit-to-starlight": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 103,
+          "conversion_out.gold": 2060000,
+          "conversion_out.merit": 206,
+          "conversion_out.starlight": 0
+        },
+        "exchange:gold-to-merit": {
+          "conversion_in.gold": 0,
+          "conversion_in.merit": 121,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 7260000,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 0
+        },
+        "exchange:merit-to-gold": {
+          "conversion_in.gold": 3120000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 104,
+          "conversion_out.starlight": 0
+        },
+        "exchange:starlight-to-gold": {
+          "conversion_in.gold": 875000,
+          "conversion_in.merit": 0,
+          "conversion_in.starlight": 0,
+          "conversion_out.gold": 0,
+          "conversion_out.merit": 0,
+          "conversion_out.starlight": 35
+        },
+        "forge": {
+          "sink.gold": 20850000
+        },
+        "market_fee": {
+          "sink.gold": 4395000
+        },
+        "refinement": {
+          "sink.gold": 67000000
+        },
+        "supply:arrows": {
+          "sink.gold": 8260000
+        },
+        "supply:cooked-beef": {
+          "sink.gold": 7000000
+        },
+        "supply:ender-pearls": {
+          "sink.gold": 6480000
+        },
+        "supply:firework-rockets": {
+          "sink.gold": 9152000
+        },
+        "supply:torches": {
+          "sink.gold": 5232000
+        }
+      },
+      "guard_counters": {
+        "cap_blocked.DUNGEON.gold": 15910000,
+        "cap_blocked.DUNGEON.merit": 3393,
+        "cap_blocked.DUNGEON.starlight": 0,
+        "cap_blocked.GATHERING.gold": 0,
+        "cap_blocked.GATHERING.merit": 0,
+        "cap_blocked.GATHERING.starlight": 0,
+        "cap_blocked.HUNTING.gold": 159587600,
+        "cap_blocked.HUNTING.merit": 1595,
+        "cap_blocked.HUNTING.starlight": 0,
+        "equipment_created": 537,
+        "equipment_exited": 98,
+        "forge_failed": 297,
+        "kills": 253707,
+        "season_attempts": 150,
+        "season_replay_deduplicated": 50,
+        "season_unique_settlements": 100,
+        "weekday_play_minutes": 251400,
+        "weekend_play_minutes": 126900
+      },
+      "id": "S14",
+      "metrics": {
+        "equipment_create_exit_ratio": 5.479591836734694,
+        "equipment_created": 537,
+        "equipment_exited": 98,
+        "equipment_identity_conservation": true,
+        "largest_seller_share": 0.06484641638225255,
+        "market_expiries": 22,
+        "market_last_seven_day_sales_expiry_ratio": 8.545454545454545,
+        "market_oldest_open_days": 4,
+        "market_open_age_p50_days": 1,
+        "market_open_age_p90_days": 3,
+        "market_sale_age_p50_days": 1,
+        "market_sale_age_p90_days": 4,
+        "market_sales": 293,
+        "top_one_percent_share": 0.03313003214252257,
+        "wealth_gini": 0.446834,
+        "weekend_play_share": 0.3354480570975416,
+        "weekly": [
+          {
+            "conversion_share_of_gold_inflow": 0.0047462322700601136,
+            "days": 7,
+            "faucet_gold": 1981603.0,
+            "gold_growth": 1720573.0,
+            "gold_growth_fraction": null,
+            "gold_net_growth_per_active_player_day": 3420.6222664015904,
+            "sink_faucet_ratio": 0.1276138560549212,
+            "sink_gold": 252880.0,
+            "start_day": 1
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004408430598706861,
+            "days": 7,
+            "faucet_gold": 1897040.0,
+            "gold_growth": 1572340.0,
+            "gold_growth_fraction": 0.9138467243180034,
+            "gold_net_growth_per_active_player_day": 3083.0196078431372,
+            "sink_faucet_ratio": 0.1632543330662506,
+            "sink_gold": 309700.0,
+            "start_day": 8
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.004534632687152398,
+            "days": 7,
+            "faucet_gold": 1964749.0,
+            "gold_growth": 1636469.0,
+            "gold_growth_fraction": 0.496966971189339,
+            "gold_net_growth_per_active_player_day": 3129.0038240917784,
+            "sink_faucet_ratio": 0.16003570939595846,
+            "sink_gold": 314430.0,
+            "start_day": 15
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005604956189279641,
+            "days": 7,
+            "faucet_gold": 1836230.0,
+            "gold_growth": 1500020.0,
+            "gold_growth_fraction": 0.3043018374311425,
+            "gold_net_growth_per_active_player_day": 3000.04,
+            "sink_faucet_ratio": 0.17609994390680905,
+            "sink_gold": 323360.0,
+            "start_day": 22
+          },
+          {
+            "conversion_share_of_gold_inflow": 0.005781492616208001,
+            "days": 2,
+            "faucet_gold": 481504.0,
+            "gold_growth": 394784.0,
+            "gold_growth_fraction": 0.061402911188318914,
+            "gold_net_growth_per_active_player_day": 3084.25,
+            "sink_faucet_ratio": 0.17304113776832591,
+            "sink_gold": 83320.0,
+            "start_day": 29
+          }
+        ]
+      },
+      "name": "Interrupted season settlement and replay",
+      "name_zh": "换季中途失败并重放",
+      "players": 100,
+      "population_mix": {
+        "core": 30,
+        "forger": 5,
+        "hardcore": 10,
+        "merchant": 7,
+        "newcomer": 20,
+        "organizer": 3,
+        "weekend": 25
+      },
+      "seed": 3964956462,
+      "shock": {
+        "season_settlement": {
+          "fail_at": "SETTLING",
+          "replay": true
+        }
+      },
+      "status": "SIMULATED_UNCALIBRATED"
+    },
+    {
+      "id": "S15",
+      "name": "Reject a support-credit to gameplay-wealth connection",
+      "name_zh": "现实支持积分错误连接游戏星辉，要求仿真启动直接失败",
+      "reason": "C-012: support_credit cannot reach gameplay wealth",
+      "seed": 3701762276,
+      "status": "EXPECTED_FAIL_FAST"
+    }
+  ],
+  "schema_version": 2,
+  "scope_limits": [
+    "No Paper, JDBC, concurrency, network or actual player behavior is executed here.",
+    "Fixed effective mob level; no progression, combat difficulty, energy gates or raid/advancement income model.",
+    "Commission stock and forge catalysts/base items are assumed available; account evidence and gold/core costs are enforced.",
+    "Forged-item rolls, enhancement outcomes, binding and unbinding are simplified; exits return the minimum one essence.",
+    "Market prices are synthetic willingness to pay. Monopoly shock imposes completed-sales concentration by delaying competing sales; volume may fall.",
+    "Season replay is an isolated identity/cursor model, not validation of database recovery or a new reward.",
+    "Omitted systems can materially change sink/faucet ratios. Do not change live prices or drop rates from this report alone."
+  ],
+  "seed": 42
+}
