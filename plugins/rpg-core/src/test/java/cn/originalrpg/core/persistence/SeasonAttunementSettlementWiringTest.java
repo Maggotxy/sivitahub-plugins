@@ -58,6 +58,12 @@ final class SeasonAttunementSettlementWiringTest {
         executor = Executors.newVirtualThreadPerTaskExecutor();
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
             statement.execute("""
+                    CREATE TABLE rpg_mechanism_switches (
+                        mechanism_id VARCHAR(64) PRIMARY KEY, enabled BOOLEAN NOT NULL,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_by VARCHAR(64) NOT NULL)
+                    """);
+            statement.execute("""
                     CREATE TABLE rpg_progression_wallets (
                         player_uuid VARCHAR(36) PRIMARY KEY, merit BIGINT NOT NULL DEFAULT 0,
                         season_id VARCHAR(32), updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)
@@ -267,11 +273,8 @@ final class SeasonAttunementSettlementWiringTest {
 
     private MechanismRegistry mechanisms(boolean enabled) throws Exception {
         MechanismRegistry mechanisms = new MechanismRegistry(dataSource);
-        Field cache = MechanismRegistry.class.getDeclaredField("cache");
-        cache.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<String, Boolean> values = (Map<String, Boolean>) cache.get(mechanisms);
-        values.put(MechanismRegistry.SEASON_SETTLEMENT, enabled);
+        mechanisms.initialize();
+        mechanisms.setEnabled(MechanismRegistry.SEASON_SETTLEMENT, enabled, "test: attunement wiring");
         return mechanisms;
     }
 

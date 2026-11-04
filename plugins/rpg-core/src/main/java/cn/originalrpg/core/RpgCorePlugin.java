@@ -110,6 +110,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
+import cn.originalrpg.api.service.MechanismControlService;
+import cn.originalrpg.core.persistence.JdbcMechanismControlService;
 
 public final class RpgCorePlugin extends JavaPlugin {
     private Database database;
@@ -127,6 +129,7 @@ public final class RpgCorePlugin extends JavaPlugin {
     private AutoCloseable nodeLeaseRenewal;
     private final AtomicBoolean outboxDispatchInFlight = new AtomicBoolean();
     private final AtomicBoolean chapterRefreshInFlight = new AtomicBoolean();
+    private final AtomicBoolean mechanismRefreshInFlight = new AtomicBoolean();
     private final FailStopCoordinator failStop = new FailStopCoordinator();
     private final AtomicBoolean reservationRecoveryInFlight = new AtomicBoolean();
 
@@ -362,6 +365,8 @@ public final class RpgCorePlugin extends JavaPlugin {
             PersistenceMetricsService persistenceMetrics = () -> database.metrics(databaseExecutor);
             registerService(PersistenceMetricsService.class, persistenceMetrics,
                     this, ServicePriority.Normal);
+            var mechanismControl = new JdbcMechanismControlService(mechanisms, databaseExecutor);
+            registerService(MechanismControlService.class, mechanismControl, this, ServicePriority.Normal);
 
             RpgCommand command = new RpgCommand(
                     this, profiles, activityEconomy, chapters, messages, seasonMerits, seasonSettlements,
@@ -375,6 +380,7 @@ public final class RpgCorePlugin extends JavaPlugin {
             getServer().getPluginManager().registerEvents(command, this);
             startEnergyRegeneration(profiles);
             startChapterRefresh(chapters);
+            startMechanismRefresh(mechanismControl);
             startNodeLeaseHeartbeat(nodeLeaseSeconds);
             startReservationRecovery(dungeonEntries);
             if (outboxEnabled && outboxDispatchEnabled) {
@@ -412,6 +418,19 @@ public final class RpgCorePlugin extends JavaPlugin {
         return new JdbcChapterService(database.dataSource(), databaseExecutor,
                 getConfig().getString("chapters.season-id", "launch-1"),
                 getConfig().getString("chapters.initial", "awakening"), chapters);
+    }
+
+    private void startMechanismRefresh(MechanismControlService control) {
+        // Submit onto the bounded gameplay executor; never occupy the tick thread
+        // or the dedicated node-lease executor with registry JDBC reads.
+        getServer().getScheduler().runTaskTimer(this, () -> {
+            if (!mechanismRefreshInFlight.compareAndSet(false, true)) return;
+            control.switches().whenComplete((state, error) -> {
+                mechanismRefreshInFlight.set(false);
+                if (error != null) getLogger().warning("Mechanism switch refresh failed; stale admission will close: "
+                        + error.getClass().getSimpleName());
+            });
+        }, 40L, 40L);
     }
 
     private void startChapterRefresh(JdbcChapterService chapters) {

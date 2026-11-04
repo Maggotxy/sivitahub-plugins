@@ -12,6 +12,7 @@ import cn.originalrpg.api.service.PetRevivalService;
 import cn.originalrpg.api.service.ProgressionAnomalyService;
 import cn.originalrpg.api.service.SeasonSettlementService;
 import cn.originalrpg.api.service.EquipmentLedgerAuditService;
+import cn.originalrpg.api.service.MechanismControlService;
 import cn.originalrpg.api.model.EconomyActivity;
 import cn.originalrpg.api.model.IncidentActivityCompensation;
 import cn.originalrpg.api.model.IncidentConditionalActivityCompensation;
@@ -60,6 +61,7 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
     private EquipmentLedgerAuditService ledgerAudit;
     private SeasonSettlementCommand seasonSettlements;
     private AnomalyReviewCommand anomalyReviews;
+    private MechanismControlCommand mechanismControl;
     private final AtomicBoolean economyCollectionInFlight = new AtomicBoolean();
     private final AtomicBoolean snapshotLifecycleActive = new AtomicBoolean();
     private final AtomicLong snapshotGenerations = new AtomicLong();
@@ -101,6 +103,9 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
             getLogger().warning("ProgressionAnomalyService is not registered; /rpgadmin anomaly stays unbound.");
         }
         PluginCommand command = Objects.requireNonNull(getCommand("rpgadmin"), "rpgadmin command");
+        mechanismControl = new MechanismControlCommand(Objects.requireNonNull(
+                getServer().getServicesManager().load(MechanismControlService.class), "MechanismControlService"),
+                task -> Bukkit.getScheduler().runTask(this, task), getLogger());
         command.setExecutor(this);
         command.setTabCompleter(this);
         snapshotIo = new AdminSnapshotIo(getDataFolder().toPath());
@@ -119,6 +124,7 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
 
     @Override
     public void onDisable() {
+        if (mechanismControl != null) mechanismControl.close();
         snapshotLifecycleActive.set(false);
         snapshotGenerations.incrementAndGet();
         AdminSnapshotIo current = snapshotIo;
@@ -134,6 +140,9 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (args.length >= 1 && args[0].equalsIgnoreCase("mechanism")) {
+            return mechanismControl.execute(sender, args);
+        }
         if (args.length >= 1 && args[0].equalsIgnoreCase("test")) {
             return handleTest(sender, args);
         }
@@ -726,8 +735,11 @@ public final class RpgAdminPlugin extends JavaPlugin implements CommandExecutor,
             CommandSender sender, Command command, String alias, String[] args
     ) {
         if (args.length == 1) return prefix(List.of(
-                "economy", "chapter", "season", "incident", "petrevival", "equipment", "anomaly",
+                "economy", "chapter", "season", "incident", "petrevival", "equipment", "anomaly", "mechanism",
                 "xp", "energy", "test"), args[0]);
+        if (args.length > 0 && args[0].equalsIgnoreCase("mechanism")) {
+            return MechanismControlCommand.complete(args);
+        }
         if (args[0].equalsIgnoreCase("season")) {
             return seasonSettlements == null ? List.of() : SeasonSettlementCommand.complete(args);
         }

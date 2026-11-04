@@ -131,6 +131,9 @@ final class MechanismKillSwitchContractTest {
             statement.execute(SETTLEMENTS_DDL);
             statement.execute(TRANSITIONS_DDL);
             statement.execute(GATE_DDL);
+            statement.execute("CREATE TABLE rpg_mechanism_switches (mechanism_id VARCHAR(64) PRIMARY KEY,"
+                    + "enabled BOOLEAN NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+                    + "updated_by VARCHAR(64) NOT NULL)");
             connection.commit();
         }
     }
@@ -145,11 +148,8 @@ final class MechanismKillSwitchContractTest {
     void disabledSeasonSettlementMechanismFailsClosedOnRealDatabase() throws Exception {
         // 运行期行为断言：开关关掉后换季迁移必须被拒绝，且不落任何状态行。
         MechanismRegistry registry = new MechanismRegistry(dataSource);
-        Field cache = MechanismRegistry.class.getDeclaredField("cache");
-        cache.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<String, Boolean> cacheValues = (Map<String, Boolean>) cache.get(registry);
-        cacheValues.put(MechanismRegistry.SEASON_SETTLEMENT, false);
+        registry.initialize();
+        registry.setEnabled(MechanismRegistry.SEASON_SETTLEMENT, false, "console: reviewed freeze");
 
         JdbcSeasonSettlementService settlement =
                 new JdbcSeasonSettlementService(dataSource, executor, registry);
