@@ -48,16 +48,19 @@ jobs:
           mkdir -p build/verification/h2
           if [ -d plugins/rpg-core/build/test-results/test ]; then cp -R plugins/rpg-core/build/test-results/test build/verification/h2/core; fi
           if [ -d tools/db-migration/build/test-results/test ]; then cp -R tools/db-migration/build/test-results/test build/verification/h2/migration; fi
-      - name: Real PostgreSQL market settlement and migration
+      - name: Real PostgreSQL market, support payments and migration
         env:
           SIVITA_MARKET_TEST_POSTGRES_URL: jdbc:postgresql://localhost:5432/sivita_test
           SIVITA_MARKET_TEST_POSTGRES_USER: sivita_ci
           SIVITA_MARKET_TEST_POSTGRES_PASSWORD: sivita_ephemeral_ci_only
+          SIVITA_SUPPORT_TEST_POSTGRES_URL: jdbc:postgresql://localhost:5432/sivita_test
+          SIVITA_SUPPORT_TEST_POSTGRES_USER: sivita_ci
+          SIVITA_SUPPORT_TEST_POSTGRES_PASSWORD: sivita_ephemeral_ci_only
           SIVITA_MIGRATION_TEST_POSTGRES_URL: jdbc:postgresql://localhost:5432/sivita_test
           SIVITA_MIGRATION_TEST_POSTGRES_USER: sivita_ci
           SIVITA_MIGRATION_TEST_POSTGRES_PASSWORD: sivita_ephemeral_ci_only
         run: |
-          gradle --no-daemon :plugins:rpg-core:test --tests cn.originalrpg.core.persistence.JdbcMarketBuyOrderServiceTest -PexcludeTags=env --rerun-tasks
+          gradle --no-daemon :plugins:rpg-core:test --tests cn.originalrpg.core.persistence.JdbcMarketBuyOrderServiceTest --tests cn.originalrpg.core.persistence.JdbcSupportCreditServiceTest --tests cn.originalrpg.core.persistence.SupportLegacyIsolationTest --tests cn.originalrpg.core.persistence.SupportPaymentGateTest --tests cn.originalrpg.core.persistence.LegacyPaymentAuditTest -PexcludeTags=env --rerun-tasks
           gradle --no-daemon :tools:db-migration:test -PexcludeTags=env --rerun-tasks
       - name: Preserve transaction evidence
         if: always()

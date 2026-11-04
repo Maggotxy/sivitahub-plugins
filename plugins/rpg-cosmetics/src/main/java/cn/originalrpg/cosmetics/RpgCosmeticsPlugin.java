@@ -2,6 +2,9 @@ package cn.originalrpg.cosmetics;
 
 import cn.originalrpg.api.event.AuthenticatedPlayerReadyEvent;
 import cn.originalrpg.api.event.AuthenticatedPlayerRevokedEvent;
+import cn.originalrpg.api.event.SupportEntitlementsChangedEvent;
+import cn.originalrpg.api.model.SupportCosmetic;
+import cn.originalrpg.api.service.SupportCreditService;
 import cn.originalrpg.api.model.CosmeticMoment;
 import cn.originalrpg.api.model.ServerLoadState;
 import cn.originalrpg.api.model.VisualMode;
@@ -56,7 +59,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Clock;
 
 public final class RpgCosmeticsPlugin extends JavaPlugin
         implements Listener, CommandExecutor, TabCompleter, CosmeticEffectService {
@@ -75,7 +78,8 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
     private static final Particle.DustTransition[] PRISMATIC_TRANSITIONS = createPrismaticTransitions();
 
     private final Map<UUID, Long> combatSuppression = new HashMap<>();
-    private final Set<UUID> authenticatedPlayers = ConcurrentHashMap.newKeySet();
+    private final SupportEntitlementCache<Player> paidEntitlements = new SupportEntitlementCache<>(Clock.systemUTC());
+    private SupportCreditService supportCredits;
     private final EnumMap<TrailStyle, NamespacedKey> trailUnlockedKeys = new EnumMap<>(TrailStyle.class);
     private final Deque<MomentRequest> pendingMoments = new ArrayDeque<>();
     private final Map<String, Long> momentCooldowns = new HashMap<>();
@@ -98,6 +102,8 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
         saveConfig();
         messages = Objects.requireNonNull(
                 getServer().getServicesManager().load(MessageService.class), "MessageService");
+        supportCredits = Objects.requireNonNull(
+                getServer().getServicesManager().load(SupportCreditService.class), "SupportCreditService");
         selectedAuraKey = new NamespacedKey(this, "selected_aura");
         prismaticUnlockedKey = new NamespacedKey(this, "prismatic_unlocked");
         selectedTrailKey = new NamespacedKey(this, "selected_trail");
@@ -116,6 +122,9 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
         getServer().getServicesManager().register(CosmeticEffectService.class, this, this, ServicePriority.Normal);
         long interval = Math.clamp(getConfig().getLong("render.interval-ticks", 5L), 2L, 40L);
         getServer().getScheduler().runTaskTimer(this, this::render, interval, interval);
+        getServer().getScheduler().runTaskTimer(this, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) refreshPaidEntitlements(player, false);
+        }, 200L, 200L);
     }
 
     /**
@@ -144,6 +153,7 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
         pendingMoments.clear();
         momentCooldowns.clear();
         combatSuppression.clear();
+        paidEntitlements.clear();
         getServer().getServicesManager().unregisterAll(this);
     }
 
@@ -161,6 +171,8 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
             sender.sendMessage(messages.text(sender, "common.player-only"));
             return true;
         }
+        if (!currentSession(player)) return true;
+        refreshPaidEntitlements(player, false);
         return command.getName().equalsIgnoreCase("trail")
                 ? handleTrailCommand(player, args) : handleAuraCommand(player, args);
     }
@@ -244,13 +256,15 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
     public void onClick(InventoryClickEvent event) {
         if (event.getView().getTopInventory().getHolder() instanceof AuraMenu menu) {
             event.setCancelled(true);
-            if (!(event.getWhoClicked() instanceof Player player)) return;
+            if (!(event.getWhoClicked() instanceof Player player) || !currentSession(player)) return;
+            refreshPaidEntitlements(player, false);
             handleAuraMenu(player, menu.actionAt(event.getRawSlot()));
             return;
         }
         if (event.getView().getTopInventory().getHolder() instanceof TrailMenu menu) {
             event.setCancelled(true);
-            if (!(event.getWhoClicked() instanceof Player player)) return;
+            if (!(event.getWhoClicked() instanceof Player player) || !currentSession(player)) return;
+            refreshPaidEntitlements(player, false);
             handleTrailMenu(player, menu.actionAt(event.getRawSlot()));
         }
     }
@@ -281,24 +295,65 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
 
     @EventHandler
     public void onAuthenticated(AuthenticatedPlayerReadyEvent event) {
-        authenticatedPlayers.add(event.player().getUniqueId());
+        paidEntitlements.authenticate(event.player().getUniqueId(), event.player());
+        refreshPaidEntitlements(event.player(), true);
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        clearSession(event.getPlayer().getUniqueId());
+        clearSession(event.getPlayer());
     }
 
     @EventHandler
     public void onAuthenticationRevoked(AuthenticatedPlayerRevokedEvent event) {
-        clearSession(event.player().getUniqueId());
+        clearSession(event.player());
     }
 
-    private void clearSession(UUID playerId) {
-        authenticatedPlayers.remove(playerId);
+    private void clearSession(Player player) {
+        UUID playerId = player.getUniqueId();
+        if (!paidEntitlements.revoke(playerId, player)) return;
+        Object holder = player.getOpenInventory().getTopInventory().getHolder();
+        if (holder instanceof AuraMenu || holder instanceof TrailMenu) player.closeInventory();
         combatSuppression.remove(playerId);
         pendingMoments.removeIf(request -> request.playerId().equals(playerId));
         momentCooldowns.keySet().removeIf(key -> key.startsWith(playerId + ":"));
+    }
+
+    @EventHandler
+    public void onSupportEntitlementsChanged(SupportEntitlementsChangedEvent event) {
+        Player player = Bukkit.getPlayer(event.playerId());
+        if (player != null && currentSession(player)) refreshPaidEntitlements(player, true);
+    }
+
+    private boolean currentSession(Player player) {
+        return isEnabled() && player.isOnline() && Bukkit.getPlayer(player.getUniqueId()) == player
+                && paidEntitlements.authenticated(player.getUniqueId(), player);
+    }
+
+    /** Only a successful authority read populates paid ownership; PDC retains selection and legacy voucher ownership only. */
+    private void refreshPaidEntitlements(Player player, boolean force) {
+        if (!currentSession(player)) return;
+        var request = paidEntitlements.beginRefresh(player.getUniqueId(), player, force).orElse(null);
+        if (request == null) return;
+        try {
+            supportCredits.entitlements(player.getUniqueId()).whenComplete((owned, error) -> {
+                if (!isEnabled()) return;
+                try {
+                    Bukkit.getScheduler().runTask(this, () -> {
+                        if (!isEnabled()) return;
+                        var completion = paidEntitlements.complete(request, error == null ? owned : Set.of(), error == null);
+                        if (!completion.current() || !currentSession(player)) return;
+                        if (completion.refreshAgain()) { refreshPaidEntitlements(player, true); return; }
+                        if (error != null) return;
+                        Object holder = player.getOpenInventory().getTopInventory().getHolder();
+                        if (holder instanceof AuraMenu) openAura(player);
+                        else if (holder instanceof TrailMenu) openTrail(player);
+                    });
+                } catch (IllegalStateException ignored) { /* Plugin shutdown discards this rendering hint. */ }
+            });
+        } catch (RuntimeException error) {
+            paidEntitlements.complete(request, Set.of(), false);
+        }
     }
 
     private void handleAuraMenu(Player player, String action) {
@@ -724,7 +779,7 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
     }
 
     private boolean baseEligible(Player player) {
-        if (!authenticatedPlayers.contains(player.getUniqueId())
+        if (!currentSession(player)
                 || player.getGameMode() == GameMode.SPECTATOR || player.isInvisible()) return false;
         String world = player.getWorld().getName();
         return getConfig().getStringList("render.disabled-world-prefixes").stream().noneMatch(world::startsWith);
@@ -732,7 +787,8 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
 
     private AuraType selectedAura(Player player) {
         String value = player.getPersistentDataContainer().get(selectedAuraKey, PersistentDataType.STRING);
-        return AuraType.parse(value).orElse(AuraType.OFF);
+        AuraType type = AuraType.parse(value).orElse(AuraType.OFF);
+        return unlockedAura(player, type) ? type : AuraType.OFF;
     }
 
     private TrailStyle selectedTrail(Player player) {
@@ -753,13 +809,16 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
     private boolean unlockedAura(Player player, AuraType type) {
         if (!type.voucherRequired()) return true;
         Byte unlocked = player.getPersistentDataContainer().get(prismaticUnlockedKey, PersistentDataType.BYTE);
-        return unlocked != null && unlocked == (byte) 1;
+        return (unlocked != null && unlocked == (byte) 1)
+                || paidEntitlements.owns(player.getUniqueId(), player, SupportCosmetic.PRISMATIC_AURA);
     }
 
     private boolean unlockedTrail(Player player, TrailStyle style) {
         if (!style.voucherRequired()) return true;
         Byte unlocked = player.getPersistentDataContainer().get(trailUnlockedKeys.get(style), PersistentDataType.BYTE);
-        return unlocked != null && unlocked == (byte) 1;
+        SupportCosmetic cosmetic = style == TrailStyle.WINGS ? SupportCosmetic.ELYTRA_WINGS : SupportCosmetic.ELYTRA_COMET;
+        return (unlocked != null && unlocked == (byte) 1)
+                || paidEntitlements.owns(player.getUniqueId(), player, cosmetic);
     }
 
     private void queueMoment(UUID playerId, CosmeticMoment moment) {

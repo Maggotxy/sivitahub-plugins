@@ -903,7 +903,7 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             MarketDelivery delivery
     ) {
         market.markDelivered(delivery.id(), player.getUniqueId()).whenComplete((marked, error) -> sync(() -> {
-            if (error != null) {
+            if (error != null || !Boolean.TRUE.equals(marked)) {
                 finishClaim(player, lease);
                 if (ready(player)) player.sendMessage(Component.text(
                         messages.text(player, "market.delivery-confirm-failed"), NamedTextColor.YELLOW));
@@ -1409,10 +1409,15 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
                             + player.getUniqueId() + " delivery=" + deliveryId + ": " + error.getMessage());
                     return;
                 }
+                if (!Boolean.TRUE.equals(marked)) {
+                    plugin.getLogger().warning("Delivery receipt remains frozen pending review player="
+                            + player.getUniqueId() + " delivery=" + deliveryId);
+                    return;
+                }
                 if (!ready(player) || !clearInventoryMarker(player, deliveryMarker, deliveryId)) return;
                 player.saveData();
                 plugin.getLogger().info("Recovered transient delivery receipt player="
-                        + player.getUniqueId() + " delivery=" + deliveryId + " newlyCommitted=" + marked);
+                        + player.getUniqueId() + " delivery=" + deliveryId + " confirmed=" + marked);
             }));
         }
     }

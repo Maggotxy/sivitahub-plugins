@@ -3,18 +3,33 @@ version: '${version}'
 main: cn.originalrpg.commerce.RpgCommercePlugin
 api-version: '${paperApi}'
 authors: [OriginalRpg]
-description: Audited memberships, payment ledger and cumulative rewards.
+description: Earnable memberships, audited Starlight products and isolated cosmetic support credits.
 depend: [RpgApi, RpgCore, RpgMarket]
 commands:
   store:
-    description: View Starlight, buy bound products and claim cumulative rewards.
-    usage: /store [status|supplies|buy <product-id>|buy-supply <supply-id>|claim]
+    description: View Starlight, earned membership and reviewed products.
+    usage: /store [status|supplies|buy <product-id>|buy-supply <supply-id>]
     permission: rpg.store
+  support:
+    description: View isolated Support Credit and confirm a cosmetic-only purchase.
+    usage: /support [status|catalog|buy <cosmetic-id>|confirm <preview-id>]
+    permission: rpg.support
   rpgcommerce:
-    description: Record bounded membership support or atomically grant and revoke audited Starlight.
-    usage: /rpgcommerce <payment <player> <amount> <reference> [membership-days]|starlight <player> <grant|revoke> <amount> <reference>>
+    description: Import an externally signed support receipt or administer audited Starlight.
+    usage: /rpgcommerce <support-receipt <payload-base64url> <signature-base64url>|support-payments <enable|disable|status>|legacy-payments <uuid> [limit]|starlight <player> <grant|revoke> <amount> <reference>>
     permission: rpg.commerce.admin
 permissions:
+  rpg.support:
+    default: true
+  rpg.commerce.support.import:
+    description: Console-only import of a receipt verified with a configured Ed25519 public key.
+    default: op
+  rpg.commerce.support.control:
+    description: Console-only control of the persistent Support Credit payment admission gate.
+    default: op
+  rpg.commerce.legacy.audit:
+    description: Console-only bounded read of historical payment audit records for one exact UUID.
+    default: op
   rpg.store:
     default: true
   rpg.commerce.admin:
@@ -26,5 +41,5 @@ permissions:
     description: Revoke Starlight through a unique audited reference.
     default: op
   rpg.commerce.payment:
-    description: Record an externally verified support payment and bounded membership time.
+    description: Deprecated compatibility permission; the historical payment command is disabled.
     default: op

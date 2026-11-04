@@ -90,6 +90,8 @@ supply-shop:
       public-price: "880.00"
       member-price: "836.00"
       daily-limit: 2
+# Historical audit reference only: runtime no longer reads or grants these paid rewards.
+# Support Credit accepts signed receipts in RpgCore and only unlocks its reviewed cosmetic catalog.
 rewards:
   first-support:
     required-lifetime: "30.00"

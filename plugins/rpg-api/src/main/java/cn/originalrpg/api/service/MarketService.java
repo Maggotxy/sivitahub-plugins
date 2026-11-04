@@ -81,6 +81,12 @@ public interface MarketService {
 
     CompletionStage<List<MarketDelivery>> pendingDeliveries(UUID playerId, int limit);
 
+    /**
+     * Confirms that this player's permitted delivery is durably DELIVERED.
+     * Repeating a committed acknowledgement returns true. Unknown, quarantined,
+     * legacy paid-material, or differently owned deliveries return false; callers
+     * must retain the physical delivery marker until this method returns true.
+     */
     CompletionStage<Boolean> markDelivered(UUID deliveryId, UUID playerId);
 
     CompletionStage<Boolean> enqueueDelivery(
