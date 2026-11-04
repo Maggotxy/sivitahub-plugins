@@ -22,6 +22,9 @@ public record BuyOrderOperationResult(Status status, MarketOrder order) {
         NO_MATCH,
         INSUFFICIENT_FUNDS,
         BALANCE_LIMIT,
+        ORDER_LIMIT,
+        IDEMPOTENCY_CONFLICT,
+        ESCROW_UNVERIFIED,
         DUPLICATE,
         INVALID
     }

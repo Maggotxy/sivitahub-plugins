@@ -50,6 +50,11 @@ public final class RpgMarketPlugin extends JavaPlugin {
                         if (error != null) getLogger().warning("Market expiry scan failed: " + error.getMessage());
                         else if (expired > 0) getLogger().info("Expired and returned " + expired + " market listings");
                     });
+            buyOrders.expire(Instant.now().minus(Duration.ofHours(hours)), batch)
+                    .whenComplete((expired, error) -> {
+                        if (error != null) getLogger().warning("Buy/crafting order expiry failed: " + error.getMessage());
+                        else if (expired > 0) getLogger().info("Expired and refunded " + expired + " funded orders");
+                    });
         }, 1200L, interval);
     }
 

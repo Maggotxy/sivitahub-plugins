@@ -14,7 +14,8 @@ public record MarketListing(
         State state,
         UUID buyerId,
         Instant createdAt,
-        Instant completedAt
+        Instant completedAt,
+        java.util.Optional<MarketGoods> goods
 ) {
     public MarketListing {
         Objects.requireNonNull(id, "id");
@@ -24,6 +25,13 @@ public record MarketListing(
         Objects.requireNonNull(feeRate, "feeRate");
         Objects.requireNonNull(state, "state");
         Objects.requireNonNull(createdAt, "createdAt");
+        Objects.requireNonNull(goods, "goods");
+    }
+
+    public MarketListing(UUID id, UUID sellerId, String itemPayload, BigDecimal price,
+                         BigDecimal feeRate, State state, UUID buyerId, Instant createdAt, Instant completedAt) {
+        this(id, sellerId, itemPayload, price, feeRate, state, buyerId, createdAt, completedAt,
+                java.util.Optional.empty());
     }
 
     public enum State {

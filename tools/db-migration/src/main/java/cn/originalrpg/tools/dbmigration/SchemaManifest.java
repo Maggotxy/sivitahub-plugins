@@ -162,6 +162,7 @@ public final class SchemaManifest {
                 List.of("state", "created_at"),
                 List.of("seller_uuid", "state", "created_at")
         ));
+        indexes.put("rpg_market_buy_orders", List.of(List.of("status", "created_at"), List.of("buyer_uuid", "status")));
         indexes.put("rpg_market_deliveries", List.of(List.of("player_uuid", "state", "created_at")));
         indexes.put("rpg_equipment_operations", List.of(List.of("player_uuid", "created_at")));
         indexes.put("rpg_activity_daily", List.of(List.of("activity_date", "activity")));

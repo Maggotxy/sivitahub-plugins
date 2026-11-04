@@ -7,6 +7,7 @@ dependencies {
     compileOnly("org.postgresql:postgresql:42.7.7")
     testImplementation("com.zaxxer:HikariCP:7.0.2")
     testImplementation("com.h2database:h2:2.3.232")
+    testRuntimeOnly("org.postgresql:postgresql:42.7.7")
     testImplementation("io.papermc.paper:paper-api:${rootProject.property("paperApiVersion")}")
     testImplementation("org.yaml:snakeyaml:2.4")
 }

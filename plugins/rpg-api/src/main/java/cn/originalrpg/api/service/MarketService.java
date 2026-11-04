@@ -1,8 +1,10 @@
 package cn.originalrpg.api.service;
 
+
 import cn.originalrpg.api.model.MarketDelivery;
 import cn.originalrpg.api.model.MarketListing;
 import cn.originalrpg.api.model.MarketOperationResult;
+import cn.originalrpg.api.model.MarketGoods;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -23,7 +25,7 @@ public interface MarketService {
         return prepare(listingId, sellerId, itemPayload, price, feeRate, maximumOpenListings, Optional.empty());
     }
 
-    CompletionStage<MarketOperationResult> prepare(
+    default CompletionStage<MarketOperationResult> prepare(
             UUID listingId,
             UUID sellerId,
             String itemPayload,
@@ -31,7 +33,21 @@ public interface MarketService {
             BigDecimal feeRate,
             int maximumOpenListings,
             Optional<UUID> itemIdentity
-    );
+    ) {
+        return prepare(listingId, sellerId, itemPayload, price, feeRate,
+                maximumOpenListings, itemIdentity, Optional.empty());
+    }
+
+    /**
+     * Persists matching facts alongside the item escrow. Empty facts keep an
+     * item sellable through ordinary listings but exclude it from order matching.
+     * Call from a trusted adapter after checking the actual item on the Paper
+     * thread. Never derive these facts from player chat or translated item names.
+     */
+    CompletionStage<MarketOperationResult> prepare(
+            UUID listingId, UUID sellerId, String itemPayload, BigDecimal price,
+            BigDecimal feeRate, int maximumOpenListings, Optional<UUID> itemIdentity,
+            Optional<MarketGoods> goods);
 
     CompletionStage<MarketOperationResult> activate(UUID listingId, UUID sellerId);
 

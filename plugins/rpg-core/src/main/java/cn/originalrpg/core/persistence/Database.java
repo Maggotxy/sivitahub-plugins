@@ -346,12 +346,18 @@ public final class Database implements AutoCloseable {
                     buyer_uuid VARCHAR(36),
                     item_identity VARCHAR(36),
                     open_item_identity VARCHAR(36),
+                    item_matcher VARCHAR(64),
+                    item_quantity INTEGER NOT NULL DEFAULT 0,
+                    crafter_uuid VARCHAR(36),
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     completed_at TIMESTAMP NULL
                 )
                 """,
                 "ALTER TABLE rpg_market_listings ADD COLUMN IF NOT EXISTS item_identity VARCHAR(36)",
                 "ALTER TABLE rpg_market_listings ADD COLUMN IF NOT EXISTS open_item_identity VARCHAR(36)",
+                "ALTER TABLE rpg_market_listings ADD COLUMN IF NOT EXISTS item_matcher VARCHAR(64)",
+                "ALTER TABLE rpg_market_listings ADD COLUMN IF NOT EXISTS item_quantity INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE rpg_market_listings ADD COLUMN IF NOT EXISTS crafter_uuid VARCHAR(36)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_market_deliveries (
                     id VARCHAR(36) PRIMARY KEY,
@@ -1049,9 +1055,19 @@ public final class Database implements AutoCloseable {
                     price BIGINT NOT NULL,
                     quantity INTEGER NOT NULL,
                     status VARCHAR(16) NOT NULL,
+                    order_kind VARCHAR(16) NOT NULL DEFAULT 'BUY',
+                    original_quantity INTEGER NOT NULL DEFAULT 0,
+                    placement_key VARCHAR(96),
+                    escrow_key VARCHAR(96),
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
+                "ALTER TABLE rpg_market_buy_orders ADD COLUMN IF NOT EXISTS order_kind VARCHAR(16) NOT NULL DEFAULT 'BUY'",
+                "ALTER TABLE rpg_market_buy_orders ADD COLUMN IF NOT EXISTS original_quantity INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE rpg_market_buy_orders ADD COLUMN IF NOT EXISTS placement_key VARCHAR(96)",
+                "ALTER TABLE rpg_market_buy_orders ADD COLUMN IF NOT EXISTS escrow_key VARCHAR(96)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_buy_orders_active ON rpg_market_buy_orders (status, created_at)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_buy_orders_buyer ON rpg_market_buy_orders (buyer_uuid, status)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_community_approvals (
                     approval_id VARCHAR(36) PRIMARY KEY,

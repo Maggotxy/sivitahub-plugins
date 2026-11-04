@@ -1,44 +1,50 @@
 package cn.originalrpg.api.service;
 
+
 import cn.originalrpg.api.model.BuyOrderOperationResult;
 import cn.originalrpg.api.model.MarketOrder;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 
 /**
- * Phase 4 市场 V2 买单簿（{@code rpg_market_buy_orders}）。
- *
- * <p>C-009 单一托管：买单的托管金币同样落在 {@code rpg_accounts}，成交流水同样写
- * {@code rpg_ledger}，交付仍走 {@code rpg_market_deliveries}。本接口不引入第二套市场、
- * 第二套结算或第二种货币 —— 它只是「同一簿记的另一侧」。状态机与
- * {@link MarketOrder} 一致：{@code PREPARED → ACTIVE → FILLED/CANCELLED/EXPIRED} 只能前向。</p>
+ * Funded buy requests and maker-supplied crafting commissions in the single
+ * market ledger. The buyer reserves the full price budget when placing an order.
+ * A fill consumes an existing ACTIVE sell listing, advances its equipment
+ * identity, burns the appropriate fee, and creates the buyer's mailbox delivery
+ * in one core transaction. There is deliberately no raw-payload fill API.
  */
 public interface MarketBuyOrderService {
-    /**
-     * 挂买单：校验后托管买家金币（下单即扣款进托管），状态直接进入 ACTIVE。
-     * 幂等依据是 {@code orderId} 主键；同 id 重放返回 DUPLICATE 且不重复扣款。
-     */
+    default CompletionStage<BuyOrderOperationResult> place(
+            UUID orderId, UUID buyerId, String matcher, long price, int quantity, String key) {
+        return place(orderId, buyerId, matcher, price, quantity, MarketOrder.Kind.BUY, key);
+    }
+
     CompletionStage<BuyOrderOperationResult> place(
-            UUID orderId, UUID buyerId, String itemMatcher, long price, int quantity, String idempotencyKey);
+            UUID orderId, UUID buyerId, String matcher, long price, int quantity,
+            MarketOrder.Kind kind, String idempotencyKey);
 
     /**
-     * 撮合：卖家把 {@code quantity} 件 {@code itemMatcher} 交给买家。
-     * 托管金币税后结算给卖家，商品经持久化邮箱交付给买家（与卖单同一投递通道）。
-     * 幂等依据是 {@code idempotency_key}（流水表唯一约束）。
+     * Transfers the whole listing stack. Partial fills of an order are allowed;
+     * splitting a serialized escrow stack is not. The caller owns the listing
+     * and explicitly accepts the order's tax-inclusive price instead of its ask.
      */
-    CompletionStage<BuyOrderOperationResult> fill(
-            UUID orderId, UUID sellerId, String itemPayload, int quantity, String idempotencyKey);
+    CompletionStage<BuyOrderOperationResult> fillListing(
+            UUID orderId, UUID sellerId, UUID listingId, String idempotencyKey);
 
-    /** 撤单：托管金币全额退回买家，释放托管。 */
     CompletionStage<BuyOrderOperationResult> cancel(UUID orderId, UUID buyerId, String idempotencyKey);
 
-    /** 过期：把 {@code createdBefore} 之前的 ACTIVE 买单批量退回托管，返回处理条数。 */
-    CompletionStage<Integer> expire(java.time.Instant createdBefore, int limit);
+    /** Returns funded, unfilled quantities through receipt-backed reversals. */
+    CompletionStage<Integer> expire(Instant createdBefore, int limit);
 
     CompletionStage<Optional<MarketOrder>> order(UUID orderId);
 
-    CompletionStage<List<MarketOrder>> activeOrders(String itemMatcher, int limit);
+    CompletionStage<List<MarketOrder>> activeOrders(String matcher, int limit);
+
+    CompletionStage<List<MarketOrder>> activeOrders(String matcher, MarketOrder.Kind kind, int limit);
+
+    CompletionStage<List<MarketOrder>> ownOrders(UUID buyerId, int limit);
 }
