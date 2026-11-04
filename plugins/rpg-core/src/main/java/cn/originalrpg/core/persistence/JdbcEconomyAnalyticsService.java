@@ -14,6 +14,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -32,15 +33,21 @@ public final class JdbcEconomyAnalyticsService implements EconomyAnalyticsServic
     private final DataSource dataSource;
     private final Executor executor;
     private final ZoneId zoneId;
+    private final Clock clock;
 
     public JdbcEconomyAnalyticsService(DataSource dataSource, Executor executor) {
         this(dataSource, executor, ZoneId.of("Asia/Shanghai"));
     }
 
     public JdbcEconomyAnalyticsService(DataSource dataSource, Executor executor, ZoneId zoneId) {
+        this(dataSource, executor, zoneId, Clock.systemUTC());
+    }
+
+    JdbcEconomyAnalyticsService(DataSource dataSource, Executor executor, ZoneId zoneId, Clock clock) {
         this.dataSource = dataSource;
         this.executor = executor;
         this.zoneId = zoneId;
+        this.clock = clock;
     }
 
     @Override
@@ -49,7 +56,7 @@ public final class JdbcEconomyAnalyticsService implements EconomyAnalyticsServic
     }
 
     private EconomyReport load() {
-        LocalDate today = LocalDate.now(zoneId);
+        LocalDate today = LocalDate.now(clock.withZone(zoneId));
         try (Connection connection = dataSource.getConnection()) {
             List<BigDecimal> balances = balances(connection);
             BigDecimal totalGold = money(balances.stream().reduce(BigDecimal.ZERO, BigDecimal::add));
@@ -267,7 +274,7 @@ public final class JdbcEconomyAnalyticsService implements EconomyAnalyticsServic
     }
 
     private ListingInventory listingInventory(Connection connection, LocalDate today) throws SQLException {
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         List<BigDecimal> ages = new ArrayList<>();
         try (PreparedStatement query = connection.prepareStatement(
                 "SELECT created_at FROM rpg_market_listings WHERE state = 'ACTIVE' ORDER BY created_at");
@@ -321,8 +328,11 @@ public final class JdbcEconomyAnalyticsService implements EconomyAnalyticsServic
         return numerator.divide(denominator, 4, RoundingMode.HALF_UP);
     }
 
-    private static Timestamp start(LocalDate today, int days) {
-        return Timestamp.valueOf(today.minusDays(days - 1L).atStartOfDay());
+    private Timestamp start(LocalDate today, int days) {
+        // The report calendar is independent of the JVM/JDBC calendar. Resolve
+        // its midnight to an instant before the driver converts it for SQL.
+        // This also respects 23/25-hour days in zones with daylight saving.
+        return Timestamp.from(today.minusDays(days - 1L).atStartOfDay(zoneId).toInstant());
     }
 
     private static BigDecimal money(BigDecimal value) {
