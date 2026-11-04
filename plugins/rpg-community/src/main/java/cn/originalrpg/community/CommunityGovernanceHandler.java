@@ -3,6 +3,7 @@ package cn.originalrpg.community;
 import cn.originalrpg.api.model.CommunityApprovalOutcome;
 import cn.originalrpg.api.model.CommunityGovernanceAction;
 import cn.originalrpg.api.model.CommunityRole;
+import cn.originalrpg.api.model.CommunityRoleIntent;
 import cn.originalrpg.api.model.CommunityRolePower;
 import cn.originalrpg.api.service.CommunityGovernanceService;
 import cn.originalrpg.api.service.CommunityRoleAssignmentService;
@@ -77,6 +78,7 @@ final class CommunityGovernanceHandler {
     private final CommunityRoleAssignmentService roleAssignments;
     private final CapabilityProbe capability;
     private final boolean enabled;
+    private final java.util.function.Predicate<UUID> actorCurrent;
 
     CommunityGovernanceHandler(
             CommunityGovernanceService governance,
@@ -84,10 +86,17 @@ final class CommunityGovernanceHandler {
             CapabilityProbe capability,
             boolean enabled
     ) {
+        this(governance, roleAssignments, capability, enabled, actor -> true);
+    }
+
+    CommunityGovernanceHandler(CommunityGovernanceService governance,
+                               CommunityRoleAssignmentService roleAssignments, CapabilityProbe capability,
+                               boolean enabled, java.util.function.Predicate<UUID> actorCurrent) {
         this.governance = governance;
         this.roleAssignments = roleAssignments;
         this.capability = capability;
         this.enabled = enabled;
+        this.actorCurrent = actorCurrent;
     }
 
     boolean available() {
@@ -137,19 +146,29 @@ final class CommunityGovernanceHandler {
 
     /** {@code /community assign <player>}：发起角色变更审批（先过治理通道准入）。 */
     CompletableFuture<Rendering> assign(UUID actor, UUID target, String idempotencyKey) {
+        return assign(actor, target, CommunityRole.RECRUITER.name(), idempotencyKey);
+    }
+
+    /** The explicitly chosen non-owner role is persisted in the signed approval subject. */
+    CompletableFuture<Rendering> assign(UUID actor, UUID target, String roleName, String idempotencyKey) {
         Rendering out = new Rendering();
         if (!gatesOpen(out)) return CompletableFuture.completedFuture(out);
+        CommunityRole requestedRole = CommunityRolePower.assignable(roleName).orElse(null);
+        if (requestedRole == null) {
+            out.add("community.governance.role-unknown", Map.of("role", roleName == null ? "" : roleName));
+            return CompletableFuture.completedFuture(out);
+        }
         CapabilityProbe probe = capability;
         // 准入走治理通道判定（isGovernance），不代入审批能力：领域角色/普通成员都拿不到角色任命通道。
         return probe.isGovernanceMember(actor)
                 .thenCompose(allowed -> {
-                    if (!allowed) {
+                    if (!allowed || !actorCurrent.test(actor)) {
                         // 非治理成员不能发起角色变更；不把必然失败的操作发到服务层。
                         return CompletableFuture.completedFuture(CommunityApprovalOutcome.of(
                                 CommunityApprovalOutcome.Status.NOT_ALLOWED,
                                 CommunityGovernanceAction.ROLE_GRANT));
                     }
-                    return roleAssignments.request(actor, target, CommunityRole.RECRUITER, idempotencyKey);
+                    return roleAssignments.request(actor, target, requestedRole, idempotencyKey);
                 })
                 .thenApply(outcome -> render(out, outcome));
     }
@@ -165,8 +184,10 @@ final class CommunityGovernanceHandler {
         // 能力查询只用于给出准确提示；真正的拒绝仍然由服务层做出。
         return capability.can(actor, CommunityRolePower.Capability.APPROVE)
                 .thenCompose(allowed -> allowed
-                        ? pendingSubject(actor, action).thenCompose(subject -> governance.approve(
-                                actor, action, subject.orElse(null)))
+                        ? pendingSubject(actor, action).thenCompose(subject -> actorCurrent.test(actor)
+                                ? governance.approve(actor, action, subject.orElse(null))
+                                : CompletableFuture.completedFuture(CommunityApprovalOutcome.of(
+                                        CommunityApprovalOutcome.Status.NOT_ALLOWED, action)))
                         : CompletableFuture.completedFuture(CommunityApprovalOutcome.of(
                                 CommunityApprovalOutcome.Status.NOT_ALLOWED, action)))
                 .thenApply(outcome -> render(out, outcome));
@@ -182,7 +203,8 @@ final class CommunityGovernanceHandler {
         if (!gatesOpen(out)) return CompletableFuture.completedFuture(out);
         return pendingSubject(actor, action)
                 .thenCompose(subject -> governance.approvals(actor, action, subject.orElse(null))
-                        .thenApply(votes -> new PendingApprovals(subject.isPresent() ? action : null, votes)))
+                        .thenApply(votes -> new PendingApprovals(subject.isPresent() ? action : null,
+                                subject.orElse(null), votes)))
                 .thenApply(snapshot -> {
                     if (snapshot.action() == null) {
                         out.add("community.governance.no-pending");
@@ -191,6 +213,7 @@ final class CommunityGovernanceHandler {
                     out.add("community.governance.pending", Map.of(
                             "action", snapshot.action().key(),
                             "required", CommunityRolePower.REQUIRED_APPROVALS));
+                    appendRoleIntent(out, snapshot.subject());
                     for (CommunityApprovalOutcome.GrantedApproval vote : snapshot.votes()) {
                         out.add("community.governance.approval-entry", Map.of(
                                 "player", vote.actor().toString(),
@@ -209,7 +232,10 @@ final class CommunityGovernanceHandler {
         }
         if (!gatesOpen(out)) return CompletableFuture.completedFuture(out);
         return pendingSubject(actor, action)
-                .thenCompose(subject -> governance.deny(actor, action, subject.orElse(null)))
+                .thenCompose(subject -> actorCurrent.test(actor)
+                        ? governance.deny(actor, action, subject.orElse(null))
+                        : CompletableFuture.completedFuture(CommunityApprovalOutcome.of(
+                                CommunityApprovalOutcome.Status.NOT_ALLOWED, action)))
                 .thenApply(outcome -> render(out, outcome));
     }
 
@@ -231,7 +257,13 @@ final class CommunityGovernanceHandler {
         // The actor-aware event announcement has different placeholders from
         // this command confirmation; keep the command's existing generic key.
         if (outcome.effective()) out.add("community.governance.effective-ok");
+        outcome.subject().ifPresent(subject -> appendRoleIntent(out, subject));
         return out;
+    }
+
+    private static void appendRoleIntent(Rendering out, String subject) {
+        CommunityRoleIntent.parse(subject).ifPresent(intent -> out.add("community-lifecycle.role-intent", Map.of(
+                "target", intent.targetId(), "roleKey", CommunityRolePower.displayKey(intent.role()))));
     }
 
     /**
@@ -244,15 +276,12 @@ final class CommunityGovernanceHandler {
     private CompletableFuture<Optional<String>> pendingSubject(
             UUID actor, CommunityGovernanceAction action
     ) {
-        return governance.approvals(actor, action, action.key())
-                .thenCompose(votes -> votes.isEmpty()
-                        ? CompletableFuture.completedFuture(Optional.<String>empty())
-                        : governance.subjects(actor, action))
-                .toCompletableFuture();
+        return governance.subjects(actor, action).toCompletableFuture();
     }
 
     private record PendingApprovals(
             CommunityGovernanceAction action,
+            String subject,
             List<CommunityApprovalOutcome.GrantedApproval> votes
     ) {
     }

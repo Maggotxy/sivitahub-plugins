@@ -24,11 +24,22 @@ class SchemaManifestContractTest {
             "(?i)(?:CONSTRAINT\\s+[a-z_]+\\s+)?UNIQUE\\s*\\(([^)]+)\\)"
     );
     private static final Pattern INDEX_UNIQUE = Pattern.compile(
-            "CREATE UNIQUE INDEX IF NOT EXISTS [a-z_]+ ON (rpg_[a-z_]+) \\(([^)]+)\\)"
+            "CREATE\\s+UNIQUE\\s+INDEX\\s+IF\\s+NOT\\s+EXISTS\\s+[a-z_]+\\s+ON\\s+(rpg_[a-z_]+)\\s*\\(([^)]+)\\)"
     );
     private static final Pattern INDEX_NON_UNIQUE = Pattern.compile(
-            "CREATE INDEX IF NOT EXISTS [a-z_]+ ON (rpg_[a-z_]+) \\(([^)]+)\\)"
+            "CREATE\\s+INDEX\\s+IF\\s+NOT\\s+EXISTS\\s+[a-z_]+\\s+ON\\s+(rpg_[a-z_]+)\\s*\\(([^)]+)\\)"
     );
+
+    @Test
+    void multilineIndexDdlCannotDisappearFromTheMigrationContract() {
+        Matcher index = INDEX_UNIQUE.matcher("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_rpg_outbox_idempotency
+                    ON rpg_outbox (idempotency_key)
+                """);
+        org.junit.jupiter.api.Assertions.assertTrue(index.find());
+        assertEquals("rpg_outbox", index.group(1));
+        assertEquals("idempotency_key", index.group(2));
+    }
 
     @Test
     void manifestMatchesEveryRpgCoreTableAndUniqueKey() throws Exception {

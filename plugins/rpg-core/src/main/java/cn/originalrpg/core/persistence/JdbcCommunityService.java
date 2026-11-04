@@ -12,6 +12,7 @@ import cn.originalrpg.api.model.CommunityOperationResult;
 import cn.originalrpg.api.model.CommunityProfile;
 import cn.originalrpg.api.model.CommunityProjectRewardResult;
 import cn.originalrpg.api.model.CommunityRole;
+import cn.originalrpg.api.model.CommunityRoleIntent;
 import cn.originalrpg.api.model.CommunityRolePower;
 import cn.originalrpg.api.model.CommunitySummary;
 import cn.originalrpg.api.model.MentorBondResult;
@@ -219,7 +220,7 @@ public final class JdbcCommunityService
         }
         BigDecimal goal = money(periodGoal);
         return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            MemberRow inviterMembership = memberRow(connection, inviter);
+            MemberRow inviterMembership = lockMemberRow(connection, inviter);
             if (inviterMembership == null) return status(CommunityOperationResult.Status.NOT_MEMBER);
             if (membershipCommunity(connection, target) != null) {
                 return operation(CommunityOperationResult.Status.ALREADY_MEMBER,
@@ -310,7 +311,7 @@ public final class JdbcCommunityService
         }
         BigDecimal goal = money(periodGoal);
         return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            MemberRow actorRow = memberRow(connection, actor);
+            MemberRow actorRow = lockMemberRow(connection, actor);
             MemberRow targetRow = memberRow(connection, target);
             if (actorRow == null) return status(CommunityOperationResult.Status.NOT_MEMBER);
             if (targetRow == null || !targetRow.communityId().equals(actorRow.communityId())) {
@@ -339,7 +340,7 @@ public final class JdbcCommunityService
         }
         BigDecimal goal = money(periodGoal);
         return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            MemberRow ownerRow = memberRow(connection, owner);
+            MemberRow ownerRow = lockMemberRow(connection, owner);
             MemberRow targetRow = memberRow(connection, target);
             if (ownerRow == null) return status(CommunityOperationResult.Status.NOT_MEMBER);
             if (ownerRow.role() != CommunityRole.OWNER) {
@@ -454,7 +455,8 @@ public final class JdbcCommunityService
                 return mentor(MentorBondResult.Status.PROGRESS_LIMIT, mentorId, null, false,
                         lockedMentor.verifiedMentees());
             }
-            UUID communityId = membershipCommunity(connection, mentorId);
+            MemberRow mentorMembership = lockMemberRow(connection, mentorId);
+            UUID communityId = mentorMembership == null ? null : mentorMembership.communityId();
             if (communityId != null) {
                 ensureProject(connection, communityId, periodKey);
                 ProjectRow project = lockProject(connection, communityId, periodKey);
@@ -741,7 +743,7 @@ public final class JdbcCommunityService
             MemberRow member = memberRow(connection, playerId);
             if (member == null) return Optional.<CommunityGovernanceAction>empty();
             for (CommunityGovernanceAction action : CommunityGovernanceAction.values()) {
-                if (!approvals(connection, member.communityId(), action, action.key()).isEmpty()) {
+                if (pendingSubject(connection, member.communityId(), action).isPresent()) {
                     return Optional.of(action);
                 }
             }
@@ -763,22 +765,37 @@ public final class JdbcCommunityService
             return CompletableFuture.completedFuture(
                     approval(CommunityApprovalOutcome.Status.INVALID, CommunityGovernanceAction.ROLE_GRANT));
         }
-        return decide(actor, action, cleanSubject(action, subject), null, null, idempotencyKey);
+        if (action == CommunityGovernanceAction.ROLE_GRANT) {
+            var intent = CommunityRoleIntent.parse(subject);
+            if (intent.isEmpty()) return CompletableFuture.completedFuture(
+                    approval(CommunityApprovalOutcome.Status.INVALID, action));
+            return request(actor, intent.orElseThrow().targetId(), intent.orElseThrow().role(), idempotencyKey);
+        }
+        return decide(actor, action, cleanSubject(action, subject), null, null, idempotencyKey, true);
     }
 
     @Override
     public CompletionStage<CommunityApprovalOutcome> approve(
             UUID actor, CommunityGovernanceAction action, String subject
     ) {
-        return decide(actor, action, subject, null, null, null);
+        if (action == CommunityGovernanceAction.ROLE_GRANT) {
+            var intent = CommunityRoleIntent.parse(subject);
+            if (intent.isEmpty()) return CompletableFuture.completedFuture(
+                    approval(CommunityApprovalOutcome.Status.INVALID, action));
+            CommunityRoleIntent requested = intent.orElseThrow();
+            return decide(actor, action, requested.subject(), requested.targetId(), requested.role().name(),
+                    "role-vote:" + UUID.randomUUID(), false);
+        }
+        return decide(actor, action, subject, null, null, null, true);
     }
 
     @Override
     public CompletionStage<CommunityApprovalOutcome> approveAssignment(
             UUID actor, UUID target, String targetRole, String idempotencyKey
     ) {
-        return decide(actor, CommunityGovernanceAction.ROLE_GRANT, subjectFor(target), target, targetRole,
-                idempotencyKey);
+        CommunityRole role = CommunityRolePower.assignable(targetRole).orElse(null);
+        return decide(actor, CommunityGovernanceAction.ROLE_GRANT, subjectFor(target, role), target, targetRole,
+                idempotencyKey, true);
     }
 
     @Override
@@ -800,8 +817,13 @@ public final class JdbcCommunityService
             }
             String cleanSubject = cleanSubject(action, subject);
             if (cleanSubject == null) return approval(CommunityApprovalOutcome.Status.INVALID, action);
+            UUID correlation = firstApprovalId(connection, member.communityId(), action, cleanSubject);
             int removed = deleteApprovals(connection, member.communityId(), action, cleanSubject);
             if (removed == 0) return approval(CommunityApprovalOutcome.Status.NO_PENDING_ACTION, action);
+            if (action == CommunityGovernanceAction.ROLE_GRANT) {
+                CommunityAuditWriter.append(connection, member.communityId(), correlation, actor,
+                        "ROLE_DENIED", cleanSubject);
+            }
             return approval(CommunityApprovalOutcome.Status.SUCCESS, action);
         }));
     }
@@ -839,7 +861,7 @@ public final class JdbcCommunityService
         if (actor == null || target == null || role == null || actor.equals(target)) {
             return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.INVALID, CommunityGovernanceAction.ROLE_GRANT));
         }
-        if (role == CommunityRole.OWNER || role.canApprove()) {
+        if (role == CommunityRole.OWNER) {
             // 会长更换只能走既有 /community transfer 流程。
             return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.NOT_ALLOWED, CommunityGovernanceAction.ROLE_GRANT));
         }
@@ -860,7 +882,14 @@ public final class JdbcCommunityService
                 return approval(CommunityApprovalOutcome.Status.TARGET_NOT_MEMBER,
                         CommunityGovernanceAction.ROLE_GRANT);
             }
-            String cleanSubject = subjectFor(target);
+            if (targetRow.role() == CommunityRole.OWNER) {
+                return approval(CommunityApprovalOutcome.Status.NOT_ALLOWED, CommunityGovernanceAction.ROLE_GRANT);
+            }
+            String cleanSubject = subjectFor(target, role);
+            Optional<String> pending = pendingRoleSubject(connection, actorRow.communityId(), target);
+            if (pending.isPresent() && !pending.orElseThrow().equals(cleanSubject)) {
+                return approval(CommunityApprovalOutcome.Status.INVALID, CommunityGovernanceAction.ROLE_GRANT);
+            }
             // 提交人第一票；第二票必须由另一名治理角色投出。
             CommunityApprovalOutcome submitted = submitOnConnection(
                     connection, actorRow, CommunityGovernanceAction.ROLE_GRANT, cleanSubject,
@@ -889,6 +918,10 @@ public final class JdbcCommunityService
                 subject, member.playerId(), idempotencyKey)) {
             return approval(CommunityApprovalOutcome.Status.DUPLICATE, action);
         }
+        if (action == CommunityGovernanceAction.ROLE_GRANT) {
+            CommunityAuditWriter.append(connection, member.communityId(), approvalId, member.playerId(),
+                    "ROLE_PROPOSED", subject);
+        }
         List<CommunityApprovalOutcome.GrantedApproval> recorded = approvals(
                 connection, member.communityId(), action, subject);
         committedEvents.add(new CommunityApprovalSubmittedEvent(member.communityId(), member.playerId(), action, subject));
@@ -906,7 +939,8 @@ public final class JdbcCommunityService
             String subject,
             UUID roleTarget,
             String roleName,
-            String idempotencyKey
+            String idempotencyKey,
+            boolean allowSubmission
     ) {
         if (actor == null || action == null) {
             return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.INVALID, CommunityGovernanceAction.ROLE_GRANT));
@@ -931,6 +965,9 @@ public final class JdbcCommunityService
                 return CompletableFuture.completedFuture(
                         approval(CommunityApprovalOutcome.Status.INVALID, action));
             }
+            if (!cleanSubject.equals(subjectFor(roleTarget, assignedRole))) {
+                return CompletableFuture.completedFuture(approval(CommunityApprovalOutcome.Status.INVALID, action));
+            }
         }
         CommunityRole finalRole = assignedRole;
         String finalSubject = cleanSubject;
@@ -944,6 +981,13 @@ public final class JdbcCommunityService
                 if (targetRow == null || !targetRow.communityId().equals(actorRow.communityId())) {
                     return approval(CommunityApprovalOutcome.Status.TARGET_NOT_MEMBER, action);
                 }
+                if (targetRow.role() == CommunityRole.OWNER || actor.equals(finalTarget)) {
+                    return approval(CommunityApprovalOutcome.Status.NOT_ALLOWED, action);
+                }
+                Optional<String> pending = pendingRoleSubject(connection, actorRow.communityId(), finalTarget);
+                if (pending.isPresent() && !pending.orElseThrow().equals(finalSubject)) {
+                    return approval(CommunityApprovalOutcome.Status.INVALID, action);
+                }
             }
             List<CommunityApprovalOutcome.GrantedApproval> existing = approvals(
                     connection, actorRow.communityId(), action, finalSubject);
@@ -953,6 +997,7 @@ public final class JdbcCommunityService
                         Optional.of(finalSubject), existing, actor, requiredApprovals());
             }
             if (existing.isEmpty()) {
+                if (!allowSubmission) return approval(CommunityApprovalOutcome.Status.NO_PENDING_ACTION, action);
                 // 还没有人投票：这次调用是提交（提交即第一票）。
                 // 提交资格 = SUBMIT_APPROVAL ∪ 动作前置角色（例如工程需要 BUILDER），
                 // 不能用 APPROVE 判定，否则领域角色永远发不起本领域动作。
@@ -983,6 +1028,9 @@ public final class JdbcCommunityService
             boolean roleApplied = false;
             if (action == CommunityGovernanceAction.ROLE_GRANT) {
                 roleApplied = applyRoleGrant(connection, actorRow.communityId(), roleTarget, finalRole);
+                CommunityAuditWriter.append(connection, actorRow.communityId(),
+                        firstApprovalId(connection, actorRow.communityId(), action, finalSubject), actor,
+                        roleApplied ? "ROLE_APPLIED" : "ROLE_REJECTED", finalSubject);
             }
             deleteApprovals(connection, actorRow.communityId(), action, finalSubject);
             committedEvents.add(new CommunityGovernanceActionEffectiveEvent(actorRow.communityId(), actor, action,
@@ -1002,16 +1050,17 @@ public final class JdbcCommunityService
      * 应用双批通过的角色变更。
      *
      * <p>返回该角色是否真的被写入。不写入的情况：目标不存在、目标属于别的社群、
-     * 被任命的角色本身是治理角色或 OWNER。</p>
+     * 目标是当前 OWNER，或新角色本身是 OWNER。</p>
      */
     private boolean applyRoleGrant(
             Connection connection, UUID communityId, UUID target, CommunityRole role
     ) throws SQLException {
-        if (target == null || role == null || role == CommunityRole.OWNER || role.canApprove()) {
+        if (target == null || role == null || role == CommunityRole.OWNER) {
             return false;
         }
         MemberRow targetRow = memberRow(connection, target);
-        if (targetRow == null || !targetRow.communityId().equals(communityId)) return false;
+        if (targetRow == null || targetRow.role() == CommunityRole.OWNER
+                || !targetRow.communityId().equals(communityId)) return false;
         return updateRole(connection, communityId, target, role);
     }
 
@@ -1036,15 +1085,54 @@ public final class JdbcCommunityService
         return CommunityApprovalOutcome.of(status, action);
     }
 
-    private static String subjectFor(UUID target) {
-        return target == null ? null : target.toString();
+    private static String subjectFor(UUID target, CommunityRole role) {
+        return target == null || role == null || role == CommunityRole.OWNER
+                ? null : new CommunityRoleIntent(target, role).subject();
     }
 
     private static String cleanSubject(CommunityGovernanceAction action, String subject) {
         if (action == CommunityGovernanceAction.ROLE_GRANT) {
-            return subject == null || subject.isBlank() ? null : subject.strip();
+            var intent = CommunityRoleIntent.parse(subject);
+            if (intent.isPresent()) return intent.orElseThrow().subject();
+            // Legacy UUID-only requests can still be inspected and denied, but not approved.
+            if (subject == null || subject.strip().length() != 36) return null;
+            try { return UUID.fromString(subject.strip()).toString(); }
+            catch (IllegalArgumentException invalid) { return null; }
         }
         return action.key();
+    }
+
+    private Optional<String> pendingRoleSubject(Connection connection, UUID communityId, UUID target)
+            throws SQLException {
+        try (PreparedStatement query = connection.prepareStatement("""
+                SELECT subject FROM rpg_community_approvals
+                WHERE community_id = ? AND action = 'community.role-grant' AND status = 'PENDING'
+                  AND (subject = ? OR subject LIKE ?)
+                ORDER BY created_at, approval_id LIMIT 1
+                """)) {
+            query.setString(1, communityId.toString());
+            query.setString(2, target.toString());
+            query.setString(3, target + ":%");
+            try (ResultSet rows = query.executeQuery()) {
+                return rows.next() ? Optional.of(rows.getString(1)) : Optional.empty();
+            }
+        }
+    }
+
+    private UUID firstApprovalId(Connection connection, UUID communityId, CommunityGovernanceAction action,
+                                 String subject) throws SQLException {
+        try (PreparedStatement query = connection.prepareStatement("""
+                SELECT approval_id FROM rpg_community_approvals
+                WHERE community_id = ? AND action = ? AND subject = ? AND status = 'PENDING'
+                ORDER BY created_at, approval_id LIMIT 1
+                """)) {
+            query.setString(1, communityId.toString());
+            query.setString(2, action.key());
+            query.setString(3, subject);
+            try (ResultSet rows = query.executeQuery()) {
+                return rows.next() ? UUID.fromString(rows.getString(1)) : null;
+            }
+        }
     }
 
     private <T> T inGovernanceTransaction(GovernanceOperation<T> operation) {
@@ -1099,9 +1187,10 @@ public final class JdbcCommunityService
             Connection connection, UUID communityId, CommunityGovernanceAction action, String subject
     ) throws SQLException {
         try (PreparedStatement query = connection.prepareStatement("""
-                SELECT a.actor_uuid, m.role
+                SELECT a.actor_uuid, m.role, a.requester_uuid
                 FROM rpg_community_approvals a
-                LEFT JOIN rpg_community_members m ON m.player_uuid = a.actor_uuid
+                JOIN rpg_community_members m ON m.player_uuid = a.actor_uuid
+                    AND m.community_id = a.community_id AND m.joined_at <= a.created_at
                 WHERE a.community_id = ? AND a.action = ? AND a.subject = ? AND a.status = 'PENDING'
                 ORDER BY a.created_at ASC, a.actor_uuid ASC
                 """)) {
@@ -1112,6 +1201,10 @@ public final class JdbcCommunityService
                 List<CommunityApprovalOutcome.GrantedApproval> approvals = new ArrayList<>();
                 while (result.next()) {
                     CommunityRole role = CommunityRole.parse(result.getString("role")).orElse(CommunityRole.MEMBER);
+                    boolean currentGovernor = CommunityRolePower.countsAsApproval(role);
+                    boolean domainRequester = result.getString("actor_uuid").equals(result.getString("requester_uuid"))
+                            && action.requiredRole().filter(required -> required == role).isPresent();
+                    if (!currentGovernor && !domainRequester) continue;
                     approvals.add(new CommunityApprovalOutcome.GrantedApproval(
                             UUID.fromString(result.getString("actor_uuid")), role));
                 }
@@ -1189,6 +1282,7 @@ public final class JdbcCommunityService
                 JOIN rpg_community_members m ON m.community_id = c.id
                 LEFT JOIN rpg_community_projects p
                     ON p.community_id = c.id AND p.period_key = ?
+                WHERE c.dissolved_at IS NULL
                 GROUP BY c.id, c.name, c.tag, c.capacity,
                          p.gold_contributed, p.verified_recruits, p.completed_at
                 ORDER BY CASE WHEN p.completed_at IS NULL THEN 0 ELSE 1 END DESC,
@@ -1231,7 +1325,7 @@ public final class JdbcCommunityService
                 JOIN rpg_communities c ON c.id = m.community_id
                 LEFT JOIN rpg_community_projects p
                     ON p.community_id = c.id AND p.period_key = ?
-                WHERE m.player_uuid = ?
+                WHERE m.player_uuid = ? AND c.dissolved_at IS NULL
                 """)) {
             query.setString(1, playerId.toString());
             query.setString(2, periodKey);
@@ -1265,7 +1359,7 @@ public final class JdbcCommunityService
                 JOIN rpg_community_members m ON m.community_id = c.id
                 LEFT JOIN rpg_community_projects p
                     ON p.community_id = c.id AND p.period_key = ?
-                WHERE c.id = ?
+                WHERE c.id = ? AND c.dissolved_at IS NULL
                 GROUP BY c.id, c.name, c.tag, c.capacity,
                          p.gold_contributed, p.verified_recruits, p.completed_at
                 """)) {
@@ -1379,8 +1473,9 @@ public final class JdbcCommunityService
 
     private MemberRow memberRow(Connection connection, UUID playerId) throws SQLException {
         try (PreparedStatement query = connection.prepareStatement("""
-                SELECT community_id, role
-                FROM rpg_community_members WHERE player_uuid = ?
+                SELECT m.community_id, m.role
+                FROM rpg_community_members m JOIN rpg_communities c ON c.id = m.community_id
+                WHERE m.player_uuid = ? AND c.dissolved_at IS NULL
                 """)) {
             query.setString(1, playerId.toString());
             try (ResultSet result = query.executeQuery()) {
@@ -1391,11 +1486,24 @@ public final class JdbcCommunityService
     }
 
     private MemberRow lockMemberRow(Connection connection, UUID playerId) throws SQLException {
+        // Community is the lock root shared with accept, lifecycle and every membership mutation.
+        // Locate without locking, then reread the membership after acquiring that root.
+        MemberRow located = memberRow(connection, playerId);
+        if (located == null) return null;
+        try (PreparedStatement lock = connection.prepareStatement("""
+                SELECT id FROM rpg_communities WHERE id = ? AND dissolved_at IS NULL FOR UPDATE
+                """)) {
+            lock.setString(1, located.communityId().toString());
+            try (ResultSet row = lock.executeQuery()) {
+                if (!row.next()) return null;
+            }
+        }
         try (PreparedStatement query = connection.prepareStatement("""
                 SELECT community_id, role FROM rpg_community_members
-                WHERE player_uuid = ? FOR UPDATE
+                WHERE player_uuid = ? AND community_id = ? FOR UPDATE
                 """)) {
             query.setString(1, playerId.toString());
+            query.setString(2, located.communityId().toString());
             try (ResultSet result = query.executeQuery()) {
                 return result.next() ? new MemberRow(UUID.fromString(result.getString("community_id")),
                         playerId, CommunityRole.valueOf(result.getString("role"))) : null;
@@ -1480,7 +1588,8 @@ public final class JdbcCommunityService
 
     private CommunityLock lockCommunityByTag(Connection connection, String normalizedTag) throws SQLException {
         try (PreparedStatement query = connection.prepareStatement("""
-                SELECT id, capacity FROM rpg_communities WHERE normalized_tag = ? FOR UPDATE
+                SELECT id, capacity FROM rpg_communities
+                WHERE normalized_tag = ? AND dissolved_at IS NULL FOR UPDATE
                 """)) {
             query.setString(1, normalizedTag);
             try (ResultSet result = query.executeQuery()) {

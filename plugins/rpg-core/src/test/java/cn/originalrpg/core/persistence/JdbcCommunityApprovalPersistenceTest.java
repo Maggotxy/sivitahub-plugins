@@ -7,13 +7,12 @@ import cn.originalrpg.api.model.CommunityApprovalOutcome;
 import cn.originalrpg.api.model.CommunityGovernanceAction;
 import cn.originalrpg.api.model.CommunityOperationResult;
 import cn.originalrpg.api.model.CommunityRole;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.bukkit.event.Event;
 
+import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -39,142 +38,24 @@ class JdbcCommunityApprovalPersistenceTest {
     private static final String PERIOD = "2026-W32";
     private static final BigDecimal GOAL = new BigDecimal("250000.00");
 
-    private HikariDataSource dataSource;
+    private CommunityDatabaseFixture fixture;
+    private DataSource dataSource;
     private ExecutorService executor;
     private JdbcCommunityService communities;
     private final java.util.List<Event> published = new java.util.ArrayList<>();
 
     @BeforeEach
     void setUp() throws Exception {
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:h2:mem:rpg_approval_rows_" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE");
-        config.setAutoCommit(false);
-        config.setMaximumPoolSize(8);
-        dataSource = new HikariDataSource(config);
+        fixture = new CommunityDatabaseFixture();
+        dataSource = fixture.dataSource;
         executor = Executors.newVirtualThreadPerTaskExecutor();
-        // 断言事件确实由真实路径发布，所以这里显式传发布口（与运行时的 Bukkit 发布等价）。
         communities = new JdbcCommunityService(dataSource, executor, null, true, published::add);
-        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
-            statement.execute("""
-                    CREATE TABLE rpg_profiles (
-                        player_uuid VARCHAR(36) PRIMARY KEY, archetype VARCHAR(24) NOT NULL,
-                        ascension INTEGER NOT NULL, level INTEGER NOT NULL, experience BIGINT NOT NULL,
-                        energy INTEGER NOT NULL, unspent_attribute_points INTEGER NOT NULL,
-                        skill_points INTEGER NOT NULL, defense INTEGER NOT NULL, strength INTEGER NOT NULL,
-                        agility INTEGER NOT NULL, intelligence INTEGER NOT NULL, stamina INTEGER NOT NULL,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_skill_point_grants (
-                        milestone_key VARCHAR(160) PRIMARY KEY,
-                        receipt VARCHAR(96) NOT NULL,
-                        player_uuid VARCHAR(36) NOT NULL,
-                        points INTEGER NOT NULL,
-                        ascension INTEGER NOT NULL,
-                        milestone_index INTEGER NOT NULL,
-                        to_local_level INTEGER NOT NULL,
-                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_accounts (
-                        player_uuid VARCHAR(36) PRIMARY KEY, balance DECIMAL(19, 2) NOT NULL,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_ledger (
-                        id VARCHAR(36) PRIMARY KEY, idempotency_key VARCHAR(96) UNIQUE NOT NULL,
-                        sender_uuid VARCHAR(36), receiver_uuid VARCHAR(36), amount DECIMAL(19, 2) NOT NULL,
-                        fee DECIMAL(19, 2) NOT NULL, reason VARCHAR(128) NOT NULL,
-                        reversal_of VARCHAR(96) UNIQUE,
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_identity (
-                        player_uuid VARCHAR(36) PRIMARY KEY, invite_code VARCHAR(16) UNIQUE NOT NULL,
-                        mentor_uuid VARCHAR(36), mentor_verified BOOLEAN NOT NULL DEFAULT FALSE,
-                        verified_mentees INTEGER NOT NULL DEFAULT 0, mentor_bound_at TIMESTAMP NULL,
-                        mentor_verified_at TIMESTAMP NULL, community_honor BIGINT NOT NULL DEFAULT 0,
-                        weekly_commemorations INTEGER NOT NULL DEFAULT 0,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_communities (
-                        id VARCHAR(36) PRIMARY KEY, name VARCHAR(40) NOT NULL,
-                        normalized_name VARCHAR(40) UNIQUE NOT NULL, tag VARCHAR(8) NOT NULL,
-                        normalized_tag VARCHAR(8) UNIQUE NOT NULL, owner_uuid VARCHAR(36) NOT NULL,
-                        capacity INTEGER NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_members (
-                        community_id VARCHAR(36) NOT NULL, player_uuid VARCHAR(36) UNIQUE NOT NULL,
-                        role VARCHAR(16) NOT NULL, lifetime_contribution DECIMAL(19, 2) NOT NULL DEFAULT 0,
-                        joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (community_id, player_uuid)
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_invites (
-                        community_id VARCHAR(36) NOT NULL, inviter_uuid VARCHAR(36) NOT NULL,
-                        target_uuid VARCHAR(36) NOT NULL, expires_at TIMESTAMP NOT NULL,
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (community_id, target_uuid)
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_projects (
-                        community_id VARCHAR(36) NOT NULL, period_key VARCHAR(24) NOT NULL,
-                        gold_contributed DECIMAL(19, 2) NOT NULL DEFAULT 0,
-                        verified_recruits INTEGER NOT NULL DEFAULT 0, completed_at TIMESTAMP NULL,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (community_id, period_key)
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_contributions (
-                        id VARCHAR(36) PRIMARY KEY, idempotency_key VARCHAR(80) UNIQUE NOT NULL,
-                        community_id VARCHAR(36) NOT NULL, player_uuid VARCHAR(36) NOT NULL,
-                        period_key VARCHAR(24) NOT NULL, amount DECIMAL(19, 2) NOT NULL,
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_project_rewards (
-                        player_uuid VARCHAR(36) NOT NULL, period_key VARCHAR(24) NOT NULL,
-                        community_id VARCHAR(36) NOT NULL, player_contribution DECIMAL(19, 2) NOT NULL,
-                        minimum_contribution DECIMAL(19, 2) NOT NULL, honor_awarded INTEGER NOT NULL,
-                        claimed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (player_uuid, period_key)
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_community_approvals (
-                        approval_id VARCHAR(36) PRIMARY KEY, community_id VARCHAR(36) NOT NULL,
-                        actor_uuid VARCHAR(36) NOT NULL, action VARCHAR(32) NOT NULL,
-                        subject VARCHAR(64), status VARCHAR(16) NOT NULL,
-                        requester_uuid VARCHAR(36), idempotency_key VARCHAR(96),
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE UNIQUE INDEX idx_rpg_community_approvals_unique
-                        ON rpg_community_approvals (community_id, action, subject, actor_uuid)
-                    """);
-            connection.commit();
-        }
     }
 
     @AfterEach
-    void tearDown() {
-        executor.close();
-        dataSource.close();
+    void tearDown() throws Exception {
+        if (executor != null) executor.close();
+        if (fixture != null) fixture.close();
     }
 
     @Test
@@ -235,7 +116,7 @@ class JdbcCommunityApprovalPersistenceTest {
     }
 
     @Test
-    void roleGrantVotesArePersistedAgainstTheTargetUuid() throws Exception {
+    void roleGrantVotesPersistTheExactTargetAndIntendedRole() throws Exception {
         UUID owner = player();
         createCommunity(owner);
         UUID deputy = join(owner, CommunityRole.OFFICER);
@@ -246,7 +127,7 @@ class JdbcCommunityApprovalPersistenceTest {
 
         List<Row> pending = rows();
         assertEquals(1, pending.size());
-        assertEquals(target.toString(), pending.get(0).subject(), "目标必须是目标玩家 UUID");
+        assertEquals(target + ":RECRUITER", pending.get(0).subject(), "目标 UUID 与拟任角色必须一起持久化");
 
         communities.approveAssignment(deputy, target, CommunityRole.RECRUITER.name(), "role-grant-2")
                 .toCompletableFuture().join();
@@ -373,26 +254,49 @@ class JdbcCommunityApprovalPersistenceTest {
 
     private void setLevel(UUID playerId, int level) throws Exception {
         try (Connection connection = dataSource.getConnection();
+             PreparedStatement update = connection.prepareStatement("""
+                     UPDATE rpg_profiles SET archetype = 'WARRIOR', ascension = 0, level = ?,
+                         experience = 0, energy = 100, unspent_attribute_points = 0, skill_points = 0,
+                         defense = 0, strength = 0, agility = 0, intelligence = 0, stamina = 0
+                     WHERE player_uuid = ?
+                     """);
              PreparedStatement insert = connection.prepareStatement("""
-                     MERGE INTO rpg_profiles (player_uuid, archetype, ascension, level, experience, energy,
+                     INSERT INTO rpg_profiles (player_uuid, archetype, ascension, level, experience, energy,
                          unspent_attribute_points, skill_points, defense, strength, agility,
                          intelligence, stamina)
-                     KEY (player_uuid) VALUES (?, 'WARRIOR', 0, ?, 0, 100, 0, 0, 0, 0, 0, 0, 0)
+                     VALUES (?, 'WARRIOR', 0, ?, 0, 100, 0, 0, 0, 0, 0, 0, 0)
                      """)) {
-            insert.setString(1, playerId.toString());
-            insert.setInt(2, level);
-            insert.executeUpdate();
+            // Serial fixture setup uses portable SQL on both production-schema backends.
+            update.setInt(1, level);
+            update.setString(2, playerId.toString());
+            int updated = update.executeUpdate();
+            if (updated == 0) {
+                insert.setString(1, playerId.toString());
+                insert.setInt(2, level);
+                assertEquals(1, insert.executeUpdate());
+            } else {
+                assertEquals(1, updated);
+            }
             connection.commit();
         }
     }
 
     private void insertAccount(UUID playerId, BigDecimal balance) throws Exception {
         try (Connection connection = dataSource.getConnection();
+             PreparedStatement update = connection.prepareStatement(
+                     "UPDATE rpg_accounts SET balance = ? WHERE player_uuid = ?");
              PreparedStatement insert = connection.prepareStatement(
-                     "MERGE INTO rpg_accounts (player_uuid, balance) KEY (player_uuid) VALUES (?, ?)")) {
-            insert.setString(1, playerId.toString());
-            insert.setBigDecimal(2, balance);
-            insert.executeUpdate();
+                     "INSERT INTO rpg_accounts (player_uuid, balance) VALUES (?, ?)")) {
+            update.setBigDecimal(1, balance);
+            update.setString(2, playerId.toString());
+            int updated = update.executeUpdate();
+            if (updated == 0) {
+                insert.setString(1, playerId.toString());
+                insert.setBigDecimal(2, balance);
+                assertEquals(1, insert.executeUpdate());
+            } else {
+                assertEquals(1, updated);
+            }
             connection.commit();
         }
     }

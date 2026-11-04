@@ -2918,7 +2918,7 @@ community:
     help:
       - "/community roles - show the governance rights of all seven roles"
       - "/community role <role> - show a single role"
-      - "/community assign <player> - request a role change (needs a second governance approval)"
+      - "/community assign <player> [role] - propose an explicit role (default RECRUITER); a second governor must approve"
       - "/community approve <action> | approvals <action> | deny <action> - two-person approval"
     role-line: "{role} · {detail} · {moderate}"
     role-approver: "can approve two-person governance actions"
@@ -3224,3 +3224,142 @@ support:
     aura-prismatic: "Prismatic resonance aura"
     trail-wings: "Elytra wing trail"
     trail-comet: "Elytra comet trail"
+
+community-lifecycle:
+  role-intent: 'Signed role request: {target} → {roleKey}'
+  menu-title: 'Community governance'
+  menu-lore:
+    - 'Review succession, dissolution and the public audit trail.'
+    - 'Two independent governors and a cooling period are required.'
+  disabled: 'Advanced community governance is currently disabled.'
+  overview: '[{tag}] {name} · Owner: {owner} · Last authenticated activity: {lastSeen}'
+  no-proposals: 'No lifecycle proposals have been recorded for this community.'
+  no-history: 'No lifecycle audit records were found.'
+  history-link: '[View the community audit history]'
+  proposal: '{action} · {id} · {state} · Current signatures: {signatures}/2 · Earliest execution: {deadline}'
+  awaiting-signatures: 'Waiting for two independent signatures'
+  audit: '{time} · {transition} · Actor {actor} · Proposal {proposal} · {detail}'
+  policy: 'Succession requires {inactiveDays} days without owner authentication and {memberDays} days of candidate membership. Cooling: succession {successionHours} h; dissolution {dissolutionHours} h.'
+  help:
+    - '/community lifecycle — current proposals and timing policy'
+    - '/community succession propose — nominate yourself after the owner inactivity period'
+    - '/community dissolve propose — the current owner proposes dissolution'
+    - '/community succession|dissolve approve <proposal-id> — add an independent signature'
+    - '/community succession|dissolve execute <proposal-id> — execute after cooling and a fresh eligibility check'
+    - '/community succession|dissolve cancel <proposal-id> — veto a pending proposal'
+    - '/community history [community-id] — read the retained public audit history'
+    - 'Two different current governors are mandatory. A small community has no single-signature bypass.'
+    - 'Owner authentication cancels pending succession. Dissolution retains names, contributions and personal honors; it does not refund gold or delete worlds.'
+  action:
+    succession: 'Leadership succession'
+    dissolution: 'Community dissolution'
+  state:
+    pending: 'Waiting for signatures'
+    cooling: 'Cooling period'
+    executed: 'Executed'
+    cancelled: 'Cancelled'
+  button:
+    approve: 'Prepare approval command'
+    execute: 'Prepare execution command'
+    cancel: 'Prepare veto command'
+  result:
+    storage-pending: 'Unresolved or quarantined warehouse custody blocks dissolution. Donors must finish escrow recovery; ambiguous items require review.'
+    success: 'The proposal or signature was recorded. Approval does not execute the decision.'
+    disabled: 'Advanced community governance is disabled.'
+    invalid: 'The lifecycle request is invalid.'
+    not-member: 'You are not a member of an active community.'
+    not-allowed: 'Your current role cannot perform this action. Only the owner may propose dissolution.'
+    owner-active: 'The owner has authenticated too recently for succession.'
+    membership-too-recent: 'You have not belonged to this community long enough to stand for succession.'
+    active-proposal: 'This community already has a lifecycle proposal. Review or veto it before submitting another.'
+    not-found: 'No matching proposal was found for this community and action.'
+    already-approved: 'Your signature is already recorded. A different eligible governor must sign.'
+    approvals-required: 'Two independent, currently eligible signatures are required.'
+    cooling: 'The cooling period has not ended. Execution remains blocked.'
+    executed: 'The lifecycle decision has been executed. The durable audit history remains available.'
+    cancelled: 'The proposal is cancelled; it cannot be executed.'
+    conditions-changed: 'The owner, candidate, membership, authentication or signatures changed. The old proposal was cancelled; submit a new proposal if still eligible.'
+
+community-storage:
+  entry: '/community storage — shared construction supplies, signed withdrawals and audit history'
+  menu-entry: 'Public construction supplies'
+  menu-entry-lore: 'Donate a pristine stack; two governors approve its named recipient.'
+  menu-title: '[{tag}] Supplies · page {page}'
+  disabled: 'Community storage is disabled. Core storage and advanced governance must both be enabled.'
+  adapter-unavailable: 'The market escrow adapter is unavailable. No item was removed.'
+  material-rejected: 'Only pristine construction materials are accepted. Equipment, rare materials, names, enchantments and PDC data are excluded. See /communitystorage materials.'
+  material-rule: 'Accepted materials (1–64 items per pristine stack; no metadata or custom items):'
+  prepare-failed: 'The deposit was not confirmed. Check membership and capacity; unfinished transfers are reconciled on login.'
+  deposited: 'Stack {id} is stored for the community. Withdrawals require two independent governors.'
+  capacity: 'Community custody: {used}/{maximum} stacks, including unresolved transfers.'
+  stock-state: 'Custody: {state}'
+  donor: 'Original donor: {player}'
+  request-self: 'Click to request this stack for yourself; another governor must approve.'
+  recovery-required: 'Unavailable for withdrawal until the donor finishes recovery or the quarantine is reviewed.'
+  invalid-target: 'Use an exact escrow UUID and a known player name or UUID. The recipient must still be a community member.'
+  no-pending: 'There are no pending supply withdrawals.'
+  request: 'Request {id} · stack {listing} · recipient {recipient} · {state} · current signatures {signatures}/2'
+  mailbox-link: '[Community supplies are ready in your mailbox — /market claim]'
+  help:
+    - '/community storage or /communitystorage list [page] — browse the shared supply inventory'
+    - '/communitystorage deposit — donate the pristine construction stack in your main hand'
+    - '/communitystorage materials — view the exact accepted material list'
+    - '/communitystorage withdraw <stack-id> [player] — a governor proposes a named recipient (default: yourself)'
+    - '/communitystorage pending [page] — review immutable recipients and current signatures'
+    - '/communitystorage approve <request-id> — a different governor signs and queues the stack in the recipient mailbox'
+    - '/communitystorage cancel <request-id> — a governor vetoes a pending withdrawal'
+    - 'Leaving a community does not reclaim donated supplies. On dissolution, only remaining stored stacks return to their original donors; prior withdrawals are not reversed.'
+    - 'Two distinct current governors are mandatory. No single-signature or administrator bypass is provided.'
+  stock:
+    prepared: 'Awaiting physical removal receipt'
+    active: 'Stored'
+    quarantined: 'Frozen for custody review'
+    cancelled: 'Released'
+    sold: 'Closed'
+    expired: 'Closed'
+  request-state:
+    pending: 'Waiting for independent approval'
+    completed: 'Queued in the existing mailbox'
+    cancelled: 'Cancelled'
+  button:
+    previous: 'Previous page'
+    next: 'Next page'
+    back: 'Community center'
+    materials: 'Accepted materials'
+    deposit: 'Donate the main-hand stack'
+    pending: 'Pending withdrawals'
+    history: 'Public audit history'
+    approve: 'Prepare approval command'
+    cancel: 'Prepare veto command'
+  result:
+    success: 'Withdrawal intent recorded. The exact stack and recipient need a second governor signature.'
+    disabled: 'Community storage is disabled.'
+    invalid: 'Invalid or conflicting custody request.'
+    not-member: 'You are not a member of an active community.'
+    not-allowed: 'Only current governors may request, approve or veto withdrawals.'
+    not-found: 'The stored stack or request could not be found in this community.'
+    target-not-member: 'The recipient is not currently a member of this community.'
+    active-request: 'This stack already has a withdrawal request. Review or cancel it before proposing another recipient.'
+    already-approved: 'Your signature is already recorded; another current governor must sign.'
+    delivered: 'The approved stack is queued in the named recipient mailbox. They can use /market claim.'
+    cancelled: 'The withdrawal request is cancelled; the stack remains in community custody.'
+    conditions-changed: 'Membership, signatures or custody changed. The old request was cancelled without releasing supplies.'
+
+civilization:
+  player-only: "Open civilization history from an authenticated player session."
+  not-ready: "Authenticate before opening civilization history."
+  usage: "Usage: /civilization [projects|seasons] [1-1000]"
+  pending: "The archive is loading. Please wait."
+  failed: "The archive is temporarily unavailable. No progress or rewards changed."
+  projects-title: "Completed community projects — page {page}"
+  seasons-title: "Verified season history — page {page}"
+  empty: "No completed records on this page yet."
+  project: "[{tag}] {name} · {period} · {date} | {gold} Gold contributed · {contributors} contributors · {recruits} verified recruits · {honor} Honor already awarded"
+  dissolved: "This community has dissolved; its completed work remains in history."
+  season: "Season {season} · settlement completed {date}"
+  scope: "Community achievements and verified season milestones. All dates are UTC."
+  previous: "[Previous page]"
+  next: "[Next page]"
+  show-projects: "[Community projects]"
+  show-seasons: "[Season history]"
+

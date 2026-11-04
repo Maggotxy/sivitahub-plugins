@@ -171,7 +171,7 @@ public final class JdbcMarketBuyOrderService implements MarketBuyOrderService {
             updateOrder(connection, orderId, remaining, remaining == 0 ? MarketOrder.FILLED : MarketOrder.ACTIVE, nextHoldKey);
             try (PreparedStatement update = connection.prepareStatement("""
                     UPDATE rpg_market_listings SET state = 'SOLD', buyer_uuid = ?, open_item_identity = NULL,
-                    completed_at = CURRENT_TIMESTAMP WHERE id = ? AND state = 'ACTIVE'
+                    completed_at = CURRENT_TIMESTAMP WHERE id = ? AND state = 'ACTIVE' AND custody_community_id IS NULL
                     """)) {
                 update.setString(1, order.buyerId().toString()); update.setString(2, listingId.toString());
                 if (update.executeUpdate() != 1) throw new SQLException("Locked item escrow changed during fill");
@@ -353,7 +353,8 @@ public final class JdbcMarketBuyOrderService implements MarketBuyOrderService {
     }
 
     private ListingRow selectListing(Connection connection, UUID id) throws SQLException {
-        try (PreparedStatement query = connection.prepareStatement("SELECT * FROM rpg_market_listings WHERE id = ? FOR UPDATE")) {
+        try (PreparedStatement query = connection.prepareStatement(
+                "SELECT * FROM rpg_market_listings WHERE id = ? AND custody_community_id IS NULL FOR UPDATE")) {
             query.setString(1, id.toString());
             try (ResultSet rs = query.executeQuery()) {
                 return rs.next() ? new ListingRow(UUID.fromString(rs.getString("seller_uuid")), rs.getString("state"),

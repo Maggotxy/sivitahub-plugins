@@ -5,12 +5,22 @@ api-version: '${paperApi}'
 authors: [OriginalRpg]
 description: Persistent communities, mentor bonds and non-inflationary weekly projects.
 depend: [RpgApi, RpgCore, RpgGuide]
-softdepend: [RpgCosmetics]
+softdepend: [RpgCosmetics, RpgMarket]
 commands:
+  communitystorage:
+    aliases: [communitywarehouse]
+    description: Donate pristine construction supplies and approve audited community withdrawals.
+    usage: /communitystorage [list|deposit|withdraw|pending|approve|cancel|materials|help]
+    permission: rpg.community
+  civilization:
+    aliases: [civilizationarchive, 文明档案]
+    description: Browse completed community projects and verified season history.
+    usage: /civilization [projects|seasons] [page]
+    permission: rpg.community
   community:
     aliases: [guild, 社群]
     description: Open the community center or manage a community.
-    usage: /community [help|status|browse|create|invite|accept|leave|kick|transfer|code|bond|contribute|claim|leaderboard]
+    usage: /community [help|status|browse|create|invite|accept|leave|kick|transfer|code|bond|contribute|claim|leaderboard|lifecycle|succession|dissolve|history|storage]
     permission: rpg.community
   account:
     aliases: [webaccount, bindweb, 官网]

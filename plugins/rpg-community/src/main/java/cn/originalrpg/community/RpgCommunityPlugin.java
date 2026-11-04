@@ -6,6 +6,10 @@ import cn.originalrpg.api.model.CosmeticMoment;
 import cn.originalrpg.api.model.MentorBondResult;
 import cn.originalrpg.api.model.PlayerProfile;
 import cn.originalrpg.api.service.CommunityGovernanceService;
+import cn.originalrpg.api.service.CommunityLifecycleService;
+import cn.originalrpg.api.service.CommunityStorageService;
+import cn.originalrpg.api.service.CommunityStorageSessionService;
+import cn.originalrpg.api.service.CivilizationHistoryService;
 import cn.originalrpg.api.service.CommunityRoleAssignmentService;
 import cn.originalrpg.api.service.CommunityService;
 import cn.originalrpg.api.service.CosmeticEffectService;
@@ -45,6 +49,9 @@ public final class RpgCommunityPlugin extends JavaPlugin implements Listener {
     private JourneyService journeys;
     private MessageService messages;
     private CommunityCommand command;
+    private CommunityLifecycleController lifecycle;
+    private CommunityStorageController storage;
+    private CivilizationArchiveCommand civilization;
     private AccountCommand accountCommand;
     private ZoneId projectZone;
     private int verificationCursor;
@@ -73,7 +80,10 @@ public final class RpgCommunityPlugin extends JavaPlugin implements Listener {
         messages = requireService(MessageService.class);
         projectZone = zone(getConfig().getString("weekly-project.timezone", "Asia/Shanghai"));
 
-        command = new CommunityCommand(this, communities, governance, roleAssignments, profiles, messages);
+        lifecycle = new CommunityLifecycleController(this,
+                getServer().getServicesManager().load(CommunityLifecycleService.class), messages,
+                this::communityGovernanceEnabled);
+        command = new CommunityCommand(this, communities, governance, roleAssignments, profiles, messages, lifecycle);
         var pluginCommand = Objects.requireNonNull(getCommand("community"), "community command");
         pluginCommand.setExecutor(command);
         pluginCommand.setTabCompleter(command);
@@ -81,7 +91,21 @@ public final class RpgCommunityPlugin extends JavaPlugin implements Listener {
         var account = Objects.requireNonNull(getCommand("account"), "account command");
         account.setExecutor(accountCommand);
         account.setTabCompleter(accountCommand);
+        storage = new CommunityStorageController(this, requireService(CommunityStorageService.class), messages,
+                this::communityGovernanceEnabled,
+                () -> getServer().getServicesManager().load(CommunityStorageSessionService.class));
+        var storageCommand = Objects.requireNonNull(getCommand("communitystorage"), "communitystorage command");
+        storageCommand.setExecutor(storage);
+        storageCommand.setTabCompleter(storage);
+        getServer().getPluginManager().registerEvents(storage, this);
         getServer().getPluginManager().registerEvents(command, this);
+        getServer().getPluginManager().registerEvents(lifecycle, this);
+        lifecycle.start();
+        civilization = new CivilizationArchiveCommand(this, requireService(CivilizationHistoryService.class), messages);
+        var archiveCommand = Objects.requireNonNull(getCommand("civilization"), "civilization command");
+        archiveCommand.setExecutor(civilization);
+        archiveCommand.setTabCompleter(civilization);
+        getServer().getPluginManager().registerEvents(civilization, this);
         getServer().getPluginManager().registerEvents(
                 new CommunityGovernanceListener(this, governance, messages), this);
         getServer().getPluginManager().registerEvents(this, this);
@@ -97,6 +121,9 @@ public final class RpgCommunityPlugin extends JavaPlugin implements Listener {
         authenticatedPlayers.clear();
         verificationInFlight.clear();
         if (command != null) command.clear();
+        if (lifecycle != null) lifecycle.stop();
+        if (storage != null) storage.clear();
+        if (civilization != null) civilization.close();
         if (accountCommand != null) accountCommand.clear();
     }
 

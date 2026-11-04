@@ -22,7 +22,10 @@ final class CommunityGovernanceCommandRouter {
         DENY
     }
 
-    record Route(Action action, String argument, CommunityGovernanceAction governanceAction) {
+    record Route(Action action, String argument, CommunityGovernanceAction governanceAction, String requestedRole) {
+        Route(Action action, String argument, CommunityGovernanceAction governanceAction) {
+            this(action, argument, governanceAction, null);
+        }
     }
 
     private CommunityGovernanceCommandRouter() {
@@ -38,10 +41,10 @@ final class CommunityGovernanceCommandRouter {
                     ? Optional.of(new Route(Action.ROLE_LOOKUP, null, null))
                     : Optional.of(new Route(Action.ROLE_LOOKUP, value, null));
             case "roles" -> Optional.of(new Route(Action.ROLE_LIST, null, null));
-            case "assign" -> value == null
+            case "assign" -> value == null || args.length > 3
                     ? Optional.empty()
                     : Optional.of(new Route(Action.ASSIGN, value,
-                            CommunityGovernanceAction.ROLE_GRANT));
+                            CommunityGovernanceAction.ROLE_GRANT, args.length == 3 ? args[2] : "RECRUITER"));
             case "approve" -> Optional.of(new Route(Action.APPROVE, value,
                     value == null ? null : CommunityGovernanceAction.parse(value).orElse(null)));
             case "approvals" -> Optional.of(new Route(Action.APPROVALS, value,

@@ -53,6 +53,15 @@ final class CommunityGovernanceCommandRouterTest {
         assertTrue(route("assign").isEmpty());
     }
 
+    @Test
+    void assignmentPreservesTheExplicitRoleAndRejectsExtraArguments() {
+        var requested = route("assign", "Player", "TREASURER").orElseThrow();
+        assertEquals("Player", requested.argument());
+        assertEquals("TREASURER", requested.requestedRole());
+        assertEquals("RECRUITER", route("assign", "Player").orElseThrow().requestedRole());
+        assertTrue(route("assign", "Player", "TREASURER", "unexpected").isEmpty());
+    }
+
     private static Optional<CommunityGovernanceCommandRouter.Route> route(String... args) {
         return CommunityGovernanceCommandRouter.route(args);
     }
