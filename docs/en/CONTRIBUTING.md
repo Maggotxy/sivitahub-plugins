@@ -1,6 +1,6 @@
 # Contributing and reviewing changes
 
-[English documentation](README.md) · [Architecture](ARCHITECTURE.md) · [Constitution](GAME_ECONOMY_CONSTITUTION.md)
+[English documentation](README.md) · [Developer handbook](DEVELOPER_HANDBOOK.md) · [Architecture](ARCHITECTURE.md) · [Constitution](GAME_ECONOMY_CONSTITUTION.md)
 
 Work on this repository must preserve its gameplay rules, persistent data, and evidence requirements. Read [INTERNAL_USE.md](../../INTERNAL_USE.md) before using or contributing original material. This guide does not introduce an open-source license, change ownership, or grant redistribution rights.
 
@@ -40,7 +40,7 @@ The phase plan defines dependencies; these rows do not say that every phase is c
 - Make schema and data changes reviewable with dry-run, forward, verification, and rollback procedures. Never infer a legacy local level with `level % 30`.
 - Preserve third-party artifact provenance, exact version/hash constraints, and applicable notices.
 
-## Translation workflow
+## Presentation changes (supporting workflow)
 
 Translate the player's intended meaning using [the glossary](GLOSSARY.md), then compare the result with the actual operation. In particular, do not interchange **Energy** with **Stamina**, **Starlight** with **Support Credit**, or local level with effective level.
 

@@ -26,8 +26,13 @@ spec.loader.exec_module(packager)
 def create_fixture(root: Path):
     # Copy only public compiler inputs. No real build/libs JAR is ever copied.
     for directory in ("resource-pack/assets", "resource-pack/betterhud_26_1", "resource-pack/tools",
-                      "datapacks/sivita-navigation", "examples/en_us", "examples/betonquest", "docs/reference"):
+                      "datapacks/sivita-navigation", "examples/en_us", "examples/betonquest", "docs/reference",
+                      "docs/en", "docs/operations"):
         shutil.copytree(ROOT / directory, root / directory, ignore=shutil.ignore_patterns("__pycache__"))
+    for relative in packager.DEVELOPER_DOCUMENTS:
+        source, destination = ROOT / relative, root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
     for module in (ROOT / "plugins").glob("rpg-*"):
         if (module / "src/main").is_dir():
             shutil.copytree(module / "src/main", root / "plugins" / module.name / "src/main")
@@ -89,9 +94,13 @@ class EditionPackageTest(unittest.TestCase):
             self.assertFalse(path.exists(), path)
 
     def test_complete_success_path_hashes_and_candidate_inclusion(self):
-        private = self.root / "server/private/credentials.txt"
-        private.parent.mkdir(parents=True)
-        private.write_text("DO-NOT-PACK-THIS-CANARY")
+        excluded = ("server/private/credentials.txt", "server/key.env", "world/level.dat", "world/region/r.0.0.mca",
+                    "plugins/RpgCore/data/rpg.mv.db", "libs/vendor/not-distributable.jar",
+                    "docs/en/private-notes.md", "docs/operations/live-passwords.md")
+        for relative in excluded:
+            private = self.root / relative
+            private.parent.mkdir(parents=True, exist_ok=True)
+            private.write_text("DO-NOT-PACK-THIS-CANARY")
         archive_path = packager.package(self.root, self.output, self.pack)
         manifest = json.loads((self.output / "manifest.json").read_text())
         self.assertEqual(25, manifest["plugin_count"])
@@ -100,7 +109,40 @@ class EditionPackageTest(unittest.TestCase):
         self.assertTrue(manifest["runtime_candidates"]["requires_runtime_recompile"])
         self.assertEqual(packager.source_provenance(self.root), manifest["build_provenance"])
         self.assertTrue((self.output / "plugins/BetonQuest/QuestPackages/sivita_story/package.yml").is_file())
-        self.assertEqual("en_us", yaml.safe_load((self.output / "plugins/RpgCore/config.yml").read_text())["language"]["default"])
+        self.assertEqual((self.root / "plugins/rpg-core/src/main/resources/config.yml").read_bytes(),
+                         (self.output / "plugins/RpgCore/config.yml").read_bytes())
+        self.assertEqual("zh_cn", yaml.safe_load((self.output / "plugins/RpgCore/config.yml").read_text())["language"]["default"])
+        for plugin in packager.source_plugins(self.root):
+            for source in plugin["resources"].rglob("*.yml"):
+                if source.name != "plugin.yml":
+                    bundled = self.output / "plugins" / plugin["name"] / source.relative_to(plugin["resources"])
+                    self.assertEqual(source.read_bytes(), bundled.read_bytes(), source)
+        self.assertFalse(manifest["config_overlays"]["applied_to_plugin_configs"])
+        documentation = manifest["documentation"]
+        self.assertTrue((self.output / documentation["entrypoint"]).is_file())
+        for directory, count_field in (("docs/en", "english_guides"), ("docs/operations", "operations_runbooks")):
+            expected = {path.relative_to(ROOT).as_posix() for path in (ROOT / directory).rglob("*.md")}
+            actual = {name for name in documentation["files"] if name.startswith(f"{directory}/")}
+            self.assertEqual(expected, actual, directory)
+            self.assertEqual(len(expected), documentation[count_field])
+        for relative in documentation["files"]:
+            self.assertEqual((self.root / relative).read_bytes(), (self.output / relative).read_bytes())
+        plugin_reference = (self.output / "docs/en/PLUGIN_REFERENCE.md").read_text()
+        for plugin in manifest["plugins"]:
+            self.assertIn(f"\n## {plugin['module']}\n", plugin_reference)
+        self.assertTrue((self.output / "docs/en/DEVELOPER_HANDBOOK.md").is_file())
+        self.assertTrue((self.output / "docs/en/GAMEPLAY_SPECIFICATION.md").is_file())
+        instructions = (self.output / "INSTALL.en.md").read_text()
+        operations = (self.output / "docs/en/OPERATIONS.md").read_text()
+        self.assertIn("docs/en/README.md", instructions)
+        for required in ("RPG_ITEM_SIGNING_KEY", "RPG_ITEM_SIGNING_KEY_PREVIOUS",
+                         "RPG_ITEM_SIGNING_KEY_PREVIOUS_2", "RPG_ITEM_SIGNING_KEY_PREVIOUS_3",
+                         "key.env", "32 decoded bytes", "file-backed H2", "plugins/RpgCore/data/rpg",
+                         "RPG_DATABASE_URL", "RPG_DATABASE_USER", "RPG_DATABASE_PASSWORD"):
+            self.assertIn(required, instructions)
+            self.assertIn(required, operations)
+        self.assertIn("Never generate a fresh key at every startup", instructions)
+        self.assertIn("os.O_EXCL", operations)
         with zipfile.ZipFile(archive_path) as archive:
             self.assertIsNone(archive.testzip())
             self.assertEqual(len(archive.namelist()), len(set(archive.namelist())))
@@ -110,9 +152,47 @@ class EditionPackageTest(unittest.TestCase):
                 self.assertEqual(record["bytes"], len(data))
                 self.assertEqual(record["sha256"], hashlib.sha256(data).hexdigest())
                 self.assertNotIn(b"DO-NOT-PACK-THIS-CANARY", data)
-            self.assertFalse(any("server/private" in name for name in archive.namelist()))
+            jar_names = {name.removeprefix(f"{self.output.name}/") for name in archive.namelist() if name.endswith(".jar")}
+            self.assertEqual({plugin["jar"] for plugin in manifest["plugins"]}, jar_names)
+            for relative in excluded:
+                self.assertNotIn(f"{self.output.name}/{relative}", archive.namelist())
         checksum = Path(str(archive_path) + ".sha256").read_text().split()[0]
         self.assertEqual(checksum, hashlib.sha256(archive_path.read_bytes()).hexdigest())
+
+    def test_missing_required_developer_document_blocks_entire_release(self):
+        required = self.root / "docs/en/DEVELOPER_HANDBOOK.md"
+        required.unlink()
+        with self.assertRaisesRegex(packager.PackageError, "Missing or unsafe developer documentation: docs/en/DEVELOPER_HANDBOOK.md"):
+            packager.package(self.root, self.output, self.pack)
+        self.assert_no_release()
+
+    def test_developer_document_symlink_is_not_followed(self):
+        private = self.root / "private-operator-notes.md"
+        private.write_text("DO-NOT-PACK-THIS-CANARY")
+        document = self.root / "docs/en/DEVELOPER_HANDBOOK.md"
+        document.unlink()
+        document.symlink_to(private)
+        with self.assertRaisesRegex(packager.PackageError, "Missing or unsafe developer documentation"):
+            packager.package(self.root, self.output, self.pack)
+        self.assert_no_release()
+
+    def test_developer_document_directory_symlink_is_not_followed(self):
+        directory = self.root / "docs/operations"
+        redirected = self.root / "operator-runbooks"
+        directory.rename(redirected)
+        directory.symlink_to(redirected, target_is_directory=True)
+        with self.assertRaisesRegex(packager.PackageError, "Missing or unsafe developer documentation"):
+            packager.package(self.root, self.output, self.pack)
+        self.assert_no_release()
+
+    def test_english_player_preset_is_explicit_and_does_not_modify_source_defaults(self):
+        source = self.root / "plugins/rpg-core/src/main/resources/config.yml"
+        before = source.read_bytes()
+        packager.package(self.root, self.output, self.pack, english_player_preset=True)
+        self.assertEqual("en_us", yaml.safe_load((self.output / "plugins/RpgCore/config.yml").read_text())["language"]["default"])
+        self.assertEqual(before, source.read_bytes())
+        receipt = json.loads((self.output / "manifest.json").read_text())
+        self.assertTrue(receipt["config_overlays"]["applied_to_plugin_configs"])
 
     def test_missing_one_jar_blocks_entire_release(self):
         self.jar("rpg-story").unlink()

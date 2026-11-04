@@ -1,4 +1,4 @@
-# SivitaHub — A Survival RPG for Minecraft
+# SivitaHub — Survival RPG Plugin Suite for Developers
 
 [简体中文](README.md) · **English** · [Documentation](docs/en/README.md)
 
@@ -6,18 +6,22 @@
 
 The project targets **Minecraft Java Edition 26.2, Paper, and Java 25**. It is developed independently and is not affiliated with or endorsed by Mojang or Microsoft.
 
-## Start here
+## Start here: developer edition
 
-| I want to… | Read |
+This English edition is intended for developers who need to build, debug, extend and maintain the **entire project**. It keeps the same Java code, APIs, identifiers and gameplay rules. Player localization is a separate feature.
+
+| Engineering task | Read |
 |---|---|
-| Understand the game and its commands | [Player guide](docs/en/PLAYER_GUIDE.md) |
-| Build or test the plugins | [Getting started](docs/en/GETTING_STARTED.md) |
-| Understand module and data ownership | [Architecture](docs/en/ARCHITECTURE.md) |
-| Prepare an authorized deployment | [Operations](docs/en/OPERATIONS.md) |
-| Review a change or contribute a translation | [Contributing](docs/en/CONTRIBUTING.md) |
-| Understand unfamiliar RPG terminology | [English–Chinese glossary](docs/en/GLOSSARY.md) |
-| Separate current code from release requirements | [Roadmap and evidence](docs/en/ROADMAP.md) |
-| Review the implemented English project edition | [Implementation and acceptance record](docs/audits/PLAYABLE_ENGLISH_EDITION_DELIVERY.md) |
+| Work on the codebase end to end | [Developer handbook](docs/en/DEVELOPER_HANDBOOK.md) |
+| Understand the whole server's gameplay loops | [Gameplay systems and extension contracts](docs/en/GAMEPLAY_SPECIFICATION.md) |
+| Extend a particular plugin, command or content loop | [Reference for all 25 plugins](docs/en/PLUGIN_REFERENCE.md) |
+| Build, test and diagnose dependencies | [Getting started](docs/en/GETTING_STARTED.md) |
+| Find module/data ownership | [Architecture and all 25 modules](docs/en/ARCHITECTURE.md) |
+| Implement the next mechanism correctly | [Phase plan](docs/en/PHASE_PLAN.md) and [Constitution](docs/en/GAME_ECONOMY_CONSTITUTION.md) |
+| Review a migration, failure path or PR | [Contributing](docs/en/CONTRIBUTING.md) and [Operations](docs/en/OPERATIONS.md) |
+| Follow transaction/content verification | [Developer CI](.github/workflows/verify.yml) and [Roadmap/evidence](docs/en/ROADMAP.md) |
+| Understand Chinese design terms in existing code | [English–Chinese glossary](docs/en/GLOSSARY.md) |
+
 
 ## What is in the game?
 
@@ -26,7 +30,6 @@ The project targets **Minecraft Java Edition 26.2, Paper, and Java 25**. It is d
 - **Cooperative encounters.** Adaptive overworld mobs, readable attack warnings, Blood Moons, hunt chains, and shared dungeons for parties of one to four. The checked-in catalog has three dungeon families, each with a normal and hidden variant.
 - **A connected economy.** Gold, Merit, and Starlight have explicit roles, transaction records, and configured limits. An escrow market handles sales and durable item delivery. Resource commissions connect ordinary survival activity to the RPG loop.
 - **A shared world.** A protected hub, service NPCs, optional story guidance, communities, companions, and cosmetic effects connect the systems. The AI companion provides read-only advice and has a local fallback.
-- **An English in-game edition.** English and Simplified Chinese cover the custom menus, progression messages, NPC guidance, story package, knowledge answers, and supported item presentation. Use `/language en_us`; supported existing personal items refresh as well. The English edition preset sets the default language for shared NPCs and world labels. Third-party interfaces and rendered client surfaces retain their own acceptance checks.
 
 These are source-level capabilities. A feature can exist in code while its deployment switch remains off or its multiplayer acceptance tests remain outstanding. See the [evidence model](docs/en/ROADMAP.md#evidence-levels).
 
@@ -50,6 +53,8 @@ The build pins its versions in [gradle.properties](gradle.properties). It does n
 
 Install JDK 25, Git, Python 3, and a POSIX shell. On Windows, use Git Bash or WSL for the shell scripts and `gradlew.bat` for native Gradle commands.
 
+When reviewing this implementation stack, check out the reviewed PR head or its exact commit before building. Cloning the default branch does not include unmerged PR work. The [completion review](docs/audits/MECHANISM_COMPLETION_REVIEW.md) identifies the verified source snapshots and review order.
+
 ```bash
 git clone https://github.com/Maggotxy/sivitahub-plugins.git
 cd sivitahub-plugins
@@ -66,9 +71,9 @@ sh scripts/fetch-deps.sh --check
 
 Dependency downloads require network access to the pinned upstream artifacts. The `env` exclusion omits deployment-dependent checks; it does not validate a running server. Plugin JARs are generated under `plugins/<module>/build/libs/`. Read [Getting started](docs/en/GETTING_STARTED.md) before choosing a test or staging task. The private deployment scripts required by `stagePlugins` and `stageRelease` are outside this repository.
 
-For an English default and English shared NPC names, the [English configuration preset](examples/en_us/README.md) generates a separate reviewable preview. It changes approved text fields and locale selection; deployment remains an operator action.
+Player localization is optional and separate from this engineering edition. The [English configuration preset](examples/en_us/README.md) remains available for localization testing. Developer builds preserve the canonical player-language defaults unless an explicit preset is selected.
 
-The [English edition build instructions](docs/en/GETTING_STARTED.md) also cover the portable client pack, BetterModel/BetterHud registration candidates, bundled bilingual prologue quest, and `scripts/package-edition.py`. The edition packager requires all 25 current JARs with matching source fingerprints and refuses incomplete or stale builds. Review the [25-plugin gameplay and asset audit](docs/audits/FULL_PLUGIN_GAMEPLAY_REVIEW.md) for each module's implemented behavior and outstanding runtime checks.
+The [developer bundle build instructions](docs/en/GETTING_STARTED.md) also cover the portable client pack, BetterModel/BetterHud registration candidates, bundled bilingual prologue quest, and `scripts/package-edition.py`. The edition packager requires all 25 current JARs with matching source fingerprints and refuses incomplete or stale builds. Use the [developer handbook](docs/en/DEVELOPER_HANDBOOK.md) for implementation contracts and the [gameplay specification](docs/en/GAMEPLAY_SPECIFICATION.md) for the complete system map. Earlier asset/localization work is recorded in the dated [25-plugin audit](docs/audits/FULL_PLUGIN_GAMEPLAY_REVIEW.md).
 
 ## Design commitments
 
@@ -82,4 +87,4 @@ Read [INTERNAL_USE.md](INTERNAL_USE.md). Public repository visibility does not c
 
 ## Source reference
 
-The initial documentation baseline was `c83226ff87c8ecb868277d9ca5bce575b4684abc`. The subsequent runtime edition, gameplay repairs, source fingerprint, actual build results, and exact remaining blocker are recorded in the [2026-11-04 acceptance record](docs/audits/PLAYABLE_ENGLISH_EDITION_DELIVERY.md).
+The current implementation, migration decisions, exact test/runtime evidence and remaining acceptance work are recorded in the [mechanism completion review](docs/audits/MECHANISM_COMPLETION_REVIEW.md). It covers the complete phase-based review stack and supersedes older missing-feature statements where implementation now exists. Earlier asset/localization evidence remains attached to its original snapshot in the [2026-11-04 edition record](docs/audits/PLAYABLE_ENGLISH_EDITION_DELIVERY.md).

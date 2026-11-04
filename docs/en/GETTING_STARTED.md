@@ -76,7 +76,7 @@ The build also creates source JARs. Deploy the runtime JARs, not the `-sources.j
 
 `stagePluginCandidates`, `stagePlugins`, and `stageRelease` belong to the private deployment workflow. `stagePlugins` delegates to a private deployment script; `stageRelease` invokes `buildDeploymentResourcePack`, which explicitly runs `resource-pack/build.sh --deployment` before staging the JARs. The separate `buildResourcePack` task builds the portable source-checkout artifact. Use the source build commands above until an authorized deployment tree is available.
 
-### Build the English staging edition
+### Build a complete developer staging bundle
 
 The public resource-pack builder now works without a private server tree. The server-resource exporter additionally needs Node.js and PyYAML; its model-only path uses existing reviewed PNG bytes and has no Sharp or Pillow dependency.
 
@@ -92,49 +92,20 @@ python3 resource-pack/tools/build_server_resources.py --output build/server-reso
 
 # After ./gradlew assemble, require all 25 actual runtime JARs and package them.
 # The directory and its sibling ZIP must both be NEW.
-python3 scripts/package-edition.py --output build/sivitahub-en-us-26.2
+python3 scripts/package-edition.py --output build/sivitahub-developer-26.2
 ```
 
-The edition contains all custom plugin JARs, canonical development configs with English presentation overrides, the client resource baseline, native G-key datapack, bilingual BetonQuest prologue, and the model/HUD inputs under `runtime-candidates/`. It also writes an English installation guide, a file-by-file SHA-256 manifest, a ZIP, and a ZIP checksum. Missing or stale JARs fail the whole command. The [packager](../../scripts/package-edition.py) verifies each JAR's `META-INF/sivitahub-build.json` against the same fingerprint of **all** plugin main sources/resources and Gradle inputs; a Java-only shared API change requires a matching rebuild of the whole suite. Build provenance and archive checks do not establish server startup or client acceptance.
+The developer bundle contains all custom plugin JARs, canonical development configs with their original player-language defaults, the client resource baseline, native G-key datapack, bilingual BetonQuest prologue, and the model/HUD inputs under `runtime-candidates/`. Its explicit public documentation inventory includes 50 files: all 16 English guides, eight operations runbooks, the governing rules and referenced recovery notes. The handbook, gameplay specification and 25-plugin reference are available directly from `INSTALL.en.md`; source-code and executable-tool links require the corresponding source checkout. It also writes a file-by-file SHA-256 manifest, a ZIP, and a ZIP checksum. Missing or stale JARs or required documentation fail the whole command. The [packager](../../scripts/package-edition.py) verifies each JAR's `META-INF/sivitahub-build.json` against the same fingerprint of **all** plugin main sources/resources and Gradle inputs; a Java-only shared API change requires a matching rebuild of the whole suite. Build provenance and archive checks do not establish server startup or client acceptance.
 
 The client ZIP contains every committed `originalrpg`, `betterhud`, `bettermodel` and `minecraft` asset. The candidate exporter supplies all 15 complete server `.bbmodel` registrations and a four-slot HUD with 42 skill icons, seven class states, cooldowns, mana, progression and language-sensitive control labels. The complete HUD is gated by the actual resource-pack/profile readiness placeholder. Compile these inputs with the pinned external plugins on an isolated server, then keep their **matching model indices, font codepoints and shaders together** in the final runtime pack. A new HUD layout cannot safely reuse the old shader layout table simply because both packs load as ZIP files. See the generated `runtime-candidates/README.en.md` and [resource build guide](../../resource-pack/README.md) for the boundary and checks.
 
-Third-party plugin binaries, worlds, player data, databases, credentials and production configuration are excluded. Follow the generated `INSTALL.en.md` before copying anything into a staging server. Existing servers should merge the reviewed text overlays into their own configuration rather than replace operational settings with development defaults.
+Third-party plugin binaries, worlds, player data, databases, credentials and production configuration are excluded. Follow the generated `INSTALL.en.md` before copying anything into a staging server. Existing servers must review and merge configuration changes rather than replace operational settings with development defaults. English developer documentation is independent of player-language selection. The optional `--english-player-preset` flag explicitly applies the separate English presentation overlay; it is off by default.
 
-## 5. Enable English in an authorized runtime
+## 5. Optional player localization
 
-For one player, authenticate first and run:
+This developer edition does not change the language your players use. The packaged source defaults remain unchanged unless `--english-player-preset` is selected explicitly. Players may use the existing `/language en_us` or `/language zh_cn` controls after authentication. For localization work, consult the [player guide](PLAYER_GUIDE.md), [message/content conventions](CONTRIBUTING.md) and [optional English preset](../../examples/en_us/README.md).
 
-```text
-/language en_us
-```
-
-Close and reopen existing menus after switching. `/language zh_cn` switches back, and `/language` reports the current selection.
-
-To make English the server default, edit the generated **runtime** `plugins/RpgCore/config.yml` during a maintenance window:
-
-```yaml
-language:
-  default: en_us
-  allow-player-selection: true
-```
-
-Restart through the normal server procedure. The checked-in template is [RpgCore's config](../../plugins/rpg-core/src/main/resources/config.yml). A player's saved selection overrides the default when selection is allowed. The [shared message service](../../plugins/rpg-core/src/main/java/cn/originalrpg/core/i18n/YamlMessageService.java) does not automatically choose a language from the Minecraft client's locale.
-
-Core and hub language bundles live under their modules' `src/main/resources/lang/` directories. Other custom modules also have embedded bilingual text, and external plugins have their own language settings. Changing the core default does not configure AuthMe, a website, or every third-party UI. See [Operations](OPERATIONS.md#language-and-regional-settings).
-
-### Generate a reviewable English configuration preview
-
-The [English preset](../../examples/en_us/README.md) contains small overlays for the core locale, eleven hub NPC names/subtitles, the story actor name, and the performance join message. Generate full development-config previews into a new directory:
-
-```bash
-python3 -m pip install 'PyYAML==6.0.3'
-python3 scripts/generate-english-configs.py --output build/en_us-preview
-```
-
-The generator refuses an existing output directory, file, or symlink. It writes four plugin configuration previews and a source-hash manifest. It does not install them or write into a running server. For an existing deployment, merge the small overlays into your own reviewed staging configuration; replacing live files with generated development defaults could discard unrelated operator settings.
-
-The preset changes only the approved 25 locale/text fields. It does not enable gameplay switches, alter economic values, or translate hardcoded and third-party surfaces. Check [the localization review](../audits/LOCALIZATION_REVIEW.md) for the remaining coverage boundaries.
+For startup verification, follow [the real Paper/PostgreSQL probe guide](../operations/RUNTIME_STARTUP_VERIFICATION.md). Its disposable signing key and database are test inputs; do not copy them into a live server.
 
 ## Troubleshooting
 
