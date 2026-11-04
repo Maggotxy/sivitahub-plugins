@@ -20,14 +20,14 @@ jobs:
     timeout-minutes: 25
     services:
       postgres:
-        image: postgres:18.6
+        image: postgres:18.6@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
         env:
           POSTGRES_DB: sivita_test
           POSTGRES_USER: sivita_ci
           POSTGRES_PASSWORD: sivita_ephemeral_ci_only
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U sivita_ci -d sivita_test'
+          --health-cmd "pg_isready -U sivita_ci -d sivita_test"
           --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -46,8 +46,8 @@ jobs:
         if: always()
         run: |
           mkdir -p build/verification/h2
-          cp -R plugins/rpg-core/build/test-results/test build/verification/h2/core
-          cp -R tools/db-migration/build/test-results/test build/verification/h2/migration
+          if [ -d plugins/rpg-core/build/test-results/test ]; then cp -R plugins/rpg-core/build/test-results/test build/verification/h2/core; fi
+          if [ -d tools/db-migration/build/test-results/test ]; then cp -R tools/db-migration/build/test-results/test build/verification/h2/migration; fi
       - name: Real PostgreSQL market settlement and migration
         env:
           SIVITA_MARKET_TEST_POSTGRES_URL: jdbc:postgresql://localhost:5432/sivita_test
@@ -88,6 +88,14 @@ jobs:
           gradle-version: '9.1.0'
       - name: Resolve exact upstream JARs and verify hashes
         run: sh scripts/fetch-deps.sh
+      - name: Preserve verified Citizens compile input
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: citizens-2.0.43-b4231-${{ github.sha }}
+          path: |
+            libs/Citizens-2.0.43-b4231.jar
+            scripts/fetch-deps.sh
+          retention-days: 1
       - name: Execute tests and build every module
         run: gradle --no-daemon test assemble -PexcludeTags=env --continue
       - name: Preserve build evidence
