@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -90,6 +91,57 @@ final class MechanismRegistryPersistenceTest {
     }
 
     @Test
+    void stoppedRefreshExpiresAdmissionWithoutDatabaseWorkOnTheReaderThread() throws Exception {
+        try (HikariDataSource dataSource = database(true)) {
+            AtomicLong clock = new AtomicLong();
+            MechanismRegistry registry = new MechanismRegistry(dataSource, clock::get);
+            registry.initialize();
+            clock.set(java.time.Duration.ofSeconds(9).toNanos());
+            assertTrue(registry.requireEnabled(MechanismRegistry.HUNT_GOLD));
+            clock.set(java.time.Duration.ofSeconds(10).toNanos());
+            assertFalse(registry.requireEnabled(MechanismRegistry.HUNT_GOLD));
+            assertEquals(new SwitchRow(true, "system"), row(dataSource, MechanismRegistry.HUNT_GOLD));
+            registry.refresh();
+            assertTrue(registry.requireEnabled(MechanismRegistry.HUNT_GOLD));
+        }
+    }
+
+    @Test
+    void failedRefreshClosesAnEarlierAllowedSnapshotUntilCompleteRecovery() throws Exception {
+        try (HikariDataSource dataSource = database(true)) {
+            new MechanismRegistry(dataSource).initialize();
+            MechanismRegistry registry = new MechanismRegistry(failOnce(dataSource, ResultSet.class, "next",
+                    MechanismRegistry.DEFAULTS.size() + 3, new AtomicInteger()));
+            registry.refresh();
+            assertTrue(registry.isEnabled(MechanismRegistry.HUNT_GOLD));
+            assertThrows(IllegalStateException.class, registry::refresh);
+            assertFalse(registry.isEnabled(MechanismRegistry.HUNT_GOLD));
+            registry.refresh();
+            assertTrue(registry.isEnabled(MechanismRegistry.HUNT_GOLD));
+        }
+    }
+
+    @Test
+    void arbitraryDatabaseFlagsCannotRegisterNewRuntimeMechanisms() throws Exception {
+        try (HikariDataSource dataSource = database(true)) {
+            MechanismRegistry registry = new MechanismRegistry(dataSource);
+            registry.initialize();
+            try (Connection connection = dataSource.getConnection(); var statement = connection.createStatement()) {
+                statement.executeUpdate("INSERT INTO rpg_mechanism_switches (mechanism_id,enabled,updated_by)"
+                        + " VALUES ('unreviewed.faucet',TRUE,'outside')");
+                connection.commit();
+            }
+            registry.refresh();
+            assertFalse(registry.isEnabled("unreviewed.faucet"));
+            try (Connection connection = dataSource.getConnection()) {
+                assertFalse(registry.isEnabled(connection, "unreviewed.faucet"));
+                assertFalse(registry.requireEnabled(connection, "unreviewed.faucet"));
+            }
+            assertThrows(IllegalArgumentException.class, () -> registry.setEnabled("unreviewed.faucet", true, "console"));
+        }
+    }
+
+    @Test
     void failedStatementIsReportedWithoutTryingAnotherDialectOrChangingTheDecision() throws Exception {
         try (HikariDataSource dataSource = database(true)) {
             MechanismRegistry original = new MechanismRegistry(dataSource);
@@ -109,7 +161,7 @@ final class MechanismRegistryPersistenceTest {
     }
 
     @Test
-    void commitFailureRollsBackTheWriteAndKeepsThePreviousSnapshot() throws Exception {
+    void commitFailureRollsBackTheWriteAndClosesAdmissionUntilACompleteRefresh() throws Exception {
         try (HikariDataSource dataSource = database(true)) {
             MechanismRegistry original = new MechanismRegistry(dataSource);
             original.initialize();
@@ -120,8 +172,10 @@ final class MechanismRegistryPersistenceTest {
             assertThrows(IllegalStateException.class,
                     () -> failing.setEnabled(MechanismRegistry.HUNT_GOLD, false, "operator"));
 
-            assertTrue(failing.isEnabled(MechanismRegistry.HUNT_GOLD));
+            assertFalse(failing.isEnabled(MechanismRegistry.HUNT_GOLD));
             assertEquals(new SwitchRow(true, "system"), row(dataSource, MechanismRegistry.HUNT_GOLD));
+            failing.refresh();
+            assertTrue(failing.isEnabled(MechanismRegistry.HUNT_GOLD));
         }
     }
 

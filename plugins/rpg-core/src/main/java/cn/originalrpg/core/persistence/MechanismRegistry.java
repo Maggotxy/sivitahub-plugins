@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.LongSupplier;
 
 /**
  * Phase 0: mechanism directory + Kill Switch.
@@ -53,16 +54,23 @@ public final class MechanismRegistry {
     );
 
     private final DataSource dataSource;
+    private static final long SNAPSHOT_MAX_AGE_NANOS = java.time.Duration.ofSeconds(10).toNanos();
+    private final LongSupplier monotonicTime;
     // Replacing the whole snapshot also removes switches deleted by an operator.
     // Mutating methods serialize their database/cache updates; readers never wait on JDBC.
-    private volatile Map<String, Boolean> cache = new ConcurrentHashMap<>();
+    private volatile SwitchSnapshot cache = new SwitchSnapshot(Map.of(), 0L);
     /** C-005 指标一腿：被 Kill Switch 拒绝的发币/发物次数。 */
     private final Map<String, LongAdder> deniedCounts = new ConcurrentHashMap<>();
     /** C-005 指标一腿：通过 Kill Switch 的发币/发物次数。 */
     private final Map<String, LongAdder> allowedCounts = new ConcurrentHashMap<>();
 
     public MechanismRegistry(DataSource dataSource) {
+        this(dataSource, System::nanoTime);
+    }
+
+    MechanismRegistry(DataSource dataSource, LongSupplier monotonicTime) {
         this.dataSource = dataSource;
+        this.monotonicTime = java.util.Objects.requireNonNull(monotonicTime);
     }
 
     public synchronized void initialize() {
@@ -89,20 +97,22 @@ public final class MechanismRegistry {
                 }
                 Map<String, Boolean> snapshot = readSwitches(connection);
                 connection.commit();
-                cache = snapshot;
+                publish(snapshot);
             } catch (SQLException exception) {
                 rollback(connection, exception);
                 throw exception;
             }
         } catch (SQLException exception) {
+            publish(Map.of());
             throw new IllegalStateException("Mechanism registry init failed", exception);
         }
     }
 
     public synchronized void refresh() {
         try (Connection connection = dataSource.getConnection()) {
-            cache = readSwitches(connection);
+            publish(readSwitches(connection));
         } catch (SQLException exception) {
+            publish(Map.of());
             throw new IllegalStateException("Mechanism registry refresh failed", exception);
         }
     }
@@ -119,7 +129,11 @@ public final class MechanismRegistry {
     }
 
     public boolean isEnabled(String mechanismId) {
-        Boolean value = cache.get(mechanismId);
+        if (mechanismId == null || !DEFAULTS.containsKey(mechanismId)) return false;
+        SwitchSnapshot snapshot = cache;
+        long age = monotonicTime.getAsLong() - snapshot.readAtNanos();
+        if (age < 0 || age >= SNAPSHOT_MAX_AGE_NANOS) return false;
+        Boolean value = snapshot.values().get(mechanismId);
         if (value != null) return value;
         // Unknown mechanisms fail closed per C-005
         return false;
@@ -158,6 +172,7 @@ public final class MechanismRegistry {
     }
 
     private static boolean readEnabled(Connection connection, String mechanismId, boolean lock) throws SQLException {
+        if (mechanismId == null || !DEFAULTS.containsKey(mechanismId)) return false;
         try (PreparedStatement query = connection.prepareStatement(
                 "SELECT enabled FROM rpg_mechanism_switches WHERE mechanism_id = ?" + (lock ? " FOR UPDATE" : ""))) {
             query.setString(1, mechanismId);
@@ -188,6 +203,10 @@ public final class MechanismRegistry {
     }
 
     public synchronized void setEnabled(String mechanismId, boolean enabled, String actor) {
+        if (mechanismId == null || !DEFAULTS.containsKey(mechanismId) || actor == null || actor.isBlank()
+                || actor.length() > 64 || actor.codePoints().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("Unknown mechanism or invalid operator audit label");
+        }
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
@@ -205,13 +224,15 @@ public final class MechanismRegistry {
                     update.setString(3, actor);
                     update.executeUpdate();
                 }
+                Map<String, Boolean> snapshot = readSwitches(connection);
                 connection.commit();
-                cache.put(mechanismId, enabled);
+                publish(snapshot);
             } catch (SQLException exception) {
                 rollback(connection, exception);
                 throw exception;
             }
         } catch (SQLException exception) {
+            publish(Map.of());
             throw new IllegalStateException("Mechanism switch update failed", exception);
         }
     }
@@ -223,6 +244,12 @@ public final class MechanismRegistry {
             default -> throw new SQLException("Unsupported mechanism registry database");
         };
     }
+
+    private void publish(Map<String, Boolean> values) {
+        cache = new SwitchSnapshot(Map.copyOf(values), monotonicTime.getAsLong());
+    }
+
+    private record SwitchSnapshot(Map<String, Boolean> values, long readAtNanos) { }
 
     private static void rollback(Connection connection, SQLException failure) {
         try {
