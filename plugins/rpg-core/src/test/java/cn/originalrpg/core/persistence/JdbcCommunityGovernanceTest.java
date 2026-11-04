@@ -664,27 +664,49 @@ class JdbcCommunityGovernanceTest {
 
     private void setLevel(UUID playerId, int level) throws Exception {
         try (Connection connection = dataSource.getConnection();
+             PreparedStatement update = connection.prepareStatement("""
+                     UPDATE rpg_profiles SET archetype = 'WARRIOR', ascension = 0, level = ?,
+                         experience = 0, energy = 100, unspent_attribute_points = 0, skill_points = 0,
+                         defense = 0, strength = 0, agility = 0, intelligence = 0, stamina = 0
+                     WHERE player_uuid = ?
+                     """);
              PreparedStatement insert = connection.prepareStatement("""
-                     MERGE INTO rpg_profiles (player_uuid, archetype, ascension, level, experience, energy,
+                     INSERT INTO rpg_profiles (player_uuid, archetype, ascension, level, experience, energy,
                          unspent_attribute_points, skill_points, defense, strength, agility,
                          intelligence, stamina)
-                     KEY (player_uuid) VALUES (?, 'WARRIOR', 0, ?, 0, 100, 0, 0, 0, 0, 0, 0, 0)
+                     VALUES (?, 'WARRIOR', 0, ?, 0, 100, 0, 0, 0, 0, 0, 0, 0)
                      """)) {
-            insert.setString(1, playerId.toString());
-            insert.setInt(2, level);
-            insert.executeUpdate();
+            // Serial fixture setup uses portable SQL on both production-schema backends.
+            update.setInt(1, level);
+            update.setString(2, playerId.toString());
+            int updated = update.executeUpdate();
+            if (updated == 0) {
+                insert.setString(1, playerId.toString());
+                insert.setInt(2, level);
+                assertEquals(1, insert.executeUpdate());
+            } else {
+                assertEquals(1, updated);
+            }
             connection.commit();
         }
     }
 
     private void insertAccount(UUID playerId, BigDecimal balance) throws Exception {
         try (Connection connection = dataSource.getConnection();
-             PreparedStatement insert = connection.prepareStatement("""
-                     MERGE INTO rpg_accounts (player_uuid, balance) KEY (player_uuid) VALUES (?, ?)
-                     """)) {
-            insert.setString(1, playerId.toString());
-            insert.setBigDecimal(2, balance);
-            insert.executeUpdate();
+             PreparedStatement update = connection.prepareStatement(
+                     "UPDATE rpg_accounts SET balance = ? WHERE player_uuid = ?");
+             PreparedStatement insert = connection.prepareStatement(
+                     "INSERT INTO rpg_accounts (player_uuid, balance) VALUES (?, ?)")) {
+            update.setBigDecimal(1, balance);
+            update.setString(2, playerId.toString());
+            int updated = update.executeUpdate();
+            if (updated == 0) {
+                insert.setString(1, playerId.toString());
+                insert.setBigDecimal(2, balance);
+                assertEquals(1, insert.executeUpdate());
+            } else {
+                assertEquals(1, updated);
+            }
             connection.commit();
         }
     }
