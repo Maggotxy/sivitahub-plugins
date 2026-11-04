@@ -206,6 +206,28 @@ class ProgressionRulesTest {
     }
 
     @Test
+    void finalCapExperienceRemainsHealthyWithoutChangingLevelBoundaries() {
+        assertEquals(null, ProgressionRules.classifyAnomaly(3, 30, Long.MAX_VALUE));
+        assertTrue(ProgressionRules.classifyAnomaly(3, 29, Long.MAX_VALUE)
+                .startsWith("experience-jump:"));
+        assertTrue(ProgressionRules.classifyAnomaly(2, 30, Long.MAX_VALUE)
+                .startsWith("experience-jump:"));
+        assertEquals("negative-experience:-1", ProgressionRules.classifyAnomaly(3, 30, -1));
+        assertEquals("local-level-out-of-range:31", ProgressionRules.classifyAnomaly(3, 31, 0));
+        assertEquals("ascension-out-of-range:4", ProgressionRules.classifyAnomaly(4, 30, 0));
+    }
+
+    @Test
+    void stageProgressSaturatesInsteadOfWrappingEarnedExperienceNegative() {
+        long spent = ProgressionRules.stageExperienceSpent(3, 30, 0L);
+        assertEquals(Long.MAX_VALUE, ProgressionRules.stageExperienceSpent(3, 30, Long.MAX_VALUE));
+        assertEquals(Long.MAX_VALUE, ProgressionRules.stageExperienceSpent(3, 30, Long.MAX_VALUE - spent));
+        assertEquals(Long.MAX_VALUE - 1,
+                ProgressionRules.stageExperienceSpent(3, 30, Long.MAX_VALUE - spent - 1));
+        assertEquals(0L, ProgressionRules.stageExperienceRemaining(3, 30, Long.MAX_VALUE));
+    }
+
+    @Test
     void customDropsStopAtTwentyLevelDifference() {
         assertTrue(CombatRules.allowsCustomDrops(29, 10));
         assertFalse(CombatRules.allowsCustomDrops(30, 10));

@@ -1,5 +1,7 @@
 # 技能点口径迁移说明（G-107 下半：本地里程碑 + 幂等补偿）
 
+> **2026-11-04 状态更新：以下为历史阶段的口径讨论与人工核对草案，不是当前数据库升级脚本。** 当前 `Database.migrate()` 和 `SchemaManifest` 已纳入与消费者一致的里程碑 DDL，并有真实空库、重启和旧 schema 回归。非空旧审计表、未知形状及缺失权威主键均停止自动迁移，不推断既有技能点的历史身份。当前部署、审计保留和回滚以 [成长收据迁移说明](../docs/operations/PROGRESSION_RECEIPT_MIGRATION.md) 为准；不要直接执行本文历史 `DROP TABLE` 建议或据下列对照自动补点。
+
 > 本文件只给**人工清单**，不含任何 UPDATE 语句。存量档案的口径修正必须由人拍板后单独 PR。
 > 生效分支：`agent/W4-A2-skillpoint-local-milestone`；唯一实现：`ProgressionRules` 技能点本地里程碑段。
 

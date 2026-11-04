@@ -14,6 +14,7 @@ import java.util.Map;
 public final class SchemaManifest {
     private static final List<String> TABLES = List.of(
             "rpg_profiles",
+            "rpg_experience_grants",
             "rpg_chapter_state",
             "rpg_chapter_history",
             "rpg_accounts",
@@ -127,7 +128,6 @@ public final class SchemaManifest {
                 List.of("idempotency_key"),
                 List.of("reversal_of")
         ));
-        keys.put("rpg_skill_point_grants", List.of(List.of("source,idempotency_key")));
         keys.put("rpg_activity_ledger", List.of(List.of("idempotency_key")));
         keys.put("rpg_activity_purchases", List.of(List.of("idempotency_key")));
         keys.put("rpg_merit_ledger", List.of(List.of("idempotency_key")));
@@ -178,6 +178,7 @@ public final class SchemaManifest {
         indexes.put("rpg_energy_recovery_quotas", List.of(List.of("source_id", "period_key")));
         indexes.put("rpg_skill_mutation_receipts", List.of(List.of("player_uuid", "settled_at")));
         indexes.put("rpg_skill_point_grants", List.of(List.of("player_uuid", "granted_at")));
+        indexes.put("rpg_experience_grants", List.of(List.of("player_uuid", "granted_at")));
         indexes.put("rpg_hidden_path_audit", List.of(List.of("player_uuid", "created_at")));
         indexes.put("rpg_incident_compensations", List.of(List.of("player_uuid", "applied_at")));
         indexes.put("rpg_dungeon_energy_reservations", List.of(
