@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.Archetype;
 import cn.originalrpg.api.model.CoreAttribute;
 import cn.originalrpg.api.model.EnergyQuotaResult;
@@ -17,8 +18,10 @@ public interface ProfileService {
 
     void evict(UUID playerId);
 
+    @SessionActor(argument = 0)
     CompletionStage<PlayerProfile> chooseArchetype(UUID playerId, Archetype archetype);
 
+    @SessionActor(argument = 0)
     CompletionStage<PlayerProfile> allocateAttribute(UUID playerId, CoreAttribute attribute);
 
     /**
@@ -26,6 +29,7 @@ public interface ProfileService {
      * contract. Extra points earned through levels remain unspent; a profile
      * that already satisfies the starter contract is unchanged.
      */
+    @SessionActor(argument = 0)
     CompletionStage<PlayerProfile> prepareStarterBuild(UUID playerId);
 
     /**
@@ -50,6 +54,7 @@ public interface ProfileService {
                 new UnsupportedOperationException("This profile provider does not support idempotent XP grants"));
     }
 
+    @SessionActor(argument = 0)
     CompletionStage<Boolean> spendEnergy(UUID playerId, int amount);
 
     CompletionStage<PlayerProfile> restoreEnergy(UUID playerId, int amount);
@@ -58,6 +63,7 @@ public interface ProfileService {
      * Restores Energy from a durable period quota. Concurrent requests,
      * reconnects and restarts share one counter and one diminishing schedule.
      */
+    @SessionActor(argument = 0)
     CompletionStage<EnergyQuotaResult> restoreEnergyWithQuota(
             UUID playerId,
             String sourceId,
@@ -69,6 +75,7 @@ public interface ProfileService {
             int periodLimit
     );
 
+    @SessionActor(argument = 0)
     CompletionStage<SkillBookRedemption> redeemSkillBook(
             UUID playerId,
             UUID instanceId,

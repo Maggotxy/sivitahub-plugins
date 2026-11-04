@@ -1,6 +1,6 @@
 # 希维塔大陆横向扩展审计
 
-更新时间：2026-08-08。本页把“单个 Paper 能承载多少人”和“整个网络累计在线多少人”分开。任何配置值、空服 TPS 或平均值都不能替代同版本、同世界、同插件、同数据库的分布式压测证据。
+源码机制更新：2026-11-04；下面部署/容量记录保留 2026-08-08 的历史证据，未因代码或单元测试更新而重新验收。本页把“单个 Paper 能承载多少人”和“整个网络累计在线多少人”分开。任何配置值、空服 TPS 或平均值都不能替代同版本、同世界、同插件、同数据库的分布式压测证据。
 
 ## 当前事实
 
@@ -25,18 +25,28 @@ PostgreSQL 启动迁移已有互斥：所有 Paper 在执行加法式 `CREATE/AL
 
 副本体力预留现在有第一条真正的跨节点 fencing 边界：每个 Paper 用稳定 `RPG_NODE_ID` 和随机进程 token 在 `rpg_node_leases` 持有 PostgreSQL 租约；预留记录精确 owner。启动和周期恢复只退款没有有效 owner token 的记录，不再由“任意第二节点启动”退款第一节点的活动预留。过期 token 不能续租，也不能 commit/refund；数据库短暂故障会在租约到期前重试，确认失租后 `RpgCore` 失败关闭。跨节点、替换进程、过期 token 和重复恢复已有 H2 PostgreSQL-mode 单元测试；真正两节点 PostgreSQL `kill -9` 演练仍是 S1 门槛，不能用单测冒充生产证明。
 
+### 本轮补齐的数据库会话与事件链路
+
+`PlayerSessionService` 已有 acquire/renew/release 与带目标节点的 handoff accept/cancel；每个连接有独立 token 和递增 fence。异步预登录获取租约，AuthMe 完成后才允许玩家主动写入，logout 立即撤销本地写权限但保留仍加载的玩家连接租约。`@SessionActor` 在服务边界捕获原连接，`AsyncJdbc` 显式传递并在 finally 清理；同一业务连接在写入前和提交前校验节点/玩家租约，排队中的旧连接不能借新登录 token 扣费。离线奖励/退款/已有托管重放保持其原有权威，不能按所有 UUID 参数机械套玩家锁。
+
+Outbox 已有 `SKIP LOCKED` 领取、领取 token/到期恢复、持久退避和真实消费者。副本事件按 run+player 去重，消费者核对奖励收据后在同事务写通知 inbox 与 processed 标记；认证玩家由主线程收到提示，离线提示保留到重连。SQL 投影不会再次发奖，聊天发送/ack 的模糊窗口允许提示重复。具体 API、范围和测试入口见 [英文开发者说明](en/SESSION_AND_OUTBOX.md) 与 [迁移/回滚说明](operations/SESSION_OUTBOX_MIGRATION.md)。
+
+邮箱现已另有持久领取协议：现有 delivery 行的 CLAIMED → STAGING → DELIVERED、独立 token/到期、原 actor 会话约束，以及 Paper 双 PDC 凭据恢复。CLAIMED 尚未授权时可过期重新保留；STAGING 绝不因超时自动重发。该协议与 SessionLease 分工明确，详细升级和失效边界见 [MAILBOX_CLAIM_MIGRATION](operations/MAILBOX_CLAIM_MIGRATION.md)。
+
+这些已实现的数据库行为不代表原版背包/PDC 已有跨服传输，不代表 Velocity 入站已接入 handoff ticket，更不代表两节点硬退出演练通过。各项测试结果以对应构建/CI 报告为准，真实 PostgreSQL 锁序测试在未提供专用环境时明确跳过。
+
 ### 仍绑定单节点或单世界的数据
 
 | 类型 | 当前落点 | 横向扩展前必须做的事 |
 |---|---|---|
-| 原版背包、末影箱、位置、生命和签名装备 ItemStack | 每个后端自己的玩家 `.dat` 与物品 PDC | 建立有 fencing token 的玩家会话租约与原子交接；禁止两个节点同时加载同一玩家存档，也不能把同一 world/playerdata 目录并发挂载给多个 Paper |
-| 新手旅程、外观选择/解锁、视觉偏好、副本保底/返回点、战斗截止时间、硫灵额度等 | 玩家 PDC | 按“安全/玩法/仅视觉”分类迁入共享档案或纳入一次性玩家交接 payload；本轮只解决体力预留，不等于副本 session 已可切服 |
+| 原版背包、末影箱、位置、生命和签名装备 ItemStack | 每个后端自己的玩家 `.dat` 与物品 PDC | 数据库会话租约/fence 已实现；仍需把 player.dat/PDC 保存、传输、验签、加载与该租约原子交接接通；禁止两个节点同时加载同一玩家存档，也不能把同一 world/playerdata 目录并发挂载给多个 Paper |
+| 新手旅程、外观选择/解锁、视觉偏好、副本保底/返回点、战斗截止时间、硫灵额度等 | 玩家 PDC | 按“安全/玩法/仅视觉”分类迁入共享档案或纳入一次性玩家交接 payload；SQL 会话围栏不会自动迁移这些 PDC，也不等于副本世界 session 已可切服 |
 | 技能冷却与法力、战斗内存、队伍/副本 session、排队和 AI 会话 | JVM 内存 | 明确切服时重置的非关键状态；其余状态写带版本的 session authority，并用节点租约防止旧节点继续结算 |
 | AuthMe、LuckPerms | 当前单服 SQLite | 迁移到网络级身份方案与 PostgreSQL；代理必须成为唯一公网入口，后端端口用防火墙隔离 |
 | Citizens/BetonQuest 状态、世界与区块 PDC | 本地插件/世界文件 | 静态大厅和持久世界采用单写者归属；动态副本从只读模板创建，不把同一世界目录交给多个进程 |
 | 性能、经济与章节快照 | 单节点本地 JSON | 快照必须带 `node_id`、schema、采样时间和修订号，推送到集中指标系统；网站不能通过共享目录猜测全网状态 |
 
-原先的明确阻断点 `JdbcDungeonEntryService.recoverAll()` 已按 owner node/process token 修复。现在的主要阻断点上移到完整玩家会话：背包、位置、PDC、战斗和副本世界 session 仍没有统一 fencing token，因此现阶段仍不能让同一 UUID 在两个 Paper 上同时加载，更不能把同一世界目录交给两个进程。
+原先的明确阻断点 `JdbcDungeonEntryService.recoverAll()` 已按 owner node/process token 修复。现在的主要阻断点上移到完整玩家会话：数据库玩家会话已经有 fence，但背包、位置、PDC、战斗和副本世界 session 仍没有接通完整交接协议，因此现阶段仍不能让同一 UUID 在两个 Paper 上同时加载，更不能把同一世界目录交给两个进程。
 
 ## 目标拓扑
 
@@ -72,7 +82,7 @@ H2 数据复制与逐表校验工具已经交付在 `server/bin/migrate-rpg-h2-t
 ### S1：两节点金丝雀
 
 1. 部署一个 Velocity 和两个仅内网可达的 Paper，启用 modern forwarding 与独立密钥。
-2. 为每个进程配置稳定唯一的 `node_id`。数据库节点租约及副本体力 fencing 已完成；仍需把同一 token 扩展到玩家单活、切服和入站/出站幂等交接，不能把局部完成写成整条完成。
+2. 为每个进程配置稳定唯一的 `node_id`。数据库节点/玩家租约、明确 actor 的事务 fencing 和 handoff 状态机已实现；仍需把代理入站、原版/PDC 状态传输、邮箱物品交付和出站幂等确认接成一条可演练的协议，不能把数据库局部完成写成整条完成。
 3. 首先拆无共享世界写入的大厅或副本；不先复制主生存世界。
 4. 将 AuthMe/LuckPerms、玩家 PDC 状态、背包/末影箱和技能冷却策略逐项迁移并做 `kill -9` 切服测试。
 5. 在真实 PostgreSQL 两节点环境验证已修复的 `recoverAll()`：活动 owner 保持不变，`kill -9` 后到期 owner 只退款一次，旧进程恢复网络也不能结算。

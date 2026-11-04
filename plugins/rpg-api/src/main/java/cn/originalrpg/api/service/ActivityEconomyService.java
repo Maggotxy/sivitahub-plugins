@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.ActivityRewardResult;
 import cn.originalrpg.api.model.ActivityRewardRequest;
 import cn.originalrpg.api.model.EconomyActivity;
@@ -49,6 +50,7 @@ public interface ActivityEconomyService {
             long dailyMeritCap
     );
 
+    @SessionActor(argument = 0)
     CompletionStage<EconomyPurchaseResult> purchase(
             UUID playerId,
             BigDecimal goldCost,

@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.HiddenPath;
 import cn.originalrpg.api.model.HiddenPathActivationResult;
 import cn.originalrpg.api.model.HiddenPathEligibility;
@@ -19,5 +20,6 @@ public interface HiddenPathService {
      * Activates at most one path for one account. Implementations must lock the
      * player and the global per-path capacity in the same transaction.
      */
+    @SessionActor(argument = 0)
     CompletionStage<HiddenPathActivationResult> activate(UUID playerId, HiddenPath path);
 }

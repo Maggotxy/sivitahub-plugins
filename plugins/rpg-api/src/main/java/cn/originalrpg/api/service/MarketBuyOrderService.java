@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 
 import cn.originalrpg.api.model.BuyOrderOperationResult;
 import cn.originalrpg.api.model.MarketOrder;
@@ -18,11 +19,13 @@ import java.util.concurrent.CompletionStage;
  * in one core transaction. There is deliberately no raw-payload fill API.
  */
 public interface MarketBuyOrderService {
+    @SessionActor(argument = 1)
     default CompletionStage<BuyOrderOperationResult> place(
             UUID orderId, UUID buyerId, String matcher, long price, int quantity, String key) {
         return place(orderId, buyerId, matcher, price, quantity, MarketOrder.Kind.BUY, key);
     }
 
+    @SessionActor(argument = 1)
     CompletionStage<BuyOrderOperationResult> place(
             UUID orderId, UUID buyerId, String matcher, long price, int quantity,
             MarketOrder.Kind kind, String idempotencyKey);
@@ -32,9 +35,11 @@ public interface MarketBuyOrderService {
      * splitting a serialized escrow stack is not. The caller owns the listing
      * and explicitly accepts the order's tax-inclusive price instead of its ask.
      */
+    @SessionActor(argument = 1)
     CompletionStage<BuyOrderOperationResult> fillListing(
             UUID orderId, UUID sellerId, UUID listingId, String idempotencyKey);
 
+    @SessionActor(argument = 1)
     CompletionStage<BuyOrderOperationResult> cancel(UUID orderId, UUID buyerId, String idempotencyKey);
 
     /** Returns funded, unfilled quantities through receipt-backed reversals. */

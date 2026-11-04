@@ -221,6 +221,9 @@ class JdbcServicesTest {
                         id VARCHAR(36) PRIMARY KEY, player_uuid VARCHAR(36) NOT NULL,
                         item_payload TEXT NOT NULL, source VARCHAR(128) NOT NULL,
                         state VARCHAR(16) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        quarantine_reason VARCHAR(64), quarantined_at TIMESTAMP,
+                        claim_token VARCHAR(36) UNIQUE, claim_expires_at TIMESTAMP, claim_started_at TIMESTAMP,
+                        claim_node_id VARCHAR(64), claim_process_token VARCHAR(36), claim_session_token VARCHAR(36), claim_fence BIGINT,
                         delivered_at TIMESTAMP NULL
                     )
                     """);

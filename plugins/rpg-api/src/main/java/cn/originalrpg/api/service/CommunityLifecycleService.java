@@ -5,6 +5,7 @@ import cn.originalrpg.api.model.CommunityLifecycleAudit;
 import cn.originalrpg.api.model.CommunityLifecyclePolicy;
 import cn.originalrpg.api.model.CommunityLifecycleResult;
 import cn.originalrpg.api.model.CommunityLifecycleSnapshot;
+import cn.originalrpg.api.session.SessionActor;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,17 +33,22 @@ public interface CommunityLifecycleService {
      * Record only a currently authenticated connection, never an offline recipient or replay.
      * The service supplies the timestamp. Incumbent activity cancels pending succession.
      */
+    @SessionActor(argument = 0)
     CompletionStage<Void> recordAuthenticatedActivity(UUID playerId);
 
     /** Succession nominates the proposing governor; dissolution can only be proposed by the owner. */
+    @SessionActor(argument = 0)
     CompletionStage<CommunityLifecycleResult> propose(UUID actorId, CommunityLifecycleAction action,
                                                      String idempotencyKey);
 
+    @SessionActor(argument = 0)
     CompletionStage<CommunityLifecycleResult> approve(UUID actorId, UUID proposalId);
 
     /** Explicit execution after the cooling deadline; approval does not schedule destructive work. */
+    @SessionActor(argument = 0)
     CompletionStage<CommunityLifecycleResult> execute(UUID actorId, UUID proposalId);
 
+    @SessionActor(argument = 0)
     CompletionStage<CommunityLifecycleResult> cancel(UUID actorId, UUID proposalId);
 
     /** Public, bounded audit history remains readable after the community is dissolved. */

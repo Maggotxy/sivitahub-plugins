@@ -12,7 +12,7 @@ import java.util.Set;
 /** Presentation only; callers must first identify an item that their module owns. */
 public final class ItemTextPresentation {
     private static final Set<String> PROTECTED_MARKERS = Set.of(
-            "rpgmarket:listing_id", "rpgmarket:delivery_id", "rpgcore:equipment_operation",
+            "rpgmarket:listing_id", "rpgmarket:delivery_id", "rpgmarket:delivery_claim_token", "rpgcore:equipment_operation",
             "rpgdungeons:ticket_entry_escrow",
             "rpgitems:signature");
 

@@ -192,7 +192,12 @@ public final class JdbcNodeLease {
      * transaction. This establishes the lock order lease -> profile/item.
      */
     void requireOwned(Connection connection, Instant now) throws SQLException {
-        LeaseOwner owner = ownerForUpdate(connection, nodeId);
+        // Gameplay only verifies ownership. A shared lock still blocks lease
+        // replacement, and avoids upgrading SHARE -> UPDATE when a session
+        // fence has already locked this node in the same transaction.
+        String lock = "PostgreSQL".equals(connection.getMetaData().getDatabaseProductName())
+                ? " FOR SHARE" : " FOR UPDATE";
+        LeaseOwner owner = ownerWithLock(connection, nodeId, lock);
         if (owner == null || !owner.processToken().equals(processToken) || !owner.expiresAt().isAfter(now)) {
             knownValidUntil.set(Instant.EPOCH);
             throw new IllegalStateException("Paper node lease was lost for " + nodeId);
@@ -212,10 +217,14 @@ public final class JdbcNodeLease {
     }
 
     private LeaseOwner ownerForUpdate(Connection connection, String requestedNode) throws SQLException {
+        return ownerWithLock(connection, requestedNode, " FOR UPDATE");
+    }
+
+    private LeaseOwner ownerWithLock(Connection connection, String requestedNode, String lock) throws SQLException {
         try (PreparedStatement query = connection.prepareStatement("""
                 SELECT process_token, lease_expires_at
-                FROM rpg_node_leases WHERE node_id = ? FOR UPDATE
-                """)) {
+                FROM rpg_node_leases WHERE node_id = ?
+                """ + lock)) {
             query.setString(1, requestedNode);
             try (ResultSet result = query.executeQuery()) {
                 if (!result.next()) return null;

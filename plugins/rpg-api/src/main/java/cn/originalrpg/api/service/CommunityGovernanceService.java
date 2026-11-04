@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.CommunityApprovalOutcome;
 import cn.originalrpg.api.model.CommunityGovernanceAction;
 import cn.originalrpg.api.model.CommunityRolePower;
@@ -46,6 +47,7 @@ public interface CommunityGovernanceService {
     CompletionStage<Optional<CommunityGovernanceAction>> pending(UUID playerId);
 
     /** 提交一个需要双批的动作，同时写入第一条审批记录。 */
+    @SessionActor(argument = 0)
     CompletionStage<CommunityApprovalOutcome> submit(
             UUID actor,
             CommunityGovernanceAction action,
@@ -54,14 +56,17 @@ public interface CommunityGovernanceService {
     );
 
     /** 追加一次批准；同一人不能凑两次批准，提交人不能批准自己的动作。 */
+    @SessionActor(argument = 0)
     CompletionStage<CommunityApprovalOutcome> approve(
             UUID actor, CommunityGovernanceAction action, String subject);
 
     /** 追加一次批准，并在审批生效时把 {@code target} 的角色改为 {@code targetRole}。 */
+    @SessionActor(argument = 0)
     CompletionStage<CommunityApprovalOutcome> approveAssignment(
             UUID actor, UUID target, String targetRole, String idempotencyKey);
 
     /** 废除一个待处理动作；只有治理角色可以废除。 */
+    @SessionActor(argument = 0)
     CompletionStage<CommunityApprovalOutcome> deny(
             UUID actor, CommunityGovernanceAction action, String subject);
 

@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HexFormat;
 import java.util.Objects;
@@ -14,7 +15,8 @@ import java.util.UUID;
  * {@link OutboxRegistry} 的 JDBC 实现（G-102）。
  *
  * <p>写入失败按异常冒泡，业务事务整体回滚——这正是「Transactional」的含义：
- * 不存在业务已提交而事件丢失的窗口。幂等键冲突（同一键已存在）不视为错误。</p>
+ * 不存在业务已提交而事件丢失的窗口。同一键且内容相同才属于幂等重放；
+ * 复用键却改变收件人/类型/内容会使整个业务事务失败。</p>
  */
 public final class JdbcOutboxRegistry implements OutboxRegistry {
 
@@ -31,6 +33,10 @@ public final class JdbcOutboxRegistry implements OutboxRegistry {
         String id = requireNonBlank(aggregateId, "aggregateId");
         String key = requireNonBlank(idempotencyKey, "idempotencyKey");
         Objects.requireNonNull(payload, "payload");
+        if (connection.getAutoCommit()) throw new SQLException("Outbox publication requires the business transaction");
+        if (type.length() > 32 || id.length() > 36 || key.length() > 96) {
+            throw new IllegalArgumentException("Outbox identity exceeds the persisted schema limits");
+        }
 
         try (PreparedStatement insert = connection.prepareStatement("""
                 INSERT INTO rpg_outbox
@@ -42,7 +48,20 @@ public final class JdbcOutboxRegistry implements OutboxRegistry {
             insert.setString(3, id);
             insert.setString(4, key);
             insert.setString(5, payload);
-            return insert.executeUpdate() == 1;
+            if (insert.executeUpdate() == 1) return true;
+        }
+        try (PreparedStatement query = connection.prepareStatement("""
+                SELECT aggregate_type, aggregate_id, payload FROM rpg_outbox WHERE idempotency_key = ?
+                """)) {
+            query.setString(1, key);
+            try (ResultSet existing = query.executeQuery()) {
+                if (!existing.next() || !type.equals(existing.getString("aggregate_type"))
+                        || !id.equals(existing.getString("aggregate_id"))
+                        || !payload.equals(existing.getString("payload"))) {
+                    throw new SQLException("Outbox idempotency key was reused with different content");
+                }
+                return false;
+            }
         }
     }
 

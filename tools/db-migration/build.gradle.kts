@@ -5,6 +5,11 @@ plugins {
 dependencies {
     implementation("com.h2database:h2:2.3.232")
     implementation("org.postgresql:postgresql:42.7.7")
+    implementation("com.google.code.gson:gson:2.14.0")
+    testImplementation(project(":plugins:rpg-core"))
+    testImplementation("com.zaxxer:HikariCP:7.0.2")
+    testImplementation("io.papermc.paper:paper-api:${rootProject.property("paperApiVersion")}")
+    testImplementation("org.yaml:snakeyaml:2.4")
 }
 
 application {
@@ -27,7 +32,10 @@ tasks.withType<Test>().configureEach {
     listOf(
         "SIVITA_MIGRATION_TEST_POSTGRES_URL",
         "SIVITA_MIGRATION_TEST_POSTGRES_USER",
-        "SIVITA_MIGRATION_TEST_POSTGRES_PASSWORD"
+        "SIVITA_MIGRATION_TEST_POSTGRES_PASSWORD",
+        "SIVITA_NETWORK_TEST_POSTGRES_URL",
+        "SIVITA_NETWORK_TEST_POSTGRES_USER",
+        "SIVITA_NETWORK_TEST_POSTGRES_PASSWORD"
     ).forEach { variable ->
         System.getenv(variable)?.let { environment(variable, it) }
     }

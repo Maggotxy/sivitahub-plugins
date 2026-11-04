@@ -16,7 +16,7 @@ final class AsyncJdbc {
 
     static <T> CompletableFuture<T> supply(Executor executor, Supplier<T> operation) {
         try {
-            return CompletableFuture.supplyAsync(operation, executor);
+            return CompletableFuture.supplyAsync(SessionWriteContext.capture(operation), executor);
         } catch (RejectedExecutionException exception) {
             return CompletableFuture.failedFuture(exception);
         }

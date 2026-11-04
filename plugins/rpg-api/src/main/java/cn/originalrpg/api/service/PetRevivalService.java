@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.PetRevivalIntent;
 import cn.originalrpg.api.model.PetRevivalRequest;
 import cn.originalrpg.api.model.PetRevivalResult;
@@ -17,6 +18,7 @@ import java.util.concurrent.CompletionStage;
  * marking that intent complete.</p>
  */
 public interface PetRevivalService {
+    @SessionActor(argument = 0, member = "playerId")
     CompletionStage<PetRevivalResult> begin(PetRevivalRequest request);
 
     CompletionStage<List<PetRevivalIntent>> pending(UUID playerId);

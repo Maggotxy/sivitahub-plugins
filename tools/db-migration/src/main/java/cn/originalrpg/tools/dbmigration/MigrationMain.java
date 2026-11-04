@@ -16,6 +16,9 @@ public final class MigrationMain {
     }
 
     static int run(String[] arguments, Map<String, String> environment) {
+        if (arguments.length > 0 && arguments[0].equals("identity")) {
+            return IdentityMigrationMain.run(java.util.Arrays.copyOfRange(arguments, 1, arguments.length), environment);
+        }
         MigrationOptions options = null;
         try {
             options = MigrationOptions.parse(arguments, environment);
@@ -101,6 +104,8 @@ public final class MigrationMain {
     private static void printUsage() {
         System.out.println("""
                 SivitaHub H2 -> PostgreSQL RPG data migration
+
+                For offline UUID migration: sivita-db-migration identity --help
 
                 Required (option or matching SIVITA_MIGRATION_* environment variable):
                   --source-url JDBC_URL          Existing jdbc:h2:file: URL

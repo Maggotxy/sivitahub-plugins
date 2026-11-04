@@ -8,6 +8,8 @@ import cn.originalrpg.api.service.CommerceService;
 import cn.originalrpg.api.service.CurrencyExchangeService;
 import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.ProfileService;
+import cn.originalrpg.api.service.PlayerSessionService;
+import cn.originalrpg.api.service.FieldJournalService;
 import cn.originalrpg.api.service.PersistenceMetricsService;
 import cn.originalrpg.api.service.MarketBuyOrderService;
 import cn.originalrpg.api.service.MarketService;
@@ -23,6 +25,9 @@ import cn.originalrpg.api.service.DungeonRewardService;
 import cn.originalrpg.api.service.CommunityGovernanceService;
 import cn.originalrpg.api.service.CommunityRoleAssignmentService;
 import cn.originalrpg.api.service.CommunityService;
+import cn.originalrpg.api.service.CommunityLifecycleService;
+import cn.originalrpg.api.service.CommunityStorageService;
+import cn.originalrpg.api.service.CivilizationHistoryService;
 import cn.originalrpg.api.service.ChapterService;
 import cn.originalrpg.api.service.CommissionEvidenceService;
 import cn.originalrpg.api.service.SeasonExpeditionService;
@@ -57,6 +62,10 @@ import cn.originalrpg.core.persistence.JdbcClassBranchService;
 import cn.originalrpg.core.persistence.JdbcDungeonEntryService;
 import cn.originalrpg.core.persistence.JdbcDungeonRewardService;
 import cn.originalrpg.core.persistence.JdbcCommunityService;
+import cn.originalrpg.core.persistence.JdbcCommunityLifecycleService;
+import cn.originalrpg.core.persistence.JdbcCommunityStorageService;
+import cn.originalrpg.core.persistence.JdbcCivilizationHistoryService;
+import cn.originalrpg.core.persistence.CommunityLifecycleConfiguration;
 import cn.originalrpg.core.persistence.JdbcChapterService;
 import cn.originalrpg.core.persistence.JdbcCommissionEvidenceService;
 import cn.originalrpg.core.persistence.JdbcSeasonExpeditionService;
@@ -66,7 +75,10 @@ import cn.originalrpg.core.persistence.JdbcSeasonAttunementService;
 import cn.originalrpg.core.persistence.JdbcNodeLease;
 import cn.originalrpg.core.persistence.JdbcOutboxRegistry;
 import cn.originalrpg.core.persistence.JdbcSessionLease;
+import cn.originalrpg.core.persistence.JdbcFieldJournalService;
+import cn.originalrpg.core.persistence.SessionGuardedService;
 import cn.originalrpg.core.persistence.OutboxDispatcher;
+import cn.originalrpg.core.persistence.JdbcDungeonCompletionInbox;
 import cn.originalrpg.core.persistence.JdbcAdminTestService;
 import cn.originalrpg.core.persistence.JdbcAdminIncidentCompensationService;
 import cn.originalrpg.core.persistence.JdbcAscensionService;
@@ -78,6 +90,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.ServicePriority;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.math.BigDecimal;
@@ -98,17 +111,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 
-import cn.originalrpg.api.service.CommunityLifecycleService;
-import cn.originalrpg.core.persistence.JdbcCommunityLifecycleService;
-import cn.originalrpg.core.persistence.CommunityLifecycleConfiguration;
-import cn.originalrpg.api.service.CommunityStorageService;
-import cn.originalrpg.core.persistence.JdbcCommunityStorageService;
-import cn.originalrpg.api.service.CivilizationHistoryService;
-import cn.originalrpg.core.persistence.JdbcCivilizationHistoryService;
-
-import cn.originalrpg.api.service.FieldJournalService;
-import cn.originalrpg.core.persistence.JdbcFieldJournalService;
-
 public final class RpgCorePlugin extends JavaPlugin {
     private Database database;
     private cn.originalrpg.core.persistence.MechanismRegistry mechanisms;
@@ -117,7 +119,10 @@ public final class RpgCorePlugin extends JavaPlugin {
     private JdbcNodeLease nodeLease;
     private JdbcOutboxRegistry outbox;
     private OutboxDispatcher outboxDispatcher;
+    private JdbcDungeonCompletionInbox completionInbox;
+    private DungeonCompletionNotificationListener completionNotifications;
     private JdbcSessionLease sessionLease;
+    private SessionLeaseListener sessionLeaseListener;
     private NodeLeaseSupervisor nodeLeaseSupervisor;
     private AutoCloseable nodeLeaseRenewal;
     private final AtomicBoolean outboxDispatchInFlight = new AtomicBoolean();
@@ -164,21 +169,24 @@ public final class RpgCorePlugin extends JavaPlugin {
                         + "' already has an unexpired Paper process lease");
             }
 
-            // Phase 8 多服前置（G-102）：Transactional Outbox + Session Lease 读侧。
-            // 两者默认关闭：单实例部署下既不轮询 outbox，也不做会话准入判定。
-            // 默认关闭时 outbox 保持 null：业务事务不写任何 outbox 行，单实例零影响。
+            // These opt-in persistence mechanisms do not provide inventory or
+            // player.dat transport. Full multi-Paper routing remains a separate gate.
             boolean outboxEnabled = getConfig().getBoolean("outbox.enabled", false);
             if (outboxEnabled) {
                 outbox = new JdbcOutboxRegistry();
             }
             boolean outboxDispatchEnabled = getConfig().getBoolean("outbox.dispatch.enabled", false);
             if (outboxEnabled && outboxDispatchEnabled) {
-                outboxDispatcher = new OutboxDispatcher(database.dataSource(), List.of());
+                completionInbox = new JdbcDungeonCompletionInbox(database.dataSource(), databaseExecutor);
+                outboxDispatcher = new OutboxDispatcher(database.dataSource(), List.of(completionInbox));
             }
             boolean sessionLeaseEnabled = getConfig().getBoolean("session-lease.enabled", false);
             if (sessionLeaseEnabled) {
                 sessionLease = new JdbcSessionLease(
-                        database.dataSource(), nodeLease.nodeId(), nodeLease.processToken());
+                        database.dataSource(), databaseExecutor, nodeLease.nodeId(), nodeLease.processToken(),
+                        Duration.ofSeconds(Math.clamp(getConfig().getLong("session-lease.duration-seconds", 60L),
+                                15L, 300L)));
+                database.installSessionFencing();
             }
 
             int startingEnergy = getConfig().getInt("progression.starting-energy", 100);
@@ -270,7 +278,7 @@ public final class RpgCorePlugin extends JavaPlugin {
             JdbcSeasonSettlementService seasonSettlements = new JdbcSeasonSettlementService(
                     database.dataSource(), databaseExecutor, mechanisms, seasonAttunements);
             if (seasonAttunements != null) {
-                getServer().getServicesManager().register(
+                registerService(
                         SeasonAttunementService.class, seasonAttunements, this, ServicePriority.Normal);
             }
             // Phase 6 治理「接线但不启用」：开关默认关，命令与事件消费者仍在位。
@@ -290,69 +298,69 @@ public final class RpgCorePlugin extends JavaPlugin {
                 getLogger().warning("Recovered " + recoveredEntries.reservations()
                         + " unfinished dungeon energy reservations (" + recoveredEntries.energy() + " energy restored).");
             }
-            getServer().getServicesManager().register(ProfileService.class, profiles, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(FieldJournalService.class, fieldJournal, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(EconomyService.class, economy, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(ActivityEconomyService.class, activityEconomy, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(ProfileService.class, profiles, this, ServicePriority.Normal);
+            registerService(FieldJournalService.class, fieldJournal, this, ServicePriority.Normal);
+            registerService(EconomyService.class, economy, this, ServicePriority.Normal);
+            registerService(ActivityEconomyService.class, activityEconomy, this, ServicePriority.Normal);
+            registerService(
                     CommissionEvidenceService.class, commissionEvidence, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(EconomyAnalyticsService.class, economyAnalytics, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(CommerceService.class, commerce, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(CurrencyExchangeService.class, currencyExchange,
+            registerService(EconomyAnalyticsService.class, economyAnalytics, this, ServicePriority.Normal);
+            registerService(CommerceService.class, commerce, this, ServicePriority.Normal);
+            registerService(CurrencyExchangeService.class, currencyExchange,
                     this, ServicePriority.Normal);
-            getServer().getServicesManager().register(MessageService.class, messages, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(MarketService.class, market, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(MessageService.class, messages, this, ServicePriority.Normal);
+            registerService(MarketService.class, market, this, ServicePriority.Normal);
+            registerService(
                     MarketBuyOrderService.class, buyOrders, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     ProgressionAnomalyService.class, progressionAnomalies, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     SupportCreditService.class, supportCredit, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     EquipmentOperationService.class, equipmentOperations, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     EquipmentLedgerAuditService.class, equipmentLedger, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(SkillService.class, skills, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(SkillService.class, skills, this, ServicePriority.Normal);
+            registerService(
                     AdminTestService.class, adminTests, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     AdminIncidentCompensationService.class, incidentCompensations, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(MerchantService.class, merchant, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(MerchantService.class, merchant, this, ServicePriority.Normal);
+            registerService(
                     PetProgressService.class, petProgress, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     PetRevivalService.class, petRevivals, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     ClassBranchService.class, classBranches, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     AscensionService.class, ascensions, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     HiddenPathService.class, hiddenPaths, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     DungeonEntryService.class, dungeonEntries, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     DungeonRewardService.class, dungeonRewards, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     SeasonExpeditionService.class, seasonExpeditions, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     SeasonMeritWalletService.class, seasonMerits, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     SeasonSettlementService.class, seasonSettlements, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     CommunityService.class, communities, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(CommunityLifecycleService.class, communityLifecycle, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(CommunityStorageService.class, communityStorage, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(CivilizationHistoryService.class,
+            registerService(CommunityLifecycleService.class, communityLifecycle, this, ServicePriority.Normal);
+            registerService(CommunityStorageService.class, communityStorage, this, ServicePriority.Normal);
+            registerService(CivilizationHistoryService.class,
                     new JdbcCivilizationHistoryService(database.dataSource(), databaseExecutor),
                     this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     CommunityGovernanceService.class, communities, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     CommunityRoleAssignmentService.class, communities, this, ServicePriority.Normal);
-            getServer().getServicesManager().register(
+            registerService(
                     ChapterService.class, chapters, this, ServicePriority.Normal);
             PersistenceMetricsService persistenceMetrics = () -> database.metrics(databaseExecutor);
-            getServer().getServicesManager().register(PersistenceMetricsService.class, persistenceMetrics,
+            registerService(PersistenceMetricsService.class, persistenceMetrics,
                     this, ServicePriority.Normal);
 
             RpgCommand command = new RpgCommand(
@@ -369,10 +377,19 @@ public final class RpgCorePlugin extends JavaPlugin {
             startChapterRefresh(chapters);
             startNodeLeaseHeartbeat(nodeLeaseSeconds);
             startReservationRecovery(dungeonEntries);
-            if (outboxEnabled && outboxDispatchEnabled) startOutboxDispatch();
+            if (outboxEnabled && outboxDispatchEnabled) {
+                completionNotifications = new DungeonCompletionNotificationListener(this, completionInbox,
+                        profiles, messages);
+                getServer().getPluginManager().registerEvents(completionNotifications, this);
+                completionNotifications.start();
+                startOutboxDispatch();
+            }
             if (sessionLeaseEnabled) {
-                getServer().getPluginManager().registerEvents(
-                        new SessionLeaseListener(sessionLease, getLogger(), messages), this);
+                registerService(PlayerSessionService.class, sessionLease, this, ServicePriority.Normal);
+                sessionLeaseListener = new SessionLeaseListener(this, sessionLease, messages,
+                        Duration.ofMillis(getConfig().getLong("session-lease.admission-timeout-ms", 5_000L)));
+                getServer().getPluginManager().registerEvents(sessionLeaseListener, this);
+                sessionLeaseListener.start();
             }
             getLogger().info("RPG core started with transactional persistence; season="
                     + initialChapter.seasonId() + " chapter=" + initialChapter.chapterId()
@@ -518,6 +535,8 @@ public final class RpgCorePlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         getServer().getServicesManager().unregisterAll(this);
+        if (sessionLeaseListener != null) sessionLeaseListener.close();
+        if (completionNotifications != null) completionNotifications.close();
         if (nodeLeaseRenewal != null) {
             // 先停止周期续期，否则最后一次心跳可能和干净释放竞争。
             try {
@@ -550,5 +569,10 @@ public final class RpgCorePlugin extends JavaPlugin {
     private static String environmentOrConfig(String name, String fallback) {
         String value = System.getenv(name);
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private <T> void registerService(Class<T> type, T provider, Plugin owner, ServicePriority priority) {
+        getServer().getServicesManager().register(type,
+                SessionGuardedService.wrap(type, provider, sessionLease), owner, priority);
     }
 }

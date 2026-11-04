@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.CurrencyOperationResult;
 import cn.originalrpg.api.model.TransactionResult;
 
@@ -17,6 +18,7 @@ public interface EconomyService {
             String reason
     );
 
+    @SessionActor(argument = 0)
     CompletionStage<CurrencyOperationResult> burn(
             UUID playerId,
             BigDecimal amount,
@@ -40,6 +42,7 @@ public interface EconomyService {
             String reason
     );
 
+    @SessionActor(argument = 0)
     CompletionStage<TransactionResult> transfer(
             UUID sender,
             UUID receiver,

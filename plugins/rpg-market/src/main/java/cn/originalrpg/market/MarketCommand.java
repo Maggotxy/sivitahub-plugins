@@ -81,6 +81,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
     private final CommunityStorageService communityStorage;
     private final NamespacedKey listingMarker;
     private final NamespacedKey deliveryMarker;
+    private final NamespacedKey deliveryClaimMarker;
+    private final MailboxDeliveryCoordinator<ItemStack> deliveryProtocol;
     private final NamespacedKey escrowReceipts;
     private final NamespacedKey stallOwner;
     private final NamespacedKey stallOwnerName;
@@ -113,6 +115,8 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         this.communityStorage = communityStorage;
         listingMarker = new NamespacedKey(plugin, "listing_id");
         deliveryMarker = new NamespacedKey(plugin, "delivery_id");
+        deliveryClaimMarker = new NamespacedKey(plugin, "delivery_claim_token");
+        deliveryProtocol = new MailboxDeliveryCoordinator<>(market, this::sync);
         escrowReceipts = new NamespacedKey(plugin, "escrow_receipts");
         stallOwner = new NamespacedKey(plugin, "stall_owner");
         stallOwnerName = new NamespacedKey(plugin, "stall_owner_name");
@@ -883,77 +887,109 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             return;
         }
         MarketDelivery delivery = deliveries.get(index);
-        // 凭据扫描（物品栏 + 游标）是「是否已交付」的唯一事实来源：游标上的凭据同样算已交付，
-        // 只查物品栏会在断线重连后把同一件投递再发一次。
-        ItemStack existing = findByMarker(player, deliveryMarker, delivery.id());
-        if (existing != null) {
-            markAndContinue(player, lease, deliveries, index, delivered, delivery);
-            return;
-        }
-        if (player.getInventory().firstEmpty() < 0) {
+        deliveryProtocol.deliver(delivery, mailboxInventory(player)).whenComplete((outcome, error) -> sync(() -> {
+            if (!ready(player)) { finishClaim(player, lease); return; }
+            if (error == null && outcome == MailboxDeliveryCoordinator.Outcome.DELIVERED) {
+                deliverNext(player, lease, deliveries, index + 1, delivered + 1);
+                return;
+            }
+            if (error == null && outcome == MailboxDeliveryCoordinator.Outcome.BLOCKED) {
+                // One uncertain STAGING row must remain frozen without preventing
+                // unrelated, unclaimed rewards from being collected.
+                plugin.getLogger().warning("Mailbox receipt needs reconciliation player=" + player.getUniqueId()
+                        + " delivery=" + delivery.id());
+                if (index == 0) player.sendMessage(Component.text(
+                        messages.text(player, "market.delivery-confirm-failed"), NamedTextColor.YELLOW));
+                deliverNext(player, lease, deliveries, index + 1, delivered);
+                return;
+            }
             finishClaim(player, lease);
-            player.sendMessage(Component.text(messages.text(player, "market.inventory-full"), NamedTextColor.YELLOW));
-            return;
-        }
-        ItemStack item;
-        try {
-            item = ItemStack.deserializeBytes(Base64.getDecoder().decode(delivery.itemPayload()));
-        } catch (IllegalArgumentException exception) {
-            finishClaim(player, lease);
-            plugin.getLogger().severe("Invalid market delivery payload id=" + delivery.id());
-            player.sendMessage(Component.text(messages.text(player, "market.payload-invalid"), NamedTextColor.RED));
-            return;
-        }
-        // The equipment-operation marker is an in-process escrow lock, never
-        // durable item state. Current producers strip it before writing the
-        // outbox, but deliveries queued by older builds may still contain it.
-        // This is the only trusted deserialization boundary for the mailbox,
-        // so clear the obsolete lock here before adding our own short-lived
-        // delivery receipt. Never scan arbitrary inventory items for it: an
-        // unresolved current operation must remain quarantined and replayable.
-        EquipmentOperationMarker.clear(item);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.getPersistentDataContainer().remove(listingMarker);
-            meta.getPersistentDataContainer().set(deliveryMarker, PersistentDataType.STRING, delivery.id().toString());
-            item.setItemMeta(meta);
-        }
-        if (!player.getInventory().addItem(item).isEmpty()) {
-            finishClaim(player, lease);
-            player.sendMessage(Component.text(messages.text(player, "market.inventory-full"), NamedTextColor.YELLOW));
-            return;
-        }
-        player.saveData();
-        markAndContinue(player, lease, deliveries, index, delivered, delivery);
+            String key = outcome == MailboxDeliveryCoordinator.Outcome.INVENTORY_FULL ? "market.inventory-full"
+                    : outcome == MailboxDeliveryCoordinator.Outcome.INVALID_PAYLOAD ? "market.payload-invalid"
+                    : "market.delivery-confirm-failed";
+            player.sendMessage(Component.text(messages.text(player, key), NamedTextColor.YELLOW));
+            plugin.getLogger().warning("Mailbox claim retained for reconciliation player=" + player.getUniqueId()
+                    + " delivery=" + delivery.id() + " outcome=" + outcome);
+        }));
     }
 
-    private void markAndContinue(
-            Player player, MailboxClaimGate.Lease lease,
-            List<MarketDelivery> deliveries, int index, int delivered,
-            MarketDelivery delivery
-    ) {
-        market.markDelivered(delivery.id(), player.getUniqueId()).whenComplete((marked, error) -> sync(() -> {
-            if (error != null || !Boolean.TRUE.equals(marked)) {
-                finishClaim(player, lease);
-                if (ready(player)) player.sendMessage(Component.text(
-                        messages.text(player, "market.delivery-confirm-failed"), NamedTextColor.YELLOW));
-                return;
+    private MailboxDeliveryCoordinator.Inventory<ItemStack> mailboxInventory(Player player) {
+        return new MailboxDeliveryCoordinator.Inventory<>() {
+            @Override public UUID playerId() { return player.getUniqueId(); }
+            @Override public boolean current() { return ready(player); }
+            @Override public MailboxDeliveryCoordinator.Receipt receipt(UUID deliveryId) {
+                MailboxReceiptScan.Scan scan = scanMailboxReceipts(player);
+                if (scan.ambiguous().contains(deliveryId)) return new MailboxDeliveryCoordinator.Receipt(
+                        MailboxDeliveryCoordinator.ReceiptKind.AMBIGUOUS, null);
+                MailboxReceiptScan.Receipt receipt = scan.unique().get(deliveryId);
+                if (receipt == null) return MailboxDeliveryCoordinator.Receipt.none();
+                return new MailboxDeliveryCoordinator.Receipt(receipt.claimToken() == null
+                        ? MailboxDeliveryCoordinator.ReceiptKind.LEGACY : MailboxDeliveryCoordinator.ReceiptKind.TOKEN,
+                        receipt.claimToken());
             }
-            if (!ready(player)) {
-                finishClaim(player, lease);
-                return;
+            @Override public MailboxDeliveryCoordinator.Prepared<ItemStack> prepare(MarketDelivery delivery, UUID token) {
+                if (player.getInventory().firstEmpty() < 0) return new MailboxDeliveryCoordinator.Prepared<>(null,
+                        MailboxDeliveryCoordinator.Outcome.INVENTORY_FULL);
+                ItemStack item = prepareMailboxItem(delivery, token);
+                return item == null ? new MailboxDeliveryCoordinator.Prepared<>(null, MailboxDeliveryCoordinator.Outcome.INVALID_PAYLOAD)
+                        : new MailboxDeliveryCoordinator.Prepared<>(item, null);
             }
-            if (!clearInventoryMarker(player, deliveryMarker, delivery.id())) {
-                finishClaim(player, lease);
-                plugin.getLogger().warning("Committed market delivery receipt was not found in inventory player="
-                        + player.getUniqueId() + " delivery=" + delivery.id());
-                player.sendMessage(Component.text(
-                        messages.text(player, "market.delivery-confirm-failed"), NamedTextColor.YELLOW));
-                return;
+            @Override public boolean stage(ItemStack prepared) {
+                if (!ready(player)) return false;
+                int slot = player.getInventory().firstEmpty();
+                if (slot < 0) return false;
+                // One validated stack in one empty slot avoids partial addItem
+                // results or splitting one delivery/token into duplicate receipts.
+                player.getInventory().setItem(slot, prepared);
+                player.saveData();
+                return true;
             }
-            player.saveData();
-            deliverNext(player, lease, deliveries, index + 1, delivered + 1);
-        }));
+            @Override public boolean thaw(UUID deliveryId, UUID claimToken) {
+                return thawMailboxReceipt(player, deliveryId, claimToken);
+            }
+            @Override public boolean persistReceipt(UUID deliveryId, UUID claimToken) {
+                if (!ready(player)) return false;
+                MailboxReceiptScan.Receipt receipt = scanMailboxReceipts(player).unique().get(deliveryId);
+                if (receipt == null || !java.util.Objects.equals(receipt.claimToken(), claimToken)) return false;
+                player.saveData();
+                return true;
+            }
+        };
+    }
+
+    private ItemStack prepareMailboxItem(MarketDelivery delivery, UUID claimToken) {
+        ItemStack item;
+        try { item = ItemStack.deserializeBytes(Base64.getDecoder().decode(delivery.itemPayload())); }
+        catch (IllegalArgumentException error) { return null; }
+        if (item.getType().isAir() || item.getAmount() < 1 || item.getAmount() > item.getMaxStackSize()) return null;
+        // Only this trusted mailbox deserialization boundary may remove obsolete
+        // equipment-operation/listing locks from an authoritative saved payload.
+        EquipmentOperationMarker.clear(item);
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return null;
+        meta.getPersistentDataContainer().remove(listingMarker);
+        meta.getPersistentDataContainer().set(deliveryMarker, PersistentDataType.STRING, delivery.id().toString());
+        meta.getPersistentDataContainer().set(deliveryClaimMarker, PersistentDataType.STRING, claimToken.toString());
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private boolean thawMailboxReceipt(Player player, UUID deliveryId, UUID claimToken) {
+        if (!ready(player)) return false;
+        MailboxReceiptScan.Receipt receipt = scanMailboxReceipts(player).unique().get(deliveryId);
+        if (receipt == null || !java.util.Objects.equals(receipt.claimToken(), claimToken)) return false;
+        boolean cursor = receipt.slot() == DeliveryFreezeRules.CURSOR_SLOT;
+        ItemStack existing = cursor ? player.getItemOnCursor() : player.getInventory().getItem(receipt.slot());
+        if (existing == null || existing.getItemMeta() == null) return false;
+        ItemStack updated = existing.clone();
+        ItemMeta meta = updated.getItemMeta();
+        meta.getPersistentDataContainer().remove(deliveryMarker);
+        meta.getPersistentDataContainer().remove(deliveryClaimMarker);
+        updated.setItemMeta(meta);
+        equipmentProgress.refreshDisplay(player, updated);
+        if (cursor) player.setItemOnCursor(updated); else player.getInventory().setItem(receipt.slot(), updated);
+        player.saveData();
+        return true;
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -1384,12 +1420,12 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
             String marker = item.getItemMeta().getPersistentDataContainer().get(key, PersistentDataType.STRING);
             if (expected.equals(marker)) return slot;
         }
-        return -1;
+        return -2;
     }
 
     private boolean clearInventoryMarker(Player player, NamespacedKey key, UUID value) {
         int slot = findSlotByMarker(player, key, value);
-        return slot >= 0 && clearInventoryMarkerAt(player, slot, key);
+        return (slot >= 0 || slot == DeliveryFreezeRules.CURSOR_SLOT) && clearInventoryMarkerAt(player, slot, key);
     }
 
     private boolean clearInventoryMarkerAt(Player player, int slot, NamespacedKey key) {
@@ -1407,65 +1443,51 @@ final class MarketCommand implements CommandExecutor, TabCompleter, Listener {
         return true;
     }
 
-    private void recoverDeliveryReceipts(Player player) {
-        int inventorySize = player.getInventory().getSize();
-        String[] inventoryMarkers = new String[inventorySize];
-        for (int slot = 0; slot < inventorySize; slot++) {
+    private MailboxReceiptScan.Scan scanMailboxReceipts(Player player) {
+        List<MailboxReceiptScan.Input> inputs = new ArrayList<>();
+        for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
             ItemStack item = player.getInventory().getItem(slot);
-            inventoryMarkers[slot] = item == null || item.getItemMeta() == null ? null
-                    : item.getItemMeta().getPersistentDataContainer()
-                    .get(deliveryMarker, PersistentDataType.STRING);
+            inputs.add(new MailboxReceiptScan.Input(slot, markerValue(item, deliveryMarker), markerValue(item, deliveryClaimMarker)));
         }
-        // 游标槽位必须进扫描范围：交付凭据可能停在鼠标游标上，断线时物品栏扫描看不到它，
-        // 重连后凭据不会被清理也不会 markDelivered，物品入包而投递行仍 PENDING。
-        ItemStack cursorItem = player.getItemOnCursor();
-        String cursorMarker = cursorItem == null || cursorItem.getItemMeta() == null ? null
-                : cursorItem.getItemMeta().getPersistentDataContainer()
-                .get(deliveryMarker, PersistentDataType.STRING);
-        DeliveryReceiptRules.Scan scan = DeliveryReceiptRules.scan(
-                DeliveryFreezeRules.collectMarkers(inventorySize, inventoryMarkers, cursorMarker));
-        for (int slot : scan.invalidSlots()) {
-            if (clearInventoryMarkerAt(player, slot, deliveryMarker)) {
-                plugin.getLogger().warning("Removed malformed transient delivery receipt player="
-                        + player.getUniqueId() + " slot=" + slot);
-            }
+        ItemStack cursor = player.getItemOnCursor();
+        inputs.add(new MailboxReceiptScan.Input(DeliveryFreezeRules.CURSOR_SLOT,
+                markerValue(cursor, deliveryMarker), markerValue(cursor, deliveryClaimMarker)));
+        return MailboxReceiptScan.scan(inputs);
+    }
+
+    private String markerValue(ItemStack item, NamespacedKey key) {
+        if (item == null || item.getItemMeta() == null) return null;
+        var data = item.getItemMeta().getPersistentDataContainer();
+        if (!data.has(key)) return null;
+        if (!data.has(key, PersistentDataType.STRING)) return "<invalid-marker-type>";
+        String value = data.get(key, PersistentDataType.STRING);
+        return value == null ? "<invalid-marker-type>" : value;
+    }
+
+    private void recoverDeliveryReceipts(Player player) {
+        if (!ready(player)) return;
+        MailboxReceiptScan.Scan scan = scanMailboxReceipts(player);
+        if (!scan.ambiguous().isEmpty() || !scan.invalidSlots().isEmpty()) {
+            plugin.getLogger().severe("Malformed/duplicate mailbox receipts remain frozen player=" + player.getUniqueId()
+                    + " deliveries=" + scan.ambiguous() + " invalid_slots=" + scan.invalidSlots());
         }
-        // 重复凭据无法定位唯一物品，隔离即可；一旦重发就是重复领取本身。
-        if (MailboxClaimReconciler.quarantinesDuplicates(scan)) {
-            plugin.getLogger().severe("Duplicate transient delivery receipts remain quarantined player="
-                    + player.getUniqueId() + " deliveries=" + scan.duplicateIds());
-        }
-        if (!scan.invalidSlots().isEmpty()) player.saveData();
-        // 扫描结果里已带凭据的投递走「确认」分支；其余才可能重新入包。
-        // 游标凭据也在其中，因此断线时无法借游标绕过重复检查。
-        for (UUID deliveryId : MailboxClaimReconciler.plan(
-                scan.uniqueReceipts().keySet(), scan).stagedDeliveries().keySet()) {
-            market.markDelivered(deliveryId, player.getUniqueId()).whenComplete((marked, error) -> sync(() -> {
-                if (error != null) {
-                    plugin.getLogger().warning("Transient delivery receipt recovery failed player="
-                            + player.getUniqueId() + " delivery=" + deliveryId + ": " + error.getMessage());
-                    return;
+        for (UUID deliveryId : scan.unique().keySet()) {
+            deliveryProtocol.recover(deliveryId, mailboxInventory(player)).whenComplete((outcome, error) -> {
+                if (error != null || outcome != MailboxDeliveryCoordinator.Outcome.DELIVERED) {
+                    plugin.getLogger().warning("Mailbox receipt remains frozen player=" + player.getUniqueId()
+                            + " delivery=" + deliveryId + " outcome=" + outcome);
                 }
-                if (!Boolean.TRUE.equals(marked)) {
-                    plugin.getLogger().warning("Delivery receipt remains frozen pending review player="
-                            + player.getUniqueId() + " delivery=" + deliveryId);
-                    return;
-                }
-                if (!ready(player) || !clearInventoryMarker(player, deliveryMarker, deliveryId)) return;
-                player.saveData();
-                plugin.getLogger().info("Recovered transient delivery receipt player="
-                        + player.getUniqueId() + " delivery=" + deliveryId + " confirmed=" + marked);
-            }));
+            });
         }
     }
 
     private boolean hasMarker(ItemStack item, NamespacedKey key) {
         return item != null && item.getItemMeta() != null
-                && item.getItemMeta().getPersistentDataContainer().has(key, PersistentDataType.STRING);
+                && item.getItemMeta().getPersistentDataContainer().has(key);
     }
 
     private boolean hasTransientMarker(ItemStack item) {
-        return hasMarker(item, listingMarker) || hasMarker(item, deliveryMarker);
+        return hasMarker(item, listingMarker) || hasMarker(item, deliveryMarker) || hasMarker(item, deliveryClaimMarker);
     }
 
     private void finishClaim(Player player, MailboxClaimGate.Lease lease) {

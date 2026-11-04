@@ -7,12 +7,15 @@
 #
 # 表名来源（为什么选它）：
 #   plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java
-#   是本项目唯一的运行时建表真相源（全部 75 条 DDL 都在此文件内联）。
+#   是本项目唯一的运行时建表真相源（运行时 DDL 在此文件内联）。
 #   tools/db-migration 的 SchemaManifest 只是迁移拷贝清单，会跟随 Database.java
 #   变化，不是真相源，因此不拿来抽表名（否则两处漂移无法定位）。
 #
 # 什么算「消费者」：
-#   文件里出现 SQL 语句引用该表（SELECT/INSERT/UPDATE/DELETE/MERGE ... <t>）。
+#   可解析的 SQL 经 JDBC Statement 执行，或 prepareStatement 后实际 execute。
+#   Java 注释、孤立常量、未使用 SQL/PreparedStatement 不算消费者。
+#   词法/表达式分析见 ddl-consumers.py；支持 text block、多行拼接和经过
+#   SchemaInspector.Schema.tables().get(精确常量).qualifiedName() 的表名。
 #   仅把表名写进常量清单（SchemaManifest）或 DDL 定义（Database.java）不算——
 #   这正是本门禁要掐死的形态。
 #
@@ -56,7 +59,7 @@ EXEMPT_EOF
 #   rpg_market_buy_orders       -> JdbcMarketBuyOrderService               (W6-A1, Phase 4 买单簿, C-009 单一托管)
 #   rpg_progression_anomalies   -> JdbcProgressionAnomalyService           (W6-A1, Phase 1 异常写入口, [H] 复核出口)
 #
-# 现在 EXEMPT 为空：DDL 表数 79 全部有 src/main 真实消费者。新增豁免必须在本脚本
+# 现在 EXEMPT 为空。新增豁免必须在本脚本
 # 登记分类 + 理由 + 文档锚点，并在 docs/planning/deferred-tables.md 开一节写明判定证据。
 
 # ---- 1. 从 DDL 抽取表名 ----
@@ -70,22 +73,31 @@ fi
 
 TABLE_COUNT=$(printf '%s\n' "$TABLES" | wc -l | tr -d ' ')
 
-# ---- 2. 收集待扫描源码文件（排除 DDL / manifest 声明点）----
-FILES=$(find plugins tools -path '*/src/main/*' -name '*.java' -type f 2>/dev/null \
-  | grep -v '/Database.java$' | grep -v '/SchemaManifest.java$')
+# ---- 2. 收集源码并一次解析 Java/JDBC 消费链 ----
+SCAN_FILES_LIST=$(mktemp)
+CONSUMED_FILE=$(mktemp)
+DDL_REPORT_FILE=$(mktemp)
+CMD_EXEMPT_FILE=''
+DDL_TABLE_EXEMPT_FILE=''
+UNIVERSE_FILES_LIST=''
+# Independent invocations must not overwrite each other's report or leave temp files.
+trap 'rm -f "$SCAN_FILES_LIST" "$CONSUMED_FILE" "$DDL_REPORT_FILE" "$CMD_EXEMPT_FILE" "$DDL_TABLE_EXEMPT_FILE" "$UNIVERSE_FILES_LIST"' 0
+trap 'exit 2' HUP INT TERM
+find plugins tools -path '*/src/main/*' -name '*.java' -type f 2>/dev/null \
+  | grep -v '/Database.java$' | grep -v '/SchemaManifest.java$' > "$SCAN_FILES_LIST"
+if [ ! -s "$SCAN_FILES_LIST" ]; then
+  echo "DDL_CONSUMER_GATE=RED 未找到消费者源码" >&2
+  exit 2
+fi
+if ! python3 "$ROOT/scripts/ddl-consumers.py" --files-from "$SCAN_FILES_LIST" > "$CONSUMED_FILE"; then
+  echo "DDL_CONSUMER_GATE=RED SOURCE_ANALYSIS_FAILED" >&2
+  exit 2
+fi
 
-# ---- 3. 判定每张表是否被真实消费 ----
+# ---- 3. 每张 DDL 表仍然必须有真实消费；不从常量清单猜测消费 ----
 UNWIRED=''
 for t in $TABLES; do
-  hit=0
-  for f in $FILES; do
-    # SQL 语句里引用该表即算消费者；\b 用 [^a-z_] 模拟词边界，避免前缀误匹配
-    if grep -qEi "(select|insert[[:space:]]+into|update|delete[[:space:]]+from|merge[[:space:]]+into)[^;]{0,240}(^|[^a-z_])$t([^a-z_]|\$)" "$f" 2>/dev/null; then
-      hit=1
-      break
-    fi
-  done
-  if [ "$hit" -eq 0 ]; then
+  if ! grep -qxF "$t" "$CONSUMED_FILE"; then
     UNWIRED="$UNWIRED$t
 "
   fi
@@ -116,15 +128,15 @@ if [ -n "$UNWIRED" ]; then
     else
       echo "[未接线] $t"
     fi
-  done > /tmp/ddl-gate-report.txt
+  done > "$DDL_REPORT_FILE"
 else
-  : > /tmp/ddl-gate-report.txt
+  : > "$DDL_REPORT_FILE"
 fi
 
-PENDING_LINES=$(grep '^\[待接线\]' /tmp/ddl-gate-report.txt || true)
-ABANDONED_LINES=$(grep '^\[已废弃\]' /tmp/ddl-gate-report.txt || true)
-EXCUSED=$(cat /tmp/ddl-gate-report.txt | grep -E '^\[(待接线|已废弃)\]' || true)
-UNWIRED_LINES=$(grep '^\[未接线\]' /tmp/ddl-gate-report.txt || true)
+PENDING_LINES=$(grep '^\[待接线\]' "$DDL_REPORT_FILE" || true)
+ABANDONED_LINES=$(grep '^\[已废弃\]' "$DDL_REPORT_FILE" || true)
+EXCUSED=$(cat "$DDL_REPORT_FILE" | grep -E '^\[(待接线|已废弃)\]' || true)
+UNWIRED_LINES=$(grep '^\[未接线\]' "$DDL_REPORT_FILE" || true)
 
 # ---- 5. 报告 ----
 echo "DDL 真相源: $DDL_FILE"
@@ -309,7 +321,7 @@ STRING_LITERALS=$(grep -hoE '"rpg_[a-z_]+"' $(cat "$UNIVERSE_FILES_LIST") 2>/dev
   | tr -d '"' | sort -u || true)
 
 # 去掉索引名：判定的是「表」，不是「索引」
-REFERENCED=$(printf '%s\n%s\n' "$SQL_TOKENS" "$STRING_LITERALS" \
+REFERENCED=$(printf '%s\n%s\n%s\n' "$SQL_TOKENS" "$STRING_LITERALS" "$(cat "$CONSUMED_FILE")" \
   | sed '/^$/d' | grep -v -x -F -f /dev/null | sort -u)
 if [ -n "$INDEX_NAMES" ]; then
   REFERENCED=$(printf '%s\n' "$REFERENCED" | grep -v -x -F -e "$(printf '%s' "$INDEX_NAMES" | tr '\n' '|' | sed 's/|$//')" || true)

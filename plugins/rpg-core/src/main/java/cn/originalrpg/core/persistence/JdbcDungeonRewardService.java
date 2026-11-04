@@ -163,9 +163,8 @@ public final class JdbcDungeonRewardService implements DungeonRewardService {
             outbox.publish(connection, "dungeon.completion",
                     request.runId().toString(),
                     JdbcOutboxRegistry.idempotencyKey("dungeon.completion",
-                            request.runId().toString(), "settled"),
-                    "{\"runId\":\"" + request.runId() + "\",\"player\":\""
-                            + request.playerId() + "\",\"dungeon\":\"" + request.dungeonId() + "\"}");
+                            request.runId().toString(), request.playerId() + ":settled"),
+                    new DungeonCompletionPayload(request.runId(), request.playerId(), request.dungeonId()).json());
         }
         return new DungeonRewardSettlement(
                 DungeonRewardSettlement.Status.SETTLED,

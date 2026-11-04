@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.CurrencyExchangeQuote;
 import cn.originalrpg.api.model.CurrencyExchangeResult;
 import cn.originalrpg.api.model.WealthBalance;
@@ -13,6 +14,7 @@ public interface CurrencyExchangeService {
 
     CompletionStage<List<CurrencyExchangeQuote>> quotes(UUID playerId);
 
+    @SessionActor(argument = 0)
     CompletionStage<CurrencyExchangeResult> exchange(
             UUID playerId,
             String routeId,
