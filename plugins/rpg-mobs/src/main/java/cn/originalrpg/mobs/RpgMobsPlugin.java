@@ -52,6 +52,9 @@ public final class RpgMobsPlugin extends JavaPlugin {
         delayedRewards = new DelayedMobRewardQueue(this, profiles, market, experienceBuffer, mobListener);
         mobListener.setDelayedRewards(delayedRewards);
         getServer().getPluginManager().registerEvents(mobListener, this);
+        MobItemPresentation itemText = new MobItemPresentation(messages);
+        getServer().getPluginManager().registerEvents(new cn.originalrpg.api.i18n.PlayerItemTextRefresh(
+                this, itemText::managed, itemText::refresh), this);
         PluginCommand guide = Objects.requireNonNull(getCommand("mobguide"), "mobguide command");
         mobGuide = new MobGuideCommand(this, profiles, messages, abilities);
         guide.setExecutor(mobGuide);

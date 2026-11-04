@@ -2,6 +2,7 @@ package cn.originalrpg.world;
 
 import cn.originalrpg.api.event.AuthenticatedPlayerReadyEvent;
 import cn.originalrpg.api.event.AuthenticatedPlayerRevokedEvent;
+import cn.originalrpg.api.event.PlayerLocaleChangeEvent;
 import cn.originalrpg.api.model.PlayerProfile;
 import cn.originalrpg.api.model.ServerLoadState;
 import cn.originalrpg.api.model.VisualMode;
@@ -16,6 +17,7 @@ import cn.originalrpg.api.ui.HudGlyphs;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -45,6 +47,10 @@ import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -82,6 +88,7 @@ final class WorldEventListener implements Listener {
     private final NamespacedKey pickupOwner;
     private final NamespacedKey bloodMoonFailures;
     private final Map<UUID, HuntChain> chains = new HashMap<>();
+    private final Set<UUID> presentationRefreshPending = new HashSet<>();
     private final Set<UUID> activeBloodMoons = new HashSet<>();
     private final Map<UUID, BossBar> bloodMoonBars = new HashMap<>();
     private final Set<UUID> bloodMoonCreepers = new HashSet<>();
@@ -120,6 +127,7 @@ final class WorldEventListener implements Listener {
             for (LivingEntity entity : world.getLivingEntities()) {
                 if (migrateLegacyBloodMoonMob(entity)) migrated++;
                 trackBloodMoonCreeper(entity);
+                refreshRareMobName(entity, false);
             }
         }
         if (migrated > 0) plugin.getLogger().info(
@@ -293,17 +301,7 @@ final class WorldEventListener implements Listener {
         double rareChance = Math.clamp(plugin.getConfig().getDouble("blood-moon.rare-mob-chance", 0.08), 0.0, 1.0);
         if (ThreadLocalRandom.current().nextDouble() >= rareChance) return;
         monster.getPersistentDataContainer().set(bloodMoonRare, PersistentDataType.STRING, archetype);
-        Player audience = nearestAudience(monster);
-        String rareName = messages.text(audience, "world.blood-moon-mobs." + archetype + ".name");
-        Integer level = monster.getPersistentDataContainer().get(mobLevel, PersistentDataType.INTEGER);
-        String affix = monster.getPersistentDataContainer().get(eliteAffix, PersistentDataType.STRING);
-        String elitePrefix = affix == null ? "" : messages.text(audience, "mobs.elite-name", Map.of(
-                "affix", messages.text(audience, "mobs.affixes." + affix))) + " ";
-        String nameKey = level == null ? "world.rare-mob-name-unscaled" : "world.rare-mob-name";
-        monster.customName(Component.text(messages.text(audience, nameKey, Map.of(
-                "elite", elitePrefix,
-                "name", rareName,
-                "level", level == null ? "" : level)), NamedTextColor.DARK_RED));
+        refreshRareMobName(monster, true);
         monster.setCustomNameVisible(true);
         empowerRareArchetype(monster, archetype);
         MobAppearanceService appearances = appearances();
@@ -484,7 +482,10 @@ final class WorldEventListener implements Listener {
     @EventHandler
     public void onEntitiesLoad(EntitiesLoadEvent event) {
         for (org.bukkit.entity.Entity entity : event.getEntities()) {
-            if (entity instanceof LivingEntity living) trackBloodMoonCreeper(living);
+            if (entity instanceof LivingEntity living) {
+                trackBloodMoonCreeper(living);
+                refreshRareMobName(living, false);
+            }
         }
     }
 
@@ -506,7 +507,79 @@ final class WorldEventListener implements Listener {
 
     @EventHandler
     public void onAuthenticated(AuthenticatedPlayerReadyEvent event) {
+        refreshHuntInventory(event.player());
         if (isBloodMoon(event.player().getWorld())) updateBloodMoonBar(event.player());
+    }
+
+    @EventHandler
+    public void onLocaleChanged(PlayerLocaleChangeEvent event) {
+        refreshHuntInventory(event.player());
+        if (isBloodMoon(event.player().getWorld())) updateBloodMoonBar(event.player());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void refreshAfterPickup(EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player && isHuntMaterial(event.getItem().getItemStack())) {
+            schedulePresentationRefresh(player);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void refreshAfterInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        ItemStack hotbar = event.getHotbarButton() >= 0
+                ? player.getInventory().getItem(event.getHotbarButton()) : null;
+        if (isHuntMaterial(event.getCurrentItem()) || isHuntMaterial(event.getCursor()) || isHuntMaterial(hotbar)
+                || (event.getClick() == org.bukkit.event.inventory.ClickType.SWAP_OFFHAND
+                    && isHuntMaterial(player.getInventory().getItemInOffHand()))) {
+            schedulePresentationRefresh(player);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void refreshAfterInventoryDrag(InventoryDragEvent event) {
+        if (event.getWhoClicked() instanceof Player player && isHuntMaterial(event.getOldCursor())) {
+            schedulePresentationRefresh(player);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void refreshAfterInventoryClose(InventoryCloseEvent event) {
+        // Inputs returned by a forge menu are now back in personal storage.
+        if (event.getPlayer() instanceof Player player) schedulePresentationRefresh(player);
+    }
+
+    private void schedulePresentationRefresh(Player player) {
+        if (!presentationRefreshPending.add(player.getUniqueId())) return;
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            presentationRefreshPending.remove(player.getUniqueId());
+            if (plugin.isEnabled() && player.isOnline()
+                    && plugin.getServer().getPlayer(player.getUniqueId()) == player) refreshHuntInventory(player);
+        });
+    }
+
+    private void refreshHuntInventory(Player player) {
+        if (!player.isOnline()) return;
+        // Never touch an open shared container or an in-flight forge input snapshot.
+        for (ItemStack item : player.getInventory().getContents()) refreshHuntMaterial(player, item);
+        for (ItemStack item : player.getEnderChest().getContents()) refreshHuntMaterial(player, item);
+        ItemStack cursor = player.getItemOnCursor();
+        if (refreshHuntMaterial(player, cursor)) player.setItemOnCursor(cursor);
+    }
+
+    private boolean isHuntMaterial(ItemStack item) {
+        return item != null && (item.getType() == Material.NETHER_STAR
+                || item.getType() == Material.PRISMARINE_CRYSTALS) && item.hasItemMeta()
+                && item.getItemMeta().getPersistentDataContainer().has(huntMaterial, PersistentDataType.INTEGER);
+    }
+
+    private boolean refreshHuntMaterial(Player player, ItemStack item) {
+        if (!isHuntMaterial(item)) return false;
+        ItemMeta meta = item.getItemMeta();
+        int chain = meta.getPersistentDataContainer().get(huntMaterial, PersistentDataType.INTEGER);
+        HuntMaterialPresentation.refresh(meta, messages, player, item.getType() == Material.NETHER_STAR, chain);
+        item.setItemMeta(meta);
+        return true;
     }
 
     @EventHandler
@@ -745,11 +818,7 @@ final class WorldEventListener implements Listener {
     private ItemStack createHuntMaterial(Player player, int chain, boolean bloodMoon) {
         ItemStack item = new ItemStack(bloodMoon ? Material.NETHER_STAR : Material.PRISMARINE_CRYSTALS);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(messages.text(player, bloodMoon
-                        ? "world.items.blood-moon-essence" : "world.items.hunt-crystal"),
-                bloodMoon ? NamedTextColor.RED : NamedTextColor.AQUA));
-        meta.lore(java.util.List.of(Component.text(messages.text(player, "world.items.chain-lore", Map.of(
-                "count", chain)), NamedTextColor.GRAY)));
+        HuntMaterialPresentation.refresh(meta, messages, player, bloodMoon, chain);
         meta.setItemModel(new NamespacedKey("originalrpg", bloodMoon ? "blood_moon_essence" : "hunt_crystal"));
         meta.getPersistentDataContainer().set(huntMaterial, PersistentDataType.INTEGER, chain);
         meta.getPersistentDataContainer().set(pickupOwner, PersistentDataType.STRING, player.getUniqueId().toString());
@@ -818,8 +887,29 @@ final class WorldEventListener implements Listener {
         return world.getEnvironment() == World.Environment.NORMAL && world.getName().equals(survivalWorld);
     }
 
-    private Player nearestAudience(LivingEntity monster) {
-        return monster.getWorld().getNearbyPlayers(monster.getLocation(), 64.0).stream().findFirst().orElse(null);
+    private void refreshRareMobName(LivingEntity monster, boolean generatedNow) {
+        String archetype = monster.getPersistentDataContainer().get(bloodMoonRare, PersistentDataType.STRING);
+        if (archetype == null) return;
+        Component existing = monster.customName();
+        if (!generatedNow && existing != null) {
+            String current = PlainTextComponentSerializer.plainText().serialize(existing);
+            boolean stockName = messages.supportedLocales().stream()
+                    .anyMatch(locale -> current.equals(rareMobName(monster, archetype, locale)));
+            if (!stockName) return; // Preserve a player's name-tagged monster.
+        }
+        monster.customName(Component.text(rareMobName(monster, archetype, messages.defaultLocale()),
+                NamedTextColor.DARK_RED));
+    }
+
+    private String rareMobName(LivingEntity monster, String archetype, String locale) {
+        String rareName = messages.textForLocale(locale, "world.blood-moon-mobs." + archetype + ".name");
+        Integer level = monster.getPersistentDataContainer().get(mobLevel, PersistentDataType.INTEGER);
+        String affix = monster.getPersistentDataContainer().get(eliteAffix, PersistentDataType.STRING);
+        String elitePrefix = affix == null ? "" : messages.textForLocale(locale, "mobs.elite-name", Map.of(
+                "affix", messages.textForLocale(locale, "mobs.affixes." + affix))) + " ";
+        String nameKey = level == null ? "world.rare-mob-name-unscaled" : "world.rare-mob-name";
+        return messages.textForLocale(locale, nameKey, Map.of(
+                "elite", elitePrefix, "name", rareName, "level", level == null ? "" : level));
     }
 
     private int lowestNearbyEffectiveLevel(LivingEntity monster, double radius) {

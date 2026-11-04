@@ -1,5 +1,7 @@
 package cn.originalrpg.story;
 
+import cn.originalrpg.api.i18n.ConfiguredDisplayText;
+import cn.originalrpg.api.service.MessageService;
 import net.citizensnpcs.api.CitizensAPI;
 import net.citizensnpcs.api.npc.NPC;
 import net.citizensnpcs.api.npc.NPCRegistry;
@@ -19,9 +21,11 @@ import java.util.UUID;
 final class StoryActorManager {
     private final RpgStoryPlugin plugin;
     private NPC actor;
+    private final MessageService messages;
 
-    StoryActorManager(RpgStoryPlugin plugin) {
+    StoryActorManager(RpgStoryPlugin plugin, MessageService messages) {
         this.plugin = plugin;
+        this.messages = messages;
     }
 
     NPC ensureRegistryEntry() {
@@ -35,7 +39,7 @@ final class StoryActorManager {
         }
         actor = existing == null
                 ? registry.createNPC(EntityType.PLAYER, expectedUuid, id,
-                plugin.getConfig().getString("actor.name", "主城导览 · 栖枝"))
+                actorName())
                 : existing;
         configure(actor);
         registry.saveToStore();
@@ -62,8 +66,17 @@ final class StoryActorManager {
                 current.isSpawned() ? compact(current.getEntity().getLocation()) : "stored:" + compact(current.getStoredLocation()));
     }
 
+    private String actorName() {
+        var config = plugin.getConfig();
+        var defaults = config.getDefaults();
+        return ConfiguredDisplayText.resolve(config.getString("actor.name"),
+                defaults == null ? null : defaults.getString("actor.name"),
+                config.getString("actor.names." + messages.defaultLocale()),
+                messages.textForLocale(messages.defaultLocale(), "story.actor-name"));
+    }
+
     private void configure(NPC npc) {
-        npc.setName(plugin.getConfig().getString("actor.name", "主城导览 · 栖枝"));
+        npc.setName(actorName());
         npc.setProtected(true);
         npc.setUseMinecraftAI(false);
         SkinTrait skin = npc.getOrAddTrait(SkinTrait.class);

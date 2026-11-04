@@ -70,8 +70,11 @@ wayfinding:
   particle-player-budget-per-pulse: 256
 
 npcs:
-  # `name` is the only world-space TextDisplay line. `subtitle` is retained
-  # for squaremap landmark tooltips; interaction details live in Dialogs.
+  # Unchanged stock names/subtitles follow RpgCore language.default in world
+  # labels and squaremap; dialogs/navigation use each player's selected locale.
+  # A customized legacy name/subtitle is preserved for every locale. For a
+  # localized custom label use names.en_us / names.zh_cn or subtitles.en_us /
+  # subtitles.zh_cn beneath the role. World labels still use the server locale.
   guide:
     name: "引路人 · 阿穹"
     subtitle: "从这里开始"

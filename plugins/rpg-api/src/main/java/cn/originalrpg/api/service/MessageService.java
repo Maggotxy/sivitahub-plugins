@@ -21,6 +21,27 @@ public interface MessageService {
 
     String text(CommandSender audience, String key, Map<String, ?> placeholders);
 
+    /**
+     * Resolve a known locale without mutating a player's preference. Implementations
+     * should override this for item-name migration and shared display rendering.
+     * The default keeps existing third-party providers and test doubles compatible.
+     */
+    default String textForLocale(String locale, String key) {
+        return text(null, key);
+    }
+
+    default String textForLocale(String locale, String key, Map<String, ?> placeholders) {
+        return text(null, key, placeholders);
+    }
+
+    default List<String> linesForLocale(String locale, String key) {
+        return lines(null, key);
+    }
+
+    default List<String> linesForLocale(String locale, String key, Map<String, ?> placeholders) {
+        return lines(null, key, placeholders);
+    }
+
     List<String> lines(CommandSender audience, String key);
 
     List<String> lines(CommandSender audience, String key, Map<String, ?> placeholders);

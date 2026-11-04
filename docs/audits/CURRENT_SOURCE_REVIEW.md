@@ -1,6 +1,6 @@
 # SivitaHub 当前源码审计与完善顺序
 
-> 本分支的实际交付、17 项 Java 与 29 项 Python 验证结果、完整构建阻塞及运行证据边界，见 [国际化交付与验证记录](INTERNATIONAL_READINESS_DELIVERY.md)。
+> 2026-11-04 继续完善的 25 模块运行机制、资源/英文路径与新增数据库行为证据，见 [完整插件证据矩阵](FULL_PLUGIN_GAMEPLAY_REVIEW.md)。下述基线审计及[首轮国际化交付记录](INTERNATIONAL_READINESS_DELIVERY.md)保留各自时间点的范围与结果，不能替代继续完善后的当前验证。
 审计日期：2026-11-03。源码基线：[`c83226ff87c8ecb868277d9ca5bce575b4684abc`](https://github.com/Maggotxy/sivitahub-plugins/tree/c83226ff87c8ecb868277d9ca5bce575b4684abc)。本报告区分基线缺陷、分支改动与尚未取得的运行证据；不以旧环境的成功日志代替当前验收。
 
 ## 1. 判断
@@ -37,13 +37,15 @@
 
 **本分支已实施 `[S]`：** 新增 [SkillPlaceholderKey](../../plugins/rpg-integrations/src/main/java/cn/originalrpg/integrations/SkillPlaceholderKey.java)，由实际 `SivitaPlaceholderExpansion` 调用。解析器使用预编译模式、显式数字边界和溢出拒绝；新增 [行为回归测试](../../plugins/rpg-integrations/src/test/java/cn/originalrpg/integrations/SkillPlaceholderKeyTest.java) 覆盖四槽七字段、非法输入及不同槽位上限。测试源码已独立复核；实际执行结果以 PR 的验证记录为准，本段不提前宣称测试或客户端渲染已通过。
 
-### IR-02 · P1 · 经济仿真尚无引擎
+### IR-02 · P1 · 基线经济仿真尚无引擎（2026-11-04 已补离线引擎）
+
+**当前状态更新：** 本分支已新增真实配置驱动的逐日离线引擎，覆盖原有十五个场景并输出守恒、产消、市场与财富分布指标；详见 [经济模型说明](../../tools/economy-sim/README.zh-CN.md) 及本报告第 7 节。以下 `NEEDS_ENGINE` 记录属于此前只读轮次，保留为问题来源，不描述当前脚本行为。新引擎仍为未校准 `[M]`，不能据此声称 Java 故障恢复或真实经济平衡通过。
 
 **基线证据：** [tools/economy-sim/run.py](../../tools/economy-sim/run.py) 第 15–31 行加载场景，打印配置 SHA；S01–S14 分支明确输出 `NEEDS_ENGINE`，S15 只检查错误连接是否被声明为 `FAIL_FAST`。
 
-**本次已执行：** `python3 tools/economy-sim/run.py`，看到十四项 `NEEDS_ENGINE` 与一项预期 `FAIL_FAST`。此命令成功解析文件，不能记作十五场景经济仿真通过，也没有取得 `[M]`。
+**此前只读轮次已执行：** `python3 tools/economy-sim/run.py`，看到十四项 `NEEDS_ENGINE` 与一项预期 `FAIL_FAST`。该历史命令仅成功解析文件，不能记作十五场景经济仿真通过，也没有因此取得 `[M]`。
 
-**缺少什么：** 现脚本没有玩家行为演化、账本回放、产出/销毁计算、库存龄、财富分布或 `simulation.json` 指标输出。仅计算文件哈希也不能证明运行时参数全部来自实际配置。
+**当时缺少什么：** 基线脚本没有玩家行为演化、账本回放、产出/销毁计算、库存龄、财富分布或 `simulation.json` 指标输出。仅计算文件哈希也不能证明运行时参数全部来自实际配置。
 
 **下一步验收：** 独立 Phase 3 实现配置读取、固定随机种子、各场景输入、至少 Gold/Merit/Starlight 余额守恒与来源/回收口计量；报告明确分开 `PARSED`、`SIMULATED`、`PASSED`。最后对授权的七日真实快照做校准，无法校准时标记 `NEEDS_TUNING`，不伪造玩家分布。
 
@@ -74,6 +76,8 @@
 
 **验证要求：** 正常经验入口、单次副本入口和持续领取分别覆盖最高转满级，再明确剩余经验语义。不能借国际化改动静默改成长规则或清空玩家经验。
 
+**2026-11-04 更新 `[S][T]`：** 已保持最终满级积累合法 XP 的既有语义，修复异常分类和阶段合计溢出；规则与数据库重载回归已通过。另新增自然怪 XP 的稳定操作收据，解决提交成功但返回异常后的重复奖励，见完整矩阵 §3.1、§3.4。
+
 ### IR-06 · P2（跨服事件消费前）· 组队副本事件聚合语义待确认
 
 [DungeonRewardBatch.java:38](https://github.com/Maggotxy/sivitahub-plugins/blob/c83226ff87c8ecb868277d9ca5bce575b4684abc/plugins/rpg-dungeons/src/main/java/cn/originalrpg/dungeons/DungeonRewardBatch.java#L38) 确保同一批次各玩家共享 `runId`；[JdbcDungeonRewardService.java:163–168](https://github.com/Maggotxy/sivitahub-plugins/blob/c83226ff87c8ecb868277d9ca5bce575b4684abc/plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/JdbcDungeonRewardService.java#L163) 使用仅由 `runId` 派生的 Outbox 幂等键，却把单个玩家写入 payload。重复键由 `JdbcOutboxRegistry` 的 `ON CONFLICT DO NOTHING` 去重。
@@ -85,6 +89,8 @@
 [CommunityGovernanceListener.java:84–122](https://github.com/Maggotxy/sivitahub-plugins/blob/c83226ff87c8ecb868277d9ca5bce575b4684abc/plugins/rpg-community/src/main/java/cn/originalrpg/community/CommunityGovernanceListener.java#L84) 的生效、拒绝、提交与待审批通知均遍历所有在线玩家。源码注释称通知社群治理角色，实际没有筛选社群 ID 或审批权限；不属于相关社群的玩家也可能收到操作者/动作信息和审批提示。
 
 该功能在 [rpg-community 默认配置](../../plugins/rpg-community/src/main/resources/config.yml) 中关闭。下一阶段应明确每类通知是公开活动公告、社群内消息还是审批角色私有提示，再按该规则投递。添加多社群/不同角色的行为测试；仅翻译消息不能解决受众范围问题。
+
+**2026-11-04 更新 `[S][T]`：** 本分支已按当前社群治理权限读取受众，并在主线程仅给已认证在线成员投递；治理事件在数据库提交后发布，重复通知和非角色动作的错误拒绝提示已修复。相关 listener 与数据库行为套件通过。开关仍关闭，Paper 多社群验收仍未取得。
 
 ## 4. 国际化应完成的用户路径
 
@@ -113,7 +119,7 @@
 
 该顺序是在已有阶段实现上的证据补全，不增加货币、转数、交易系统或新的权威状态。
 
-## 6. 本轮证据边界
+## 6. 此前只读轮次的证据边界（当前增量见第 7 节）
 
 - `[D]`：保留并遵守 C-001…C-015，不修改经济规则。
 - `[S]`：已核对的文件与调用链见本报告；新增文档与修复以本分支 diff 为准。
@@ -123,3 +129,15 @@
 - `[H]`：本轮未取得中英文真人完整路径或 20 人连续 7 日验证。
 
 上线人数、经济稳定和长期运营就绪不能从文件数量、自动化测试数量或翻译完成度推导。
+
+## 7. 2026-11-04 继续完善中的运行修复
+
+用户将范围明确为实际英文可玩版本与玩法完善后，本轮继续实现了可定位的运行修复，而不是继续停留在只读文档审计。完整路径/测试与证据分层见[25 插件矩阵](FULL_PLUGIN_GAMEPLAY_REVIEW.md)。
+
+其中全新安装的阻塞点包括：赛季索引先于目标表创建，以及技能点运行 DDL 仍为旧范围形状、与实际消费者不一致。本轮完整 `Database.migrate()` 测试首次覆盖空库、重复启动、真实授点与旧 schema；非空旧审计表明确失败关闭、不猜历史身份。迁移与回滚见[运行说明](../operations/PROGRESSION_RECEIPT_MIGRATION.md)。
+
+`MechanismRegistry` 的 PostgreSQL UPSERT、H2 重启覆盖人工关闭开关及删除后缓存残留也已修复。新增开关/完整迁移/XP 收据/缓冲重试四个行为套件共 18 例通过；真实 PostgreSQL 条件测试因缺少目标实例跳过。这里的 `[T]` 包含 H2 与真实方法执行，仍没有新的 Paper + PostgreSQL `[R]` 或真人 `[H]`。
+
+经济引擎已取得首轮离线 `[M]`：`engine.py` 读取七个插件的配置和受检查的锻造规则，使用固定种子执行原始人口/时长的 S01–S14；S15 在建立模拟前拒绝现实支持积分连接游戏财富。报告明确记录 `SIMULATED_UNCALIBRATED`、`NEEDS_TUNING`、输入/模型 SHA256 和未建模范围。独立复核确认 S07 对真实挂牌成交施加集中度约束而不凭空增发装备或买家资金，S12 调整实际模拟小时而不只改标签；周末比例按完整周的期望定义，包含残周的报告应保留实际分钟比例。
+
+模型里的重复装备拒绝、赛季游标重放和虚拟账本守恒属于模型内部契约，不构成相应 Java 服务的故障测试。没有真实七日观察输入，因此仍缺校准，不能由模型的产消比直接调整服务器奖励、税率或掉率。整数输入、空场景和边界冲击的审查修正由引擎实现及最终 Python 回归记录证明，不把场景名称存在当作场景已经生效。

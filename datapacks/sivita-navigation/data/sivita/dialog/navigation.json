@@ -1,0 +1,122 @@
+{
+  "type": "minecraft:multi_action",
+  "title": {
+    "translate": "sivita.quick.title",
+    "fallback": "SivitaHub · Quick Actions"
+  },
+  "external_title": {
+    "translate": "sivita.quick.external_title",
+    "fallback": "SivitaHub"
+  },
+  "can_close_with_escape": true,
+  "pause": false,
+  "after_action": "close",
+  "body": [
+    {
+      "type": "minecraft:plain_message",
+      "contents": {
+        "translate": "sivita.quick.body",
+        "fallback": "If unsure, choose Continue Current Objective. This page keeps only eight frequent actions; trading, wealth, visuals, and every other system live under All Systems."
+      },
+      "width": 310
+    }
+  ],
+  "columns": 2,
+  "actions": [
+    {
+      "label": {
+        "translate": "sivita.quick.current",
+        "fallback": "Continue Current Objective"
+      },
+      "width": 150,
+      "action": {
+        "type": "minecraft:run_command",
+        "command": "/rpghelp current"
+      }
+    },
+    {
+      "label": {
+        "translate": "sivita.quick.find",
+        "fallback": "Navigate Current Objective"
+      },
+      "width": 150,
+      "action": {
+        "type": "minecraft:run_command",
+        "command": "/rpghelp current nopath"
+      }
+    },
+    {
+      "label": {
+        "translate": "sivita.quick.skills",
+        "fallback": "Skills and Cooldowns"
+      },
+      "width": 150,
+      "action": {
+        "type": "minecraft:run_command",
+        "command": "/skills"
+      }
+    },
+    {
+      "label": {
+        "translate": "sivita.quick.quests",
+        "fallback": "Tasks and Journey Center"
+      },
+      "width": 150,
+      "action": {
+        "type": "minecraft:run_command",
+        "command": "/tasks"
+      }
+    },
+    {
+      "label": {
+        "translate": "sivita.quick.hub",
+        "fallback": "Return to Hub"
+      },
+      "width": 150,
+      "action": {
+        "type": "minecraft:run_command",
+        "command": "/hub"
+      }
+    },
+    {
+      "label": {
+        "translate": "sivita.quick.wild",
+        "fallback": "Travel to Frontier"
+      },
+      "width": 150,
+      "action": {
+        "type": "minecraft:run_command",
+        "command": "/wild"
+      }
+    },
+    {
+      "label": {
+        "translate": "sivita.quick.home",
+        "fallback": "Return to Bed Home"
+      },
+      "width": 150,
+      "action": {
+        "type": "minecraft:run_command",
+        "command": "/home"
+      }
+    },
+    {
+      "label": {
+        "translate": "sivita.quick.menu",
+        "fallback": "All Systems"
+      },
+      "width": 150,
+      "action": {
+        "type": "minecraft:run_command",
+        "command": "/menu"
+      }
+    }
+  ],
+  "exit_action": {
+    "label": {
+      "translate": "sivita.quick.close",
+      "fallback": "Close"
+    },
+    "width": 150
+  }
+}

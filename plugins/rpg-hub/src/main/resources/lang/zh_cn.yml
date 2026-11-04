@@ -212,3 +212,20 @@ classes:
   mage: "法师"
   ranger: "游侠"
   freeform: "散人"
+
+npc-subtitles:
+  guide: 从这里开始
+  quests: 当前任务与奖励
+  ai: 读状态 · 给下一步
+  class: 选职业 · 加五维
+  skills: 学技能 · 看冷却
+  forge: 制作专属装备
+  enhancement: 精炼 · 突破 · 变异
+  dungeon: 副本与隐藏关
+  market: 玩家交易
+  economy: 货币与资源委托
+  wilderness: 前往安全荒野
+map:
+  title: 希维塔大陆主城
+  safe-zone: 希维塔大陆主城 · 安全区
+  description: NPC、锻造、市场、副本与拓荒入口

@@ -1,6 +1,7 @@
 package cn.originalrpg.skills;
 
 import cn.originalrpg.api.service.SkillDamageService;
+import cn.originalrpg.api.service.MessageService;
 import org.bukkit.Color;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
@@ -41,16 +42,18 @@ final class SkillMechanics {
     private final SkillDamageService damage;
     private final SkillVisuals visuals;
     private final SkillSequenceController sequences;
+    private final MessageService messages;
     private final Map<UUID, VenomMark> venomMarks = new LinkedHashMap<>();
     private final NamespacedKey dungeonBoss = NamespacedKey.fromString("rpgdungeons:boss");
 
     SkillMechanics(
             SkillDamageService damage, SkillVisuals visuals,
-            SkillSequenceController sequences
+            SkillSequenceController sequences, MessageService messages
     ) {
         this.damage = damage;
         this.visuals = visuals;
         this.sequences = sequences;
+        this.messages = messages;
     }
 
     void shutdown() {
@@ -349,7 +352,7 @@ final class SkillMechanics {
                 spirit.setRemoveWhenFarAway(true);
                 spirit.setInvulnerable(true);
                 spirit.setSilent(true);
-                spirit.customName(net.kyori.adventure.text.Component.text("兽灵"));
+                spirit.customName(net.kyori.adventure.text.Component.text(messages.text(caster, "skills.spirit-name")));
                 spirit.setCustomNameVisible(false);
                 var attack = spirit.getAttribute(Attribute.ATTACK_DAMAGE);
                 if (attack != null) attack.setBaseValue(0.0);

@@ -1,4 +1,7 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import java.nio.file.Files
+import java.security.MessageDigest
+import groovy.json.JsonOutput
 
 plugins {
     base
@@ -27,6 +30,23 @@ allprojects {
     }
 }
 
+// Every plugin carries the same source-set fingerprint. A partial rebuild after
+// changing a shared API must not be packaged together with old dependent JARs.
+// The framing is mirrored in scripts/package-edition.py: UTF-8 relative path,
+// NUL, then the 32 raw SHA-256 bytes of that file, in sorted path order.
+val provenancePluginProjects = subprojects.filter { it.path.startsWith(":plugins:rpg-") }
+// Narrow roots are essential: a FileTree rooted at plugins/ overlaps every
+// generated build output in Gradle's dependency validation, even with includes.
+val pluginProvenanceInputs = files(
+    "build.gradle.kts", "settings.gradle.kts", "gradle.properties",
+    provenancePluginProjects.map { fileTree(it.file("src/main")) },
+    provenancePluginProjects.flatMap { pluginProject ->
+        listOf(pluginProject.file("build.gradle"), pluginProject.file("build.gradle.kts"))
+            .filter { it.isFile }
+    },
+)
+val provenanceRoot = layout.projectDirectory.asFile.toPath()
+
 subprojects {
     apply(plugin = "java-library")
 
@@ -48,6 +68,60 @@ subprojects {
         options.encoding = "UTF-8"
         options.release.set(25)
         options.compilerArgs.add("-Xlint:all")
+    }
+
+    if (path.startsWith(":plugins:rpg-")) {
+        val pluginModule = name
+        val pluginVersion = version.toString()
+        val provenanceOutput = layout.buildDirectory.file("generated/build-provenance/sivitahub-build.json")
+        val generateBuildProvenance = tasks.register("generateBuildProvenance") {
+            group = "build"
+            description = "Stamp this plugin with the exact source fingerprint shared by all 25 plugins."
+            inputs.files(pluginProvenanceInputs).withPropertyName("suiteSources")
+                .withPathSensitivity(PathSensitivity.RELATIVE)
+            inputs.property("module", pluginModule)
+            inputs.property("projectVersion", pluginVersion)
+            outputs.file(provenanceOutput)
+            doLast {
+                val sources = pluginProvenanceInputs.files.sortedBy {
+                    provenanceRoot.relativize(it.toPath()).toString().replace('\\', '/')
+                }
+                val fingerprint = MessageDigest.getInstance("SHA-256")
+                fingerprint.update("sivitahub-source-v1\u0000".toByteArray(Charsets.UTF_8))
+                val realRoot = provenanceRoot.toRealPath()
+                sources.forEach { source ->
+                    check(source.isFile && !Files.isSymbolicLink(source.toPath()) && source.toPath().toRealPath().startsWith(realRoot)) {
+                        "Missing or unsafe build provenance source: $source"
+                    }
+                    val relative = provenanceRoot.relativize(source.toPath()).toString().replace('\\', '/')
+                    fingerprint.update(relative.toByteArray(Charsets.UTF_8))
+                    fingerprint.update(0.toByte())
+                    fingerprint.update(MessageDigest.getInstance("SHA-256").digest(source.readBytes()))
+                }
+                val hash = fingerprint.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+                val record = linkedMapOf(
+                    "schema_version" to 1,
+                    "algorithm" to "sha256-path-nul-content-sha256-v1",
+                    "module" to pluginModule,
+                    "project_version" to pluginVersion,
+                    "source_fingerprint" to hash,
+                    "source_files" to sources.size,
+                )
+                val output = provenanceOutput.get().asFile
+                output.parentFile.mkdirs()
+                output.writeText(JsonOutput.toJson(record) + "\n", Charsets.UTF_8)
+            }
+        }
+        // Capture the source snapshot before compilation; a later edit makes
+        // the packager's independently recomputed fingerprint disagree.
+        tasks.withType<JavaCompile>().configureEach {
+            dependsOn(generateBuildProvenance)
+        }
+        tasks.named<Jar>("jar") {
+            from(generateBuildProvenance) {
+                into("META-INF")
+            }
+        }
     }
 
     val expandedPluginVersion = version
@@ -94,9 +168,17 @@ subprojects {
 
 val buildResourcePack = tasks.register<Exec>("buildResourcePack") {
     group = "distribution"
-    description = "Validate and build the Minecraft 26.2 resource pack used by staged plugins."
+    description = "Validate and build the portable Minecraft 26.2 client resource pack."
     workingDir(layout.projectDirectory)
     commandLine("bash", layout.projectDirectory.file("resource-pack/build.sh").asFile.absolutePath)
+    outputs.upToDateWhen { false }
+}
+
+val buildDeploymentResourcePack = tasks.register<Exec>("buildDeploymentResourcePack") {
+    group = "distribution"
+    description = "Build and update the resource pack in the private deployment tree."
+    workingDir(layout.projectDirectory)
+    commandLine("bash", layout.projectDirectory.file("resource-pack/build.sh").asFile.absolutePath, "--deployment")
     outputs.upToDateWhen { false }
 }
 
@@ -129,7 +211,7 @@ val stagePlugins = tasks.register<Exec>("stagePlugins") {
 tasks.register("stageRelease") {
     group = "distribution"
     description = "Validate the resource pack before staging the matching plugin jars."
-    dependsOn(buildResourcePack, stagePlugins)
+    dependsOn(buildDeploymentResourcePack, stagePlugins)
 }
 
 // A normal release must publish the pack before the jars that can reference
@@ -137,5 +219,5 @@ tasks.register("stageRelease") {
 // the guarded first phase of a BetterHud layout migration: Paper has to read
 // the new HUD YAML once before its generated pack can be synchronized.
 stagePlugins.configure {
-    mustRunAfter(buildResourcePack)
+    mustRunAfter(buildDeploymentResourcePack)
 }

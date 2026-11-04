@@ -55,23 +55,24 @@ final class SivitaPlaceholderExpansion extends PlaceholderExpansion {
 
     @Override
     public @Nullable String onRequest(OfflinePlayer player, @NotNull String params) {
-        if (player == null) return "";
         String normalized = params.toLowerCase(java.util.Locale.ROOT);
+        if (normalized.equals("hud_ready")) return hudReady(player);
+        if (player == null) return HudPlaceholderValues.missingValue(normalized, HudRailSpec.slotCount());
         if (normalized.equals("hud_panel")) return hudPanel(player.getUniqueId());
         if (normalized.equals("hud_title")) {
-            return localized(player.getUniqueId(), "betterhud.title", "角色共鸣");
+            return localized(player.getUniqueId(), "betterhud.title", "Character");
         }
         if (normalized.equals("hud_mana_label")) {
-            return localized(player.getUniqueId(), "betterhud.mana", "法力");
+            return localized(player.getUniqueId(), "betterhud.mana", "Mana");
         }
         if (normalized.equals("hud_controls")) {
             return localized(player.getUniqueId(), "betterhud.controls", "/skills");
         }
         if (normalized.equals("hud_cast_label")) {
-            return localized(player.getUniqueId(), "betterhud.cast-label", "施放");
+            return localized(player.getUniqueId(), "betterhud.cast-label", "Cast");
         }
         if (normalized.equals("hud_cycle_label")) {
-            return localized(player.getUniqueId(), "betterhud.cycle-label", "切换");
+            return localized(player.getUniqueId(), "betterhud.cycle-label", "Cycle");
         }
         if (normalized.equals("hud_cast_glyph")) {
             return HudControlGlyphPolicy.glyph(messages, Bukkit.getPlayer(player.getUniqueId()), true);
@@ -91,7 +92,8 @@ final class SivitaPlaceholderExpansion extends PlaceholderExpansion {
             return skillValue(player.getUniqueId(), normalized);
         }
         RpgSnapshot snapshot = snapshots.get(player.getUniqueId());
-        if (snapshot == null) return params.equalsIgnoreCase("status") ? "loading" : "";
+        if (snapshot == null) return normalized.equals("status") ? "loading"
+                : HudPlaceholderValues.missingValue(normalized, HudRailSpec.slotCount());
         return switch (params.toLowerCase(java.util.Locale.ROOT)) {
             case "status" -> Duration.between(snapshot.refreshedAt(), Instant.now()).compareTo(staleAfter) > 0
                     ? "stale" : "ready";
@@ -116,66 +118,45 @@ final class SivitaPlaceholderExpansion extends PlaceholderExpansion {
         };
     }
 
+    private String hudReady(OfflinePlayer offlinePlayer) {
+        if (offlinePlayer == null) return "0";
+        Player player = offlinePlayer.getPlayer();
+        if (player == null || !player.isOnline()) return "0";
+        RpgSnapshot profile = snapshots.get(player.getUniqueId());
+        SkillHudService skillHud = OptionalServices.enabled(plugin, SkillHudService.class);
+        // The service checks the authenticated session. Its refresh timestamp
+        // records learned-skill loading, so an idle player's skills must not
+        // expire merely because that timestamp is old.
+        boolean skillsReady = skillHud != null && skillHud.snapshot(player.getUniqueId()).isPresent();
+        return HudReadinessPolicy.ready(player.isOnline(), player.getResourcePackStatus(),
+                profile == null ? null : profile.refreshedAt(), skillsReady, staleAfter, Instant.now())
+                ? "1" : "0";
+    }
+
     private String skillValue(UUID playerId, String parameter) {
         SkillHudService skillHud = OptionalServices.enabled(plugin, SkillHudService.class);
-        if (skillHud == null) return "";
-        SkillHudSnapshot snapshot = skillHud.snapshot(playerId).orElse(null);
-        if (snapshot == null) return "";
-        long now = System.currentTimeMillis();
-        return switch (parameter) {
-            case "mana" -> Integer.toString(snapshot.mana());
-            case "mana_max" -> Integer.toString(snapshot.manaCap());
-            case "mana_percent" -> Integer.toString(snapshot.manaCap() == 0 ? 0
-                    : (int) Math.round(snapshot.mana() * 100.0 / snapshot.manaCap()));
-            case "skills_count" -> Integer.toString(snapshot.learnedSkills().size());
-            case "skills_ready" -> Long.toString(snapshot.learnedSkills().stream()
-                    .filter(entry -> entry.ready(now)).count());
-            case "skills_cooldowns" -> snapshot.learnedSkills().stream()
-                    .map(entry -> entry.skillId() + ":" + entry.remainingSeconds(now))
-                    .collect(java.util.stream.Collectors.joining(","));
-            case "skill_selected" -> Integer.toString(skillHud.selectedSlot(playerId) + 1);
-            default -> slotValue(skillHud, playerId, skillHud.slots(playerId), parameter, now);
-        };
+        SkillHudSnapshot snapshot = skillHud == null ? null : skillHud.snapshot(playerId).orElse(null);
+        return HudPlaceholderValues.skillValue(snapshot,
+                snapshot == null ? java.util.List.of() : skillHud.slots(playerId),
+                snapshot == null ? -1 : skillHud.selectedSlot(playerId),
+                parameter, HudRailSpec.slotCount(), System.currentTimeMillis(),
+                (key, fallback) -> localized(playerId, key, fallback));
     }
 
     private String slotValue(
             SkillHudService skillHud, UUID playerId, java.util.List<SkillCooldownSnapshot> slots,
             String parameter, long now
     ) {
-        // 槽位号上限来自唯一来源 docs/reference/hud-layout.json（见 HudRailSpec），
-        // 不在这里写死 4：资源包的槽位数变了，占位符必须同步跟上。
-        SkillPlaceholderKey key = SkillPlaceholderKey.parse(parameter, HudRailSpec.slotCount());
-        if (key == null) return null;
-        int index = key.index();
-        if (index >= slots.size()) {
-            return key.property().equals("status")
-                    ? localized(playerId, "betterhud.skill-empty", "待学习") : "";
-        }
-        SkillCooldownSnapshot skill = slots.get(index);
-        if (skill.emptySlot()) {
-            return key.property().equals("status")
-                    ? localized(playerId, "betterhud.skill-empty", "待装配") : "";
-        }
-        long remaining = skill.remainingSeconds(now);
-        return switch (key.property()) {
-            case "id" -> skill.skillId();
-            case "name" -> localized(playerId, "skills.names." + skill.skillId(), skill.skillId());
-            case "cooldown" -> Long.toString(remaining);
-            case "timer" -> remaining == 0L ? "" : Long.toString(remaining);
-            case "status" -> remaining == 0L
-                    ? localized(playerId, "betterhud.skill-ready", "就绪")
-                    : localized(playerId, "betterhud.skill-cooldown", remaining + "s")
-                            .replace("{seconds}", Long.toString(remaining));
-            case "glyph" -> "<image:skill_" + skill.skillId() + ">";
-            case "selected" -> skillHud.selectedSlot(playerId) == index ? "1" : "0";
-            default -> "";
-        };
+        // Slot bounds come from the shared HUD layout, just like PAPI queries.
+        return HudPlaceholderValues.slotValue(slots, skillHud.selectedSlot(playerId), parameter,
+                HudRailSpec.slotCount(), now, (key, fallback) -> localized(playerId, key, fallback));
     }
 
     private String localized(UUID playerId, String key, String fallback) {
         Player player = Bukkit.getPlayer(playerId);
-        if (player == null || messages == null) return fallback;
-        String value = messages.text(player, key);
+        if (messages == null) return fallback;
+        String value = player == null ? messages.textForLocale(messages.defaultLocale(), key)
+                : messages.text(player, key);
         return value.equals(key) ? fallback : value;
     }
 
@@ -184,7 +165,7 @@ final class SivitaPlaceholderExpansion extends PlaceholderExpansion {
         RpgSnapshot profile = snapshots.get(playerId);
         SkillHudSnapshot skills = skillHud == null ? null : skillHud.snapshot(playerId).orElse(null);
         if (profile == null || skills == null) {
-            return localized(playerId, "betterhud.loading", "正在读取角色…") + "\n—\n—";
+            return localized(playerId, "betterhud.loading", "Loading character…") + "\n—\n—";
         }
         long now = System.currentTimeMillis();
         java.util.List<SkillCooldownSnapshot> slots = skillHud.slots(playerId);

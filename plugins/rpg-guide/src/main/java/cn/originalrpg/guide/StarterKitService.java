@@ -286,7 +286,7 @@ final class StarterKitService {
     private static ItemStack named(Material material, String name) {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(name, NamedTextColor.GOLD)
+        meta.itemName(Component.text(name, NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
         item.setItemMeta(meta);
         return item;

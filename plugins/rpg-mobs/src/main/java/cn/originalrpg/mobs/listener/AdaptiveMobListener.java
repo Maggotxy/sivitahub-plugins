@@ -12,6 +12,8 @@ import cn.originalrpg.mobs.DelayedMobRewardQueue;
 import cn.originalrpg.mobs.AdaptiveMobSafetyRules;
 import cn.originalrpg.mobs.AdaptiveAssignmentPolicy;
 import cn.originalrpg.mobs.MobVisuals;
+import cn.originalrpg.mobs.MobItemPresentation;
+import cn.originalrpg.mobs.AdaptiveMobNamePresentation;
 import cn.originalrpg.mobs.MobScalingRules;
 import cn.originalrpg.mobs.MobExperienceRules;
 import cn.originalrpg.mobs.ability.MobAbilityController;
@@ -64,6 +66,8 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
     private final NamespacedKey skillBook = key("rpgskills:skill_book");
     private final NamespacedKey skillBookInstance = key("rpgskills:book_instance");
     private final NamespacedKey dungeonBoss = key("rpgdungeons:boss");
+    private final NamespacedKey bloodMoonRare = key("rpgworld:blood_moon_rare");
+    private final MobItemPresentation itemPresentation;
     private final double playerRadius;
     private final int newcomerLevelThreshold;
     private final int newcomerPositiveOffset;
@@ -109,6 +113,7 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
         this.profiles = profiles;
         this.chapters = chapters;
         this.messages = messages;
+        this.itemPresentation = new MobItemPresentation(messages);
         this.experienceBuffer = experienceBuffer;
         this.appearances = appearances;
         this.abilities = abilities;
@@ -263,17 +268,12 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
             if ("berserk".equals(affix)) appearances.applyBloodMoonHusk(monster);
         }
         scaleCombatAttributes(monster, level, elite);
-        Component name = Component.text("Lv." + level + " ", elite ? NamedTextColor.RED : NamedTextColor.GRAY);
-        if (elite) {
-            name = Component.text(messages.text(nearestPlayer, "mobs.elite-name", java.util.Map.of(
-                            "affix", messages.text(nearestPlayer, "mobs.affixes." + affix))) + " ",
-                    NamedTextColor.RED).append(name);
-        } else if (behavior != null) {
-            name = name.append(Component.text("[" + abilities.localizedName(nearestPlayer, behavior) + "] ",
-                    NamedTextColor.AQUA));
+        String rareId = data.get(bloodMoonRare, PersistentDataType.STRING);
+        if (AdaptiveMobNamePresentation.mayReplace(messages, monster.customName(), rareId)) {
+            monster.customName(AdaptiveMobNamePresentation.render(messages, level, affix,
+                    behavior == null ? null : behavior.id(), monster.getType().translationKey(), rareId));
+            monster.setCustomNameVisible(rareId != null || elite || behavior != null);
         }
-        monster.customName(name.append(Component.translatable(monster.getType().translationKey())));
-        monster.setCustomNameVisible(elite || behavior != null);
         if (elite) visuals.eliteSpawn(monster);
         clearAssignmentRecovery(data);
         return true;
@@ -439,9 +439,6 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
     private ItemStack mutationMaterial(Player audience, boolean elite, boolean groundPickup) {
         ItemStack material = new ItemStack(elite ? Material.ECHO_SHARD : Material.AMETHYST_SHARD);
         ItemMeta meta = material.getItemMeta();
-        meta.displayName(Component.text(messages.text(audience, elite
-                        ? "mobs.items.mutation-core" : "mobs.items.mutation-shard"),
-                elite ? NamedTextColor.LIGHT_PURPLE : NamedTextColor.AQUA));
         meta.setItemModel(new NamespacedKey("originalrpg", elite ? "mutation_core" : "mutation_shard"));
         meta.getPersistentDataContainer().set(materialMarker, PersistentDataType.BYTE, (byte) 1);
         if (groundPickup) {
@@ -449,13 +446,13 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
                     audience.getUniqueId().toString());
         }
         material.setItemMeta(meta);
+        itemPresentation.refresh(audience, material);
         return material;
     }
 
     private ItemStack commonSkillBook(Player audience, boolean groundPickup) {
         ItemStack item = new ItemStack(Material.ENCHANTED_BOOK);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(messages.text(audience, "mobs.items.common-insight-book"), NamedTextColor.AQUA));
         meta.setItemModel(new NamespacedKey("originalrpg", "common_insight_skill_book"));
         meta.getPersistentDataContainer().set(skillBook, PersistentDataType.STRING, "common-insight");
         meta.getPersistentDataContainer().set(skillBookInstance, PersistentDataType.STRING, UUID.randomUUID().toString());
@@ -464,6 +461,7 @@ public final class AdaptiveMobListener implements Listener, DelayedMobRewardQueu
                     audience.getUniqueId().toString());
         }
         item.setItemMeta(meta);
+        itemPresentation.refresh(audience, item);
         return item;
     }
 

@@ -1291,20 +1291,20 @@
       "claim": "G 快捷操作只保留八个高频动作（继续当前目标/导航/技能/任务/主城/荒野/床家园/全部系统）",
       "carrier": {
         "kind": "config",
-        "path": "datapacks/sivita-navigation/data/minecraft/tags/function/quick_actions.json",
-        "key": "values",
+        "path": "datapacks/sivita-navigation/data/sivita/dialog/navigation.json",
+        "key": "actions.*.action.command",
         "expect": [
-          "sivita:quick/current_objective",
-          "sivita:quick/objective_navigation",
-          "sivita:quick/skills",
-          "sivita:quick/tasks",
-          "sivita:quick/hub",
-          "sivita:quick/wilderness",
-          "sivita:quick/home",
-          "sivita:quick/all_systems"
+          "/rpghelp current",
+          "/rpghelp current nopath",
+          "/skills",
+          "/tasks",
+          "/hub",
+          "/wild",
+          "/home",
+          "/menu"
         ]
       },
-      "note": "八动作真相在数据包 tag 成员，逐个列出（不用 expect_count，因为 values 是单层叶子数组）。"
+      "note": "26.2 的原生 dialog tag 注册整个对话框，八个实际玩家命令位于 navigation.json 的 actions 列表。* 逐层遍历列表，完整 expect 列表同时拒绝缺项、多项、重复项及命令变更；不以只检查数量替代逐项比对。tag 注册由 M-UI-011 单独校验。"
     },
     {
       "id": "M-UI-002",
@@ -1331,7 +1331,7 @@
         "asserts": "zh_cn/en_us 两套资源包语言文件都含快捷操作标签，且 /tasks 是唯一任务入口（无别名）",
         "note": "测试类与行为标签按源码逐字核对；资源包字面量那一半由声明式契约门禁 all.json#resource-pack 执行。"
       },
-      "note": "「标签已注册」由 M-UI-001 的 config 载体承担；这里是翻译键双语存在性。"
+      "note": "「标签已注册」由 M-UI-011 的原生 dialog tag 载体承担；M-UI-001 检查八个命令，这里是翻译键双语存在性。"
     },
     {
       "id": "M-UI-004",
@@ -1423,6 +1423,59 @@
         "asserts": "11 个可见 NPC 各有唯一受信 visit/walk 动作，没有第二套目的地词汇"
       },
       "note": "「一套命令与服务」的防线是唯一目的地清单，走行为级测试。"
+    },
+    {
+      "id": "M-UI-011",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "141",
+      "claim": "G 快捷操作通过原生 #minecraft:quick_actions dialog tag 注册 sivita:navigation 对话框",
+      "carrier": {
+        "kind": "config",
+        "path": "datapacks/sivita-navigation/data/minecraft/tags/dialog/quick_actions.json",
+        "key": "values",
+        "expect": [
+          "sivita:navigation"
+        ]
+      },
+      "note": "注册载体必须位于 tags/dialog，旧 tags/function 不能触发原生 G 键对话框；values 必须恰好包含实际导航对话框 ID。"
+    },
+    {
+      "id": "M-UI-012",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "141",
+      "claim": "G 快捷操作中的八个动作都使用原生玩家 run_command 操作",
+      "carrier": {
+        "kind": "config",
+        "path": "datapacks/sivita-navigation/data/sivita/dialog/navigation.json",
+        "key": "actions.*.action.type",
+        "expect": [
+          "minecraft:run_command",
+          "minecraft:run_command",
+          "minecraft:run_command",
+          "minecraft:run_command",
+          "minecraft:run_command",
+          "minecraft:run_command",
+          "minecraft:run_command",
+          "minecraft:run_command"
+        ]
+      },
+      "note": "完整八项列表确保每个动作都有类型且与 M-UI-001 的命令一同执行，拒绝漏类型或改成其他动作；不采用只能证明剩余匹配项相同的单个标量期望。"
+    },
+    {
+      "id": "M-UI-013",
+      "section": "菜单、帮助与新手引导",
+      "doc": "docs/GAME_DESIGN.md",
+      "doc_lines": "141",
+      "claim": "G 导航对话框使用原生 multi_action 类型承载八个快捷按钮",
+      "carrier": {
+        "kind": "config",
+        "path": "datapacks/sivita-navigation/data/sivita/dialog/navigation.json",
+        "key": "type",
+        "expect": "minecraft:multi_action"
+      },
+      "note": "与 tag 注册及逐动作断言共同检查完整原生对话框链路。"
     },
     {
       "id": "M-QST-001",

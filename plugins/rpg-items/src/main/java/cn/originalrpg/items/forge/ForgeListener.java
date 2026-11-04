@@ -2,6 +2,7 @@ package cn.originalrpg.items.forge;
 
 import cn.originalrpg.api.event.AuthenticatedPlayerReadyEvent;
 import cn.originalrpg.api.event.AuthenticatedPlayerRevokedEvent;
+import cn.originalrpg.api.event.PlayerLocaleChangeEvent;
 import cn.originalrpg.api.model.Archetype;
 import cn.originalrpg.api.model.EquipmentSnapshot;
 import cn.originalrpg.api.model.EquipmentTraitCatalog;
@@ -16,7 +17,6 @@ import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.ForgeImprintService;
 import cn.originalrpg.items.security.EquipmentSecurity;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -34,6 +34,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -59,7 +60,6 @@ import java.util.random.RandomGenerator;
 import java.util.random.RandomGeneratorFactory;
 
 public final class ForgeListener implements Listener, CommandExecutor, EquipmentProgressService {
-    private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
     private static final Set<Material> WEAPONS = Set.of(
             Material.WOODEN_SWORD, Material.STONE_SWORD, Material.IRON_SWORD, Material.GOLDEN_SWORD,
             Material.DIAMOND_SWORD, Material.NETHERITE_SWORD, Material.WOODEN_AXE, Material.STONE_AXE,
@@ -86,6 +86,7 @@ public final class ForgeListener implements Listener, CommandExecutor, Equipment
     private final ForgeVisuals visuals;
     private final EquipmentOperationCoordinator operations;
     private final Set<UUID> pending = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> presentationRefreshPending = ConcurrentHashMap.newKeySet();
     private final NamespacedKey itemId;
     private final NamespacedKey crafter;
     private final NamespacedKey owner;
@@ -164,6 +165,50 @@ public final class ForgeListener implements Listener, CommandExecutor, Equipment
             if (!plugin.isEnabled() || !currentSession(player)) return;
             refreshInventory(player);
             operations.recover(player);
+        });
+    }
+
+    @EventHandler
+    public void onLocaleChanged(PlayerLocaleChangeEvent event) {
+        refreshInventory(event.player());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void refreshAfterInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        ItemStack hotbar = event.getHotbarButton() >= 0
+                ? player.getInventory().getItem(event.getHotbarButton()) : null;
+        if (isSignedEquipment(event.getCurrentItem()) || isSignedEquipment(event.getCursor())
+                || isSignedEquipment(hotbar)
+                || (event.getClick() == org.bukkit.event.inventory.ClickType.SWAP_OFFHAND
+                    && isSignedEquipment(player.getInventory().getItemInOffHand()))) {
+            schedulePresentationRefresh(player);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void refreshAfterInventoryDrag(InventoryDragEvent event) {
+        if (event.getWhoClicked() instanceof Player player && isSignedEquipment(event.getOldCursor())) {
+            schedulePresentationRefresh(player);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void refreshAfterPickup(EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player && isSignedEquipment(event.getItem().getItemStack())) {
+            schedulePresentationRefresh(player);
+        }
+    }
+
+    private boolean isSignedEquipment(ItemStack item) {
+        return item != null && !item.getType().isAir() && security.isAuthentic(item);
+    }
+
+    private void schedulePresentationRefresh(Player player) {
+        if (!presentationRefreshPending.add(player.getUniqueId())) return;
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            presentationRefreshPending.remove(player.getUniqueId());
+            if (plugin.isEnabled() && currentSession(player)) refreshInventory(player);
         });
     }
 
@@ -676,10 +721,9 @@ public final class ForgeListener implements Listener, CommandExecutor, Equipment
         // into the finished item. The bound starter placeholder is replaced
         // by a readable class-specific default; the result can still be
         // renamed later in any vanilla anvil.
-        if (starterForge || !meta.hasCustomName()) {
-            meta.displayName(Component.text(messages.text(player,
-                    "items.forged-names." + defaultNameId(base.getType(), direction)), rarityColor(rolledRarity)));
-        }
+        if (starterForge) meta.customName(null);
+        meta.itemName(Component.text(messages.text(player,
+                "items.forged-names." + defaultNameId(base.getType(), direction)), rarityColor(rolledRarity)));
         meta.setUnbreakable(true);
         if (meta instanceof Damageable damageable) damageable.setDamage(0);
         meta.setItemModel(itemModelFor(base.getType()));
@@ -1145,8 +1189,13 @@ public final class ForgeListener implements Listener, CommandExecutor, Equipment
 
     private void refreshInventory(Player player) {
         if (!player.isOnline()) return;
+        // Do not alter the serialized input of an in-flight durable operation.
+        // Its result is rendered in the currently selected language on delivery.
+        if (operations != null && operations.hasPending(player)) return;
         for (ItemStack item : player.getInventory().getContents()) refreshDisplay(player, item);
         for (ItemStack item : player.getEnderChest().getContents()) refreshDisplay(player, item);
+        ItemStack cursor = player.getItemOnCursor();
+        if (refreshDisplay(player, cursor)) player.setItemOnCursor(cursor);
     }
 
     @Override
@@ -1155,15 +1204,11 @@ public final class ForgeListener implements Listener, CommandExecutor, Equipment
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return false;
         PersistentDataContainer data = meta.getPersistentDataContainer();
-        Component currentName = meta.customName();
-        String plainName = currentName == null ? "" : PLAIN.serialize(currentName);
-        if (currentName == null || plainName.endsWith("的自制装备")
-                || plainName.endsWith("'s Forged Equipment")) {
-            String direction = data.getOrDefault(weaponArchetype, PersistentDataType.STRING, "UNIVERSAL");
-            String itemRarity = data.getOrDefault(rarity, PersistentDataType.STRING, "COMMON");
-            meta.displayName(Component.text(messages.text(audience,
-                    "items.forged-names." + defaultNameId(item.getType(), direction)), rarityColor(itemRarity)));
-        }
+        String direction = data.getOrDefault(weaponArchetype, PersistentDataType.STRING, "UNIVERSAL");
+        String itemRarity = data.getOrDefault(rarity, PersistentDataType.STRING, "COMMON");
+        EquipmentNamePresentation.refresh(meta, messages, audience,
+                "items.forged-names." + defaultNameId(item.getType(), direction), rarityColor(itemRarity),
+                creatorName(audience, data.get(crafter, PersistentDataType.STRING)));
         renderLore(audience, meta, data, item.getType());
         item.setItemMeta(meta);
         security.preserveDurability(item);

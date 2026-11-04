@@ -57,7 +57,7 @@ Review the whole journey in English:
 
 Core/hub bundle completeness does not cover all these surfaces. The [English preset](../../examples/en_us/README.md) provides the core locale and configurable shared labels as reviewed text overlays. Its generator writes a fresh preview directory and a hash manifest; it does not install anything. Shared NPC names are server-wide, so both English and Chinese players see the chosen labels.
 
-Some hardcoded map and entity labels remain Chinese in current source. Operator translations should keep placeholders such as `{player}`, `{amount}`, and `{cost}` intact. Existing runtime overrides can remain in place when new defaults are merged, so compare customized files during upgrades rather than assuming the new JAR overwrote every old translation. Merge only the approved text changes into existing deployment configuration; generated development defaults are not a replacement for the live configuration.
+Hub map labels, shared actors, supported personal items, and Blood Moon names now use the language presentation paths described in the [runtime edition record](../audits/PLAYABLE_ENGLISH_EDITION_DELIVERY.md). Custom operator labels, unknown legacy items, stored non-equipment market previews, and external-plugin content retain the boundaries listed in the [localization review](../audits/LOCALIZATION_REVIEW.md). Keep placeholders such as `{player}`, `{amount}`, and `{cost}` intact. Installed overrides are preserved, so compare customized files during upgrades instead of assuming a new JAR overwrote them. Merge approved text changes into existing deployment configuration; generated development defaults are not a replacement for live configuration.
 
 **Language does not set the economic calendar.** Checked-in quota settings include `Asia/Shanghai`. Review each activity's timezone and reset policy before announcing international reset times. A timezone change is an operational/economic change and should be assessed for quota behavior; it is not a translation edit.
 
@@ -89,7 +89,9 @@ Do not turn on every switch as part of English setup. Localization does not requ
 
 A code revert does not undo committed ledger transactions or safely reverse a schema/data migration. The rollback plan must name the artifacts, configuration, data compatibility, and transaction compensation procedure. Refunds and compensation must retain their original audited references.
 
-The source's `stagePlugins` task relies on an external deployment script. The resource-pack builder also references broader deployment assets. Obtain and review those inputs before treating a staging command as available.
+The source's `stagePlugins` task relies on an external deployment script. The public default `bash resource-pack/build.sh` now builds the complete committed client baseline offline; the old private generation and deployment workflow is available only through `--deployment`. [Getting started](GETTING_STARTED.md#build-the-english-staging-edition) documents the public model/HUD candidate exporter and the all-25-plugin edition packager. The latter rejects missing or stale build-provenance stamps, including Java-only changes to shared APIs.
+
+The edition's `runtime-candidates/` contains 15 BetterModel registrations and a bilingual BetterHud layout. These need the pinned external plugins to compile their runtime resources. Keep BetterHud fonts/shaders and BetterModel model indices from the same compilation together; the committed client baseline is not automatically matched to a newly compiled candidate. The native G-key datapack and bilingual BetonQuest prologue are also included, but their actual plugin loading, NPC binding and client interaction remain staging acceptance checks. The edition carries no production state or third-party runtime binaries.
 
 ## Required runtime evidence
 

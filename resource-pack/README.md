@@ -1,12 +1,66 @@
 # 资源包
 
-资源包面向 Minecraft Java Edition 26.2，资源格式为 `88.0`，采用现代 `min_format` / `max_format` 和 `assets/originalrpg/items` 物品模型定义。Paper 停止时运行 `./build.sh` 会校验 JSON、生成 `server/web/resourcepacks/sivita-hub-26.2.zip` 并输出客户端要求的 SHA-1；Paper 运行中会拒绝覆盖正式包，可用 `RESOURCE_PACK_OUTPUT_DIR=<临时目录> SKIP_PROPERTY_UPDATE=1 ./build.sh` 只生成候选包。
+资源包面向 Minecraft Java Edition 26.2，资源格式为 `88.0`。公开源码仓库现在可直接离线打包完整的已审核客户端资源，无需 `server/`、`website/node_modules`、Java 或运行中的 Paper。
 
-当前审核总览包含 36 张项目内生成的原创 32x32 像素素材：28 张内容素材覆盖职业武器方向、盾牌、护甲、核心材料、强化物、技能书、拉弓帧、独立弩、独立三叉戟、硫灵锻纹、传承蓝图和旅者罗盘；另有 8 张为新手旅程逐步绘制的专属图标，分别表达主城、职业、五维、探索、狩猎、锻造、槽位揭示与副本，不再借用无关掉落物。六张旧精英/Boss 方块头已移出生产目录并保留在拒绝档案，稀有怪改走完整骨骼模型。八张旅程图现在还通过 `originalrpg:journey` 字体复用到 `/rpghelp` 进度条、当前步骤标题与低频侧栏，不增加实体或粒子包；仅在客户端确认资源包成功加载后显示，未加载时回退到 `✓ / ◆ / ·` 与普通文字。旅者罗盘另由 `GenerateCompassFrames.java` 在构建时派生 32 张转针帧；背包、热栏与手持全部沿用 26.2 的 `minecraft:compass` 角度分发和 `spawn` 目标，审核过的静态图只在角度无效时兜底，因此 `Player#setCompassTarget` 导航不会被自定义材质破坏。`GenerateHudAtlas.java` 还会构建血月、法力、暴击、处决、锻造、防护、稀有掉落、技能、主城导航、当前目标和服务 NPC 十一枚专用 HUD 符号，避免把复杂物品图硬缩小后失真。
+```bash
+# 在仓库根目录执行；依赖 Bash / POSIX sh 和 Python 3.10+ 标准库
+bash resource-pack/build.sh
+# 可选的独立输出目录
+bash resource-pack/build.sh --output build/resource-pack-candidate
+```
+
+默认产物为 `build/resource-pack/sivita-hub-26.2.zip`，同目录提供 `.zip.sha1`、`.zip.sha256`、`.zip.manifest.json`。清单记录每个文件的来源、长度与 SHA-256，并列出原版、`originalrpg`、BetterHud、BetterModel 四个命名空间和四份 shader 覆盖文件。默认构建只读取入库资源，不运行素材生成器，不修改 PNG 或服务端配置。固定 `SOURCE_DATE_EPOCH`、固定文件顺序与 ZIP 属性使相同内容得到相同压缩包；负向测试和两次独立打包校验见 `scripts/tests/test_resource_pack_build.py`。
+
+English: **the default command builds the complete committed bilingual client pack**. Both `en_us` and `zh_cn` are included. The separate `datapacks/sivita-navigation` supplies the native G-key dialog; its text follows the Minecraft client language and includes English fallback text. Server plugin messages follow `/language en_us`. The public exporter below also supplies all 15 BetterModel server registrations and a bilingual BetterHud layout candidate. Those inputs must be compiled with the pinned external plugins; the committed client baseline does not automatically match a new runtime compilation.
+
+私有部署项目的旧生成/发布链保留为显式 `bash resource-pack/build.sh --deployment`。该模式仍依赖私有模型源文件、BetterHud 配置与 Node 依赖，并可能更新 `server.properties`；只应由维护窗口流程调用。公开构建不会静默降级成缺少 HUD 或模型的基础包。
+
+当前审核总览包含 36 张项目内生成的原创 32x32 像素素材：28 张内容素材覆盖职业武器方向、盾牌、护甲、核心材料、强化物、技能书、拉弓帧、独立弩、独立三叉戟、硫灵锻纹、传承蓝图和旅者罗盘；另有 8 张为新手旅程逐步绘制的专属图标，分别表达主城、职业、五维、探索、狩猎、锻造、槽位揭示与副本，不再借用无关掉落物。六张旧精英/Boss 方块头已移出生产目录并保留在拒绝档案，稀有怪改走完整骨骼模型。八张旅程图现在还通过 `originalrpg:journey` 字体复用到 `/rpghelp` 进度条、当前步骤标题与低频侧栏，不增加实体或粒子包；仅在客户端确认资源包成功加载后显示，未加载时回退到 `✓ / ◆ / ·` 与普通文字。旅者罗盘另由 `GenerateCompassFrames.java` 在显式 `--deployment` 流程中派生 32 张转针帧；背包、热栏与手持全部沿用 26.2 的 `minecraft:compass` 角度分发和 `spawn` 目标，审核过的静态图只在角度无效时兜底，因此 `Player#setCompassTarget` 导航不会被自定义材质破坏。`GenerateHudAtlas.java` 在该部署流程中还会构建血月、法力、暴击、处决、锻造、防护、稀有掉落、技能、主城导航、当前目标和服务 NPC 十一枚专用 HUD 符号，避免把复杂物品图硬缩小后失真。
 
 `tools/GenerateTextures.java` 提供可复现的离线素材基线；默认只补齐缺失文件，设置 `REGENERATE_FALLBACK_TEXTURES=1` 才会覆盖现有纹理，补位图也会用最近邻放大到统一 32x32。锻造弓、弩、三叉戟和盾牌均通过 26.2 的 `condition`、`select` 与 `range_dispatch` 接入原创图标和使用姿态；首次客户端验收仍要逐项检查拉弓、蓄力、投掷、格挡和罗盘四向转针的最终手感。
 
-`runtime-item-models.txt` 是生产插件可能下发的 81 个 `originalrpg:*` 显示键清单。`build.sh` 会在打包前强制验证：清单与 `items/*.json` 一一对应、插件里的直接模型引用属于清单、全部 JSON 可解析、每个物品定义能闭包到模型和纹理、没有孤儿模型/纹理、全部 83 张物品 PNG 为带二值透明通道的 32x32 像素图、HUD 图集尺寸/透明度/唯一性与 U+E000..U+E00A 十一码位严格一致、八个旅程字体提供者与 U+E100..U+E107 严格一致、旅者罗盘保持 26.2 的 33 段方向分发、中英文资源键一致，以及安装中的 26.2 服务端确实声明资源格式 88。任一检查失败都不会覆盖生产 ZIP 或 SHA-1。
+`runtime-item-models.txt` 是生产插件可能下发的 81 个 `originalrpg:*` 显示键清单。`build.sh` 会在打包前强制验证：清单与 `items/*.json` 一一对应、插件里的直接模型引用属于清单、全部 JSON 可解析、每个物品定义能闭包到模型和纹理、没有孤儿模型/纹理、全部 115 张物品 PNG（83 张基础图与 32 张罗盘帧）为带二值透明通道的 32x32 像素图、HUD 图集尺寸/透明度/唯一性与 U+E000..U+E00A 十一码位严格一致、八个旅程字体提供者与 U+E100..U+E107 严格一致、旅者罗盘保持 26.2 的 33 段方向分发、中英文资源键一致，以及资源格式精确锁定为 88。`scripts/check-content-assets.py` 额外核对 42 个已实现技能与物品/HUD 图标、6 个副本与 15 套怪物模型、BetterModel 的全部 118 个可达部件，以及所有命名空间的模型/纹理/字体引用。任一检查失败都不会发布新 ZIP 或清单；这些检查不替代真实客户端渲染验收。
+
+## 公开服务端资源候选 / Public server resource candidates
+
+```bash
+# 服务端候选额外需要 Node.js（只运行标准库）及 PyYAML。
+# 不需要 Pillow、Sharp、私有 server/ 或运行中的 Paper。
+python3 -m pip install PyYAML==6.0.3
+python3 resource-pack/tools/build_server_resources.py --output build/server-resources-candidate
+```
+
+输出目录必须是新的，已存在目录、文件或符号链接会被拒绝。`plugins/BetterModel/models/` 包含 15 份完整 `.bbmodel`：3 种血月怪物、6 种副本 Boss、6 种副本波次怪物，共 164 个体块、105 个骨骼。导出器直接复用仓库几何和动画，并逐字节嵌入现存 64×64 正式 PNG；不重新绘制纹理。模型名称与 `BetterModelMobAppearanceService` 的注册映射完全一致，出厂校验覆盖 outliner、骨骼引用、六面 UV 和必要动画。
+
+`plugins/BetterHud/` 包含固定版本 JAR 默认 schema 派生的配置，以及四槽战斗 HUD 候选：42 技能图标、7 职业状态、选中框、冷却遮罩与倒数、法力、转生/本地等级和中英文操作提示。所有占位符必须在 `RpgIntegrations` 的真实接口中存在；`%sivita_hud_ready% == 1` 才显示整个 HUD。操作提示通过已有 `F CAST`／`2x F CYCLE` 及中文位图按玩家 `/language` 选择，不额外创建位图字体。
+
+候选根目录的 `manifest.json` 登记每个输入和产物的 SHA-256，以及 BetterHud schema JAR 的锁定 SHA-512；`README.en.md` 给出英文安装与验收步骤。源码和导出检查不等于外部插件加载成功。必须在隔离服务器中让 BetterHud、BetterModel **分别重新编译**，再把同一次编译的字体码位、模型 dispatch 索引和着色器布局表一起合入最终客户端资源包。不要把新 YAML／注册模型与旧 `build.zip` 或旧 shader switch 表混用。
+
+English: the command exports complete Generic Blockbench model registrations and a practical bilingual four-slot HUD, using existing reviewed PNG bytes. It verifies source references and file integrity. Install these candidates into a fresh staging server with the pinned BetterModel, BetterHud and PlaceholderAPI versions, compile their resources, and test the resulting pack on a real 26.2 client. This command does not claim that external-plugin compilation or client acceptance has happened.
+
+## 英文发行包 / English staging edition
+
+```bash
+# 先按主 README 完成依赖和 Java 25 配置，构建真正的全部插件。
+./gradlew assemble
+bash resource-pack/build.sh
+# 必须使用新的发行目录；同时生成同名 .zip 和 .zip.sha256。
+python3 scripts/package-edition.py --output build/sivitahub-en-us-26.2
+```
+
+打包器要求 25 个真实构建 JAR 全部存在；任何一个缺失、旧资源、错误 Java 版本、缺少构建来源戳或源码指纹不一致都会使整个发行包失败。根 Gradle 将 `META-INF/sivitahub-build.json` 写入每个插件 JAR；所有插件的指纹同时覆盖 `plugins/**/src/main/**`、插件构建脚本、根构建脚本、settings 和 `gradle.properties`。因此，只更新共享 Java API 而遗漏依赖插件重建也不能通过。测试使用的 synthetic JAR 始终只存在于临时夹具，不是可运行的发行产物。
+
+产物包括全部自研插件、规范配置和英文展示覆盖、完整客户端基线包、G 键快捷数据包、双语 BetonQuest 序章会话、`runtime-candidates/` 下的 15 个模型与 HUD 候选，以及每个文件的 SHA-256。候选不会自动写入运行服务器；第三方插件二进制、世界、玩家数据、数据库、密钥和生产配置均不进入发行包。英文 `INSTALL.en.md` 会列出源码声明的外部依赖和具体安装步骤。
+
+相关回归检查：
+
+```bash
+python3 -m unittest discover -s scripts/tests -p 'test_navigation.py'
+python3 -m unittest discover -s scripts/tests -p 'test_content_assets.py'
+python3 -m unittest discover -s scripts/tests -p 'test_resource_pack_build.py'
+python3 -m unittest discover -s scripts/tests -p 'test_server_resources.py'
+python3 -m unittest discover -s scripts/tests -p 'test_package_edition.py'
+```
 
 ## 素材来源登记（`ASSET-PROVENANCE.md` / `asset-provenance.json`）
 
@@ -121,30 +175,25 @@ python3 scripts/check-asset-baseline.py     # 0=全一致 1=有差异 2=清单�
 配套地，`scripts/selftest-gates.sh` §9 用四组负向对照证明这道门禁**真的会红**：
 改一个像素 → RED 并指出是哪张（打印期望/实际指纹）、删一张图 → 报「丢失」、
 加一张未登记的图 → 报「未登记」、还原后 → GREEN；另外还断言清单缺失时 exit 2
-（不是 0，也不是 1）。同一节做接线自证，断言 `.cnb.yml` 真的在跑这条命令 ——
-「脚本写好了但没人调用」比「脚本有 bug」更隐蔽。
+（不是 0，也不是 1）。该历史自测包含 `.cnb.yml` 接线断言；当前仓库已经移除 CNB 配置，不能据此宣称每次推送会自动执行。公开离线构建会直接调用素材、基线和 HUD 检查；其他检查须按下列命令主动执行。
 
-## 四道素材门禁的分工（不要复制粘贴第二套逻辑）
+## 打包与素材门禁的分工
 
-同一批素材有**四个**校验入口，职责不同、判据有重叠但**不共享代码**（避免多套会漂移的实现）：
+公开默认构建与私有部署构建是两个显式入口。默认构建复用静态检查，不重新绘图，也不修改服务器配置。
 
-| 入口 | 跑在哪 | 依赖 | 定位 |
-| --- | --- | --- | --- |
-| `resource-pack/build.sh` | 生产机（Paper 停机窗口） | bash + jq + rg + java + zip/unzip/sha1sum + `server/` | **打包真相源**：闭包、纹理、字体、语言键、SHA-1、稳定 UUID、`server.properties` 一致性、Paper 运行中拒绝覆盖 |
-| `scripts/check-resource-pack.sh` | CNB 质量门（`素材门禁（W7-A1）` stage） | **只用 POSIX sh + python3 stdlib**（PNG 解码走 zlib，不用 jq / 不用 ImageMagick / 不碰 Paper） | **仓内静态子集**：拦「素材坏着进 main」（判素材是否**自洽**） |
-| `scripts/check-asset-baseline.py` | CNB 质量门（`素材逐像素基线门禁（W12-A1）` stage，紧随素材门禁） | 只用 python3 stdlib（zlib 解码 + hashlib） | **逐像素对账**：拦「素材被悄悄换掉」（判素材是否**还是原来那张**），口径见上一节 |
-| `scripts/check-asset-reproducible.sh` | CNB 质量门（`素材可复现性门禁（W13-A1）` stage，紧随基线门禁） | **需要 JDK**（CI 镜像自带；开发容器自取 Temurin 25）+ python3 stdlib | **再造一次**：拦「生成器与仓库静默漂移」（判素材**还造不造得出来**），口径见下一节 |
+| 入口 | 执行位置与依赖 | 检查或产物 |
+| --- | --- | --- |
+| `bash resource-pack/build.sh` | 公开源码；Bash、POSIX sh、Python 3.10+ 标准库 | 调用素材、像素基线、HUD、内容引用和快捷对话框检查；输出完整 ZIP、SHA-1、SHA-256 和逐文件 manifest |
+| `bash resource-pack/build.sh --deployment` | 私有部署仓库；Paper 停机窗口、`server/`、Node/Sharp、Pillow、Java、jq、rg、zip/unzip | 原有素材再生成、BetterHud 编译及同步、安装中的 Paper 版本核查、线上资源包与 `server.properties` 更新；公开仓库单独不能执行此流程 |
+| `sh scripts/check-resource-pack.sh` | 公开源码；POSIX sh、Python 标准库 | 检查模型闭包、纹理、字体码位、语言键、罗盘分发和资源格式 |
+| `python3 scripts/check-asset-baseline.py` | 公开源码；Python 标准库 | 比对 252 张 PNG 与已登记的像素指纹；默认构建必须通过 |
+| `sh scripts/check-asset-reproducible.sh` | 公开源码；JDK 25、Python 标准库 | 在临时目录运行已登记的历史生成器，再逐像素比较；用于主动检查生成器与提交素材的对应关系 |
+| `python3 scripts/check-content-assets.py` | 公开源码；Python 标准库 | 对照源码与配置检查 42 技能、6 副本、15 怪物模型、118 模型部件及全部自定义资源引用 |
+| `python3 scripts/check-navigation.py` | 公开源码；Python 标准库 | 检查 26.2 原生快捷对话框注册、8 个已注册玩家命令、中英文键和英文回退 |
 
-重叠判据（清单一一对应 / 闭包 / 32x32 二值 alpha / HUD 码位 / 旅程码位 /
-中英语言键 / 罗盘方向分发 / `pack.mcmeta` 格式）**以 `scripts/check-resource-pack.sh` 为准**：
-它跑在 CI 上、每次推送都执行、且每条判据都被 `scripts/selftest-gates.sh` §7 用
-「破坏 → 必须红 → 还原 → 必须绿」证明过能真的变红。若两者口径出现分歧，
-改 `build.sh` 去对齐脚本，**不要**在 `build.sh` 里另写一套新逻辑。
+模型清单、32×32 二值 alpha、字体码位、语言键、罗盘分发及 `pack.mcmeta` 的判据以 `scripts/check-resource-pack.sh` 为准。默认构建直接调用这些检查，不维护第二份判据。当前仓库没有 CNB 配置；这里列出的是可执行的本地检查，不代表已运行任何远端 CI。
 
-基线门禁（`check-asset-baseline.py`）与上面两道都不同源：它不判断素材好坏，
-只比对「当前像素 vs `assets-manifest.json` 里登记的像素」，因此**不复制任何判据逻辑**，
-也不与 `build.sh` 重叠 —— `build.sh` 不读这份清单（生产机打包不依赖基线，
-基线是「防篡改」而不是「防打包错」）。
+基线检查只比对「当前像素与登记像素是否相同」，与资源引用闭包检查互补。默认打包同时要求两者通过；更改素材必须留下可审查的素材与基线差异。
 
 可复现性门禁（`check-asset-reproducible.sh`）与上面三道都不同源：它现场编译并运行
 `resource-pack/tools/` 下的 Java 生成器到**临时目录**，再逐像素比对仓库里的对应 PNG。
@@ -158,7 +207,7 @@ python3 scripts/check-asset-baseline.py     # 0=全一致 1=有差异 2=清单�
 `GenerateTextures` 36（31 原有 + 5 张 `skill_*`）、`GenerateHudAtlas` 1、
 `GenerateSkillHudAtlas` 1、`GenerateCompassFrames` 32 帧（另加 32 个罗盘模型 JSON 逐字节）。
 
-**有意不纳入 `GenerateSivitaHudPanel`**：它是 132x44 的遗留物，`build.sh` 不调用
+**有意不纳入 `GenerateSivitaHudPanel`**：它是 132x44 的遗留物，`build.sh --deployment` 不调用
 （现役 26x91 面板由 `generate_betterhud_panels.py` 产出），输出在
 `assets-manifest.json` 里没有条目。把没有对应仓库产物的生成器拖进门禁，
 只会得到一条**恒真的假判据** —— 那比没有门禁更坏。
@@ -201,17 +250,16 @@ python3 resource-pack/tools/generate-provenance.py --write --write-doc
 `scripts/selftest-gates.sh` §10 用三组负向对照证明它真的会红
 （改生成器常量 / 人工覆盖被盖回去 / `human-override` 登记被改）。
 
-**CI 判不了、只能由 `build.sh` 判的**（需要 Paper / 仓外产物，本仓没有）：
-- `pack.mcmeta` 声明的格式 88 是否与**安装中的** 26.2 服务端一致 ——
-  要读 `server/runtime/cache/mojang_26.2.jar` 里的 `version.json`（仓外产物）。
-  CI 侧替代：判据 8 只断言包**自己**声明了 `min=max=88`、`supported_formats=[88,88]`
-  且无 `overlays`（静态事实，可判定）。
-- ZIP 产出、SHA-1、稳定 UUID、`server.properties` 的 `resource-pack` / `-sha1` 一致性。
-- BetterHud 的 YAML → `build.zip` 再编译（`generate_betterhud_panels.py` 需要 Pillow）。
-- 插件源码里**动态拼接**的 `originalrpg:*` 模型键（`build.sh` 用 rg 扫 `plugins/`；
-  CI 素材门禁的边界是 `runtime-item-models.txt` 这份权威清单本身）。
+## 服务器注册与实际客户端验收
 
-构建成功后会生成稳定文件名 `server/web/resourcepacks/sivita-hub-26.2.zip`，更新 SHA-1，并让线上模板与局域网运行配置使用同一个稳定资源包 UUID；两个环境仍保留各自域名或局域网 URL。黑紫方块排查与客户端验收清单见 `docs/RESOURCE_PACK_QA.md`。
+离线 ZIP 包含所有已提交的客户端资产及四份 26.2 着色器覆盖。它不表示服务器已经加载 BetterHud 布局或 BetterModel 的 `.bbmodel` 注册。以下检查属于显式 `--deployment` 和实际安装验收：
+
+- 与安装中的 Paper 26.2 `version.json` 比对资源格式，检查服务器公布的资源包 URL、SHA-1 和 UUID。
+- 用安装中的 BetterHud 编译经过审查的 YAML，再同步该次编译的字体、纹理和着色器。不能把另一次编译的码位与旧客户端包混用。
+- 加载 BetterModel 服务端模型，验证技能、6 个副本和血月怪物的模型绑定及动画。
+- 在真实客户端以不同语言、GUI 缩放和窗口尺寸检验 HUD、对话框、物品模型及战斗可读性。
+
+只有 `bash resource-pack/build.sh --deployment` 成功后，旧部署流程才会写 `server/web/resourcepacks/sivita-hub-26.2.zip` 并更新服务器属性。默认构建只输出 `build/resource-pack/`；不会自动替换线上地址或哈希。详细的客户端验收见 [`docs/RESOURCE_PACK_QA.md`](../docs/RESOURCE_PACK_QA.md)。
 
 `ai/` 提供 Image API 美术生产线：28 条批量提示词 + 3 条技能书提示词，加上独立的旅者罗盘提示词，全部通过 `/v1/images/generations` 生成绿幕原稿，去背后压缩成统一 32x32 调色板；单资产修改通过 `/v1/images/edits` 版本化输出。只有显式传入 `--apply` 才覆盖当前资源，具体命令见 `ai/README.md`。当前 Sub2API Key 的分组必须开启 `allow_image_generation`，否则网关会返回 403。
 

@@ -377,7 +377,7 @@ final class HubWayfinder implements Listener {
     }
 
     private String name(Player player, HubRole role) {
-        return hubMessages.text(player, "wayfinding.roles." + role.id());
+        return hubMessages.npcName(player, role);
     }
 
     private String route(Player player, HubRole role) {

@@ -39,6 +39,9 @@ public final class RpgGuidePlugin extends JavaPlugin {
                 getServer().getServicesManager().load(MessageService.class), "MessageService");
         CombatStateService combat = getServer().getServicesManager().load(CombatStateService.class);
         StarterKitService starterKit = new StarterKitService(this, messages);
+        StarterItemPresentation starterText = new StarterItemPresentation(messages);
+        getServer().getPluginManager().registerEvents(new cn.originalrpg.api.i18n.PlayerItemTextRefresh(
+                this, starterText::managed, starterText::refresh), this);
         GuideTracker tracker = new GuideTracker(
                 this, profiles, economy, dungeonRewards, messages, starterKit);
         GuideCommand command = new GuideCommand(

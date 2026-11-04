@@ -330,7 +330,7 @@ public final class RpgHubPlugin extends JavaPlugin implements Listener {
             squaremapRegistrationAttempts++;
             if (SquaremapHubIntegration.worldReady(current)) {
                 squaremapCleanup.run();
-                squaremapCleanup = SquaremapHubIntegration.register(this, current);
+                squaremapCleanup = SquaremapHubIntegration.register(this, current, hubMessages);
                 cancelSquaremapRegistration();
                 return;
             }

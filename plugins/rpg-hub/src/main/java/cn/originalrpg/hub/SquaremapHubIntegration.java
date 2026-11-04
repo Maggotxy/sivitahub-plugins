@@ -20,26 +20,27 @@ final class SquaremapHubIntegration {
     private SquaremapHubIntegration() {
     }
 
-    static Runnable register(Plugin plugin, HubSite site) {
+    static Runnable register(Plugin plugin, HubSite site, HubMessages messages) {
         try {
             Squaremap squaremap = SquaremapProvider.get();
             Optional<MapWorld> optional = squaremap.getWorldIfEnabled(BukkitAdapter.worldIdentifier(site.world()));
             if (optional.isEmpty()) return () -> { };
             MapWorld world = optional.get();
             if (world.layerRegistry().hasEntry(LAYER_KEY)) world.layerRegistry().unregister(LAYER_KEY);
-            SimpleLayerProvider layer = SimpleLayerProvider.builder("希维塔大陆主城")
+            SimpleLayerProvider layer = SimpleLayerProvider.builder(messages.text(null, "map.title"))
                     .showControls(true).defaultHidden(false).layerPriority(20).zIndex(40).build();
             Marker boundary = Marker.circle(Point.of(site.centerX(), site.centerZ()), site.protectionRadius())
                     .markerOptions(MarkerOptions.builder()
                             .stroke(true).strokeColor(new Color(128, 169, 73)).strokeWeight(3).strokeOpacity(0.9)
                             .fill(true).fillColor(new Color(64, 92, 49)).fillOpacity(0.16)
-                            .hoverTooltip("希维塔大陆主城 · 安全区")
-                            .clickTooltip("<b>希维塔大陆主城</b><br>NPC、锻造、市场、副本与拓荒入口"));
+                            .hoverTooltip(messages.text(null, "map.safe-zone"))
+                            .clickTooltip("<b>" + escape(messages.text(null, "map.title")) + "</b><br>"
+                                    + escape(messages.text(null, "map.description"))));
             layer.addMarker(Key.of("hub_boundary"), boundary);
             for (HubRole role : HubRole.values()) {
                 Color color = new Color(role.color().getRed(), role.color().getGreen(), role.color().getBlue());
-                String name = plugin.getConfig().getString("npcs." + role.id() + ".name", role.id());
-                String subtitle = plugin.getConfig().getString("npcs." + role.id() + ".subtitle", "");
+                String name = messages.npcName(null, role);
+                String subtitle = messages.npcSubtitle(null, role);
                 Marker marker = Marker.circle(Point.of(site.centerX() + role.offsetX(), site.centerZ() + role.offsetZ()), 2.6)
                         .markerOptions(MarkerOptions.builder()
                                 .stroke(true).strokeColor(color).strokeWeight(2).strokeOpacity(0.95)

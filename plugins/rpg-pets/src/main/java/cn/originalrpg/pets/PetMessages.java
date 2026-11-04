@@ -21,6 +21,16 @@ final class PetMessages {
         return config.isConfigurationSection("messages." + locale) ? locale : "zh_cn";
     }
 
+    java.util.Set<String> locales() {
+        var section = config.getConfigurationSection("messages");
+        return section == null ? java.util.Set.of() : section.getKeys(false);
+    }
+
+    String renderForLocale(String locale, String key) {
+        String value = config.getString("messages." + locale + "." + key);
+        return value == null ? config.getString("messages.zh_cn." + key, key) : value;
+    }
+
     String render(CommandSender audience, String key) {
         return render(audience, key, Map.of());
     }

@@ -74,7 +74,32 @@ plugins/<module>/build/libs/
 
 The build also creates source JARs. Deploy the runtime JARs, not the `-sources.jar` files. `RpgApi` is itself a plugin and must be included when assembling a runtime set.
 
-`stagePluginCandidates`, `stagePlugins`, and `stageRelease` belong to the deployment workflow. In particular, `stagePlugins` delegates to a private deployment script and `stageRelease` also invokes the resource-pack workflow. They are not a substitute for the source build commands above.
+`stagePluginCandidates`, `stagePlugins`, and `stageRelease` belong to the private deployment workflow. `stagePlugins` delegates to a private deployment script; `stageRelease` invokes `buildDeploymentResourcePack`, which explicitly runs `resource-pack/build.sh --deployment` before staging the JARs. The separate `buildResourcePack` task builds the portable source-checkout artifact. Use the source build commands above until an authorized deployment tree is available.
+
+### Build the English staging edition
+
+The public resource-pack builder now works without a private server tree. The server-resource exporter additionally needs Node.js and PyYAML; its model-only path uses existing reviewed PNG bytes and has no Sharp or Pillow dependency.
+
+```bash
+python3 -m pip install PyYAML==6.0.3
+
+# Complete committed client assets; output is build/resource-pack/.
+bash resource-pack/build.sh
+
+# Optional separate review copy of 15 model registrations and the bilingual HUD.
+# The output directory must be NEW.
+python3 resource-pack/tools/build_server_resources.py --output build/server-resources-candidate
+
+# After ./gradlew assemble, require all 25 actual runtime JARs and package them.
+# The directory and its sibling ZIP must both be NEW.
+python3 scripts/package-edition.py --output build/sivitahub-en-us-26.2
+```
+
+The edition contains all custom plugin JARs, canonical development configs with English presentation overrides, the client resource baseline, native G-key datapack, bilingual BetonQuest prologue, and the model/HUD inputs under `runtime-candidates/`. It also writes an English installation guide, a file-by-file SHA-256 manifest, a ZIP, and a ZIP checksum. Missing or stale JARs fail the whole command. The [packager](../../scripts/package-edition.py) verifies each JAR's `META-INF/sivitahub-build.json` against the same fingerprint of **all** plugin main sources/resources and Gradle inputs; a Java-only shared API change requires a matching rebuild of the whole suite. Build provenance and archive checks do not establish server startup or client acceptance.
+
+The client ZIP contains every committed `originalrpg`, `betterhud`, `bettermodel` and `minecraft` asset. The candidate exporter supplies all 15 complete server `.bbmodel` registrations and a four-slot HUD with 42 skill icons, seven class states, cooldowns, mana, progression and language-sensitive control labels. The complete HUD is gated by the actual resource-pack/profile readiness placeholder. Compile these inputs with the pinned external plugins on an isolated server, then keep their **matching model indices, font codepoints and shaders together** in the final runtime pack. A new HUD layout cannot safely reuse the old shader layout table simply because both packs load as ZIP files. See the generated `runtime-candidates/README.en.md` and [resource build guide](../../resource-pack/README.md) for the boundary and checks.
+
+Third-party plugin binaries, worlds, player data, databases, credentials and production configuration are excluded. Follow the generated `INSTALL.en.md` before copying anything into a staging server. Existing servers should merge the reviewed text overlays into their own configuration rather than replace operational settings with development defaults.
 
 ## 5. Enable English in an authorized runtime
 

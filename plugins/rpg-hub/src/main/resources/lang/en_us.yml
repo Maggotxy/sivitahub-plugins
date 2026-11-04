@@ -64,7 +64,7 @@ wayfinding:
     skills: "Archivist Moya"
     forge: "Smith Zhulan"
     enhancement: "Refiner Qingzhen"
-    dungeon: "Expedition Officer Suichuan"
+    dungeon: "Officer Suichuan"
     market: "Market Steward Guyu"
     economy: "Merit Officer Hengshi"
     wilderness: "Frontier Guide Lindu"
@@ -212,3 +212,20 @@ classes:
   mage: "Mage"
   ranger: "Ranger"
   freeform: "Freeform"
+
+npc-subtitles:
+  guide: Start your journey here
+  quests: Your tasks and rewards
+  ai: Advice based on your progress
+  class: Choose a class and attributes
+  skills: Learn and manage skills
+  forge: Forge your own equipment
+  enhancement: Refine, limit break and mutate
+  dungeon: Dungeons and hidden encounters
+  market: Player trading and deliveries
+  economy: Currencies and commissions
+  wilderness: Travel to the survival frontier
+map:
+  title: Sivita Hub
+  safe-zone: Sivita Hub · Safe Zone
+  description: NPCs, forging, player trading, dungeons and frontier travel

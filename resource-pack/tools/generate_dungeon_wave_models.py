@@ -8,8 +8,6 @@ import io
 import json
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageOps
-
 from generate_dungeon_boss_models import Cube, ModelSpec, color, model, review_sheet, texture
 
 
@@ -118,6 +116,8 @@ SPECS = (
 
 
 def concept_sheet() -> Image.Image:
+    from PIL import Image, ImageDraw, ImageOps
+
     sheet = Image.new("RGB", (1536, 1024), (9, 12, 17))
     draw = ImageDraw.Draw(sheet)
     for index, spec in enumerate(SPECS):

@@ -139,6 +139,7 @@ public final class RpgPetsPlugin extends JavaPlugin implements Listener, Command
     private boolean nonLethalDirectDamage;
     private BigDecimal reviveBase;
     private BigDecimal revivePerLevel;
+    private PetSignalPresentation signalPresentation;
     private NamespacedKey signalKey;
     private NamespacedKey signalOwnerKey;
 
@@ -198,6 +199,9 @@ public final class RpgPetsPlugin extends JavaPlugin implements Listener, Command
         signalKey = new NamespacedKey(this, "companion_signal");
         signalOwnerKey = new NamespacedKey(this, "companion_signal_owner");
         messages = new PetMessages(getConfig(), requireService(MessageService.class));
+        signalPresentation = new PetSignalPresentation(messages);
+        getServer().getPluginManager().registerEvents(new cn.originalrpg.api.i18n.PlayerItemTextRefresh(
+                this, signalPresentation::managed, signalPresentation::refresh), this);
         policy = new PetPolicy(
                 normalizedSet(getConfig().getStringList("dungeon-world-prefixes")),
                 normalizedSet(getConfig().getStringList("blocked-worlds")),
@@ -1219,15 +1223,12 @@ public final class RpgPetsPlugin extends JavaPlugin implements Listener, Command
         }
         ItemStack signal = new ItemStack(Material.GOAT_HORN);
         ItemMeta meta = signal.getItemMeta();
-        meta.displayName(Component.text(messages.render(player, "signal-name"), NamedTextColor.AQUA)
-                .decoration(TextDecoration.ITALIC, false));
-        meta.lore(messages.renderLines(player, "signal-lore").stream()
-                .map(line -> Component.text(line, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)).toList());
         meta.getPersistentDataContainer().set(signalKey, PersistentDataType.BYTE, (byte) 1);
         meta.getPersistentDataContainer().set(
                 signalOwnerKey, PersistentDataType.STRING, player.getUniqueId().toString());
         meta.setEnchantmentGlintOverride(true);
         signal.setItemMeta(meta);
+        signalPresentation.refresh(player, signal);
         Map<Integer, ItemStack> overflow = player.getInventory().addItem(signal);
         overflow.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
         player.closeInventory();

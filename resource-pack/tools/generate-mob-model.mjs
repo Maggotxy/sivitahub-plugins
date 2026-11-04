@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import sharp from "../../website/node_modules/sharp/dist/index.mjs";
 
 const toolDir = path.dirname(fileURLToPath(import.meta.url));
 const projectDir = path.resolve(toolDir, "../..");
@@ -16,6 +15,31 @@ const modelOutput = path.join(projectDir, "server/config-templates/BetterModel/m
 
 const width = 64;
 const height = 64;
+const arguments_ = process.argv.slice(2);
+const modelOnly = arguments_.length === 1 && arguments_[0] === "--model-json";
+if (arguments_.length > 0 && !modelOnly) {
+  throw new Error("Usage: generate-mob-model.mjs [--model-json]");
+}
+function uuid(label) {
+  const hex = createHash("sha256").update(`sivita:${modelId}:${label}`).digest("hex").slice(0, 32).split("");
+  hex[12] = "4";
+  hex[16] = ((Number.parseInt(hex[16], 16) & 3) | 8).toString(16);
+  return `${hex.slice(0, 8).join("")}-${hex.slice(8, 12).join("")}-${hex.slice(12, 16).join("")}-${hex.slice(16, 20).join("")}-${hex.slice(20).join("")}`;
+}
+
+let texture;
+let sharp;
+if (modelOnly) {
+  // Registration exports reuse the exact reviewed runtime PNG. This path has
+  // no Sharp dependency, bitmap generation, server-directory writes or previews.
+  const source = path.join(projectDir, "resource-pack/assets/bettermodel/textures/item", `${modelId}_${modelId}.png`);
+  texture = await readFile(source);
+  if (texture.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a"
+      || texture.readUInt32BE(16) !== width || texture.readUInt32BE(20) !== height) {
+    throw new Error(`Expected the reviewed 64x64 PNG: ${source}`);
+  }
+} else {
+  sharp = (await import("../../website/node_modules/sharp/dist/index.mjs")).default;
 const pixels = Buffer.alloc(width * height * 4);
 const palette = {
   void: [25, 25, 29, 255],
@@ -31,12 +55,6 @@ const palette = {
   cyanLight: [118, 232, 230, 255]
 };
 
-function uuid(label) {
-  const hex = createHash("sha256").update(`sivita:${modelId}:${label}`).digest("hex").slice(0, 32).split("");
-  hex[12] = "4";
-  hex[16] = ((Number.parseInt(hex[16], 16) & 3) | 8).toString(16);
-  return `${hex.slice(0, 8).join("")}-${hex.slice(8, 12).join("")}-${hex.slice(12, 16).join("")}-${hex.slice(16, 20).join("")}-${hex.slice(20).join("")}`;
-}
 
 function setPixel(x, y, color) {
   if (x < 0 || y < 0 || x >= width || y >= height) return;
@@ -120,7 +138,9 @@ for (let dy = -5; dy <= 5; dy++) {
   for (let dx = -span; dx <= span; dx++) setPixel(56 + dx, 56 + dy, Math.abs(dx) <= 1 ? palette.cyanLight : palette.cyan);
 }
 
-const texture = await sharp(pixels, { raw: { width, height, channels: 4 } }).png({ palette: true, colours: 24 }).toBuffer();
+texture = await sharp(pixels, { raw: { width, height, channels: 4 } }).png({ palette: true, colours: 24 }).toBuffer();
+
+}
 
 const tiles = {
   torso: { north: [0, 0, 16, 16], east: [16, 0, 32, 16], south: [32, 0, 48, 16], west: [16, 0, 32, 16], up: [48, 0, 64, 16], down: [48, 0, 64, 16] },
@@ -248,6 +268,9 @@ const model = {
   animations
 };
 
+if (modelOnly) {
+  process.stdout.write(`${JSON.stringify(model)}\n`);
+} else {
 await mkdir(path.dirname(textureOutput), { recursive: true });
 await mkdir(path.dirname(previewOutput), { recursive: true });
 await mkdir(path.dirname(modelOutput), { recursive: true });
@@ -333,3 +356,5 @@ console.log(modelOutput);
 console.log(textureOutput);
 console.log(previewOutput);
 console.log(turnaroundOutput);
+
+}

@@ -4,6 +4,8 @@ actor:
   world: sivita_hub
   citizens-id: 9101
   citizens-uuid: "39fe408f-8341-4f60-a122-10e95b824c01"
+  # The stock name follows RpgCore language.default. Custom legacy names are
+  # preserved; actor.names.en_us / actor.names.zh_cn can override each locale.
   name: "主城导览 · 栖枝"
   offset-from-hub-center: [-10.5, 1.05, 16.5]
 

@@ -1,6 +1,7 @@
 package cn.originalrpg.core;
 
 import cn.originalrpg.core.persistence.JdbcSessionLease;
+import cn.originalrpg.api.service.MessageService;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -20,10 +21,12 @@ import java.util.logging.Logger;
 public final class SessionLeaseListener implements Listener {
     private final JdbcSessionLease sessionLease;
     private final Logger logger;
+    private final MessageService messages;
 
-    public SessionLeaseListener(JdbcSessionLease sessionLease, Logger logger) {
+    public SessionLeaseListener(JdbcSessionLease sessionLease, Logger logger, MessageService messages) {
         this.sessionLease = Objects.requireNonNull(sessionLease, "sessionLease");
         this.logger = Objects.requireNonNull(logger, "logger");
+        this.messages = Objects.requireNonNull(messages, "messages");
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -33,11 +36,15 @@ public final class SessionLeaseListener implements Listener {
         // fail-closed：租约不属于本节点时拒绝该玩家，避免两个节点同时加载同一存档。
         logger.warning("Rejected join for " + event.getPlayer().getName()
                 + " on node " + sessionLease.nodeId() + ": " + admission);
-        event.getPlayer().kick(Component.text(switch (admission) {
-            case NO_VALID_LEASE -> "会话租约缺失：本节点未持有该玩家的有效会话（多服尚未启用）。";
-            case STALE_PROCESS_TOKEN -> "会话租约属于本节点旧进程，已被新的进程 token 接管。";
-            case HELD_BY_OTHER_NODE -> "该玩家当前由另一个节点持有会话。";
+        event.getPlayer().kick(Component.text(messages.text(event.getPlayer(), rejectionKey(admission))));
+    }
+
+    static String rejectionKey(JdbcSessionLease.Admission admission) {
+        return switch (admission) {
+            case NO_VALID_LEASE -> "session-lease.no-valid-lease";
+            case STALE_PROCESS_TOKEN -> "session-lease.stale-process-token";
+            case HELD_BY_OTHER_NODE -> "session-lease.held-by-other-node";
             case ALLOWED -> throw new IllegalStateException("allowed admission cannot be rejected");
-        }));
+        };
     }
 }

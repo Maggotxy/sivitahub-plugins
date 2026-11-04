@@ -42,6 +42,9 @@ public final class RpgDungeonsPlugin extends JavaPlugin {
                 this, seasonService, chapters, messages);
         manager = new DungeonManager(this, profiles, messages, rewards, seasonExpeditions);
         getServer().getPluginManager().registerEvents(manager, this);
+        DungeonItemPresentation itemText = manager.itemPresentation();
+        getServer().getPluginManager().registerEvents(new cn.originalrpg.api.i18n.PlayerItemTextRefresh(
+                this, itemText::managed, itemText::refresh), this);
         PluginCommand dungeon = Objects.requireNonNull(getCommand("dungeon"), "dungeon command");
         DungeonPartyService parties = new DungeonPartyService(
                 getConfig().getInt("party.maximum-size", 4),

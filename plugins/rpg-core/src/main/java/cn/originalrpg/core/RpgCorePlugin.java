@@ -348,7 +348,7 @@ public final class RpgCorePlugin extends JavaPlugin {
             if (outboxEnabled && outboxDispatchEnabled) startOutboxDispatch();
             if (sessionLeaseEnabled) {
                 getServer().getPluginManager().registerEvents(
-                        new SessionLeaseListener(sessionLease, getLogger()), this);
+                        new SessionLeaseListener(sessionLease, getLogger(), messages), this);
             }
             getLogger().info("RPG core started with transactional persistence; season="
                     + initialChapter.seasonId() + " chapter=" + initialChapter.chapterId()

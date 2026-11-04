@@ -78,7 +78,18 @@ public final class RpgAiNpcPlugin extends JavaPlugin {
     private void loadRuntime() {
         File knowledgeFile = new File(getDataFolder(), "knowledge.yml");
         if (!knowledgeFile.isFile()) saveResource("knowledge.yml", false);
-        StaticKnowledge knowledge = new StaticKnowledge(YamlConfiguration.loadConfiguration(knowledgeFile));
+        YamlConfiguration packaged;
+        try (var reader = new java.io.InputStreamReader(
+                Objects.requireNonNull(getResource("knowledge.yml"), "knowledge.yml"),
+                java.nio.charset.StandardCharsets.UTF_8)) {
+            packaged = YamlConfiguration.loadConfiguration(reader);
+        } catch (java.io.IOException exception) {
+            throw new IllegalStateException("Cannot load packaged AI knowledge", exception);
+        }
+        MessageService messages = Objects.requireNonNull(
+                getServer().getServicesManager().load(MessageService.class), "MessageService");
+        StaticKnowledge knowledge = new StaticKnowledge(YamlConfiguration.loadConfiguration(knowledgeFile),
+                packaged, messages.defaultLocale(), getLogger()::warning);
         AiProviderClient client = new AiProviderClient(this, getConfig());
         runtime = new AiNpcRuntime(runtimeGenerations.incrementAndGet(), client, knowledge);
     }
