@@ -646,8 +646,11 @@ public final class JdbcActivityEconomyService implements ActivityEconomyService 
             insert.setBigDecimal(2, startingBalance);
             insert.executeUpdate();
         }
+        // H2 can release a concurrent creator before invalidating its cached
+        // empty SELECT result. A locking read observes the committed row and
+        // also protects it for the transaction that has just created it.
         try (PreparedStatement query = connection.prepareStatement(
-                "SELECT balance FROM rpg_accounts WHERE player_uuid = ?")) {
+                "SELECT balance FROM rpg_accounts WHERE player_uuid = ? FOR UPDATE")) {
             query.setString(1, playerId.toString());
             try (ResultSet result = query.executeQuery()) {
                 if (!result.next()) throw new SQLException("Missing economy account after upsert");
@@ -681,8 +684,10 @@ public final class JdbcActivityEconomyService implements ActivityEconomyService 
             insert.setString(1, playerId.toString());
             insert.executeUpdate();
         }
+        // As for accounts, do not reuse a pre-insert empty query result after
+        // another transaction has won the unique-key race.
         try (PreparedStatement query = connection.prepareStatement(
-                "SELECT merit FROM rpg_progression_wallets WHERE player_uuid = ?")) {
+                "SELECT merit FROM rpg_progression_wallets WHERE player_uuid = ? FOR UPDATE")) {
             query.setString(1, playerId.toString());
             try (ResultSet result = query.executeQuery()) {
                 if (!result.next()) throw new SQLException("Missing progression wallet after upsert");
