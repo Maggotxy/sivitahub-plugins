@@ -12,6 +12,13 @@ commands:
     description: Show blood-moon timing and the current overworld hunt chain.
     usage: /worldstatus
     permission: rpg.world.status
+  journal:
+    aliases: [fieldjournal]
+    description: Open permanent exploration, nature and crafting collection goals.
+    usage: /journal [help|status|<entry-id> [page]]
+    permission: rpg.world.journal
 permissions:
   rpg.world.status:
+    default: true
+  rpg.world.journal:
     default: true

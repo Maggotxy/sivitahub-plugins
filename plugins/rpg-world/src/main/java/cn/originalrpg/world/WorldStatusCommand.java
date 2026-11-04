@@ -81,7 +81,10 @@ final class WorldStatusCommand implements CommandExecutor {
                 .clickEvent(ClickEvent.runCommand("/wild"))
                 .hoverEvent(HoverEvent.showText(Component.text(
                         messages.text(player, "world.status.wild-hover"))));
-        return mobGuide.append(Component.text("   ", NamedTextColor.DARK_GRAY)).append(wild);
+        Component journal = Component.text(messages.text(player, "journal.button"), NamedTextColor.GOLD)
+                .clickEvent(ClickEvent.runCommand("/journal"));
+        return mobGuide.append(Component.text("   ", NamedTextColor.DARK_GRAY)).append(wild)
+                .append(Component.text("   ", NamedTextColor.DARK_GRAY)).append(journal);
     }
 
     private Component translatedEntity(String entityType) {

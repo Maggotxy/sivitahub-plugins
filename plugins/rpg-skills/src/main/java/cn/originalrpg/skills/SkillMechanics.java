@@ -1,5 +1,7 @@
 package cn.originalrpg.skills;
 
+import cn.originalrpg.api.rules.CombatTargetRules;
+
 import cn.originalrpg.api.service.SkillDamageService;
 import cn.originalrpg.api.service.MessageService;
 import org.bukkit.Color;
@@ -13,7 +15,7 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Monster;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Wolf;
@@ -165,7 +167,7 @@ final class SkillMechanics {
     }
 
     private void meteorImpact(Player caster, Location center, double amount, String skillId) {
-        for (Monster target : nearby(caster, center, 5.0, MAX_AREA_TARGETS)) {
+        for (Mob target : nearby(caster, center, 5.0, MAX_AREA_TARGETS)) {
             damage.damage(caster, target, amount, skillId);
             Vector away = target.getLocation().toVector().subtract(center.toVector());
             if (away.lengthSquared() < 0.01) away = new Vector(0.0, 0.0, 1.0);
@@ -227,7 +229,7 @@ final class SkillMechanics {
 
     void smokeBomb(Player caster, double radius) {
         Location center = caster.getLocation();
-        for (Monster monster : nearby(caster, center, radius, MAX_AREA_TARGETS)) {
+        for (Mob monster : nearby(caster, center, radius, MAX_AREA_TARGETS)) {
             if (!isBoss(monster)) monster.setTarget(null);
             Vector away = monster.getLocation().toVector().subtract(center.toVector());
             if (away.lengthSquared() > 0.01) {
@@ -249,7 +251,7 @@ final class SkillMechanics {
         Vector facing = caster.getEyeLocation().getDirection().setY(0.0);
         if (facing.lengthSquared() < 0.01) facing = new Vector(0.0, 0.0, 1.0);
         facing.normalize();
-        for (Monster monster : nearby(caster, caster.getLocation(), radius, MAX_AREA_TARGETS)) {
+        for (Mob monster : nearby(caster, caster.getLocation(), radius, MAX_AREA_TARGETS)) {
             Vector delta = monster.getLocation().toVector().subtract(caster.getLocation().toVector()).setY(0.0);
             if (delta.lengthSquared() < 0.01 || delta.normalize().dot(facing) < 0.2) continue;
             double applied = isBoss(monster) ? force * 0.30 : force;
@@ -266,7 +268,7 @@ final class SkillMechanics {
     void shockwave(Player caster, double radius, double force, double amount,
                    String skillId, Particle accent, Color color) {
         Location center = caster.getLocation();
-        for (Monster monster : nearby(caster, center, radius, MAX_AREA_TARGETS)) {
+        for (Mob monster : nearby(caster, center, radius, MAX_AREA_TARGETS)) {
             if (amount > 0.0) damage.damage(caster, monster, amount, skillId);
             Vector away = monster.getLocation().toVector().subtract(center.toVector());
             if (away.lengthSquared() < 0.01) away = new Vector(0.0, 0.0, 1.0);
@@ -285,7 +287,7 @@ final class SkillMechanics {
     }
 
     void pullAndTaunt(Player caster, double radius) {
-        for (Monster monster : nearby(caster, caster.getLocation(), radius, MAX_AREA_TARGETS)) {
+        for (Mob monster : nearby(caster, caster.getLocation(), radius, MAX_AREA_TARGETS)) {
             monster.setTarget(caster);
             Vector toward = caster.getLocation().toVector().subtract(monster.getLocation().toVector());
             if (toward.lengthSquared() > 0.01) {
@@ -307,8 +309,8 @@ final class SkillMechanics {
         final Location end = to;
         Vector segment = end.toVector().subtract(from.toVector());
         double lengthSquared = segment.lengthSquared();
-        List<Monster> targets = caster.getWorld().getNearbyEntitiesByType(
-                        Monster.class, from.clone().add(segment.clone().multiply(0.5)), range * 0.55 + 1.0).stream()
+        List<Mob> targets = CombatTargetRules.nearbyPveTargets(
+                        from.clone().add(segment.clone().multiply(0.5)), range * 0.55 + 1.0).stream()
                 .filter(monster -> squaredDistanceToSegment(monster.getEyeLocation().toVector(),
                         from.toVector(), end.toVector(), lengthSquared) <= radius * radius)
                 .sorted(Comparator.comparingDouble(monster -> monster.getLocation().distanceSquared(from)))
@@ -339,7 +341,7 @@ final class SkillMechanics {
     void beastSpirits(
             Player caster, double durationSeconds, double amount, String skillId, int spiritCount
     ) {
-        Monster target = nearby(caster, caster.getLocation(), 16.0, 1).stream().findFirst().orElse(null);
+        Mob target = nearby(caster, caster.getLocation(), 16.0, 1).stream().findFirst().orElse(null);
         int count = Math.clamp(spiritCount, 1, 3);
         List<Wolf> wolves = new ArrayList<>(count);
         for (int index = 0; index < count; index++) {
@@ -369,7 +371,7 @@ final class SkillMechanics {
         });
         boolean started = sequences.startGameplay(caster, "beast-spirits", 10, maximumTicks, frame -> {
             if (!caster.isOnline() || caster.isDead()) return false;
-            List<Monster> prey = nearby(caster, caster.getLocation(), 18.0, 8);
+            List<Mob> prey = nearby(caster, caster.getLocation(), 18.0, 8);
             Set<UUID> struck = new HashSet<>();
             for (int index = 0; index < wolves.size(); index++) {
                 Wolf wolf = wolves.get(index);
@@ -378,7 +380,7 @@ final class SkillMechanics {
                         || wolf.getLocation().distanceSquared(caster.getLocation()) > 24.0 * 24.0) {
                     wolf.teleport(caster.getLocation().add((index - 1) * 1.1, 0.1, 0.0));
                 }
-                Monster preyTarget = prey.isEmpty() ? null : prey.get(index % prey.size());
+                Mob preyTarget = prey.isEmpty() ? null : prey.get(index % prey.size());
                 if (preyTarget == null || !preyTarget.isValid()) continue;
                 wolf.setTarget(preyTarget);
                 if (wolf.getLocation().distanceSquared(preyTarget.getLocation()) > 3.4 * 3.4
@@ -397,7 +399,7 @@ final class SkillMechanics {
             return wolves.stream().anyMatch(Wolf::isValid);
         }, finish);
         if (!started) {
-            List<Monster> fallbackTargets = nearby(caster, caster.getLocation(), 18.0, count);
+            List<Mob> fallbackTargets = nearby(caster, caster.getLocation(), 18.0, count);
             fallbackTargets.forEach(prey -> damage.damage(caster, prey, amount, skillId));
             finish.run();
         }
@@ -459,7 +461,7 @@ final class SkillMechanics {
             allies.get().stream().filter(ally -> validAt(standard, ally, radius)).limit(8)
                     .forEach(ally -> ally.addPotionEffect(new org.bukkit.potion.PotionEffect(
                             org.bukkit.potion.PotionEffectType.ABSORPTION, 45, 0)));
-            for (Monster monster : nearby(caster, standard, radius, MAX_AREA_TARGETS)) {
+            for (Mob monster : nearby(caster, standard, radius, MAX_AREA_TARGETS)) {
                 monster.setTarget(caster);
             }
             completed[0]++;
@@ -584,7 +586,7 @@ final class SkillMechanics {
                         Math.max(0.8, projectile.getVelocity().length())));
                 projectile.setShooter(caster);
             }
-            for (Monster monster : nearby(caster, anchor, 10.0, MAX_AREA_TARGETS)) {
+            for (Mob monster : nearby(caster, anchor, 10.0, MAX_AREA_TARGETS)) {
                 double distance = monster.getLocation().distanceSquared(anchor);
                 if (distance < 7.0 * 7.0) continue;
                 Vector away = monster.getLocation().toVector().subtract(anchor.toVector());
@@ -659,8 +661,7 @@ final class SkillMechanics {
             for (Player ally : allies.get().stream().filter(
                     candidate -> validAlly(caster, candidate, 14.0)).limit(8).toList()) {
                 heal(ally, healing);
-                Monster echo = ally.getWorld().getNearbyEntitiesByType(
-                                Monster.class, ally.getLocation(), 4.5).stream()
+                Mob echo = CombatTargetRules.nearbyPveTargets(ally.getLocation(), 4.5).stream()
                         .filter(monster -> struck.add(monster.getUniqueId()))
                         .min(Comparator.comparingDouble(monster -> monster.getLocation()
                                 .distanceSquared(ally.getLocation()))).orElse(null);
@@ -683,8 +684,7 @@ final class SkillMechanics {
             for (Player ally : allies.get().stream().filter(
                     candidate -> validAlly(caster, candidate, 14.0)).limit(8).toList()) {
                 heal(ally, healing * 5.0);
-                Monster echo = ally.getWorld().getNearbyEntitiesByType(
-                                Monster.class, ally.getLocation(), 4.5).stream()
+                Mob echo = CombatTargetRules.nearbyPveTargets(ally.getLocation(), 4.5).stream()
                         .filter(monster -> struck.add(monster.getUniqueId()))
                         .min(Comparator.comparingDouble(monster -> monster.getLocation()
                                 .distanceSquared(ally.getLocation()))).orElse(null);
@@ -709,14 +709,13 @@ final class SkillMechanics {
 
     void toxicBurst(Player caster, double radius, double amount, String skillId) {
         cleanupVenomMarks();
-        List<Monster> targets = nearby(caster, caster.getLocation(), radius, MAX_AREA_TARGETS);
-        Set<Monster> spread = new HashSet<>();
-        for (Monster target : targets) {
+        List<Mob> targets = nearby(caster, caster.getLocation(), radius, MAX_AREA_TARGETS);
+        Set<Mob> spread = new HashSet<>();
+        for (Mob target : targets) {
             VenomMark mark = venomMarks.remove(target.getUniqueId());
             int stacks = mark == null ? 0 : mark.stacks();
             damage.damage(caster, target, amount + stacks * 2.25, skillId);
-            if (stacks > 0) target.getWorld().getNearbyEntitiesByType(
-                            Monster.class, target.getLocation(), 3.5).stream()
+            if (stacks > 0) CombatTargetRules.nearbyPveTargets(target.getLocation(), 3.5).stream()
                     .filter(other -> !other.equals(target)).limit(Math.min(3, stacks))
                     .forEach(spread::add);
             visuals.impact(caster, target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0),
@@ -736,7 +735,7 @@ final class SkillMechanics {
         Runnable pulse = () -> {
             cleanupVenomMarks();
             boolean finalPulse = completed[0] == bounded - 1;
-            for (Monster target : nearby(caster, center, radius, MAX_AREA_TARGETS)) {
+            for (Mob target : nearby(caster, center, radius, MAX_AREA_TARGETS)) {
                 VenomMark current = venomMarks.get(target.getUniqueId());
                 int stacks = Math.min(isBoss(target) ? 3 : 5,
                         (current == null ? 0 : current.stacks()) + 1);
@@ -761,7 +760,7 @@ final class SkillMechanics {
         });
         if (!started) {
             cleanupVenomMarks();
-            for (Monster target : nearby(caster, center, radius, MAX_AREA_TARGETS)) {
+            for (Mob target : nearby(caster, center, radius, MAX_AREA_TARGETS)) {
                 VenomMark current = venomMarks.remove(target.getUniqueId());
                 int maximum = isBoss(target) ? 3 : 5;
                 int finalStacks = Math.min(maximum,
@@ -777,7 +776,7 @@ final class SkillMechanics {
     private void strikeChargeTargets(
             Player caster, Vector travelDirection, double amount, String skillId, Set<UUID> hit
     ) {
-        for (Monster target : nearby(caster, caster.getLocation(), 2.2, 8)) {
+        for (Mob target : nearby(caster, caster.getLocation(), 2.2, 8)) {
             if (!hit.add(target.getUniqueId())) continue;
             damage.damage(caster, target, amount, skillId);
             double force = isBoss(target) ? 0.35 : 1.0;
@@ -809,7 +808,7 @@ final class SkillMechanics {
             Particle accent, Color color, boolean ignite, boolean visual
     ) {
         if (visual) visuals.ringAt(caster, center, radius, accent, color, 28);
-        for (Monster target : nearby(caster, center, radius, MAX_AREA_TARGETS)) {
+        for (Mob target : nearby(caster, center, radius, MAX_AREA_TARGETS)) {
             damage.damage(caster, target, amount, skillId);
             if (ignite) target.setFireTicks(Math.max(target.getFireTicks(), 50));
         }
@@ -881,8 +880,8 @@ final class SkillMechanics {
         return caster.getEyeLocation().add(caster.getEyeLocation().getDirection().normalize().multiply(range * 0.65));
     }
 
-    private List<Monster> nearby(Player caster, Location center, double radius, int maximum) {
-        return center.getWorld().getNearbyEntitiesByType(Monster.class, center, radius).stream()
+    private List<Mob> nearby(Player caster, Location center, double radius, int maximum) {
+        return CombatTargetRules.nearbyPveTargets(center, radius).stream()
                 .filter(monster -> monster.isValid() && !monster.isDead())
                 .sorted(Comparator.comparingDouble(monster -> monster.getLocation().distanceSquared(center)))
                 .limit(Math.clamp(maximum, 1, MAX_AREA_TARGETS)).toList();

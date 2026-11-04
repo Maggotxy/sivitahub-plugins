@@ -454,6 +454,7 @@ final class DungeonManager implements Listener {
         String name = messages.text(audience, "dungeon.bosses." + id);
         Location spawn = entrance.clone().add(0, 1, 14);
         Mob boss = spawnConfiguredBoss(world, spawn, bossConfig, hidden);
+        boss.setCanPickupItems(false);
         boss.getPersistentDataContainer().set(bossMarker, PersistentDataType.BYTE, (byte) 1);
         boss.getPersistentDataContainer().set(dungeonId, PersistentDataType.STRING, id);
         Set<UUID> session = instanceMembers.getOrDefault(world.getName(), Set.of());
@@ -550,6 +551,7 @@ final class DungeonManager implements Listener {
                 spawned.remove();
                 continue;
             }
+            monster.setCanPickupItems(false);
             monster.getPersistentDataContainer().set(waveMarker, PersistentDataType.BYTE, (byte) 1);
             String nameKey = archetype.isBlank() ? "dungeon.wave-mob" : "dungeon.wave-mobs." + archetype;
             monster.customName(Component.text(messages.text(world.getPlayers().stream().findFirst().orElse(null),

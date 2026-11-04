@@ -100,6 +100,7 @@ public final class SchemaManifest {
             "rpg_equipment_states",
             "rpg_equipment_lifecycle_audit",
             "rpg_season_attunements",
+            "rpg_field_journal_entries",
             "rpg_community_lifecycle_proposals",
             "rpg_community_lifecycle_audit",
             "rpg_community_storage_requests"

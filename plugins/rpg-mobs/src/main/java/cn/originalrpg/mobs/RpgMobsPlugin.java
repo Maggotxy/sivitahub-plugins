@@ -48,7 +48,7 @@ public final class RpgMobsPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(abilities, this);
         abilities.start();
         AdaptiveMobListener mobListener = new AdaptiveMobListener(this, profiles, chapters, messages,
-                experienceBuffer, appearances, abilities);
+                appearances, abilities);
         delayedRewards = new DelayedMobRewardQueue(this, profiles, market, experienceBuffer, mobListener);
         mobListener.setDelayedRewards(delayedRewards);
         getServer().getPluginManager().registerEvents(mobListener, this);

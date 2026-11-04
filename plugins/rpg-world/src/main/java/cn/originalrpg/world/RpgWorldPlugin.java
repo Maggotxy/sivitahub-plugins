@@ -2,6 +2,7 @@ package cn.originalrpg.world;
 
 import cn.originalrpg.api.service.MessageService;
 import cn.originalrpg.api.service.ProfileService;
+import cn.originalrpg.api.service.FieldJournalService;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.Difficulty;
@@ -13,6 +14,7 @@ import java.util.Objects;
 
 public final class RpgWorldPlugin extends JavaPlugin {
     private WorldEventListener listener;
+    private FieldJournalController journal;
 
     @Override
     public void onEnable() {
@@ -38,6 +40,14 @@ public final class RpgWorldPlugin extends JavaPlugin {
         boundaries.configureLoadedWorlds();
         PluginCommand status = Objects.requireNonNull(getCommand("worldstatus"), "worldstatus command");
         status.setExecutor(new WorldStatusCommand(messages, listener));
+        FieldJournalService journalService = Objects.requireNonNull(
+                getServer().getServicesManager().load(FieldJournalService.class), "FieldJournalService");
+        journal = new FieldJournalController(this, messages, journalService);
+        getServer().getPluginManager().registerEvents(journal, this);
+        PluginCommand journalCommand = Objects.requireNonNull(getCommand("journal"), "journal command");
+        journalCommand.setExecutor(journal);
+        journalCommand.setTabCompleter(journal);
+        journal.start();
         listener.start();
     }
 
@@ -59,6 +69,7 @@ public final class RpgWorldPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (journal != null) journal.shutdown();
         if (listener != null) listener.stop();
     }
 }

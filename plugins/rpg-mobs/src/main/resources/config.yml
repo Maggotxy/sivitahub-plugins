@@ -32,36 +32,35 @@ experience:
   normal-level-multiplier: 10
   elite-level-multiplier: 40
 experience-write-buffer:
-  # One player can kill many mobs in a tick; their XP is persisted as one
-  # profile mutation while different players are spread across scheduler ticks.
-  flush-ticks: 10
-  max-player-flushes-per-tick: 8
-  # Bound distinct players waiting on profile writes. Existing players may
-  # continue coalescing without turning a database outage into unbounded RAM.
-  maximum-pending-players: 1024
-  # Repeated database failures back off per player rather than retrying every
-  # flush tick. Normal shutdown retries only known failures; uncertain in-flight
-  # writes are never blindly duplicated because ProfileService has no XP key.
-  retry-base-ticks: 20
-  retry-maximum-ticks: 200
-  shutdown-attempts: 3
-  # Ordinary kill XP is merged into one action-bar update every three seconds;
-  # actual profile writes remain faster, while level-ups are shown immediately.
+  # Only UI feedback is coalesced. Each durably accepted kill now owns a stable
+  # core XP receipt; the legacy volatile XP batching/retry keys are no longer used.
+  # Level-up feedback is immediate after the authoritative result.
   feedback-ticks: 60
-  shutdown-timeout-ms: 5000
-# A profile-cache miss must not erase a valid kill. Candidate items are built
-# and serialized on the death tick, then gated by the asynchronously loaded
-# profile and inserted into the durable market mailbox with stable IDs.
+# All custom natural-mob rewards, including profile-cache hits, first enter the
+# local mob-reward-journal. Vanilla drops are unchanged. At most two custom items
+# per successful roll go to /market claim; XP never creates a mailbox item.
+# Queued is NOT durable: a hard exit before file+directory fsync can lose a new
+# observation. Accepted intents retry without a TTL or attempt-based discard.
+# Preserve this directory together with the core database; see RECOVERY.md.
 delayed-rewards:
   maximum-pending: 512
   maximum-per-player: 32
+  # Conservative serialized-payload budget, not a heap estimate. The journal
+  # enforces the same byte limit; one atomic rewrite can also use a temporary
+  # record of at most 256 KiB. Reducing limits below an existing backlog pauses
+  # new custom rewards until the original limits or files are restored.
+  maximum-payload-bytes: 16777216
+  # One filesystem worker, with bounded submission and completion queues.
+  maximum-journal-operations: 16
   maximum-profile-loads: 16
+  maximum-experience-writes: 16
   maximum-mailbox-writes: 32
+  # Bounded protocol steps, rather than complete kills, per server tick.
   maximum-settlements-per-tick: 16
-  # Transient database failure must not turn a valid kill into permanent loss.
-  # Capacity is the backpressure boundary; stable delivery IDs make retries safe.
   retry-ticks: 20
   retry-maximum-ticks: 200
+  # Shutdown attempts a bounded final journal pass; it does not drain/re-mint
+  # database rewards or keep the JVM alive forever during a disk failure.
   shutdown-timeout-ms: 5000
 elite:
   base-chance: 0.06

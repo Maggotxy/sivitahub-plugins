@@ -1,5 +1,7 @@
 package cn.originalrpg.classes;
 
+import cn.originalrpg.api.rules.CombatTargetRules;
+
 import cn.originalrpg.api.event.AuthenticatedPlayerReadyEvent;
 import cn.originalrpg.api.model.HiddenPath;
 import cn.originalrpg.api.service.EconomyService;
@@ -12,7 +14,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Particle;
-import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -237,7 +238,7 @@ final class HiddenPathEffects implements Listener {
     private void applyTalismanWard(Player player) {
         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 120, 0, true, false, true));
         player.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 100, 0, true, false, true));
-        player.getWorld().getNearbyEntitiesByType(Monster.class, player.getLocation(), 10.0).stream()
+        CombatTargetRules.nearbyPveTargets(player.getLocation(), 10.0).stream()
                 .limit(4).forEach(monster -> monster.addPotionEffect(
                         new PotionEffect(PotionEffectType.GLOWING, 100, 0, true, false, true)));
         player.getWorld().spawnParticle(Particle.ENCHANT,
