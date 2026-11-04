@@ -134,3 +134,18 @@ community:
   # Phase 6 社群治理「接线但不启用」：七角色能力判定与双批审批已接线，
   # 开关默认关闭；打开后 governance 服务才会写 rpg_community_approvals 或变更角色。
   governance-enabled: false
+
+support-credit:
+  enabled: false
+  audience: ""
+  # key-id: Base64 of an Ed25519 X.509 SubjectPublicKeyInfo public key.
+  trusted-keys: {}
+  maximum-per-order: 0
+  player-weekly-limit: 0
+  global-weekly-limit: 0
+  maximum-receipt-lifetime-seconds: 3600
+  allowed-clock-skew-seconds: 30
+  # Only aura-prismatic, trail-wings and trail-comet are reviewed targets.
+  # Values are positive integer support-credit units, chosen explicitly by operators.
+  # No price or real-money exchange rate is supplied by this repository.
+  cosmetic-prices: {}

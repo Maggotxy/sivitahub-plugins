@@ -213,7 +213,8 @@ public final class RpgCorePlugin extends JavaPlugin {
                     new JdbcProgressionAnomalyService(database.dataSource(), databaseExecutor);
             // Phase 5 support_credit 独立账本（C-012 物理隔离）。
             JdbcSupportCreditService supportCredit =
-                    new JdbcSupportCreditService(database.dataSource(), databaseExecutor);
+                    new JdbcSupportCreditService(database.dataSource(), databaseExecutor,
+                            cn.originalrpg.core.persistence.SupportCreditPolicy.from(getConfig()), mechanisms);
             JdbcEquipmentOperationService equipmentOperations = new JdbcEquipmentOperationService(
                     database.dataSource(), databaseExecutor, startingBalance);
             JdbcEquipmentLedgerAuditService equipmentLedger = new JdbcEquipmentLedgerAuditService(

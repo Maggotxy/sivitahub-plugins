@@ -12,6 +12,7 @@ public record RewardClaimResult(Status status, CommerceStatus account, Optional<
         SUCCESS,
         ALREADY_CLAIMED,
         NOT_ELIGIBLE,
+        LEGACY_DISABLED,
         INVALID
     }
 }

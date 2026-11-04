@@ -88,6 +88,11 @@ public final class SchemaManifest {
             "rpg_season_merit_wallets",
             "rpg_support_credit_accounts",
             "rpg_support_credit_ledger",
+            "rpg_support_payment_orders",
+            "rpg_support_credit_limits",
+            "rpg_support_cosmetic_purchases",
+            "rpg_support_cosmetic_entitlements",
+            "rpg_earned_membership_grants",
             "rpg_market_buy_orders",
             "rpg_community_approvals",
             "rpg_session_leases",
@@ -153,6 +158,10 @@ public final class SchemaManifest {
         keys.put("rpg_community_members", List.of(List.of("player_uuid")));
         keys.put("rpg_community_contributions", List.of(List.of("idempotency_key")));
         keys.put("rpg_support_credit_ledger", List.of(List.of("idempotency_key")));
+        keys.put("rpg_support_payment_orders", List.of(List.of("ledger_key")));
+        keys.put("rpg_support_cosmetic_purchases", List.of(List.of("ledger_key")));
+        keys.put("rpg_support_cosmetic_entitlements", List.of(List.of("purchase_id")));
+        keys.put("rpg_earned_membership_grants", List.of(List.of("purchase_id"), List.of("debit_reference")));
         return Map.copyOf(keys);
     }
 
@@ -172,7 +181,7 @@ public final class SchemaManifest {
         indexes.put("rpg_daily_item_rewards", List.of(List.of("reward_date", "reward_id")));
         indexes.put("rpg_daily_item_reward_receipts", List.of(List.of("player_uuid", "created_at")));
         indexes.put("rpg_commission_claims", List.of(List.of("player_uuid", "evidence_date", "state")));
-        indexes.put("rpg_payment_ledger", List.of(List.of("created_at")));
+        indexes.put("rpg_payment_ledger", List.of(List.of("created_at"), List.of("player_uuid", "created_at", "id")));
         indexes.put("rpg_commerce_purchases", List.of(List.of("player_uuid", "product_id", "period_key")));
         indexes.put("rpg_credit_ledger", List.of(List.of("created_at")));
         indexes.put("rpg_skill_book_uses", List.of(List.of("player_uuid", "limit_group")));
@@ -216,6 +225,8 @@ public final class SchemaManifest {
         // 迁移前必须登记，否则 H2 → PostgreSQL 会静默搬进一个丢掉热路径索引的库。
         indexes.put("rpg_session_leases", List.of(List.of("lease_expires_at")));
         indexes.put("rpg_outbox", List.of(List.of("processed_at", "created_at")));
+        indexes.put("rpg_support_payment_orders", List.of(List.of("player_uuid", "accepted_at")));
+        indexes.put("rpg_earned_membership_grants", List.of(List.of("player_uuid", "member_until")));
         return Map.copyOf(indexes);
     }
 }

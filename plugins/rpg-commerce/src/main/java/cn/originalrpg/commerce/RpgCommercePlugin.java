@@ -2,15 +2,14 @@ package cn.originalrpg.commerce;
 
 import cn.originalrpg.api.event.AuthenticatedPlayerReadyEvent;
 import cn.originalrpg.api.event.AuthenticatedPlayerRevokedEvent;
-import cn.originalrpg.api.model.CommerceResult;
 import cn.originalrpg.api.model.CommercePurchaseResult;
 import cn.originalrpg.api.model.CommerceStatus;
 import cn.originalrpg.api.model.CreditResult;
-import cn.originalrpg.api.model.RewardClaimResult;
 import cn.originalrpg.api.model.SupplyPurchaseResult;
 import cn.originalrpg.api.service.CommerceService;
 import cn.originalrpg.api.service.EconomyService;
 import cn.originalrpg.api.service.MessageService;
+import cn.originalrpg.api.service.SupportCreditService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -20,6 +19,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
@@ -61,7 +61,8 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
     private NamespacedKey owner;
     private NamespacedKey source;
     private List<Product> productCatalog = List.of();
-    private List<Reward> rewardCatalog = List.of();
+    private SupportStoreCommand supportStore;
+    private boolean legacyAuditInFlight;
     private List<SupplyProduct> supplyCatalog = List.of();
     /** Exact connection handles prevent an old callback from unlocking a new login. */
     private final Map<UUID, PlayerSession> authenticatedPlayers = new ConcurrentHashMap<>();
@@ -70,20 +71,12 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        int configVersion = getConfig().getInt("config-version", 0);
-        if (configVersion < 2) {
-            getConfig().set("rewards.first-support.amount", 1);
-            getConfig().set("rewards.veteran-support.amount", 2);
-            getConfig().set("config-version", 2);
-        }
         getConfig().options().copyDefaults(true);
         saveConfig();
         productCatalog = loadProducts();
-        rewardCatalog = loadRewards();
         supplyCatalog = loadSupplyProducts();
-        getLogger().info("Loaded " + productCatalog.size() + " Starlight products, "
-                + rewardCatalog.size() + " cumulative rewards, and " + supplyCatalog.size()
-                + " vanilla supplies from code-reviewed catalogs; unknown or unsafe entries fail closed.");
+        getLogger().info("Loaded " + productCatalog.size() + " Starlight products and " + supplyCatalog.size()
+                + " vanilla supplies; historical paid-reward configuration is ignored.");
         commerce = Objects.requireNonNull(getServer().getServicesManager().load(CommerceService.class), "CommerceService");
         economy = Objects.requireNonNull(getServer().getServicesManager().load(EconomyService.class), "EconomyService");
         messages = Objects.requireNonNull(getServer().getServicesManager().load(MessageService.class), "MessageService");
@@ -92,6 +85,11 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
         source = new NamespacedKey(this, "source");
         command("store").setExecutor(this);
         command("rpgcommerce").setExecutor(this);
+        supportStore = new SupportStoreCommand(this, Objects.requireNonNull(
+                getServer().getServicesManager().load(SupportCreditService.class), "SupportCreditService"), messages);
+        command("support").setExecutor(supportStore);
+        command("support").setTabCompleter(supportStore);
+        getServer().getPluginManager().registerEvents(supportStore, this);
         getServer().getPluginManager().registerEvents(this, this);
     }
 
@@ -99,6 +97,8 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
     public void onDisable() {
         authenticatedPlayers.clear();
         purchaseInFlight.clear();
+        if (supportStore != null) supportStore.close();
+        legacyAuditInFlight = false;
     }
 
     @EventHandler
@@ -150,7 +150,8 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
                 return true;
             }
             if (args.length == 1 && args[0].equalsIgnoreCase("claim")) {
-                claimRewards(player);
+                player.sendMessage(messages.text(player, "support.legacy-disabled"));
+                supportStore.show(player);
                 return true;
             }
             if (args.length == 1 && args[0].equalsIgnoreCase("supplies")) {
@@ -167,6 +168,9 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
             }
             return false;
         }
+        if (args.length > 0 && args[0].equalsIgnoreCase("support-receipt")) return supportStore.importReceipt(sender, args);
+        if (args.length > 0 && args[0].equalsIgnoreCase("support-payments")) return supportStore.controlPayments(sender, args);
+        if (args.length > 0 && args[0].equalsIgnoreCase("legacy-payments")) return showLegacyPayments(sender, args);
         if (args.length > 0 && (args[0].equalsIgnoreCase("starlight") || args[0].equalsIgnoreCase("points"))) {
             return adjustCredits(sender, args);
         }
@@ -189,12 +193,16 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
             openStore(player);
             return;
         }
+        if (action.equals("support")) {
+            player.closeInventory();
+            supportStore.show(player);
+            return;
+        }
         if (event.getClick() != ClickType.SHIFT_LEFT) {
             player.sendActionBar(Component.text(messages.text(player, "commerce.confirm-required"), NamedTextColor.YELLOW));
             return;
         }
-        if (action.equals("claim")) claimRewards(player);
-        else if (action.startsWith("buy:")) buy(player, action.substring("buy:".length()));
+        if (action.startsWith("buy:")) buy(player, action.substring("buy:".length()));
         else if (action.startsWith("supply:")) buySupply(player, action.substring("supply:".length()));
     }
 
@@ -230,20 +238,8 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
                         lore),
                         owned ? null : "buy:" + product.id());
             }
-            int[] rewardSlots = {29, 31, 33};
-            List<Reward> rewards = rewards();
-            for (int index = 0; index < Math.min(rewards.size(), rewardSlots.length); index++) {
-                Reward reward = rewards.get(index);
-                boolean claimed = status.claimedRewards().contains(reward.id());
-                boolean ready = !claimed && status.lifetimePaid().compareTo(reward.required()) >= 0;
-                String state = messages.text(player, claimed ? "commerce.state-claimed"
-                        : ready ? "commerce.state-ready" : "commerce.state-locked");
-                menu.set(rewardSlots[index], display(reward.material(), rewardName(player, reward.id(), reward.name()),
-                        List.of(messages.text(player, "commerce.menu-reward-state", Map.of(
-                                "state", state, "required", reward.required().toPlainString())))), null);
-            }
-            menu.set(49, display(Material.CHEST, messages.text(player, "commerce.menu-claim"),
-                    List.of(messages.text(player, "commerce.menu-claim-lore"))), "claim");
+            menu.set(49, display(Material.AMETHYST_SHARD, messages.text(player, "support.menu-title"),
+                    List.of(messages.text(player, "support.scope"))), "support");
             menu.set(47, display(Material.BARREL, messages.text(player, "commerce.menu-supplies"),
                     List.of(messages.text(player, "commerce.menu-supplies-lore"))), "supplies");
             player.openInventory(menu.getInventory());
@@ -364,52 +360,42 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
         return true;
     }
 
-    private boolean recordPayment(CommandSender sender, String[] args) {
-        if (args.length < 4 || args.length > 5 || !args[0].equalsIgnoreCase("payment")) {
-            return false;
+    /** Bounded read-only audit, with no name lookup or account creation. */
+    private boolean showLegacyPayments(CommandSender sender, String[] args) {
+        if (!(sender instanceof ConsoleCommandSender) || !sender.hasPermission("rpg.commerce.legacy.audit")) {
+            sender.sendMessage(messages.text(sender, "support.audit-console-only")); return true;
         }
-        if (!sender.hasPermission("rpg.commerce.payment")) {
-            sender.sendMessage(Component.text(messages.text(sender, "commerce.operation-no-permission"), NamedTextColor.RED));
-            return true;
-        }
-        OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
-        BigDecimal amount;
-        int membershipDays = 0;
+        if (args.length < 2 || args.length > 3) return false;
+        UUID playerId; int limit;
         try {
-            amount = new BigDecimal(args[2]);
-            if (args.length == 5) {
-                membershipDays = Integer.parseInt(args[4]);
-            }
-        } catch (NumberFormatException exception) {
-            sender.sendMessage(Component.text(messages.text(sender, "commerce.payment-number-error"), NamedTextColor.RED));
-            return true;
+            playerId = UUID.fromString(args[1]);
+            if (!playerId.toString().equalsIgnoreCase(args[1])) throw new IllegalArgumentException("Noncanonical UUID");
+            limit = args.length == 3 ? Integer.parseInt(args[2]) : 10;
+            if (limit < 1 || limit > 50) throw new IllegalArgumentException("Invalid audit limit");
+        } catch (IllegalArgumentException error) {
+            sender.sendMessage(messages.text(sender, "support.audit-invalid")); return true;
         }
-        String reference = args[3];
-        getLogger().warning("AUDIT_PENDING actor=" + sender.getName() + " action=payment target="
-                + target.getUniqueId() + " amount=" + amount + " reference=" + reference + " membershipDays=" + membershipDays);
-        commerce.recordPayment(target.getUniqueId(), amount, reference, membershipDays, sender.getName())
-                .whenComplete((result, error) -> sync(() -> {
-                    if (error != null) {
-                        getLogger().severe("Payment ledger failed for reference=" + reference + ": " + error.getMessage());
-                        sender.sendMessage(Component.text(messages.text(sender, "commerce.payment-failed"), NamedTextColor.RED));
-                        return;
-                    }
-                    if (result.status() == CommerceResult.Status.SUCCESS) {
-                        getLogger().warning("AUDIT_COMMITTED actor=" + sender.getName() + " action=payment target="
-                                + target.getUniqueId() + " amount=" + amount + " reference=" + reference);
-                        sender.sendMessage(Component.text(messages.text(sender, "commerce.payment-success", Map.of(
-                                "amount", result.account().lifetimePaid().toPlainString())), NamedTextColor.GREEN));
-                    } else if (result.status() == CommerceResult.Status.DUPLICATE) {
-                        sender.sendMessage(Component.text(messages.text(sender, "commerce.payment-duplicate"), NamedTextColor.YELLOW));
-                    } else if (result.status() == CommerceResult.Status.MEMBERSHIP_LIMIT_REACHED) {
-                        sender.sendMessage(Component.text(messages.text(sender, "commerce.membership-limit-reached"), NamedTextColor.RED));
-                    } else if (result.status() == CommerceResult.Status.LIFETIME_LIMIT_REACHED) {
-                        sender.sendMessage(Component.text(messages.text(sender,
-                                "commerce.payment-lifetime-limit"), NamedTextColor.RED));
-                    } else {
-                        sender.sendMessage(Component.text(messages.text(sender, "commerce.payment-invalid"), NamedTextColor.RED));
-                    }
-                }));
+        if (legacyAuditInFlight) { sender.sendMessage(messages.text(sender, "support.pending")); return true; }
+        legacyAuditInFlight = true;
+        try {
+            commerce.legacyPayments(playerId, limit).whenComplete((history, error) -> sync(() -> {
+                legacyAuditInFlight = false;
+                if (error != null) { sender.sendMessage(messages.text(sender, "support.audit-error")); return; }
+                sender.sendMessage(messages.text(sender, "support.audit-heading", Map.of("player", playerId, "count", history.size())));
+                for (var row : history) sender.sendMessage(messages.text(sender, "support.audit-row", Map.of(
+                        "id", row.id(), "at", row.createdAt(), "amount", row.amount().toPlainString(),
+                        "days", row.membershipDays(), "reference", row.externalReference(), "operator", row.operator())));
+            }));
+        } catch (RuntimeException error) {
+            legacyAuditInFlight = false; sender.sendMessage(messages.text(sender, "support.audit-error"));
+        }
+        return true;
+    }
+
+    /** Historical payment commands cannot mutate any live gameplay account. */
+    private boolean recordPayment(CommandSender sender, String[] args) {
+        if (args.length == 0 || !args[0].equalsIgnoreCase("payment")) return false;
+        sender.sendMessage(Component.text(messages.text(sender, "support.legacy-disabled"), NamedTextColor.YELLOW));
         return true;
     }
 
@@ -421,7 +407,7 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
                 return;
             }
             player.sendMessage(Component.text(messages.text(player, "commerce.store-title"), NamedTextColor.GOLD));
-            player.sendMessage(Component.text(messages.text(player, "commerce.lifetime-support", Map.of(
+            player.sendMessage(Component.text(messages.text(player, "support.legacy-audit", Map.of(
                     "amount", status.lifetimePaid().toPlainString())), NamedTextColor.YELLOW));
             player.sendMessage(Component.text(messages.text(player, "commerce.starlight-balance", Map.of(
                     "amount", status.credits())), NamedTextColor.AQUA));
@@ -432,77 +418,7 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
                         "id", product.id(), "name", productName(player, product.id(), product.name()),
                         "cost", product.points(), "limit", product.weeklyLimit())), NamedTextColor.LIGHT_PURPLE));
             }
-            for (Reward reward : rewards()) {
-                boolean ready = !status.claimedRewards().contains(reward.id())
-                        && status.lifetimePaid().compareTo(reward.required()) >= 0;
-                String stateKey = status.claimedRewards().contains(reward.id()) ? "commerce.state-claimed"
-                        : ready ? "commerce.state-ready" : "commerce.state-locked";
-                player.sendMessage(Component.text(messages.text(player, "commerce.reward", Map.of(
-                        "state", messages.text(player, stateKey),
-                        "name", rewardName(player, reward.id(), reward.name()),
-                        "required", reward.required().toPlainString())),
-                        ready ? NamedTextColor.GREEN : NamedTextColor.GRAY));
-            }
-        }));
-    }
-
-    private void claimRewards(Player player) {
-        if (!acquire(player)) {
-            player.sendMessage(Component.text(messages.text(player, "commerce.purchase-pending"), NamedTextColor.YELLOW));
-            return;
-        }
-        List<Reward> rewards = rewards();
-        commerce.status(player.getUniqueId()).whenComplete((status, error) -> sync(() -> {
-            if (!currentSession(player)) {
-                release(player);
-                return;
-            }
-            if (error != null) {
-                release(player);
-                player.sendMessage(Component.text(messages.text(player, "commerce.store-load-error"), NamedTextColor.RED));
-                return;
-            }
-            List<Reward> eligible = rewards.stream()
-                    .filter(reward -> status.lifetimePaid().compareTo(reward.required()) >= 0)
-                    .filter(reward -> !status.claimedRewards().contains(reward.id()))
-                    .toList();
-            if (eligible.isEmpty()) {
-                release(player);
-                player.sendMessage(Component.text(messages.text(player, "commerce.no-rewards"), NamedTextColor.YELLOW));
-                return;
-            }
-            claimNext(player, eligible, 0);
-        }));
-    }
-
-    private void claimNext(Player player, List<Reward> rewards, int index) {
-        if (!currentSession(player)) {
-            release(player);
-            return;
-        }
-        if (index >= rewards.size()) {
-            release(player);
-            player.sendMessage(Component.text(messages.text(player, "commerce.rewards-complete"), NamedTextColor.GREEN));
-            return;
-        }
-        Reward reward = rewards.get(index);
-        String payload = Base64.getEncoder().encodeToString(
-                rewardItem(player, reward.material(), reward.amount(), rewardName(player, reward.id(), reward.name()),
-                        reward.marker(), player.getUniqueId(), "CUMULATIVE")
-                        .serializeAsBytes());
-        commerce.claimReward(player.getUniqueId(), reward.id(), reward.required(), payload).whenComplete((result, error) -> sync(() -> {
-            if (!currentSession(player)) {
-                release(player);
-                return;
-            }
-            if (error != null || result.status() != RewardClaimResult.Status.SUCCESS) {
-                player.sendMessage(Component.text(messages.text(player, "commerce.reward-failed", Map.of(
-                        "name", rewardName(player, reward.id(), reward.name()))), NamedTextColor.RED));
-            } else {
-                player.sendMessage(Component.text(messages.text(player, "commerce.reward-delivered", Map.of(
-                        "name", rewardName(player, reward.id(), reward.name()))), NamedTextColor.GREEN));
-            }
-            claimNext(player, rewards, index + 1);
+            player.sendMessage(Component.text(messages.text(player, "support.legacy-disabled"), NamedTextColor.GRAY));
         }));
     }
 
@@ -686,45 +602,6 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
         return List.copyOf(products);
     }
 
-    private List<Reward> rewards() {
-        return rewardCatalog;
-    }
-
-    private List<Reward> loadRewards() {
-        ConfigurationSection section = getConfig().getConfigurationSection("rewards");
-        if (section == null) {
-            return List.of();
-        }
-        List<Reward> rewards = new ArrayList<>();
-        for (String id : section.getKeys(false)) {
-            ConfigurationSection reward = section.getConfigurationSection(id);
-            if (reward == null) continue;
-            Material material = Material.matchMaterial(reward.getString("material", "PAPER"));
-            if (material == null) {
-                getLogger().warning("Ignoring reward " + id + ": invalid material");
-                continue;
-            }
-            try {
-                String normalizedId = id.toLowerCase(Locale.ROOT);
-                BigDecimal required = new BigDecimal(reward.getString("required-lifetime", "0.00"));
-                int amount = reward.getInt("amount", 1);
-                String marker = reward.getString("marker", id);
-                CommerceCatalogPolicy.Verdict verdict = CommerceCatalogPolicy.validateReward(
-                        normalizedId, material.name(), amount, marker, required);
-                if (!verdict.accepted()) {
-                    getLogger().severe("Disabling cumulative reward " + id + ": " + verdict.reason());
-                    continue;
-                }
-                rewards.add(new Reward(normalizedId, required, material, amount,
-                        reward.getString("name", id), marker));
-            } catch (NumberFormatException exception) {
-                getLogger().warning("Ignoring reward " + id + ": invalid required-lifetime");
-            }
-        }
-        rewards.sort(Comparator.comparing(Reward::required));
-        return List.copyOf(rewards);
-    }
-
     private List<SupplyProduct> supplyProducts() {
         return supplyCatalog;
     }
@@ -778,12 +655,6 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
         return translated.equals(key) ? fallback : translated;
     }
 
-    private String rewardName(Player player, String id, String fallback) {
-        String key = "commerce.rewards." + id;
-        String translated = messages.text(player, key);
-        return translated.equals(key) ? fallback : translated;
-    }
-
     private String supplyName(Player player, String id, String fallback) {
         String key = "commerce.supplies." + id;
         String translated = messages.text(player, key);
@@ -826,16 +697,6 @@ public final class RpgCommercePlugin extends JavaPlugin implements CommandExecut
         } catch (IllegalStateException ignored) {
             // Database operations remain authoritative when this plugin is stopping.
         }
-    }
-
-    private record Reward(
-            String id,
-            BigDecimal required,
-            Material material,
-            int amount,
-            String name,
-            String marker
-    ) {
     }
 
     private record Product(

@@ -1,234 +1,306 @@
 package cn.originalrpg.core.persistence;
 
+import cn.originalrpg.api.model.SignedSupportReceipt;
+import cn.originalrpg.api.model.SupportCosmetic;
 import cn.originalrpg.api.model.SupportCreditResult;
+import cn.originalrpg.api.model.SupportPaymentResult;
+import cn.originalrpg.api.model.SupportPurchaseResult;
+import cn.originalrpg.api.model.SupportReceipt;
 import cn.originalrpg.api.service.SupportCreditService;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
+import cn.originalrpg.api.support.SupportReceiptCodec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
+import java.security.KeyPairGenerator;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.CompletionStage;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * C-012 独立 support_credit 账本的行为级测试。
- *
- * <p>每个用例都真的建表、真的走 JDBC 事务、真的读回余额；判据是「行为」而不是源码字符串。
- * 关键负向路径：同一幂等键重复入账只生效一次、禁止清单目标被拦下且账本零变动、
- * 事务失败后余额与流水一起回滚。</p>
- */
+/** Real transactions, production DDL, cryptographic authorization, contention and commit-response failures. */
 final class JdbcSupportCreditServiceTest {
-    private HikariDataSource dataSource;
-    private ExecutorService executor;
+    private SupportCreditFixture fixture;
     private JdbcSupportCreditService service;
+    @BeforeEach void setUp() throws Exception { fixture = new SupportCreditFixture(); service = fixture.service; }
+    @AfterEach void tearDown() throws Exception { fixture.close(); }
 
-    @BeforeEach
-    void setUp() throws Exception {
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:h2:mem:support_credit_" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");
-        config.setAutoCommit(false);
-        config.setMaximumPoolSize(8);
-        dataSource = new HikariDataSource(config);
-        executor = Executors.newVirtualThreadPerTaskExecutor();
-        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
-            statement.execute("""
-                    CREATE TABLE rpg_support_credit_accounts (
-                        player_uuid VARCHAR(36) PRIMARY KEY, balance BIGINT NOT NULL DEFAULT 0,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_support_credit_ledger (
-                        id VARCHAR(36) PRIMARY KEY, idempotency_key VARCHAR(96) UNIQUE NOT NULL,
-                        player_uuid VARCHAR(36) NOT NULL, amount BIGINT NOT NULL,
-                        direction VARCHAR(8) NOT NULL, reason VARCHAR(128) NOT NULL,
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)
-                    """);
-            connection.commit();
-        }
-        service = new JdbcSupportCreditService(dataSource, executor);
-    }
-
-    @AfterEach
-    void tearDown() {
-        executor.close();
-        dataSource.close();
-    }
-
-    @Test
-    void grantThenSpendMovesBalanceAndWritesOneAuditRowPerMovement() throws Exception {
+    @Test void grantThenSpendMovesBalanceAndWritesOneAuditRowPerMovement() throws Exception {
         UUID player = UUID.randomUUID();
-
-        SupportCreditResult granted = await(service.grant(player, 500, "topup-1", "verification-order"));
-        assertEquals(SupportCreditResult.Status.SUCCESS, granted.status());
-        assertEquals(500, granted.balance());
-        assertEquals(500, await(service.balance(player)));
-
-        SupportCreditResult spent = await(service.spend(
-                player, 120, SupportCreditService.SupportCreditTarget.COSMETIC, "spend-1", "aura-purchase"));
-        assertEquals(SupportCreditResult.Status.SUCCESS, spent.status());
-        assertEquals(380, spent.balance());
+        assertEquals(SupportPaymentResult.Status.SUCCESS, await(service.acceptReceipt(fixture.signed(player, 500, "order-1"))).status());
+        UUID operation = UUID.randomUUID();
+        var bought = await(service.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, operation));
+        assertEquals(SupportPurchaseResult.Status.SUCCESS, bought.status());
+        assertEquals(120, bought.charged());
         assertEquals(380, await(service.balance(player)));
-
-        // 每一次余额变动恰好一行审计流水：2 次动作 2 行，没有「有余额没流水」。
-        assertEquals(2, countLedger(player));
-        assertEquals(1, countLedger(player, "GRANT"));
-        assertEquals(1, countLedger(player, "SPEND"));
-    }
-
-    @Test
-    void replayingTheSameIdempotencyKeyNeverCreditsTwice() throws Exception {
-        UUID player = UUID.randomUUID();
-        await(service.grant(player, 300, "topup-replay", "verification-order"));
-
-        SupportCreditResult replayed = await(service.grant(player, 300, "topup-replay", "verification-order"));
-
-        assertEquals(SupportCreditResult.Status.DUPLICATE, replayed.status());
-        assertEquals(300, await(service.balance(player)), "重放不得二次入账");
-        assertEquals(1, countLedger(player), "重放不得写第二行流水");
-    }
-
-    @Test
-    void forbiddenTargetIsRejectedBeforeAnyLedgerWrite() throws Exception {
-        UUID player = UUID.randomUUID();
-        await(service.grant(player, 400, "topup-2", "verification-order"));
-
-        // C-012 禁止清单：support_credit 不得买到战力相关目标。
-        for (SupportCreditService.SupportCreditTarget forbidden : new SupportCreditService.SupportCreditTarget[]{
-                SupportCreditService.SupportCreditTarget.EQUIPMENT,
-                SupportCreditService.SupportCreditTarget.MATERIAL,
-                SupportCreditService.SupportCreditTarget.FORGE_CONSUMABLE,
-                SupportCreditService.SupportCreditTarget.EXPERIENCE,
-                SupportCreditService.SupportCreditTarget.ENERGY,
-                SupportCreditService.SupportCreditTarget.DROP_RATE,
-                SupportCreditService.SupportCreditTarget.SEASON_TUNING,
-                SupportCreditService.SupportCreditTarget.COMBAT_POWER}) {
-            SupportCreditResult result = await(service.spend(
-                    player, 10, forbidden, "spend-" + forbidden, "forbidden-attempt"));
-            assertEquals(SupportCreditResult.Status.CROSS_CURRENCY_FORBIDDEN, result.status(),
-                    "禁止清单目标必须被拦下: " + forbidden);
+        assertEquals(Set.of(SupportCosmetic.PRISMATIC_AURA), await(service.entitlements(player)));
+        assertEquals(1, fixture.count("rpg_support_payment_orders"));
+        assertEquals(1, fixture.count("rpg_support_cosmetic_purchases"));
+        assertEquals(1, fixture.count("rpg_support_cosmetic_entitlements"));
+        assertEquals(2, fixture.count("rpg_support_credit_ledger"));
+        for (String table : new String[]{"rpg_accounts", "rpg_ledger", "rpg_merit_ledger", "rpg_credit_ledger",
+                "rpg_commerce_accounts", "rpg_payment_ledger", "rpg_earned_membership_grants", "rpg_profiles", "rpg_market_deliveries"}) {
+            assertEquals(0, fixture.count(table), "Support flow must not write " + table);
         }
-        assertEquals(400, await(service.balance(player)), "被拒请求不得改动余额");
-        assertEquals(1, countLedger(player), "被拒请求不得留下流水（除充值那一行）");
     }
 
-    @Test
-    void insufficientFundsLeavesBalanceUntouched() throws Exception {
+    @Test void replayingTheSameIdempotencyKeyNeverCreditsTwice() throws Exception {
         UUID player = UUID.randomUUID();
-        await(service.grant(player, 50, "topup-3", "verification-order"));
-
-        SupportCreditResult result = await(service.spend(
-                player, 51, SupportCreditService.SupportCreditTarget.CONVENIENCE, "spend-too-much", "backpack"));
-
-        assertEquals(SupportCreditResult.Status.INSUFFICIENT_FUNDS, result.status());
-        assertEquals(50, await(service.balance(player)));
-        assertEquals(1, countLedger(player));
+        SignedSupportReceipt signed = fixture.signed(player, 300, "replay-order");
+        assertEquals(SupportPaymentResult.Status.SUCCESS, await(service.acceptReceipt(signed)).status());
+        fixture.clock.set(fixture.clock.instant().plus(Duration.ofDays(10)));
+        var result = await(fixture.service(fixture.dataSource).acceptReceipt(signed));
+        assertEquals(SupportPaymentResult.Status.DUPLICATE, result.status(), "Accepted orders remain replayable after receipt expiry");
+        assertEquals(0, result.credited());
+        assertEquals(0, result.playerWeekIssued(), "Replay cannot consume the new UTC week's quota");
+        assertEquals(300, await(service.balance(player)));
+        assertEquals(1, fixture.count("rpg_support_credit_ledger"));
     }
 
-    @Test
-    void failedTransactionRollsBackBothBalanceAndLedger() throws Exception {
+    @Test void forbiddenTargetIsRejectedBeforeAnyLedgerWrite() throws Exception {
         UUID player = UUID.randomUUID();
-        await(service.grant(player, 200, "topup-4", "verification-order"));
-        assertEquals(1, countLedger(player));
-
-        // 负向对照：预置一条与本次请求相同幂等键的流水行，让「写流水」在事务内撞唯一约束。
-        // 事务必须整体回滚 —— 不能出现「扣了余额没有流水」，也不能多出一行流水。
-        try (Connection connection = dataSource.getConnection();
-             var insert = connection.prepareStatement("""
-                     INSERT INTO rpg_support_credit_ledger
-                     (id, idempotency_key, player_uuid, amount, direction, reason)
-                     VALUES (?, ?, ?, ?, ?, ?)
-                     """)) {
-            insert.setString(1, UUID.randomUUID().toString());
-            insert.setString(2, "topup-collision");
-            insert.setString(3, player.toString());
-            insert.setLong(4, 1);
-            insert.setString(5, "GRANT");
-            insert.setString(6, "injected");
-            insert.executeUpdate();
-            connection.commit();
+        for (var target : SupportCreditService.SupportCreditTarget.values()) {
+            var result = await(service.spend(player, 10, target, "arbitrary-target", "not-a-catalog-purchase"));
+            assertEquals(target.allowedByC012() ? SupportCreditResult.Status.LEGACY_DISABLED
+                    : SupportCreditResult.Status.CROSS_CURRENCY_FORBIDDEN, result.status());
         }
-        // 同键重放走的是「幂等命中 → DUPLICATE」分支，余额只加那 1 点（预置行）。
-        SupportCreditResult duplicate = await(service.grant(player, 900, "topup-collision", "verification-order"));
-        assertEquals(SupportCreditResult.Status.DUPLICATE, duplicate.status());
-        assertEquals(200, await(service.balance(player)), "重放不得改余额");
-        // 两行 GRANT：原本的充值 + 本次注入的碰撞行；重放没有产生第三行。
-        assertEquals(2, countLedger(player, "GRANT"));
-        assertEquals(2, countLedger(player));
+        assertEquals(SupportCreditResult.Status.LEGACY_DISABLED, await(service.grant(player, 900, "unsigned-grant", "ops")).status());
+        assertEquals(0, fixture.count("rpg_support_credit_accounts"));
+        assertEquals(0, fixture.count("rpg_support_credit_ledger"));
     }
 
-    @Test
-    void invalidRequestsNeverTouchTheLedger() throws Exception {
+    @Test void unsignedOrMisconfiguredConstructionCannotIssueCredit() throws Exception {
         UUID player = UUID.randomUUID();
-        await(service.grant(player, 200, "topup-5", "verification-order"));
+        var disabled = new JdbcSupportCreditService(fixture.dataSource, fixture.executor);
+        assertEquals(SupportPaymentResult.Status.DISABLED, await(disabled.acceptReceipt(fixture.signed(player, 100, "disabled"))).status());
+        assertTrue(disabled.catalog().isEmpty());
+        assertEquals(SupportPurchaseResult.Status.DISABLED,
+                await(disabled.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, UUID.randomUUID())).status());
+        assertEquals(0, fixture.count("rpg_support_payment_orders"));
+    }
 
-        assertEquals(SupportCreditResult.Status.INVALID,
-                await(service.grant(player, 0, "topup-zero", "verification-order")).status());
-        assertEquals(SupportCreditResult.Status.INVALID,
-                await(service.grant(player, 10, "bad key with spaces", "verification-order")).status());
-        // null 目标在 C-012 判定里就是「不是允许通道」，返回 CROSS_CURRENCY_FORBIDDEN。
-        assertEquals(SupportCreditResult.Status.CROSS_CURRENCY_FORBIDDEN,
-                await(service.spend(player, 10, null, "spend-null-target", "backpack")).status());
+    @Test void tamperingAnyBeneficiaryOrAmountDoesNotTouchTheLedger() throws Exception {
+        UUID player = UUID.randomUUID();
+        var signed = fixture.signed(player, 500, "signed-order");
+        SupportReceipt altered = fixture.receipt(UUID.randomUUID(), 900, "signed-order");
+        var tampered = new SignedSupportReceipt(SupportReceiptCodec.encode(altered), signed.signature());
+        assertEquals(SupportPaymentResult.Status.INVALID_SIGNATURE, await(service.acceptReceipt(tampered)).status());
+        byte[] signature = Base64.getUrlDecoder().decode(signed.signature()); signature[8] ^= 1;
+        assertEquals(SupportPaymentResult.Status.INVALID_SIGNATURE, await(service.acceptReceipt(new SignedSupportReceipt(
+                signed.payload(), Base64.getUrlEncoder().withoutPadding().encodeToString(signature)))).status());
+        assertEquals(0, fixture.count("rpg_support_credit_ledger"));
+        assertEquals(0, fixture.count("rpg_support_credit_limits"));
+    }
 
+    @Test void wrongAudienceAndUnknownKeyCannotBeImportedEvenWithAValidSignature() throws Exception {
+        var base = fixture.receipt(UUID.randomUUID(), 100, "bad-context");
+        assertEquals(SupportPaymentResult.Status.WRONG_AUDIENCE, await(service.acceptReceipt(fixture.sign(new SupportReceipt(
+                1, base.keyId(), "different-live-world", base.orderId(), base.playerId(), base.creditUnits(),
+                base.issuedAt(), base.expiresAt(), base.currency())))).status());
+        assertEquals(SupportPaymentResult.Status.UNKNOWN_KEY, await(service.acceptReceipt(fixture.sign(new SupportReceipt(
+                1, "removed-key", base.audience(), base.orderId(), base.playerId(), base.creditUnits(),
+                base.issuedAt(), base.expiresAt(), base.currency())))).status());
+        assertEquals(0, fixture.count("rpg_support_payment_orders"));
+    }
+
+    @Test void timeBoundsRejectExpiredFutureAndOverlongNewOrders() throws Exception {
+        UUID player = UUID.randomUUID(); Instant now = fixture.clock.instant();
+        assertEquals(SupportPaymentResult.Status.EXPIRED, await(service.acceptReceipt(fixture.sign(new SupportReceipt(
+                1, "test-key", SupportCreditFixture.AUDIENCE, "expired", player, 100, now.minusSeconds(60), now, SupportReceipt.CURRENCY)))).status());
+        assertEquals(SupportPaymentResult.Status.NOT_YET_VALID, await(service.acceptReceipt(fixture.sign(new SupportReceipt(
+                1, "test-key", SupportCreditFixture.AUDIENCE, "future", player, 100, now.plusSeconds(31), now.plusSeconds(300), SupportReceipt.CURRENCY)))).status());
+        assertEquals(SupportPaymentResult.Status.INVALID, await(service.acceptReceipt(fixture.sign(new SupportReceipt(
+                1, "test-key", SupportCreditFixture.AUDIENCE, "long", player, 100, now, now.plusSeconds(3601), SupportReceipt.CURRENCY)))).status());
+        assertEquals(0, fixture.count("rpg_support_credit_accounts"));
+    }
+
+    @Test void sameOrderWithDifferentSignedOwnerOrAmountIsAConflict() throws Exception {
+        UUID player = UUID.randomUUID();
+        await(service.acceptReceipt(fixture.signed(player, 200, "conflict-order")));
+        assertEquals(SupportPaymentResult.Status.CONFLICT, await(service.acceptReceipt(fixture.signed(player, 201, "conflict-order"))).status());
+        assertEquals(SupportPaymentResult.Status.CONFLICT, await(service.acceptReceipt(fixture.signed(UUID.randomUUID(), 200, "conflict-order"))).status());
         assertEquals(200, await(service.balance(player)));
-        assertEquals(1, countLedger(player));
+        assertEquals(1, fixture.count("rpg_support_payment_orders"));
     }
 
-    @Test
-    void concurrentSameKeyGrantsOnlyOneWins() throws Exception {
+    @Test void concurrentExactImportsProduceOneGrantAndDurableDuplicateResults() throws Exception {
+        UUID player = UUID.randomUUID(); var signed = fixture.signed(player, 500, "concurrent-order");
+        var futures = new ArrayList<CompletableFuture<SupportPaymentResult>>();
+        for (int i = 0; i < 12; i++) futures.add(service.acceptReceipt(signed).toCompletableFuture());
+        long successes = futures.stream().map(CompletableFuture::join).filter(result -> result.status() == SupportPaymentResult.Status.SUCCESS).count();
+        assertEquals(1, successes);
+        for (var future : futures) assertTrue(Set.of(SupportPaymentResult.Status.SUCCESS, SupportPaymentResult.Status.DUPLICATE).contains(future.join().status()));
+        assertEquals(500, await(service.balance(player)));
+        assertEquals(1, fixture.count("rpg_support_credit_ledger"));
+        assertEquals(500, fixture.scalar("SELECT issued_units FROM rpg_support_credit_limits WHERE scope_id='global'"));
+    }
+
+    @Test void perOrderAndPlayerUtcWeekCapsRejectWithoutMintingOrConsumingExtraQuota() throws Exception {
         UUID player = UUID.randomUUID();
-        ExecutorService callers = Executors.newFixedThreadPool(4);
-        try {
-            var futures = new java.util.ArrayList<java.util.concurrent.CompletableFuture<SupportCreditResult>>();
-            for (int i = 0; i < 4; i++) {
-                futures.add(java.util.concurrent.CompletableFuture.supplyAsync(() ->
-                        await(service.grant(player, 100, "topup-race", "verification-order")), callers));
-            }
-            int succeeded = 0;
-            for (var future : futures) {
-                try {
-                    if (future.join().status() == SupportCreditResult.Status.SUCCESS) succeeded++;
-                } catch (CompletionException ignored) {
-                    // 并发冲突整体回滚也是合法结果：关键是最终余额与流水只有一份。
-                }
-            }
-            assertTrue(succeeded <= 1, "同一幂等键只能有一次成功");
-            assertEquals(100, await(service.balance(player)));
-            assertEquals(1, countLedger(player));
-        } finally {
-            callers.shutdownNow();
-        }
+        assertEquals(SupportPaymentResult.Status.PER_ORDER_LIMIT, await(service.acceptReceipt(fixture.signed(player, 1001, "too-large"))).status());
+        await(service.acceptReceipt(fixture.signed(player, 1000, "week-a")));
+        await(service.acceptReceipt(fixture.signed(player, 1000, "week-b")));
+        assertEquals(SupportPaymentResult.Status.PLAYER_WEEK_LIMIT, await(service.acceptReceipt(fixture.signed(player, 1, "week-over"))).status());
+        assertEquals(2000, await(service.status(player)).weekIssued());
+        assertEquals(2, fixture.count("rpg_support_payment_orders"));
+        fixture.clock.set(Instant.parse("2026-11-09T00:00:00Z"));
+        assertEquals(SupportPaymentResult.Status.SUCCESS, await(service.acceptReceipt(fixture.signed(player, 1000, "next-monday"))).status());
+        assertEquals(1000, await(service.status(player)).weekIssued());
+        assertEquals(3000, await(service.balance(player)));
     }
 
-    private long countLedger(UUID player) throws Exception {
-        return countLedger(player, null);
+    @Test void globalQuotaSerializesDistinctBeneficiaries() throws Exception {
+        var futures = new ArrayList<CompletableFuture<SupportPaymentResult>>();
+        for (int i = 0; i < 6; i++) futures.add(service.acceptReceipt(fixture.signed(UUID.randomUUID(), 1000, "global-" + i)).toCompletableFuture());
+        assertEquals(4, futures.stream().map(CompletableFuture::join).filter(result -> result.status() == SupportPaymentResult.Status.SUCCESS).count());
+        assertEquals(2, futures.stream().map(CompletableFuture::join).filter(result -> result.status() == SupportPaymentResult.Status.GLOBAL_WEEK_LIMIT).count());
+        assertEquals(4000, fixture.scalar("SELECT SUM(balance) FROM rpg_support_credit_accounts"));
+        assertEquals(4000, fixture.scalar("SELECT issued_units FROM rpg_support_credit_limits WHERE scope_id='global'"));
+        assertEquals(4, fixture.count("rpg_support_payment_orders"));
     }
 
-    private long countLedger(UUID player, String direction) throws Exception {
-        try (Connection connection = dataSource.getConnection();
-             var query = connection.prepareStatement(direction == null
-                     ? "SELECT COUNT(*) FROM rpg_support_credit_ledger WHERE player_uuid = ?"
-                     : "SELECT COUNT(*) FROM rpg_support_credit_ledger WHERE player_uuid = ? AND direction = ?")) {
-            query.setString(1, player.toString());
-            if (direction != null) query.setString(2, direction);
-            try (ResultSet result = query.executeQuery()) {
-                result.next();
-                return result.getLong(1);
-            }
-        }
+    @Test void balanceLimitRejectsWithoutOverflowOrQuotaConsumption() throws Exception {
+        UUID player = UUID.randomUUID();
+        fixture.execute("INSERT INTO rpg_support_credit_accounts (player_uuid,balance) VALUES ('" + player + "'," + SupportCreditPolicy.MAX_BALANCE + ")");
+        assertEquals(SupportPaymentResult.Status.BALANCE_LIMIT, await(service.acceptReceipt(fixture.signed(player, 1, "full-account"))).status());
+        assertEquals(SupportCreditPolicy.MAX_BALANCE, await(service.balance(player)));
+        assertEquals(0, fixture.count("rpg_support_payment_orders"));
+        assertEquals(0, fixture.scalar("SELECT SUM(issued_units) FROM rpg_support_credit_limits"));
     }
 
-    private static <T> T await(java.util.concurrent.CompletionStage<T> stage) {
-        return stage.toCompletableFuture().join();
+    @Test void disablingWhileAnAcceptedRequestWaitsForExecutionPreventsIssuance() throws Exception {
+        var queue = new ArrayList<Runnable>();
+        var queued = new JdbcSupportCreditService(fixture.dataSource, queue::add, fixture.policy, fixture.enabled::get, fixture.clock);
+        var future = queued.acceptReceipt(fixture.signed(UUID.randomUUID(), 100, "queued"));
+        assertEquals(1, queue.size()); fixture.enabled.set(false); queue.removeFirst().run();
+        assertEquals(SupportPaymentResult.Status.DISABLED, await(future).status());
+        assertEquals(0, fixture.count("rpg_support_payment_orders"));
     }
+
+    @Test void expiryAfterTheFinalAccountLockCannotIssueAStaleReceipt() throws Exception {
+        var signed = fixture.signed(UUID.randomUUID(), 100, "wait-expired");
+        var blocked = fixture.service(SupportCreditFixture.fault(fixture.dataSource, "clock", () -> fixture.clock.set(fixture.clock.instant().plusSeconds(600))));
+        assertEquals(SupportPaymentResult.Status.EXPIRED, await(blocked.acceptReceipt(signed)).status());
+        assertEquals(0, fixture.count("rpg_support_credit_ledger"));
+    }
+
+    @Test void crossingUtcMondayDuringLockWaitRequiresNewAdmissionWithoutUsingOldQuota() throws Exception {
+        fixture.clock.set(Instant.parse("2026-11-08T23:59:59Z"));
+        var signed = fixture.signed(UUID.randomUUID(), 100, "week-boundary");
+        var blocked = fixture.service(SupportCreditFixture.fault(fixture.dataSource, "clock", () -> fixture.clock.set(fixture.clock.instant().plusSeconds(2))));
+        assertEquals(SupportPaymentResult.Status.RETRY_REQUIRED, await(blocked.acceptReceipt(signed)).status());
+        assertEquals(0, fixture.count("rpg_support_payment_orders"));
+        assertEquals(SupportPaymentResult.Status.SUCCESS, await(service.acceptReceipt(signed)).status());
+        assertEquals(100, fixture.scalar("SELECT issued_units FROM rpg_support_credit_limits WHERE scope_id='global' AND week_key='2026-11-09'"));
+        assertEquals(0, fixture.scalar("SELECT issued_units FROM rpg_support_credit_limits WHERE scope_id='global' AND week_key='2026-11-02'"));
+    }
+
+    @Test void paymentAuditFailureRollsBackOrderBalanceAndBothQuotas() throws Exception {
+        UUID player = UUID.randomUUID(); var signed = fixture.signed(player, 250, "ledger-fault");
+        var failing = fixture.service(SupportCreditFixture.fault(fixture.dataSource, "ledger", null));
+        assertThrows(CompletionException.class, () -> await(failing.acceptReceipt(signed)));
+        assertEquals(0, fixture.count("rpg_support_payment_orders"));
+        assertEquals(0, fixture.count("rpg_support_credit_limits"));
+        assertEquals(0, fixture.count("rpg_support_credit_accounts"));
+        assertEquals(SupportPaymentResult.Status.SUCCESS, await(service.acceptReceipt(signed)).status());
+    }
+
+    @Test void beforeCommitFailureRollsBackTheWholeGrant() throws Exception {
+        var signed = fixture.signed(UUID.randomUUID(), 200, "before-commit");
+        var failing = fixture.service(SupportCreditFixture.fault(fixture.dataSource, "before-commit", null));
+        assertThrows(CompletionException.class, () -> await(failing.acceptReceipt(signed)));
+        assertEquals(0, fixture.count("rpg_support_credit_ledger"));
+        assertEquals(0, fixture.count("rpg_support_payment_orders"));
+        assertEquals(0, fixture.count("rpg_support_credit_limits"));
+    }
+
+    @Test void lostGrantCommitResponseReplaysFromDurableOrderWithoutGrantingTwice() throws Exception {
+        UUID player = UUID.randomUUID(); var signed = fixture.signed(player, 200, "lost-response");
+        var failing = fixture.service(SupportCreditFixture.fault(fixture.dataSource, "after-commit", null));
+        assertThrows(CompletionException.class, () -> await(failing.acceptReceipt(signed)));
+        assertEquals(SupportPaymentResult.Status.DUPLICATE, await(fixture.service(fixture.dataSource).acceptReceipt(signed)).status());
+        assertEquals(200, await(service.balance(player)));
+        assertEquals(1, fixture.count("rpg_support_credit_ledger"));
+    }
+
+    @Test void priceChangesInsufficientFundsAndInvalidCosmeticsNeverCreateAnEntitlement() throws Exception {
+        UUID player = UUID.randomUUID(); await(service.acceptReceipt(fixture.signed(player, 50, "small")));
+        assertEquals(SupportPurchaseResult.Status.PRICE_CHANGED, await(service.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 1, UUID.randomUUID())).status());
+        assertEquals(SupportPurchaseResult.Status.INSUFFICIENT_FUNDS, await(service.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, UUID.randomUUID())).status());
+        assertEquals(SupportPurchaseResult.Status.INVALID, await(service.purchaseCosmetic(player, null, 120, UUID.randomUUID())).status());
+        assertEquals(50, await(service.balance(player)));
+        assertEquals(0, fixture.count("rpg_support_cosmetic_purchases"));
+        assertEquals(0, fixture.count("rpg_support_cosmetic_entitlements"));
+    }
+
+    @Test void replayAndConcurrentIndependentCheckoutsChargeForOwnershipOnlyOnce() throws Exception {
+        UUID player = UUID.randomUUID(); await(service.acceptReceipt(fixture.signed(player, 1000, "purchase-funds")));
+        UUID operation = UUID.randomUUID();
+        var futures = new ArrayList<CompletableFuture<SupportPurchaseResult>>();
+        futures.add(service.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, operation).toCompletableFuture());
+        futures.add(service.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, operation).toCompletableFuture());
+        for (int i = 0; i < 5; i++) futures.add(service.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, UUID.randomUUID()).toCompletableFuture());
+        assertEquals(1, futures.stream().map(CompletableFuture::join).filter(result -> result.status() == SupportPurchaseResult.Status.SUCCESS).count());
+        for (var future : futures) assertTrue(Set.of(SupportPurchaseResult.Status.SUCCESS, SupportPurchaseResult.Status.DUPLICATE,
+                SupportPurchaseResult.Status.ALREADY_OWNED).contains(future.join().status()));
+        assertEquals(880, await(service.balance(player)));
+        assertEquals(1, fixture.count("rpg_support_cosmetic_entitlements"));
+        assertEquals(2, fixture.count("rpg_support_credit_ledger"));
+    }
+
+    @Test void aPurchaseOperationCannotBeReboundToAnotherOwnerOrCosmetic() throws Exception {
+        UUID player = UUID.randomUUID(); await(service.acceptReceipt(fixture.signed(player, 500, "binding-funds")));
+        UUID operation = UUID.randomUUID(); await(service.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, operation));
+        assertEquals(SupportPurchaseResult.Status.CONFLICT, await(service.purchaseCosmetic(player, SupportCosmetic.ELYTRA_WINGS, 200, operation)).status());
+        assertEquals(SupportPurchaseResult.Status.CONFLICT, await(service.purchaseCosmetic(UUID.randomUUID(), SupportCosmetic.PRISMATIC_AURA, 120, operation)).status());
+        assertEquals(380, await(service.balance(player)));
+    }
+
+    @Test void failedEntitlementWriteRollsBackItsDebitAndPurchaseReceipt() throws Exception {
+        UUID player = UUID.randomUUID(); await(service.acceptReceipt(fixture.signed(player, 500, "entitlement-funds")));
+        UUID operation = UUID.randomUUID();
+        var failing = fixture.service(SupportCreditFixture.fault(fixture.dataSource, "entitlement", null));
+        assertThrows(CompletionException.class, () -> await(failing.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, operation)));
+        assertEquals(500, await(service.balance(player)));
+        assertEquals(0, fixture.count("rpg_support_cosmetic_purchases"));
+        assertEquals(0, fixture.count("rpg_support_cosmetic_entitlements"));
+        assertEquals(1, fixture.count("rpg_support_credit_ledger"));
+        assertEquals(SupportPurchaseResult.Status.SUCCESS, await(service.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, operation)).status());
+    }
+
+    @Test void lostPurchaseCommitResponseReplaysOneDebitAndOneEntitlement() throws Exception {
+        UUID player = UUID.randomUUID(); await(service.acceptReceipt(fixture.signed(player, 500, "lost-purchase-funds")));
+        UUID operation = UUID.randomUUID();
+        var failing = fixture.service(SupportCreditFixture.fault(fixture.dataSource, "after-commit", null));
+        assertThrows(CompletionException.class, () -> await(failing.purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, operation)));
+        assertEquals(SupportPurchaseResult.Status.DUPLICATE, await(fixture.service(fixture.dataSource)
+                .purchaseCosmetic(player, SupportCosmetic.PRISMATIC_AURA, 120, operation)).status());
+        assertEquals(380, await(service.balance(player)));
+        assertEquals(1, fixture.count("rpg_support_cosmetic_entitlements"));
+        assertEquals(2, fixture.count("rpg_support_credit_ledger"));
+    }
+
+    @Test void disablingOrRetiringAVerificationKeyDoesNotSilentlyAcceptAnOldOrder() throws Exception {
+        UUID player = UUID.randomUUID(); var signed = fixture.signed(player, 100, "retired");
+        await(service.acceptReceipt(signed)); fixture.enabled.set(false);
+        assertEquals(SupportPaymentResult.Status.DISABLED, await(service.acceptReceipt(signed)).status());
+        fixture.enabled.set(true);
+        var nextKey = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        var nextPolicy = new SupportCreditPolicy(true, SupportCreditFixture.AUDIENCE, Map.of("next-key", nextKey.getPublic()),
+                1000, 2000, 4000, Duration.ofHours(1), Duration.ofSeconds(30), fixture.policy.cosmeticPrices());
+        var rotated = new JdbcSupportCreditService(fixture.dataSource, fixture.executor, nextPolicy, fixture.enabled::get, fixture.clock);
+        assertEquals(SupportPaymentResult.Status.UNKNOWN_KEY, await(rotated.acceptReceipt(signed)).status());
+        assertEquals(SupportPaymentResult.Status.DUPLICATE, await(service.acceptReceipt(signed)).status());
+        assertEquals(100, await(service.balance(player)));
+    }
+
+    private static <T> T await(CompletionStage<T> stage) { return stage.toCompletableFuture().join(); }
 }

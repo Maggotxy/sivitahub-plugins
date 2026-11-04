@@ -1750,204 +1750,202 @@
     },
     {
       "id": "M-STORE-001",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "170",
-      "claim": "会员单次按 3-30 天延长",
+      "claim": "游戏内星辉商品 membership-3-days 默认单次提供 3 天会员",
       "carrier": {
         "kind": "config",
         "path": "plugins/rpg-commerce/src/main/resources/config.yml",
         "key": "products.membership-3-days.membership-days",
         "expect": 3
       },
-      "note": "单次天数在 config.yml 配置；上界的 30 由 M-STORE-002 承载。"
+      "note": "只核对游戏内商品的单次天数；30 天保有上界由 M-STORE-002 承载。现实付费不授予或延长会员。"
     },
     {
       "id": "M-STORE-002",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "170",
-      "claim": "任意时刻最多保有未来 30 天会员（越界整笔拒绝，不做部分流水）",
+      "claim": "星辉购买的游戏内会员最多保有未来 30 天，越界整笔拒绝",
       "carrier": {
         "kind": "behavior",
         "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java#membershipRemainingValidityNeverExceedsThirtyDaysUnderConcurrency",
-        "asserts": "并发 20 次购买 3 天会员，恰好 10 次成功、10 次 MEMBERSHIP_LIMIT_REACHED，到期时间 == now+30 天"
+        "asserts": "并发 20 次星辉购买 3 天会员，恰好 10 次成功、10 次 MEMBERSHIP_LIMIT_REACHED；2000 星辉剩 1100，到期时间 == now+30 天"
       },
-      "note": "30 天上界是编译期常量 MAX_MEMBERSHIP_DAYS（JdbcCommerceService），无 config 键；这里用行为测试锁住。"
+      "note": "测试把独立周限提高到 100 以隔离 30 天上界：20 次并发购买恰好 10 次成功；生产商品仍有 weekly-limit=1。旧付费到期时间不参与计算。"
     },
     {
       "id": "M-STORE-003",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
-      "doc_lines": "170",
-      "claim": "会员越界（单次或累计 >30 天）整笔拒绝且不留下部分流水",
+      "doc_lines": "176",
+      "claim": "旧 recordPayment 无论会员天数或订单重放均返回 LEGACY_DISABLED，不创建账户、会员授权或付款流水",
       "carrier": {
         "kind": "behavior",
-        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java#paymentMembershipRejectsSingleOrAccumulatedTimeBeyondThirtyDaysWithoutPartialLedger",
-        "asserts": "31 天 -> INVALID；30 天后追加 3 天 -> MEMBERSHIP_LIMIT_REACHED；重放同订单号 -> DUPLICATE；账本仍只有 1 行"
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java#disabledLegacyPaymentRejectsAllMembershipLengthsWithoutPartialLedger",
+        "asserts": "31 天、30 天、追加 3 天及同订单重放均为 LEGACY_DISABLED；commerce accounts、earned membership grants、payment ledger 均零行"
       },
-      "note": "事务性越界拒绝是行为，走行为级测试。"
+      "note": "关闭旧付款到会员的旁路；受信签名积分订单使用独立 SupportCreditService，不能借用 recordPayment。"
     },
     {
       "id": "M-STORE-004",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "170",
-      "claim": "玩家可用 90 星辉每周兑换一次 3 天会员（不是充值专属）",
+      "claim": "游戏内 3 天会员商品的默认星辉价格为 90",
       "carrier": {
         "kind": "config",
         "path": "plugins/rpg-commerce/src/main/resources/config.yml",
         "key": "products.membership-3-days.points",
         "expect": 90
       },
-      "note": "星辉价在 config.yml 配置；每周一次 = weekly-limit 1（同段）。"
+      "note": "本条锁定默认星辉价格；同商品 weekly-limit=1。并发周期额度与唯一 -90 星辉扣款另由 earnableStarlightMembershipIsAtomicAndPeriodLimited 行为测试覆盖。"
     },
     {
       "id": "M-STORE-005",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "168",
-      "claim": "商业商城只出售时装/外观/保护石/幸运符/便利权益，不直接出售等级或毕业装备",
+      "claim": "游戏内星辉商品目录拒绝未复核商品、降低价格、扩大周限及非法会员天数",
       "carrier": {
         "kind": "behavior",
         "test": "plugins/rpg-commerce/src/test/java/cn/originalrpg/commerce/CommerceCatalogPolicyTest.java#yamlCannotAddPowerOrLowerPriceAndThroughputGates",
-        "asserts": "未复核的商品 id（如 hidden-class）一律拒；价格/周限低于复核值也拒（加了 power 的 YAML 直接失败）"
+        "asserts": "hidden-class、保护石低于 60 星辉、幸运符周限高于 2、会员 31 天均拒绝"
       },
-      "note": "「不能卖力量」的防线是代码复核白名单，走行为级测试。"
+      "note": "这是游戏内星辉目录的防线；不能把目录中的保护石、幸运符或会员解释为现实付费商品。"
     },
     {
       "id": "M-STORE-006",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "168",
-      "claim": "保护石与幸运符同时保留副本/活动/金币获取路径，付费不是唯一来源",
+      "claim": "保护石的游戏内金币购买入口默认价格为 4500 金币",
       "carrier": {
         "kind": "config",
         "path": "plugins/rpg-economy/src/main/resources/config.yml",
         "key": "earned-shop.protection-stone.gold",
         "expect": "4500.00"
       },
-      "note": "同款保护石可用游戏金币购买（额度受 lifetime-limit/daily 约束），证明非付费专属。"
+      "note": "本条只核对 earned-shop 的金币价格，不证明其它掉落渠道；现实付费到保护石或幸运符的通道已关闭。"
     },
     {
       "id": "M-STORE-007",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "172",
-      "claim": "外部订单号在数据库中唯一，重复回调不会重复累计",
+      "claim": "同一规范签名 Support Credit 订单并发导入只入账一次，不重复消耗全服额度",
       "carrier": {
         "kind": "behavior",
-        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java#lifetimeSupportLimitHasAnAccurateRetryableResult",
-        "asserts": "同一 external_reference 重放给出可重试状态且不新增账本行；跨过 lifetime 上限前后行为一致"
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSupportCreditServiceTest.java#concurrentExactImportsProduceOneGrantAndDurableDuplicateResults",
+        "asserts": "同一签名订单并发 12 次仅 1 次 SUCCESS，其余 DUPLICATE；余额 500、积分流水 1 行、全服本周 issued_units=500"
       },
-      "note": "订单号唯一 + 重放不重复累计是行为，走行为级测试。"
+      "note": "对象是受信签名积分订单，不是旧 lifetime_paid 的累计付款；不同受益人或金额复用订单还由 sameOrderWithDifferentSignedOwnerOrAmountIsAConflict 覆盖。"
     },
     {
       "id": "M-STORE-008",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "172",
-      "claim": "当前只实现了受权限保护的审计入账命令，没有连接支付机构",
+      "claim": "签名积分新订单受单笔和个人 UTC 周额度约束，越界不发积分，周一零点按新周期计额",
       "carrier": {
         "kind": "behavior",
-        "test": "plugins/rpg-commerce/src/test/java/cn/originalrpg/commerce/SupplyCatalogPolicyTest.java#reviewedConvenienceSupplyIsAccepted",
-        "asserts": "供货商品必须在代码复核 allow-list 内（torches/TORCH/64/480/456/2）才会被接受"
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSupportCreditServiceTest.java#perOrderAndPlayerUtcWeekCapsRejectWithoutMintingOrConsumingExtraQuota",
+        "asserts": "夹具单笔上限 1000、个人周额 2000：1001 被拒，两笔 1000 后追加 1 被拒且只保存两张订单；下一 UTC 周可再接受 1000"
       },
-      "note": "「没有支付回调入口」不可机械核对（缺席断言）；登记可核对的一半：商品目录由源码白名单而非外部订单驱动。"
+      "note": "数值是故障/额度测试夹具，不是部署价格或默认收款额度。生产默认关闭且额度为零；全服并发额度另由 globalQuotaSerializesDistinctBeneficiaries 覆盖，真实支付桥仍需集成验收。"
     },
     {
       "id": "M-STORE-009",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "170",
-      "claim": "会员权益是原版旅途补给 5% 折扣（不能倒货或取代采集者）",
+      "claim": "历史付费到期时间或无购买/扣款证据的 earned_member_until 不能获得金币补给折扣",
       "carrier": {
-        "kind": "config",
-        "path": "plugins/rpg-commerce/src/main/resources/config.yml",
-        "key": "supply-shop.products.torches.member-price",
-        "expect": "456.00"
+        "kind": "behavior",
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java#historicalPaidExpiryAndUnprovenEarnedExpiryCannotDiscountGoldSupplies",
+        "asserts": "历史累计付款保持 1000、旧/新到期字段均在未来，但 memberUntil 为 null；补给按公共价 100 扣款、余额 400，无会员授权或星辉扣款行"
       },
-      "note": "会员价为公共价 480.00 的 95%；折扣深度上界由 SupplyCatalogPolicy.MAXIMUM_MEMBER_DISCOUNT=0.05 强制（M-STORE-010）。"
+      "note": "有效会员必须有匹配的星辉扣款、购买和授权；默认火把箱公共价 480、有效会员价 456，折扣目录上界由 M-STORE-010 承载。"
     },
     {
       "id": "M-STORE-010",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "170",
-      "claim": "会员折扣深度不超过 5%",
+      "claim": "游戏内会员的补给目录拒绝超过 5% 的折扣或超过复核日吞吐量",
       "carrier": {
         "kind": "behavior",
         "test": "plugins/rpg-commerce/src/test/java/cn/originalrpg/commerce/SupplyCatalogPolicyTest.java#excessiveDiscountOrThroughputFailsClosed",
         "asserts": "member-price 低于公共价 ×0.95（或日限超标）一律拒绝"
       },
-      "note": "折扣上界是行为，走行为级测试。"
+      "note": "这是星辉获得会员的游戏内权益限制；现实付费积分不授予该折扣。"
     },
     {
       "id": "M-STORE-011",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "170",
-      "claim": "每个补给商品还有数据库日限（不能靠会员无限倒货）",
+      "claim": "默认火把箱商品每玩家每日最多购买 2 次",
       "carrier": {
         "kind": "config",
         "path": "plugins/rpg-commerce/src/main/resources/config.yml",
         "key": "supply-shop.products.torches.daily-limit",
         "expect": 2
       },
-      "note": "日限在 config.yml 配置；跨分片由数据库额度强制。"
+      "note": "本条锁定商品日限配置；同一数据库中的并发购买、金币扣款与会员价选择另由 systemSuppliesChooseMembershipPriceAndEnforceDailyLimitAtomically 覆盖。"
     },
     {
       "id": "M-STORE-012",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
-      "doc_lines": "170",
-      "claim": "累计奖励按服务端配置发放并进入持久化物品邮箱",
+      "doc_lines": "176",
+      "claim": "旧累计付费奖励 claimReward 与付款入口保持关闭，重放也不产生材料邮箱或任何新账",
       "carrier": {
-        "kind": "config",
-        "path": "plugins/rpg-commerce/src/main/resources/config.yml",
-        "key": "rewards.veteran-support.required-lifetime",
-        "expect": "100.00"
+        "kind": "behavior",
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcServicesTest.java#legacyPaymentsAndPaidMaterialRewardsStayDisabledWithoutAnyWrites",
+        "asserts": "付款、付款重放、奖励领取及重复领取均为 LEGACY_DISABLED；deliveryId 为空，待领邮件、commerce accounts、payment ledger、reward claims、credit ledger 均为空"
       },
-      "note": "累计门槛在 config.yml 配置；「进持久邮箱」由 JdbcServicesTest 的 pendingDeliveries 断言覆盖。"
+      "note": "配置 rewards 仅保留历史审计参考，不是启用中的奖励目录；已有未领 commerce-reward 邮件由独立迁移测试验证隔离，不能继续声称累计付款可换材料。"
     },
     {
       "id": "M-STORE-013",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
-      "doc_lines": "174",
-      "claim": "support_credit 有独立账本且与金币/功勋/星辉物理隔离（C-012）",
+      "doc_lines": "172-174",
+      "claim": "签名入账与有限外观购买仅改变独立 support_credit 余额、流水和权益，不写游戏货币、会员、成长或物品邮箱",
       "carrier": {
         "kind": "behavior",
         "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSupportCreditServiceTest.java#grantThenSpendMovesBalanceAndWritesOneAuditRowPerMovement",
-        "asserts": "support_credit 余额与流水表独立（rpg_support_credit_accounts/ledger），每次变动一审计行"
+        "asserts": "签名入账 500 后购买 120 的棱彩光环，余额 380、1 张订单、1 张购买凭据、1 个权益、2 行积分流水；Gold/Merit/Starlight/commerce/payment/membership/profile/mail 表均零行"
       },
-      "note": "物理隔离是行为，走行为级测试。"
+      "note": "测试方法名保留历史兼容，但实际调用已是 acceptReceipt 与 purchaseCosmetic，不再调用无签名 grant/spend。"
     },
     {
       "id": "M-STORE-014",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "174",
-      "claim": "现实付费积分不得用于装备/材料/强化辅助物/经验/体力/掉率/赛季调谐/战力",
+      "claim": "旧无签名 grant 与任意目标的通用 spend 全部拒绝，包括旧枚举中允许的外观/便利目标",
       "carrier": {
         "kind": "behavior",
         "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSupportCreditServiceTest.java#forbiddenTargetIsRejectedBeforeAnyLedgerWrite",
-        "asserts": "被禁目标在任何账本写入之前就被拒绝（消费通道只允许外观与便利）"
+        "asserts": "所有 SupportCreditTarget：禁用目标返回 CROSS_CURRENCY_FORBIDDEN，其余也返回 LEGACY_DISABLED；无签名 grant 返回 LEGACY_DISABLED，积分账户与流水均零行"
       },
-      "note": "禁用通道是行为，走行为级测试（宪法 C-012 的机械防线）。"
+      "note": "新消费必须调用有限 SupportCosmetic 目录的 purchaseCosmetic；不存在可用的付费通用便利、会员、材料或战力消费旁路（C-012）。"
     },
     {
       "id": "M-STORE-015",
-      "section": "商城、会员与累计奖励",
+      "section": "商城、游戏内会员与付费隔离",
       "doc": "docs/GAME_DESIGN.md",
       "doc_lines": "174",
-      "claim": "每笔 support_credit 变动带幂等键与审计流水，同事务提交",
+      "claim": "外观购买提交响应丢失后使用原购买 UUID 重放，只保留一次扣款和一个权益",
       "carrier": {
         "kind": "behavior",
-        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSupportCreditServiceTest.java#replayingTheSameIdempotencyKeyNeverCreditsTwice",
-        "asserts": "同幂等键重放不会二次入账"
+        "test": "plugins/rpg-core/src/test/java/cn/originalrpg/core/persistence/JdbcSupportCreditServiceTest.java#lostPurchaseCommitResponseReplaysOneDebitAndOneEntitlement",
+        "asserts": "先签名入账 500，再于购买提交后注入响应丢失；重放返回 DUPLICATE，余额 380、权益 1 行、总积分流水 2 行（入账与扣款各一）"
       },
-      "note": "幂等是行为，走行为级测试。"
+      "note": "覆盖真实购买凭据重放；权益写入失败的整体回滚由同类 failedEntitlementWriteRollsBackItsDebitAndPurchaseReceipt 测试覆盖。"
     }
   ],
   "unverifiable": [
@@ -1996,7 +1994,15 @@
       "reason": "每副本独立配置的多组区间值，无跨副本统一锚点。"
     }
   ],
-  "_inconsistencies": [],
+  "_inconsistencies": [
+    {
+      "id": "P5-STORE-ISOLATION",
+      "doc_before": "现实付款可延长会员并累计兑换材料，通用付费消费允许便利；两个载体仍指向已删除的旧付款测试。",
+      "observed": "旧 recordPayment/claimReward/grant/spend 已 fail closed；新签名订单受有限额度与独立账本约束，只授权有限纯外观权益。",
+      "doc_after": "区分游戏内星辉商城与现实付费，会员需匹配扣款/购买/授权证据；旧累计材料奖励关闭，订单重放与额度改绑真实行为测试。",
+      "basis": "M-STORE-001..015；JdbcSupportCreditServiceTest、SupportLegacyIsolationTest、JdbcServicesTest、SUPPORT_CREDIT_MIGRATION.md"
+    }
+  ],
   "_unverifiable": [
     {
       "claim": "每件装备最多一个稀有特性（docs/GAME_DESIGN.md:44/:102）",
@@ -2139,8 +2145,8 @@
       "reason": "缺席断言；可核对的防线是商品白名单与折扣上界（M-STORE-005/010）"
     },
     {
-      "claim": "接真实支付时必须由独立 Web 后端验签回调后调用内部接口，浏览器提交金额或游戏内命令都不能作为支付成功依据（:172）",
-      "reason": "「没有支付回调入口」是缺席断言；当前仓库确实没有支付机构集成，无法用判据证明「未来接线会正确」"
+      "claim": "独立支付桥先验证支付机构实际结算，再生成受信签名收据；生产支付机构集成仍须验收（:172/:178）",
+      "reason": "仓库已验证签名、订单幂等与有限额度，但未提供具体支付机构适配器；真实支付通知、结算与密钥运维不能由本地事务测试替代"
     },
     {
       "claim": "「/rpg」单独一行展示 support_credit 余额，不与金币/功勋合并展示（:174）",

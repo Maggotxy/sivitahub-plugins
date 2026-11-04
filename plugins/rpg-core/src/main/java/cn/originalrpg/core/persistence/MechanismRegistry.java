@@ -23,6 +23,7 @@ public final class MechanismRegistry {
     public static final String MARKET_ESCROW = "market.escrow.enabled";
     public static final String SEASON_SETTLEMENT = "season.settlement.enabled";
     public static final String STARLIGHT_GRANT = "commerce.starlight_grant.enabled";
+    public static final String SUPPORT_CREDIT_PAYMENT = "commerce.support_credit_payment.enabled";
     public static final String COMMUNITY_PROJECT = "community.project.enabled";
 
     public static final Map<String, Boolean> DEFAULTS = Map.of(
@@ -32,6 +33,7 @@ public final class MechanismRegistry {
             MARKET_ESCROW, true,
             SEASON_SETTLEMENT, true,
             STARLIGHT_GRANT, true,
+            SUPPORT_CREDIT_PAYMENT, false,
             COMMUNITY_PROJECT, true
     );
 
@@ -46,6 +48,7 @@ public final class MechanismRegistry {
             MARKET_ESCROW, "JdbcMarketService",
             SEASON_SETTLEMENT, "JdbcSeasonSettlementService",
             STARLIGHT_GRANT, "JdbcCommerceService",
+            SUPPORT_CREDIT_PAYMENT, "JdbcSupportCreditService",
             COMMUNITY_PROJECT, "JdbcCommunityService"
     );
 
@@ -135,6 +138,31 @@ public final class MechanismRegistry {
         }
         deniedCounts.computeIfAbsent(mechanismId, ignored -> new LongAdder()).increment();
         return false;
+    }
+
+    /**
+     * Reads and locks the authoritative switch on the caller's business
+     * transaction. Acquire this before financial row locks and retain it until
+     * commit. A concurrent disable updates the same row and must wait, providing
+     * a clear admission boundary across nodes without relying on process caches.
+     */
+    public boolean requireEnabled(Connection connection, String mechanismId) throws SQLException {
+        boolean enabled = readEnabled(connection, mechanismId, true);
+        (enabled ? allowedCounts : deniedCounts).computeIfAbsent(mechanismId, ignored -> new LongAdder()).increment();
+        return enabled;
+    }
+
+    /** Read-only authoritative status; callers supply an off-thread connection. */
+    public boolean isEnabled(Connection connection, String mechanismId) throws SQLException {
+        return readEnabled(connection, mechanismId, false);
+    }
+
+    private static boolean readEnabled(Connection connection, String mechanismId, boolean lock) throws SQLException {
+        try (PreparedStatement query = connection.prepareStatement(
+                "SELECT enabled FROM rpg_mechanism_switches WHERE mechanism_id = ?" + (lock ? " FOR UPDATE" : ""))) {
+            query.setString(1, mechanismId);
+            try (ResultSet rows = query.executeQuery()) { return rows.next() && rows.getBoolean(1); }
+        }
     }
 
     /** C-005 指标：只读报告各机制的通过/拒绝计数。 */

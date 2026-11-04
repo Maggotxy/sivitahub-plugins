@@ -68,6 +68,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -142,7 +143,8 @@ class JdbcServicesTest {
             statement.execute("""
                     CREATE TABLE rpg_commerce_accounts (
                         player_uuid VARCHAR(36) PRIMARY KEY, lifetime_paid DECIMAL(19, 2) NOT NULL, credits BIGINT NOT NULL,
-                        member_until TIMESTAMP NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        member_until TIMESTAMP NULL, earned_member_until TIMESTAMP NULL,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )
                     """);
             statement.execute("""
@@ -175,6 +177,21 @@ class JdbcServicesTest {
                         id VARCHAR(36) PRIMARY KEY, external_reference VARCHAR(96) UNIQUE NOT NULL,
                         player_uuid VARCHAR(36) NOT NULL, amount DECIMAL(19, 2) NOT NULL,
                         membership_days INTEGER NOT NULL, operator_name VARCHAR(64) NOT NULL,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """);
+            statement.execute("""
+                    CREATE TABLE rpg_earned_membership_grants (
+                        idempotency_key VARCHAR(96) PRIMARY KEY,
+                        purchase_id VARCHAR(36) UNIQUE NOT NULL,
+                        player_uuid VARCHAR(36) NOT NULL,
+                        product_id VARCHAR(64) NOT NULL,
+                        period_key VARCHAR(32) NOT NULL,
+                        credit_cost BIGINT NOT NULL,
+                        membership_days INTEGER NOT NULL,
+                        previous_until TIMESTAMP NULL,
+                        member_until TIMESTAMP NOT NULL,
+                        debit_reference VARCHAR(96) UNIQUE NOT NULL,
                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )
                     """);
@@ -1959,7 +1976,7 @@ class JdbcServicesTest {
                 market.prepare(UUID.randomUUID(), player, "payload", new BigDecimal("10.00"),
                                 new BigDecimal("0.049999"), 12)
                         .toCompletableFuture().join().status());
-        assertEquals(CommerceResult.Status.INVALID,
+        assertEquals(CommerceResult.Status.LEGACY_DISABLED,
                 commerce.recordPayment(player, subCent, "test:subcent-payment", 31, "test")
                         .toCompletableFuture().join().status());
         assertEquals(SupplyPurchaseResult.Status.INVALID,
@@ -2713,7 +2730,7 @@ class JdbcServicesTest {
     }
 
     @Test
-    void paymentAndCumulativeRewardAreIdempotent() {
+    void legacyPaymentsAndPaidMaterialRewardsStayDisabledWithoutAnyWrites() throws Exception {
         JdbcCommerceService commerce = new JdbcCommerceService(dataSource, executor);
         UUID playerId = UUID.randomUUID();
 
@@ -2728,17 +2745,18 @@ class JdbcServicesTest {
                         playerId, "veteran-support", new BigDecimal("100.00"), "reward-payload")
                 .toCompletableFuture().join();
 
-        assertEquals(CommerceResult.Status.SUCCESS, payment.status());
-        assertEquals(CommerceResult.Status.DUPLICATE, replay.status());
-        assertEquals(new BigDecimal("100.00"), replay.account().lifetimePaid());
-        assertTrue(payment.account().memberUntil() != null);
-        assertEquals(RewardClaimResult.Status.SUCCESS, claim.status());
-        assertTrue(claim.deliveryId().isPresent());
-        assertEquals(RewardClaimResult.Status.ALREADY_CLAIMED, duplicateClaim.status());
+        assertEquals(CommerceResult.Status.LEGACY_DISABLED, payment.status());
+        assertEquals(CommerceResult.Status.LEGACY_DISABLED, replay.status());
+        assertEquals(RewardClaimResult.Status.LEGACY_DISABLED, claim.status());
+        assertTrue(claim.deliveryId().isEmpty());
+        assertEquals(RewardClaimResult.Status.LEGACY_DISABLED, duplicateClaim.status());
         var rewardDeliveries = new JdbcMarketService(dataSource, executor, new BigDecimal("100.00"))
                 .pendingDeliveries(playerId, 10).toCompletableFuture().join();
-        assertEquals(1, rewardDeliveries.size());
-        assertEquals("commerce-reward:veteran-support", rewardDeliveries.getFirst().source());
+        assertTrue(rewardDeliveries.isEmpty());
+        assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_commerce_accounts"));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_payment_ledger"));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_commerce_reward_claims"));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_credit_ledger"));
     }
 
     @Test
@@ -3017,7 +3035,7 @@ class JdbcServicesTest {
     }
 
     @Test
-    void paymentMembershipRejectsSingleOrAccumulatedTimeBeyondThirtyDaysWithoutPartialLedger() throws Exception {
+    void disabledLegacyPaymentRejectsAllMembershipLengthsWithoutPartialLedger() throws Exception {
         MutableClock clock = new MutableClock(Instant.parse("2026-08-08T12:00:00Z"));
         JdbcCommerceService commerce = new JdbcCommerceService(dataSource, executor, BigDecimal.ZERO,
                 new OperationalStarlightPolicy(100L, 1_000L, 1_000L, ZoneId.of("UTC")), clock);
@@ -3032,21 +3050,22 @@ class JdbcServicesTest {
         CommerceResult replay = commerce.recordPayment(player, new BigDecimal("10.00"),
                 "payment:membership:30", 30, "console").toCompletableFuture().join();
 
-        assertEquals(CommerceResult.Status.INVALID, invalidSingle.status());
-        assertEquals(CommerceResult.Status.SUCCESS, first.status());
-        assertEquals(CommerceResult.Status.MEMBERSHIP_LIMIT_REACHED, overflow.status());
-        assertEquals(CommerceResult.Status.DUPLICATE, replay.status());
-        assertEquals(new BigDecimal("10.00"), commerce.status(player).toCompletableFuture().join().lifetimePaid());
+        assertEquals(CommerceResult.Status.LEGACY_DISABLED, invalidSingle.status());
+        assertEquals(CommerceResult.Status.LEGACY_DISABLED, first.status());
+        assertEquals(CommerceResult.Status.LEGACY_DISABLED, overflow.status());
+        assertEquals(CommerceResult.Status.LEGACY_DISABLED, replay.status());
+        assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_commerce_accounts"));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_earned_membership_grants"));
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement();
              var ledger = statement.executeQuery("SELECT COUNT(*) FROM rpg_payment_ledger")) {
             assertTrue(ledger.next());
-            assertEquals(1, ledger.getInt(1));
+            assertEquals(0, ledger.getInt(1));
             connection.rollback();
         }
     }
 
     @Test
-    void lifetimeSupportLimitHasAnAccurateRetryableResult() throws Exception {
+    void disabledLegacyPaymentPreservesHistoricalAmountsRegardlessOfRemainingCapacity() throws Exception {
         JdbcCommerceService commerce = new JdbcCommerceService(dataSource, executor);
         UUID player = UUID.randomUUID();
         commerce.status(player).toCompletableFuture().join();
@@ -3058,7 +3077,8 @@ class JdbcServicesTest {
 
         CommerceResult rejected = commerce.recordPayment(player, new BigDecimal("1.00"),
                 "payment:lifetime-cap-retry", 0, "console").toCompletableFuture().join();
-        assertEquals(CommerceResult.Status.LIFETIME_LIMIT_REACHED, rejected.status());
+        assertEquals(CommerceResult.Status.LEGACY_DISABLED, rejected.status());
+        assertEquals(new BigDecimal("999999999999.50"), commerce.status(player).toCompletableFuture().join().lifetimePaid());
         assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_payment_ledger WHERE external_reference = "
                 + "'payment:lifetime-cap-retry'"));
 
@@ -3069,8 +3089,9 @@ class JdbcServicesTest {
         }
         CommerceResult retried = commerce.recordPayment(player, new BigDecimal("1.00"),
                 "payment:lifetime-cap-retry", 0, "console").toCompletableFuture().join();
-        assertEquals(CommerceResult.Status.SUCCESS, retried.status());
-        assertEquals(new BigDecimal("1000000000000.00"), retried.account().lifetimePaid());
+        assertEquals(CommerceResult.Status.LEGACY_DISABLED, retried.status());
+        assertEquals(new BigDecimal("999999999999.00"), commerce.status(player).toCompletableFuture().join().lifetimePaid());
+        assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_payment_ledger"));
     }
 
     @Test
@@ -3080,8 +3101,11 @@ class JdbcServicesTest {
         UUID member = UUID.randomUUID();
         gold.credit(member, new BigDecimal("5000.00"), "supply-gold-seed-member", "test")
                 .toCompletableFuture().join();
-        commerce.recordPayment(member, new BigDecimal("1.00"), "supply-membership-seed", 3, "test")
+        commerce.adjustCredits(member, 90, "supply-earned-membership-credit", "test")
                 .toCompletableFuture().join();
+        assertEquals(CommercePurchaseResult.Status.SUCCESS,
+                commerce.purchaseMembershipWithCredits(member, "membership-3-days", 90, 3,
+                        "supply-earned-membership", "2026-W32", 1).toCompletableFuture().join().status());
 
         List<CompletableFuture<SupplyPurchaseResult>> purchases = new ArrayList<>();
         for (int index = 0; index < 10; index++) {
@@ -3113,6 +3137,39 @@ class JdbcServicesTest {
         assertFalse(publicPurchase.memberDiscountApplied());
         assertEquals(new BigDecimal("100.00"), publicPurchase.chargedGold());
         assertEquals(new BigDecimal("400.00"), publicPurchase.goldBalance());
+    }
+
+    @Test
+    void historicalPaidExpiryAndUnprovenEarnedExpiryCannotDiscountGoldSupplies() throws Exception {
+        JdbcCommerceService commerce = new JdbcCommerceService(dataSource, executor);
+        JdbcEconomyService gold = new JdbcEconomyService(dataSource, executor, BigDecimal.ZERO);
+        UUID player = UUID.randomUUID();
+        commerce.status(player).toCompletableFuture().join();
+        gold.credit(player, new BigDecimal("500.00"), "legacy-discount-gold", "test")
+                .toCompletableFuture().join();
+        try (Connection connection = dataSource.getConnection(); var update = connection.prepareStatement("""
+                UPDATE rpg_commerce_accounts SET lifetime_paid = 1000, member_until = ?,
+                    earned_member_until = ? WHERE player_uuid = ?
+                """)) {
+            var future = java.sql.Timestamp.from(Instant.now().plus(20, ChronoUnit.DAYS));
+            update.setTimestamp(1, future);
+            update.setTimestamp(2, future);
+            update.setString(3, player.toString());
+            assertEquals(1, update.executeUpdate());
+            connection.commit();
+        }
+        CommerceStatus status = commerce.status(player).toCompletableFuture().join();
+        assertEquals(new BigDecimal("1000.00"), status.lifetimePaid());
+        assertNull(status.memberUntil());
+        var purchase = commerce.purchaseSupplyWithGold(player, "torches", new BigDecimal("100.00"),
+                new BigDecimal("95.00"), "plain-legacy-check", "legacy-discount-purchase", "2026-11-04", 2)
+                .toCompletableFuture().join();
+        assertEquals(SupplyPurchaseResult.Status.SUCCESS, purchase.status());
+        assertFalse(purchase.memberDiscountApplied());
+        assertEquals(new BigDecimal("100.00"), purchase.chargedGold());
+        assertEquals(new BigDecimal("400.00"), purchase.goldBalance());
+        assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_earned_membership_grants"));
+        assertEquals(0, scalar("SELECT COUNT(*) FROM rpg_credit_ledger"));
     }
 
     @Test

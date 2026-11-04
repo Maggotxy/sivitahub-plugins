@@ -6,14 +6,28 @@ import cn.originalrpg.api.model.CommerceStatus;
 import cn.originalrpg.api.model.CreditResult;
 import cn.originalrpg.api.model.RewardClaimResult;
 import cn.originalrpg.api.model.SupplyPurchaseResult;
+import cn.originalrpg.api.model.LegacyPayment;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 public interface CommerceService {
     CompletionStage<CommerceStatus> status(UUID playerId);
 
+    /**
+     * Read-only historical audit for one exact UUID, newest first with a stable
+     * ID tie-break. Limit must be 1..50. Does not create accounts or change any
+     * ledger; operators must not treat these rows as new gameplay eligibility.
+     */
+    default CompletionStage<List<LegacyPayment>> legacyPayments(UUID playerId, int limit) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException("Legacy payment audit is unavailable"));
+    }
+
+    /** Closed legacy path: real-money receipts must enter the isolated SupportCreditService. */
+    @Deprecated(forRemoval = false)
     CompletionStage<CommerceResult> recordPayment(
             UUID playerId,
             BigDecimal amount,
@@ -58,7 +72,8 @@ public interface CommerceService {
 
     /**
      * Buys time-limited membership with the same earnable Starlight balance used by the store.
-     * Credits, period limits, and the extended expiry are committed in one transaction.
+     * Credits, period limits, source-proof receipt and the earned expiry are committed
+     * in one transaction. The historical mixed paid/earned expiry is audit-only.
      */
     CompletionStage<CommercePurchaseResult> purchaseMembershipWithCredits(
             UUID playerId,
@@ -87,6 +102,7 @@ public interface CommerceService {
             int maximumPurchases
     );
 
+    @Deprecated(forRemoval = false)
     CompletionStage<RewardClaimResult> claimReward(
             UUID playerId,
             String rewardId,

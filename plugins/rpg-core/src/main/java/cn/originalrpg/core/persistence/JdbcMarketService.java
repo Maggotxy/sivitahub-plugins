@@ -341,7 +341,7 @@ public final class JdbcMarketService implements MarketService {
             try (PreparedStatement query = connection.prepareStatement("""
                     SELECT id, player_uuid, item_payload, source, created_at
                     FROM rpg_market_deliveries
-                    WHERE player_uuid = ? AND state = 'PENDING'
+                    WHERE player_uuid = ? AND state = 'PENDING' AND source NOT LIKE 'commerce-reward:%'
                     ORDER BY created_at LIMIT ?
                     """)) {
                 query.setString(1, playerId.toString());
@@ -368,14 +368,18 @@ public final class JdbcMarketService implements MarketService {
         return async(connection -> {
             String source;
             try (PreparedStatement query = connection.prepareStatement("""
-                    SELECT source FROM rpg_market_deliveries
-                    WHERE id = ? AND player_uuid = ? AND state = 'PENDING' FOR UPDATE
+                    SELECT source, state FROM rpg_market_deliveries
+                    WHERE id = ? AND player_uuid = ? AND source NOT LIKE 'commerce-reward:%' FOR UPDATE
                     """)) {
                 query.setString(1, deliveryId.toString());
                 query.setString(2, playerId.toString());
                 try (ResultSet result = query.executeQuery()) {
                     if (!result.next()) return false;
                     source = result.getString(1);
+                    // A committed acknowledgement may lose its reply. Repeating it must
+                    // confirm the same owner's receipt without thawing a refused item.
+                    if ("DELIVERED".equals(result.getString("state"))) return true;
+                    if (!"PENDING".equals(result.getString("state"))) return false;
                 }
             }
             try (PreparedStatement update = connection.prepareStatement("""
@@ -421,7 +425,7 @@ public final class JdbcMarketService implements MarketService {
     ) {
         if (deliveryId == null || playerId == null || itemPayload == null || itemPayload.isBlank()
                 || itemPayload.length() > MAX_PAYLOAD_LENGTH || source == null || source.isBlank()
-                || source.length() > 96) {
+                || source.length() > 96 || source.startsWith("commerce-reward:")) {
             return CompletableFuture.completedFuture(false);
         }
         return async(connection -> {

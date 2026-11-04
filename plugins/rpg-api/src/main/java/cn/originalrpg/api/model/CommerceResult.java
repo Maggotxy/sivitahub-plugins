@@ -6,6 +6,7 @@ public record CommerceResult(Status status, CommerceStatus account) {
         MEMBERSHIP_LIMIT_REACHED,
         LIFETIME_LIMIT_REACHED,
         DUPLICATE,
+        LEGACY_DISABLED,
         INVALID
     }
 }

@@ -6,6 +6,7 @@ import cn.originalrpg.api.model.CommerceStatus;
 import cn.originalrpg.api.model.CreditResult;
 import cn.originalrpg.api.model.RewardClaimResult;
 import cn.originalrpg.api.model.SupplyPurchaseResult;
+import cn.originalrpg.api.model.LegacyPayment;
 import cn.originalrpg.api.service.CommerceService;
 
 import javax.sql.DataSource;
@@ -23,6 +24,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.WeekFields;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -35,11 +38,8 @@ public final class JdbcCommerceService implements CommerceService {
     private static final Pattern REFERENCE = Pattern.compile("[A-Za-z0-9._:-]{3,96}");
     private static final Pattern CREDIT_PURCHASE_KEY = Pattern.compile("[A-Za-z0-9._:-]{3,80}");
     private static final Pattern PERIOD_KEY = Pattern.compile("[A-Za-z0-9._:-]{3,32}");
-    private static final Pattern REWARD_ID = Pattern.compile("[a-z0-9._-]{2,64}");
     private static final Pattern PRODUCT_ID = Pattern.compile("[a-z0-9._-]{2,64}");
-    private static final BigDecimal MAX_PAYMENT = new BigDecimal("1000000.00");
     private static final BigDecimal MAX_GOLD_COST = new BigDecimal("1000000000.00");
-    private static final BigDecimal MAX_LIFETIME_PAID = new BigDecimal("1000000000000.00");
     private static final long MAX_CREDITS = 1_000_000_000L;
     private static final int MIN_MEMBERSHIP_DAYS = 3;
     private static final int MAX_MEMBERSHIP_DAYS = 30;
@@ -112,67 +112,39 @@ public final class JdbcCommerceService implements CommerceService {
     }
 
     @Override
-    public CompletionStage<CommerceResult> recordPayment(
-            UUID playerId,
-            BigDecimal amount,
-            String externalReference,
-            int membershipDays,
-            String operator
-    ) {
-        if (playerId == null || amount == null || externalReference == null || operator == null
-                || !REFERENCE.matcher(externalReference).matches()
-                || !validMembershipDays(membershipDays)
-                || operator.isBlank() || operator.length() > 64) {
-            return CompletableFuture.completedFuture(new CommerceResult(CommerceResult.Status.INVALID, null));
-        }
-        BigDecimal normalized = money(amount);
-        if (normalized.signum() <= 0 || normalized.compareTo(MAX_PAYMENT) > 0) {
-            return CompletableFuture.completedFuture(new CommerceResult(CommerceResult.Status.INVALID, null));
-        }
+    public CompletionStage<List<LegacyPayment>> legacyPayments(UUID playerId, int limit) {
+        if (playerId == null || limit < 1 || limit > 50) return CompletableFuture.failedFuture(
+                new IllegalArgumentException("Legacy payment audit requires a player UUID and a limit of 1..50"));
         return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            CommerceStatus current = loadOrCreate(connection, playerId, true);
-            if (paymentExists(connection, externalReference)) {
-                return new CommerceResult(CommerceResult.Status.DUPLICATE, current);
-            }
-            BigDecimal updatedLifetime = money(current.lifetimePaid().add(normalized));
-            if (updatedLifetime.compareTo(MAX_LIFETIME_PAID) > 0) {
-                return new CommerceResult(CommerceResult.Status.LIFETIME_LIMIT_REACHED, current);
-            }
-            Instant memberUntil = current.memberUntil();
-            if (membershipDays > 0) {
-                Instant now = clock.instant();
-                Instant base = memberUntil != null && memberUntil.isAfter(now) ? memberUntil : now;
-                Instant proposed = base.plus(membershipDays, ChronoUnit.DAYS);
-                if (proposed.isAfter(now.plus(MAX_MEMBERSHIP_DAYS, ChronoUnit.DAYS))) {
-                    return new CommerceResult(CommerceResult.Status.MEMBERSHIP_LIMIT_REACHED, current);
-                }
-                memberUntil = proposed;
-            }
-            try (PreparedStatement update = connection.prepareStatement("""
-                    UPDATE rpg_commerce_accounts
-                    SET lifetime_paid = ?, member_until = ?, updated_at = CURRENT_TIMESTAMP
+            List<LegacyPayment> history = new ArrayList<>();
+            try (PreparedStatement query = connection.prepareStatement("""
+                    SELECT id, amount, membership_days, external_reference, operator_name, created_at FROM rpg_payment_ledger
                     WHERE player_uuid = ?
+                    ORDER BY created_at DESC, id DESC LIMIT ?
                     """)) {
-                update.setBigDecimal(1, updatedLifetime);
-                update.setTimestamp(2, memberUntil == null ? null : Timestamp.from(memberUntil));
-                update.setString(3, playerId.toString());
-                update.executeUpdate();
+                query.setString(1, playerId.toString()); query.setInt(2, limit);
+                try (ResultSet rows = query.executeQuery()) {
+                    while (rows.next()) history.add(new LegacyPayment(rows.getString("id"), playerId,
+                            rows.getBigDecimal("amount"), rows.getInt("membership_days"),
+                            rows.getString("external_reference"), rows.getString("operator_name"),
+                            rows.getTimestamp("created_at").toInstant()));
+                }
             }
-            try (PreparedStatement insert = connection.prepareStatement("""
-                    INSERT INTO rpg_payment_ledger
-                    (id, external_reference, player_uuid, amount, membership_days, operator_name)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """)) {
-                insert.setString(1, UUID.randomUUID().toString());
-                insert.setString(2, externalReference);
-                insert.setString(3, playerId.toString());
-                insert.setBigDecimal(4, normalized);
-                insert.setInt(5, membershipDays);
-                insert.setString(6, operator);
-                insert.executeUpdate();
-            }
-            return new CommerceResult(CommerceResult.Status.SUCCESS, loadOrCreate(connection, playerId, false));
+            return List.copyOf(history);
         }));
+    }
+
+    /**
+     * The historical payment path mixed real-money history with gameplay membership.
+     * It is permanently closed. Existing payment rows and legacy expiries remain
+     * untouched for audit; verified orders belong to SupportCreditService only.
+     */
+    @Deprecated(forRemoval = false)
+    @Override
+    public CompletionStage<CommerceResult> recordPayment(
+            UUID playerId, BigDecimal amount, String externalReference, int membershipDays, String operator
+    ) {
+        return CompletableFuture.completedFuture(new CommerceResult(CommerceResult.Status.LEGACY_DISABLED, null));
     }
 
     @Override
@@ -327,7 +299,9 @@ public final class JdbcCommerceService implements CommerceService {
             UUID previous = previousPurchase(connection, idempotencyKey);
             int used = purchaseCount(connection, playerId, productId, periodKey);
             if (previous != null) {
-                return new CommercePurchaseResult(CommercePurchaseResult.Status.DUPLICATE,
+                boolean same = membershipReceiptMatches(connection, playerId, productId, creditCost,
+                        membershipDays, idempotencyKey, periodKey);
+                return new CommercePurchaseResult(same ? CommercePurchaseResult.Status.DUPLICATE : CommercePurchaseResult.Status.INVALID,
                         current, Optional.empty(), used, maximumPurchases);
             }
             if (used >= maximumPurchases) {
@@ -348,7 +322,7 @@ public final class JdbcCommerceService implements CommerceService {
             }
             try (PreparedStatement update = connection.prepareStatement("""
                     UPDATE rpg_commerce_accounts
-                    SET credits = ?, member_until = ?, updated_at = CURRENT_TIMESTAMP
+                    SET credits = ?, earned_member_until = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE player_uuid = ?
                     """)) {
                 update.setLong(1, current.credits() - creditCost);
@@ -364,7 +338,7 @@ public final class JdbcCommerceService implements CommerceService {
                     (id, idempotency_key, player_uuid, product_id, period_key, credit_cost, delivery_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """)) {
-                insert.setString(1, UUID.randomUUID().toString());
+                insert.setString(1, operationId.toString());
                 insert.setString(2, idempotencyKey);
                 insert.setString(3, playerId.toString());
                 insert.setString(4, productId);
@@ -374,6 +348,8 @@ public final class JdbcCommerceService implements CommerceService {
                 insert.executeUpdate();
             }
             insertCreditSpend(connection, playerId, creditCost, idempotencyKey);
+            insertMembershipGrant(connection, playerId, productId, creditCost, membershipDays, idempotencyKey,
+                    periodKey, operationId, current.memberUntil(), memberUntil);
             return new CommercePurchaseResult(CommercePurchaseResult.Status.SUCCESS,
                     loadOrCreate(connection, playerId, false), Optional.empty(), used + 1, maximumPurchases);
         }));
@@ -411,7 +387,7 @@ public final class JdbcCommerceService implements CommerceService {
             CommerceStatus account = loadOrCreate(connection, playerId, true);
             UUID previous = previousPurchase(connection, idempotencyKey);
             int used = purchaseCount(connection, playerId, productId, periodKey);
-            boolean discounted = account.memberActive(Instant.now()) && memberPrice.compareTo(publicPrice) < 0;
+            boolean discounted = account.memberActive(clock.instant()) && memberPrice.compareTo(publicPrice) < 0;
             BigDecimal price = discounted ? memberPrice : publicPrice;
             if (previous != null) {
                 return supplyResult(SupplyPurchaseResult.Status.DUPLICATE, BigDecimal.ZERO, gold,
@@ -523,56 +499,14 @@ public final class JdbcCommerceService implements CommerceService {
                 delivery, used, maximum);
     }
 
+    /** Historical cumulative-payment material rewards cannot create new deliveries under C-012. */
+    @Deprecated(forRemoval = false)
     @Override
     public CompletionStage<RewardClaimResult> claimReward(
-            UUID playerId,
-            String rewardId,
-            BigDecimal requiredLifetimePaid,
-            String itemPayload
+            UUID playerId, String rewardId, BigDecimal requiredLifetimePaid, String itemPayload
     ) {
-        if (playerId == null || rewardId == null || requiredLifetimePaid == null
-                || itemPayload == null || itemPayload.isBlank() || itemPayload.length() > 2_000_000
-                || !REWARD_ID.matcher(rewardId).matches() || requiredLifetimePaid.signum() < 0) {
-            return CompletableFuture.completedFuture(
-                    new RewardClaimResult(RewardClaimResult.Status.INVALID, null, Optional.empty()));
-        }
-        // C-005：付费奖励领取是发物口，由星辉/商务机制开关统一熔断。
-        if (mechanisms != null && !mechanisms.requireEnabled(MechanismRegistry.STARLIGHT_GRANT)) {
-            return CompletableFuture.completedFuture(
-                    new RewardClaimResult(RewardClaimResult.Status.INVALID, null, Optional.empty()));
-        }
-        BigDecimal required = money(requiredLifetimePaid);
-        return AsyncJdbc.supply(executor, () -> inTransaction(connection -> {
-            CommerceStatus current = loadOrCreate(connection, playerId, true);
-            if (current.claimedRewards().contains(rewardId)) {
-                return new RewardClaimResult(RewardClaimResult.Status.ALREADY_CLAIMED, current, Optional.empty());
-            }
-            if (current.lifetimePaid().compareTo(required) < 0) {
-                return new RewardClaimResult(RewardClaimResult.Status.NOT_ELIGIBLE, current, Optional.empty());
-            }
-            UUID deliveryId = UUID.randomUUID();
-            try (PreparedStatement insert = connection.prepareStatement("""
-                    INSERT INTO rpg_commerce_reward_claims
-                    (player_uuid, reward_id, required_lifetime_paid) VALUES (?, ?, ?)
-                    """)) {
-                insert.setString(1, playerId.toString());
-                insert.setString(2, rewardId);
-                insert.setBigDecimal(3, required);
-                insert.executeUpdate();
-            }
-            try (PreparedStatement delivery = connection.prepareStatement("""
-                    INSERT INTO rpg_market_deliveries (id, player_uuid, item_payload, source, state)
-                    VALUES (?, ?, ?, ?, 'PENDING')
-                    """)) {
-                delivery.setString(1, deliveryId.toString());
-                delivery.setString(2, playerId.toString());
-                delivery.setString(3, itemPayload);
-                delivery.setString(4, "commerce-reward:" + rewardId);
-                delivery.executeUpdate();
-            }
-            return new RewardClaimResult(RewardClaimResult.Status.SUCCESS,
-                    loadOrCreate(connection, playerId, false), Optional.of(deliveryId));
-        }));
+        return CompletableFuture.completedFuture(new RewardClaimResult(
+                RewardClaimResult.Status.LEGACY_DISABLED, null, Optional.empty()));
     }
 
     private CommerceStatus loadOrCreate(Connection connection, UUID playerId, boolean lock) throws SQLException {
@@ -590,7 +524,7 @@ public final class JdbcCommerceService implements CommerceService {
     }
 
     private CommerceStatus select(Connection connection, UUID playerId, boolean lock) throws SQLException {
-        String sql = "SELECT lifetime_paid, credits, member_until FROM rpg_commerce_accounts WHERE player_uuid = ?"
+        String sql = "SELECT lifetime_paid, credits, earned_member_until FROM rpg_commerce_accounts WHERE player_uuid = ?"
                 + (lock ? " FOR UPDATE" : "");
         try (PreparedStatement query = connection.prepareStatement(sql)) {
             query.setString(1, playerId.toString());
@@ -598,12 +532,12 @@ public final class JdbcCommerceService implements CommerceService {
                 if (!result.next()) {
                     return null;
                 }
-                Timestamp until = result.getTimestamp("member_until");
+                Timestamp until = result.getTimestamp("earned_member_until");
                 return new CommerceStatus(
                         playerId,
                         money(result.getBigDecimal("lifetime_paid")),
                         result.getLong("credits"),
-                        until == null ? null : until.toInstant(),
+                        verifiedEarnedExpiry(connection, playerId, until),
                         claimedRewards(connection, playerId)
                 );
             }
@@ -624,13 +558,58 @@ public final class JdbcCommerceService implements CommerceService {
         return Set.copyOf(rewards);
     }
 
-    private boolean paymentExists(Connection connection, String reference) throws SQLException {
-        try (PreparedStatement query = connection.prepareStatement(
-                "SELECT 1 FROM rpg_payment_ledger WHERE external_reference = ?")) {
-            query.setString(1, reference);
-            try (ResultSet result = query.executeQuery()) {
-                return result.next();
-            }
+    /**
+     * A live discount requires a matching earned grant, original Starlight debit
+     * and purchase. Legacy member_until is not consulted, and simply filling the
+     * new column cannot turn a historical paid expiry into an earned benefit.
+     */
+    private Instant verifiedEarnedExpiry(Connection connection, UUID playerId, Timestamp proposed) throws SQLException {
+        if (proposed == null) return null;
+        try (PreparedStatement query = connection.prepareStatement(earnedProofSql() +
+                " WHERE g.player_uuid = ? AND g.member_until = ?")) {
+            query.setString(1, playerId.toString()); query.setTimestamp(2, proposed);
+            try (ResultSet rows = query.executeQuery()) { return rows.next() ? proposed.toInstant() : null; }
+        }
+    }
+
+    private boolean membershipReceiptMatches(Connection connection, UUID playerId, String product, long cost,
+                                               int days, String key, String period) throws SQLException {
+        try (PreparedStatement query = connection.prepareStatement(earnedProofSql() + """
+                 WHERE g.idempotency_key = ? AND g.player_uuid = ? AND g.product_id = ?
+                   AND g.credit_cost = ? AND g.membership_days = ? AND g.period_key = ?
+                """)) {
+            query.setString(1, key); query.setString(2, playerId.toString()); query.setString(3, product);
+            query.setLong(4, cost); query.setInt(5, days); query.setString(6, period);
+            try (ResultSet rows = query.executeQuery()) { return rows.next(); }
+        }
+    }
+
+    private static String earnedProofSql() {
+        return """
+                SELECT g.idempotency_key FROM rpg_earned_membership_grants g
+                JOIN rpg_commerce_purchases p ON p.id = g.purchase_id
+                  AND p.idempotency_key = g.idempotency_key AND p.player_uuid = g.player_uuid
+                  AND p.product_id = g.product_id AND p.period_key = g.period_key
+                  AND p.credit_cost = g.credit_cost AND p.gold_cost = 0
+                JOIN rpg_credit_ledger l ON l.external_reference = g.debit_reference
+                  AND l.player_uuid = g.player_uuid AND l.delta = -g.credit_cost
+                  AND l.operator_name = 'commerce-purchase'
+                  AND g.credit_cost > 0 AND g.membership_days >= 3 AND g.membership_days <= 30
+                """;
+    }
+
+    private void insertMembershipGrant(Connection connection, UUID playerId, String product, long cost, int days,
+                                        String key, String period, UUID purchaseId, Instant previous, Instant expiry) throws SQLException {
+        try (PreparedStatement insert = connection.prepareStatement("""
+                INSERT INTO rpg_earned_membership_grants
+                (idempotency_key, purchase_id, player_uuid, product_id, period_key, credit_cost,
+                 membership_days, previous_until, member_until, debit_reference)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """)) {
+            insert.setString(1, key); insert.setString(2, purchaseId.toString()); insert.setString(3, playerId.toString());
+            insert.setString(4, product); insert.setString(5, period); insert.setLong(6, cost); insert.setInt(7, days);
+            insert.setTimestamp(8, previous == null ? null : Timestamp.from(previous)); insert.setTimestamp(9, Timestamp.from(expiry));
+            insert.setString(10, "starlight-spend:" + key); insert.executeUpdate();
         }
     }
 

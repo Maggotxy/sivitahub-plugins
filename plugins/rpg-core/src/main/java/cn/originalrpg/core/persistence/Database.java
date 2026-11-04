@@ -365,9 +365,20 @@ public final class Database implements AutoCloseable {
                     item_payload TEXT NOT NULL,
                     source VARCHAR(96) NOT NULL,
                     state VARCHAR(16) NOT NULL,
+                    quarantine_reason VARCHAR(64),
+                    quarantined_at TIMESTAMP NULL,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     delivered_at TIMESTAMP NULL
                 )
+                """,
+                "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS quarantine_reason VARCHAR(64)",
+                "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS quarantined_at TIMESTAMP NULL",
+                // C-012: preserve old payloads and receipts, but never release paid materials.
+                """
+                UPDATE rpg_market_deliveries
+                SET state = 'QUARANTINED', quarantine_reason = 'LEGACY_PAID_REWARD',
+                    quarantined_at = CURRENT_TIMESTAMP
+                WHERE state = 'PENDING' AND source LIKE 'commerce-reward:%'
                 """,
                 """
                 CREATE TABLE IF NOT EXISTS rpg_equipment_operations (
@@ -732,10 +743,13 @@ public final class Database implements AutoCloseable {
                     lifetime_paid DECIMAL(19, 2) NOT NULL,
                     credits BIGINT NOT NULL DEFAULT 0,
                     member_until TIMESTAMP NULL,
+                    earned_member_until TIMESTAMP NULL,
                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
                 "ALTER TABLE rpg_commerce_accounts ADD COLUMN IF NOT EXISTS credits BIGINT NOT NULL DEFAULT 0",
+                // Keep the mixed legacy expiry for audit; never copy it into earned membership.
+                "ALTER TABLE rpg_commerce_accounts ADD COLUMN IF NOT EXISTS earned_member_until TIMESTAMP NULL",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_payment_ledger (
                     id VARCHAR(36) PRIMARY KEY,
@@ -910,6 +924,7 @@ public final class Database implements AutoCloseable {
                 "CREATE INDEX IF NOT EXISTS idx_rpg_daily_item_reward_receipt_player ON rpg_daily_item_reward_receipts (player_uuid, created_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_commission_claim_player_date ON rpg_commission_claims (player_uuid, evidence_date, state)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_payment_ledger_created ON rpg_payment_ledger (created_at)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_payment_ledger_player ON rpg_payment_ledger (player_uuid, created_at, id)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_commerce_purchase_period ON rpg_commerce_purchases (player_uuid, product_id, period_key)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_credit_ledger_created ON rpg_credit_ledger (created_at)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_skill_book_player_limit ON rpg_skill_book_uses (player_uuid, limit_group)",
@@ -1047,6 +1062,70 @@ public final class Database implements AutoCloseable {
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
+                // Phase 5 verified Support Credit orders and cosmetic-only entitlements.
+                // These tables extend the existing support ledger; they never share earnable balances.
+                """
+                CREATE TABLE IF NOT EXISTS rpg_support_payment_orders (
+                    order_id VARCHAR(96) PRIMARY KEY,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    key_id VARCHAR(48) NOT NULL,
+                    audience VARCHAR(64) NOT NULL,
+                    credit_units BIGINT NOT NULL,
+                    issued_at TIMESTAMP NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
+                    payload_hash VARCHAR(64) NOT NULL,
+                    signed_payload VARCHAR(2048) NOT NULL,
+                    signature VARCHAR(96) NOT NULL,
+                    ledger_key VARCHAR(96) UNIQUE NOT NULL,
+                    week_key VARCHAR(10) NOT NULL,
+                    accepted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_rpg_support_order_player ON rpg_support_payment_orders (player_uuid, accepted_at)",
+                """
+                CREATE TABLE IF NOT EXISTS rpg_support_credit_limits (
+                    scope_id VARCHAR(48) NOT NULL,
+                    week_key VARCHAR(10) NOT NULL,
+                    issued_units BIGINT NOT NULL DEFAULT 0,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (scope_id, week_key)
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS rpg_support_cosmetic_purchases (
+                    operation_id VARCHAR(36) PRIMARY KEY,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    cosmetic_id VARCHAR(32) NOT NULL,
+                    credit_cost BIGINT NOT NULL,
+                    ledger_key VARCHAR(96) UNIQUE NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS rpg_support_cosmetic_entitlements (
+                    player_uuid VARCHAR(36) NOT NULL,
+                    cosmetic_id VARCHAR(32) NOT NULL,
+                    purchase_id VARCHAR(36) UNIQUE NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (player_uuid, cosmetic_id)
+                )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS rpg_earned_membership_grants (
+                    idempotency_key VARCHAR(96) PRIMARY KEY,
+                    purchase_id VARCHAR(36) UNIQUE NOT NULL,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    product_id VARCHAR(64) NOT NULL,
+                    period_key VARCHAR(32) NOT NULL,
+                    credit_cost BIGINT NOT NULL,
+                    membership_days INTEGER NOT NULL,
+                    previous_until TIMESTAMP NULL,
+                    member_until TIMESTAMP NOT NULL,
+                    debit_reference VARCHAR(96) UNIQUE NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_rpg_earned_member_proof ON rpg_earned_membership_grants (player_uuid, member_until)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_market_buy_orders (
                     order_id VARCHAR(36) PRIMARY KEY,

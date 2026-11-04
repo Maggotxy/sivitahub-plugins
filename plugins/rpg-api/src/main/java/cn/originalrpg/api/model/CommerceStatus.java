@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
+/** memberUntil exposes only proven, Starlight-earned membership; lifetimePaid is legacy audit data. */
 public record CommerceStatus(
         UUID playerId,
         BigDecimal lifetimePaid,

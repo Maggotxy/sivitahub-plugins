@@ -19,6 +19,8 @@ public record SupportCreditResult(Status status, long balance, long amount) {
 
     public enum Status {
         SUCCESS,
+        /** The legacy unsigned grant or arbitrary spend entry point is permanently closed. */
+        LEGACY_DISABLED,
         /** 余额不足，或兑换目标不是实物/便利商品。 */
         INSUFFICIENT_FUNDS,
         /** 幂等键命中：本次请求已经入账，余额未再次变动。 */
