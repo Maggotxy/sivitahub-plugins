@@ -19,6 +19,26 @@ This guide is for an operator authorized by the project owner. It identifies the
 
 The [runtime plugin lock](../../scripts/runtime-smoke-plugins.lock.json) identifies a target community-plugin set. Hard requirements also appear in `plugin.yml`: for example, several entry-point plugins require AuthMe, the story module requires Citizens and BetonQuest, the companion module requires MyPet, and the Essentials bridge requires Essentials. A missing hard dependency can prevent the affected plugin from enabling even when compilation succeeded.
 
+## Equipment signing material
+
+**Before starting Paper, provide `RPG_ITEM_SIGNING_KEY` in its process environment.** RpgItems requires a Base64-encoded HMAC secret with at least **32 decoded bytes** and fails closed when it is missing or invalid. The plugin does not generate a replacement or read the legacy `security.signing-key` configuration field. See [the key loader](../../plugins/rpg-items/src/main/java/cn/originalrpg/items/security/EquipmentSigningMaterial.java) and [item defaults](../../plugins/rpg-items/src/main/resources/config.yml).
+
+For an existing server or a staging copy of its data, reuse the existing signing material. For a completely new staging dataset, generate a key **once**, save it privately, and keep it across restarts, upgrades and restores. The following one-time example requires an existing private directory, creates `key.env` with owner-only permissions and refuses to overwrite an existing file; it does not print the secret:
+
+```bash
+python3 - <<'PY'
+import base64, os, secrets
+path = "/absolute/private/directory/key.env"
+descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(descriptor, "w") as target:
+    target.write("RPG_ITEM_SIGNING_KEY=" + base64.b64encode(secrets.token_bytes(32)).decode("ascii") + "\n")
+PY
+```
+
+Configure the service manager or launcher to load this private file into the Paper process environment. `key.env` is an operator convention, **not an automatically loaded plugin file**. Keep it outside the checkout/release bundle, restrict access and include it in protected recovery backups. Never run key generation as a startup command. Do not replace a missing key for existing signed equipment with a new random value.
+
+For a planned rotation, put the new current key in `RPG_ITEM_SIGNING_KEY` and retain up to three previous verification keys, newest first, in `RPG_ITEM_SIGNING_KEY_PREVIOUS`, `RPG_ITEM_SIGNING_KEY_PREVIOUS_2` and `RPG_ITEM_SIGNING_KEY_PREVIOUS_3`. Each uses the same Base64/32-byte minimum. Keep previous keys until equipment and blueprints signed with them have been safely re-signed or retired; retain the necessary material for any backup you may restore. Nodes sharing these items must share the reviewed key set. Move any legacy plaintext configuration keys into the private environment before removing their old fields. No signing secret is supplied in the developer edition.
+
 ## Database configuration
 
 RpgCore reads these environment overrides:
@@ -30,7 +50,7 @@ RpgCore reads these environment overrides:
 | `RPG_DATABASE_PASSWORD` | Database password |
 | `RPG_NODE_ID` | Stable node identity; single-server default is `standalone` |
 
-The local default is a file-backed H2 database. Production guidance targets PostgreSQL. Inspect [RpgCore defaults](../../plugins/rpg-core/src/main/resources/config.yml) and [Database](../../plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java) for pool, executor, timeout, and startup behavior. Provision secrets through the deployment environment; do not put live credentials in a PR or an example command.
+The local default is a file-backed H2 database at `./plugins/RpgCore/data/rpg` relative to the server working directory; the edition does not supply a database. Production guidance targets PostgreSQL using the environment overrides above. Inspect [RpgCore defaults](../../plugins/rpg-core/src/main/resources/config.yml) and [Database](../../plugins/rpg-core/src/main/java/cn/originalrpg/core/persistence/Database.java) for pool, executor, timeout, and startup behavior. Provision secrets through the deployment environment; do not put live credentials in a PR or an example command.
 
 Changing a JDBC URL does not migrate player data. The [migration utility](../../tools/db-migration/README.md) and [migration procedure](../DATABASE_MIGRATION.md) require a reviewed manifest, source shutdown, target validation, and rollback evidence. Their private wrapper is not included in this checkout. Do not copy a live H2 file or invent a migration from documentation alone.
 
@@ -70,12 +90,16 @@ These checked-in defaults require particular care:
 | RpgCore `session-lease.enabled` | `false` | Multi-node player admission requires a complete, proven lease lifecycle |
 | RpgCore `outbox.enabled` / `outbox.dispatch.enabled` | `false` / `false` | A stored event and dispatcher need actual consumers and end-to-end delivery proof |
 | RpgCore `community.governance-enabled` | `false` | Advanced governance is not enabled merely because its interfaces exist |
+| RpgCore `community.storage.enabled` | `false` | Shared construction custody additionally requires advanced governance and reviewed physical recovery |
+| RpgCore `support-credit.enabled` | `false` | Requires a trusted issuer key/audience, finite quotas, explicit cosmetic prices and the database payment switch |
 | RpgCore `season-attunement.enabled` | `false` | Attunement depends on reviewed season settlement and lifecycle handling |
 | RpgAdmin `season-settlement.enabled` | `false` | The administrative season entry point is closed by default |
 
 Sources: [core config](../../plugins/rpg-core/src/main/resources/config.yml) and [admin config](../../plugins/rpg-admin/src/main/resources/config.yml). Database-backed mechanism switches are another control layer; do not confuse a configuration flag with proof that every transaction honors its intended gate.
 
 Do not turn on every switch as part of English setup. Localization does not require opening later progression, settlement, governance, or multi-node behavior.
+
+The authorized console can inspect or change the existing registry through `/rpgadmin mechanism list` and `/rpgadmin mechanism enable|disable <id> CONFIRM <reason>`. [Runtime mechanism control](../operations/MECHANISM_CONTROL.md) explains bounded snapshot refresh, fail-closed stale admission, local check counters and uncertain commit handling. Payment acceptance uses the authoritative gate inside its transaction. See [Support Credit migration](../operations/SUPPORT_CREDIT_MIGRATION.md) and [community governance/custody](COMMUNITY_GOVERNANCE.md) before enabling those workflows.
 
 ## Deployment and rollback sequence
 
@@ -89,7 +113,7 @@ Do not turn on every switch as part of English setup. Localization does not requ
 
 A code revert does not undo committed ledger transactions or safely reverse a schema/data migration. The rollback plan must name the artifacts, configuration, data compatibility, and transaction compensation procedure. Refunds and compensation must retain their original audited references.
 
-The source's `stagePlugins` task relies on an external deployment script. The public default `bash resource-pack/build.sh` now builds the complete committed client baseline offline; the old private generation and deployment workflow is available only through `--deployment`. [Getting started](GETTING_STARTED.md#build-the-english-staging-edition) documents the public model/HUD candidate exporter and the all-25-plugin edition packager. The latter rejects missing or stale build-provenance stamps, including Java-only changes to shared APIs.
+The source's `stagePlugins` task relies on an external deployment script. The public default `bash resource-pack/build.sh` now builds the complete committed client baseline offline; the old private generation and deployment workflow is available only through `--deployment`. [Getting started](GETTING_STARTED.md#build-a-complete-developer-staging-bundle) documents the public model/HUD candidate exporter and the all-25-plugin edition packager. The latter rejects missing or stale build-provenance stamps, including Java-only changes to shared APIs.
 
 The edition's `runtime-candidates/` contains 15 BetterModel registrations and a bilingual BetterHud layout. These need the pinned external plugins to compile their runtime resources. Keep BetterHud fonts/shaders and BetterModel model indices from the same compilation together; the committed client baseline is not automatically matched to a newly compiled candidate. The native G-key datapack and bilingual BetonQuest prologue are also included, but their actual plugin loading, NPC binding and client interaction remain staging acceptance checks. The edition carries no production state or third-party runtime binaries.
 
@@ -104,7 +128,7 @@ The project's [roadmap](../ROADMAP.md) calls for real Paper/PostgreSQL and human
 | Dungeons | Entry reservations, party changes, partial teleport failure, disconnect, death, restart, and return recovery |
 | Equipment | Binding, signing, upgrade interactions, duplicate identity, salvage/destruction, and quarantine |
 | Persistence | Database timeout/outage, crash during settlement, replay, and restoration from backups |
-| International UI | English/Chinese text versus actual costs, probabilities, eligibility, and delivered outcomes |
+| Presentation | Displayed text versus actual costs, probabilities, eligibility, and delivered outcomes |
 | Load | Increasing player and instance counts with tick latency, database queues, heap, and failure metrics |
 
 The roadmap's Alpha exit criteria include 20 testers over seven days, no duplication or duplicate debits, successful dungeon crash recovery, P95 tick time at or below 45 ms, and a verified backup restoration. These are acceptance targets, not measurements supplied by this English edition. The larger 100-player/2,000-mob/24-instance scenario is also a test target, not a supported-capacity claim.

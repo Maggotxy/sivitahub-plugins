@@ -36,25 +36,25 @@ Sources: [module settings](../../settings.gradle.kts), [build configuration](../
 | `rpg-mobs` | Adaptive monsters, overworld behaviors, elite affixes, and reward integration |
 | `rpg-dungeons` | Shared instances, parties, reservations, waves, bosses, and reward recovery |
 | `rpg-enhancement` | Refinement, limit breaks, and skill mutation |
-| `rpg-market` | Escrow listings, market interactions, fees, delivery, and stall views |
+| `rpg-market` | Escrow listings, funded buy/crafting orders, fees, durable delivery, and stall views |
 | `rpg-skills` | Skill catalog, learning, loadouts, casting, and equipment-based skill access |
 | `rpg-sulfur` | Sulfur resonance, extraction, and signed forging imprints |
-| `rpg-world` | World events, Blood Moons, and hunt chains |
+| `rpg-world` | World events, Blood Moons, hunt chains, and permanent Field Journal discovery |
 | `rpg-economy` | Survival activity integration, commissions, reward limits, and economy shops |
-| `rpg-commerce` | Audited commercial account operations, catalogs, memberships, and reward delivery |
+| `rpg-commerce` | Earned Starlight purchases/membership and isolated signed support/cosmetic commerce |
 | `rpg-admin` | Audited administration, diagnostics, incident handling, and snapshot exports |
 | `rpg-guide` | Main menu, help, onboarding, Quest Center, and shared journey state |
 | `rpg-hub` | Protected hub, service NPCs, travel, bed homes, and wayfinding |
 | `rpg-integrations` | PlaceholderAPI, permissions contexts, HUD integration, and read snapshots |
 | `rpg-performance` | Runtime telemetry, load state, and bounded visual degradation |
-| `rpg-cosmetics` | Auras, flight trails, and shared cosmetic effects |
+| `rpg-cosmetics` | Auras, flight trails and database-backed visual entitlements |
 | `rpg-ai-npc` | Read-only AI guidance with bounded requests and local fallback |
 | `rpg-story` | Optional story flow, actors, escort sessions, and authoritative rewards |
-| `rpg-community` | Communities, membership, mentorship, projects, and governance interfaces |
+| `rpg-community` | Communities, roles, projects, lifecycle approvals, shared custody and civilization history |
 | `rpg-essentials` | EssentialsX utilities constrained by RPG command and travel boundaries |
 | `rpg-pets` | MyPet-backed companions, progression, appearances, and combat restrictions |
 
-The database migration tool is an additional Gradle project; it is not a 26th gameplay plugin.
+Database migration and runtime smoke-probe tools are additional Gradle projects; neither is included in the 25 gameplay plugins.
 
 ## Progression is one model
 
@@ -81,11 +81,13 @@ Start source review in [`rpg-core/persistence`](../../plugins/rpg-core/src/main/
 
 ## Threading and load boundaries
 
-The ordinary core persistence paths dispatch JDBC work through a bounded executor. The core defaults use six worker threads, a queue capacity of 256, and a six-connection pool. Saturation must fail explicitly rather than run the database work on the server tick thread. Bukkit world, entity, and inventory operations must return to the appropriate server execution context.
+The ordinary core persistence paths dispatch JDBC work through a bounded executor. The core defaults use six worker threads, a queue capacity of 256, and a six-connection gameplay pool. Node-lease renewal has a separate one-connection pool. Saturation must fail explicitly rather than run the database work on the server tick thread. Bukkit world, entity, and inventory operations must return to the appropriate server execution context.
 
-That threading rule is not yet universally satisfied by incomplete integrations: the disabled-by-default `SessionLeaseListener` directly reads JDBC in its join handler. [Current source review IR-03](../audits/CURRENT_SOURCE_REVIEW.md) records that issue as a multi-node enablement blocker.
+The session integration acquires leases off the Paper tick thread and uses in-memory admission on login. Actor annotations capture a token before queued work; the wrapped business connection checks that token inside the same transaction. Background reward recipients are not mistaken for initiating actors. Read the [developer contracts](DEVELOPER_HANDBOOK.md#3-thread-and-connection-contracts) and the current tests before enabling multiple nodes.
 
 Placeholder callbacks should read snapshots rather than query the database synchronously. AI requests have bounded concurrency, a timeout, and a circuit-breaker/local-fallback path. Visual plugins consume shared load information and reduce rendering work; that mechanism does not replace a measured capacity plan.
+
+The mechanism-switch snapshot has a ten-second maximum age and an asynchronous refresh scheduled every 40 ticks, nominally two seconds. Missing, unknown or expired switch state denies new admission; refresh failure or an uncertain switch commit invalidates the cached admission state. The durable control row stores the latest operator label and timestamp. Local allowed/denied counters count admission checks, not completed rewards or cluster-wide totals.
 
 Sources: [database settings](../../plugins/rpg-core/src/main/resources/config.yml), [AI settings](../../plugins/rpg-ai-npc/src/main/resources/config.yml), and [performance design](../PERFORMANCE.md).
 
@@ -99,4 +101,4 @@ Changing a display string must preserve placeholder names, command IDs, and the 
 
 Some sources refer to a larger private deployment tree, website, and server configuration. Those components are outside this repository. `plugin.yml` and the [runtime lock](../../scripts/runtime-smoke-plugins.lock.json) are useful integration evidence, but they do not assemble that deployment on their own.
 
-Similarly, the economy simulator is not yet a completed behavioral model, and the presence of Session Lease or Outbox classes does not establish a complete multi-node protocol. The default configuration leaves session admission, cross-node outbox, advanced governance, and season-attunement behavior off. Each must be assessed as an integration, including its producer, consumer, authority, failure mode, and operating evidence. See the [roadmap](ROADMAP.md).
+The economy simulator now executes its fifteen scenarios with explicit assumptions and configuration fingerprints; its output remains uncalibrated until compared with observed activity. Session lease and event delivery source must likewise be assessed together with their actual consumers, recovery and runtime evidence. The default configuration leaves session admission, outbox production/dispatch, advanced governance, shared construction storage, Support Credit and season-attunement behavior off. Support acceptance also requires trusted keys, an audience, finite quotas and configured cosmetic prices. Each must be assessed as an integration, including its producer, consumer, authority, failure mode, and operating evidence. See the [roadmap](ROADMAP.md).

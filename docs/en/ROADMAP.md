@@ -1,72 +1,78 @@
 # Roadmap and evidence
 
-[English documentation](README.md) · [Current source review](../audits/CURRENT_SOURCE_REVIEW.md) · [Operations](OPERATIONS.md)
+[English documentation](README.md) · [Mechanism completion review](../audits/MECHANISM_COMPLETION_REVIEW.md) · [Operations](OPERATIONS.md)
 
-The central release question is whether the integrated experience is reproducible, understandable, and reliable under real play. Module count, a startup log, or a passing set of source tests cannot answer that alone.
+The development objective is a connected survival RPG whose mechanisms have reachable entries, authoritative settlement, useful feedback and recovery. This English edition gives developers the contracts needed to extend that server. Player language selection remains an independent presentation setting.
 
-This English overview describes source baseline `c83226ff87c8ecb868277d9ca5bce575b4684abc`. Historical phase documents remain useful design/history records, but must be checked against current implementation and the evidence actually available.
+Historical audits describe the commit named in each audit. The earlier [source review](../audits/CURRENT_SOURCE_REVIEW.md) targets `c83226ff87c8ecb868277d9ca5bce575b4684abc`; it must not be used to conclude that later implementations are still missing. Conversely, a later source change does not inherit runtime evidence from an earlier commit.
 
-## Current state
+## What is implemented in the current development stack
 
-| Area | What the repository supports | What remains to establish |
+| Area | Implementation | Evidence still required for operating acceptance |
 |---|---|---|
-| Gameplay suite | 25 custom plugins, core gameplay catalogs, resource-pack and datapack workspaces | Complete authorized deployment and client acceptance |
-| Progression | Local 1–30, ascensions 0–3, effective 1–120, stage budgets and local skill-point milestones | Legacy-data review and current runtime/human regression evidence |
-| Transactions and recovery | Persistent services for profiles, wealth, market, delivery, progression, and other systems | PostgreSQL fault injection and complete gameplay recovery under Paper lifecycle failures |
-| English support | Extensive bilingual message data and player language selection; English documentation entry points | Remaining shared-world labels, third-party/operator interfaces, rendered UI and semantic acceptance |
-| Economy simulation | Fourteen executable cohort scenarios and an expected support-credit isolation rejection; actual config inputs and explicit behavior assumptions | Offline and uncalibrated; requires observed data and separate runtime fault/recovery tests |
-| Season and governance | State/services and guarded entry points exist | Default-off integration paths, full failure recovery, and human operational evidence |
-| Multiple servers | Some node/lease/outbox primitives exist | Complete player lease lifecycle, real event consumers, fencing, idempotent processing, and cross-node tests |
+| Build and startup | All 25 custom plugins and pinned dependencies; the recorded baseline below has a full build and positive startup probe | Re-run on the final candidate and the actual deployment configuration |
+| Progression | Four ascension stages, local 1–30/effective 1–120, chapter authority, XP and milestone receipts | Review migrated characters and run progression with real players |
+| Market | Escrow sell orders, funded buy/craft orders, partial fills, fixed taxes, expiry and proved refunds | Real client inventory, crash/reconnect and economic observation |
+| Natural rewards | Durable immutable accepted intents, stable XP IDs, mailbox item settlement and replay | Target-filesystem failure behavior and actual death/load testing |
+| Combat/content | Native enemy and marked-combatant targeting, dungeon interaction protection, six Field Journal routes | Client telegraphs, animation, layout, difficulty and fun |
+| Support payments | Default-off signed, audience-bound receipts; isolated credits; atomic cosmetic entitlement purchases; closed legacy gameplay benefits | Configure the trusted payment issuer and verify real settlement/reversal operations |
+| Communities | Default-off advanced roles/lifecycle/storage; reachable weekly projects and retained completed project/season exhibits | Multi-person interaction, actual inventory custody and operator acceptance |
+| Seasons | Preview/approval/freeze/settle/verify and permanent project/season exhibition | Fault/recovery drills on a copied real dataset and approved operation |
+| Multiple servers | Session acquire/renew/handoff/release, actor fencing inside business transactions, transactional outbox/inbox | Multiple real Paper processes, proxy routing and consistent player/world storage |
+| Economy model | Fourteen executable cohort scenarios plus a deliberately rejected Support Credit isolation scenario | Calibration against observed activity, wealth, stock and retention |
+| English development | Build path, module ownership, API/transaction contracts, content extension, schema, failure and release guides | Developer onboarding feedback and continued documentation maintenance |
 
-The [simulator runner](../../tools/economy-sim/run.py) does not yet model the 14 economic behavior scenarios. The [source review](../audits/CURRENT_SOURCE_REVIEW.md) also distinguishes read-side session admission and an outbox dispatcher from a complete multi-node integration. Do not label either capability production-ready from class names alone.
+The table describes concrete source work and the remaining acceptance boundary. Detailed tests, migration behavior and exceptions belong to the [mechanism completion review](../audits/MECHANISM_COMPLETION_REVIEW.md) and the phase PRs.
 
-## Recommended next increments
+## Recorded runtime baseline
 
-### 1. Make the source and onboarding reproducible
+[Runtime-readiness PR #10](https://github.com/Maggotxy/sivitahub-plugins/pull/10), commit `035d288cac8e58478e083a4ac3c4b5d9af4bf547`, passed [CI run 41879473522](https://github.com/Maggotxy/sivitahub-plugins/actions/runs/41879473522). That run built all 25 plugins, recorded 1,171 plugin tests with no failures/errors/skips, passed real PostgreSQL market/migration verification, and started Paper 26.2 build 100 against PostgreSQL 18.6.
 
-Keep the repository entry points accurate about missing private deployment inputs. Pin dependencies with verified hashes, make checks report real failures, and maintain an English path from project overview through build, gameplay, and operations. These improvements make existing work reviewable and reduce onboarding errors.
+The positive probe observed all 25 custom plugins enabled and the eight core services in its explicit checklist registered. Classified custom, community-plugin and unattributed errors were zero. This is startup evidence for that exact snapshot. The subsequent payment, community, discovery and network changes require the same gates on their final integration head; the earlier result is not silently extended to them. Registration of a service also does not establish its gameplay or recovery behavior.
 
-**Acceptance:** a clean checkout can follow the documented source workflow; links, locale structure, placeholders, and dependency manifests pass their checks; unavailable environment-dependent steps are identified clearly.
+See [runtime startup verification](../operations/RUNTIME_STARTUP_VERIFICATION.md) for the probe, pinned artifacts, isolation rules and its limits. A successful startup does not establish correct player inventory recovery or supported player capacity.
 
-### 2. Prove the core player journey
+## Acceptance work after implementation
 
-Exercise authentication, class choice, first equipment, skill use, a normal dungeon, a trade, a delivery claim, and recovery after reconnect. Run that journey in both languages. Check real costs and outcomes against every preview and confirmation.
+### 1. Run the complete player journey
 
-**Acceptance:** recorded Paper/PostgreSQL and client evidence, with no unexplained duplicate debit, item duplication, orphan reservation, or stuck return path in the tested scenarios.
+Exercise authentication, class choice, gathering/forging, skill use, an ordinary and hidden encounter, an escrow trade/order fill, mailbox claim, community membership/storage, discovery progress and reconnect. Verify every displayed cost against committed receipts. Follow the route with distinct roles and inventories, including full bags and disconnects during confirmation.
 
-### 3. Implement the missing economy model
+**Acceptance:** a recorded Paper/PostgreSQL/client run with no unexplained duplicate debit, duplicate item, missing accepted reward, orphan reservation or permanently stuck return path.
 
-Use real configuration and reviewed population/activity assumptions to run all fifteen scenarios. Record input hashes, seeds, measured outputs, and unmet conditions. Compare model output with observed gameplay before using it to justify prices, quotas, or expansion.
+### 2. Exercise real failure boundaries
 
-**Acceptance:** scenario behavior actually executes; model assumptions and limitations are explicit; no placeholder status is reported as a passing simulation. See the [simulator specification](../../tools/economy-sim/README.md).
+Use disposable snapshots to interrupt dungeon settlement, natural-reward acceptance, mailbox confirmation, community withdrawal, season settlement and session handoff. Distinguish operations that were never durably accepted from accepted operations requiring replay. Never label H2 concurrency or a startup probe as a completed multi-node crash drill.
 
-### 4. Validate settlement and community governance separately
+**Acceptance:** the same operation identity either commits once or remains explicitly recoverable; original debit/refund references and authoritative item custody remain intact. Preserve logs, before/after rows and the exact failure point.
 
-Keep season settlement, attunement, and advanced governance behind their reviewed gates. Test preview/approval, concurrency, partial failure, replay, audit, and rollback before enabling them for players. A phase PR should make one coherent capability reviewable.
+### 3. Calibrate the already implemented economy model
 
-**Acceptance:** documented authority, migration, failure, rollback, and transaction evidence for the complete operation; human review of the resulting player-facing behavior.
+Run [the fifteen scenarios](../../tools/economy-sim/README.md) with configuration hashes, seeds and reviewed participation assumptions. Compare their outputs with real ledger/activity evidence before using them to justify prices or population forecasts. The support-credit-to-power scenario is supposed to be rejected.
 
-### 5. Finish the multi-node protocol before deploying it
+**Acceptance:** input provenance is reproducible, conservation and quotas hold, and differences between synthetic assumptions and observed behavior are explained. No automated price/drop repricing is authorized.
 
-Implement and verify the lease acquisition/renewal/release path, stale-owner fencing, mailbox claim coordination, event handlers, idempotent consumers, and identity migration requirements. Exercise node loss and database failure on more than one actual server process.
+### 4. Review private integrations and identity migration
 
-**Acceptance:** complete cross-node tests and operating evidence satisfy C-014. Enabling a configuration switch or deploying Velocity does not itself meet this gate.
+The public repository does not contain the site's payment issuer, production AuthMe/LuckPerms data, proxy routing, shared playerdata transport, populated maps or backup system. A database UUID rewrite cannot silently cover signed ItemStack/PDC blobs, third-party accounts or world files. Inventory these stores, review the mapping and use supported migration coverage; unknown stores block migration.
+
+**Acceptance:** a reviewed dry run, offline backup, complete store coverage, an atomic supported apply, deterministic verification and an exercised restoration procedure. Never infer official UUIDs from names without verified mapping evidence.
+
+### 5. Complete human and load acceptance
+
+The [canonical roadmap](../ROADMAP.md) requires at least 20 testers for seven days, no duplication or duplicate debits, accepted dungeon crash recovery, P95 tick time no higher than 45 ms and verified backup restoration. These are release targets. Larger player/entity/instance scenarios must be measured in stages on the actual hardware.
+
+**Acceptance:** real interaction, telemetry and incident evidence satisfy the target; polished icons and passing tests alone cannot establish enjoyable pacing or operational capacity.
 
 ## Evidence levels
 
 | Label | Meaning | It does not substitute for |
 |---|---|---|
-| `[D]` Design | Specification, plan, RFC, or invariant | An implementation |
-| `[S]` Source | Concrete code and wiring | Executed tests |
-| `[T]` Test | Recorded automated test execution | Real deployed gameplay |
+| `[D]` Design | Purpose, invariants and specification | An implementation |
+| `[S]` Source | Concrete reachable code and wiring | Executed tests |
+| `[T]` Test | Recorded automated execution | Real deployed gameplay |
 | `[M]` Simulation | Executed model with inputs and outputs | Real economic behavior |
-| `[R]` Runtime | Real Paper/PostgreSQL deployment evidence | Human experience over time |
+| `[R]` Runtime | Actual Paper/PostgreSQL evidence | Human experience over time |
 | `[H]` Human | Real interaction and sustained playtesting | Missing source or technical checks |
 
-This edition does not claim a new production rollout, real PostgreSQL failure drill, or human playtest. Consult the current PR/test report for commands actually executed during the documentation and tooling change.
-
-## Release gates
-
-The [canonical roadmap](../ROADMAP.md) defines the Alpha target of at least 20 testers for seven days, no duplication or duplicate debits, complete dungeon crash recovery in the accepted scenarios, P95 tick time no higher than 45 ms, and verified backup recovery. Larger capacity scenarios are test goals and must be approached in stages.
-
-The long-term phase plan remains in [AGENTS.md](../../AGENTS.md) and [the machine-readable plan](../planning/long-term-game-economy-v1.yaml). This roadmap does not authorize new currencies, higher ascension limits, a second market, or a shortcut around the [constitution](GAME_ECONOMY_CONSTITUTION.md).
+Use one phase per implementation PR. The authoritative constraints remain in [AGENTS.md](../../AGENTS.md), [the phase plan](PHASE_PLAN.md), [the machine-readable plan](../planning/long-term-game-economy-v1.yaml) and [the constitution](GAME_ECONOMY_CONSTITUTION.md). No roadmap item authorizes a new currency, a second market or another vertical ascension tier.

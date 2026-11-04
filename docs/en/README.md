@@ -1,28 +1,24 @@
-# English documentation
+# English developer documentation
 
-[Project overview](../../README.en.md) · [中文入口](../../README.md)
+[Project](../../README.en.md) · [中文](../../README.md)
 
-SivitaHub is a custom Minecraft survival RPG built as a suite of Paper plugins. These guides explain the project to players, developers, and authorized operators without assuming familiarity with its Chinese documentation.
+This is the engineering edition of SivitaHub: architecture, gameplay mechanisms, APIs, content integration, builds, transactions and recovery. It is written for English-speaking developers working on the project, with the same code and gameplay authority as the original edition.
 
-## Choose your path
+## Recommended reading order
 
-| Audience | Reading order |
-|---|---|
-| Players | [Player guide](PLAYER_GUIDE.md) → [Glossary](GLOSSARY.md) |
-| Developers | [Getting started](GETTING_STARTED.md) → [Architecture](ARCHITECTURE.md) → [Contributing](CONTRIBUTING.md) |
-| Operators | [Operations](OPERATIONS.md) → [Roadmap and evidence](ROADMAP.md) |
-| Designers and reviewers | [Gameplay and economy constitution](GAME_ECONOMY_CONSTITUTION.md) → [Architecture](ARCHITECTURE.md) → [Roadmap](ROADMAP.md) |
+1. [Developer handbook](DEVELOPER_HANDBOOK.md): practical contracts and worked implementation paths.
+2. [Gameplay specification](GAMEPLAY_SPECIFICATION.md): how all server systems connect, including production, trade, encounters, communities and horizontal goals.
+3. [Getting started](GETTING_STARTED.md): exact toolchain, dependencies and test commands.
+4. [Architecture](ARCHITECTURE.md): all 25 plugin owners, state boundaries and threading.
+5. [Constitution](GAME_ECONOMY_CONSTITUTION.md) and [phase plan](PHASE_PLAN.md): invariants and implementation requirements.
+6. [Contributing](CONTRIBUTING.md), [Operations](OPERATIONS.md) and [Roadmap](ROADMAP.md): review, migration, recovery and evidence gates.
 
-## Reading conventions
+Keep the [25-plugin reference](PLUGIN_REFERENCE.md) open while implementing a feature: it links each module's commands, permissions, source, configuration, extension contract and recovery checks. The [mechanism completion review](../audits/MECHANISM_COMPLETION_REVIEW.md) distinguishes implemented behavior from deployment and human acceptance.
 
-- Command IDs, configuration keys, database names, and Java identifiers are kept exactly as implemented. Translate their explanations, not the identifiers.
-- **Default** means a value in checked-in configuration. An authorized deployment can use different reviewed settings.
-- **Implemented** describes code presence; **validated** requires identified test or runtime evidence. These terms are not interchangeable.
-- Paths under the private `server/` deployment tree are not files supplied by this repository unless explicitly stated otherwise.
-- Original project policy remains in [AGENTS.md](../../AGENTS.md), the [Chinese constitution](../GAME_ECONOMY_CONSTITUTION.md), and [INTERNAL_USE.md](../../INTERNAL_USE.md). This English edition explains those rules without changing them.
+## Working conventions
 
-Baseline reviewed: `c83226ff87c8ecb868277d9ca5bce575b4684abc`.
+Command IDs, permissions, config keys, database names, Java symbols and PDC keys are stable identifiers. Translate their explanations, not the identifiers. Use [the glossary](GLOSSARY.md) to interpret terms in older Chinese comments and design notes.
 
-## Verification of this edition
+An implementation, a passing automated test, a model result and a live-server acceptance result are different evidence. Every new mechanism needs a reachable entry, eligibility, authoritative effect, feedback and recovery/exit path. Source presence alone does not complete that loop.
 
-See the [delivery and verification record](../audits/INTERNATIONAL_READINESS_DELIVERY.md) for the fixes, 17 targeted Java tests, 29 Python tests, the Citizens download blocker, and the runtime/human checks still required.
+[AGENTS.md](../../AGENTS.md), the [canonical constitution](../GAME_ECONOMY_CONSTITUTION.md) and [rights notice](../../INTERNAL_USE.md) remain authoritative. Historical audits carry their own dates and baselines. The [player guide](PLAYER_GUIDE.md) and English language preset remain available as supporting presentation references; they are not the purpose of this developer edition.

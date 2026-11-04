@@ -1,6 +1,6 @@
 # 希维塔大陆 · SivitaHub Survival RPG
 
-**简体中文** · [English](README.en.md) · [English documentation](docs/en/README.md)
+**简体中文** · [English](README.en.md) · [English developer documentation](docs/en/README.md)
 
 **原版生存 × RPG 构筑 × 玩家经济 × 持续社区。** 希维塔将 Minecraft 的探索、采集与建造，连接到职业成长、玩家锻造装备、合作副本、托管市场和轻主线。本仓库包含 25 个自研 Paper 插件、资源包工作区、导航数据包及工程工具。
 
@@ -11,8 +11,8 @@
 | 目标 | 入口 |
 |---|---|
 | 了解玩法与设计 | [玩法规格](docs/GAME_DESIGN.md)、[经济与长期成长](docs/ECONOMY.md)、[任务与剧情](docs/STORY.md) |
-| 查看实际项目完善结果 | [运行版英文与玩法交付记录](docs/audits/PLAYABLE_ENGLISH_EDITION_DELIVERY.md)、[全部 25 插件矩阵](docs/audits/FULL_PLUGIN_GAMEPLAY_REVIEW.md)、[成长语义复核](docs/audits/PROGRESSION_SEMANTICS_AUDIT.md) |
-| 向国际玩家介绍项目 | [English README](README.en.md)、[Player guide](docs/en/PLAYER_GUIDE.md)、[双语术语表](docs/en/GLOSSARY.md) |
+| 查看实际项目完善结果 | [本轮机制完善与证据](docs/audits/MECHANISM_COMPLETION_REVIEW.md)、[全部 25 插件矩阵](docs/audits/FULL_PLUGIN_GAMEPLAY_REVIEW.md)、[成长语义复核](docs/audits/PROGRESSION_SEMANTICS_AUDIT.md) |
+| 供英文开发者接手 | [Developer handbook](docs/en/DEVELOPER_HANDBOOK.md)、[Gameplay specification](docs/en/GAMEPLAY_SPECIFICATION.md)、[Architecture](docs/en/ARCHITECTURE.md)、[术语表](docs/en/GLOSSARY.md) |
 | 构建和参与开发 | [开发上手](docs/en/GETTING_STARTED.md)、[架构说明](docs/en/ARCHITECTURE.md)、[贡献规范](docs/en/CONTRIBUTING.md) |
 | 检查英文覆盖 | [国际化审计](docs/audits/LOCALIZATION_REVIEW.md)、[英文配置预设](examples/en_us/README.md) |
 | 准备授权部署 | [运维指南](docs/en/OPERATIONS.md)、[真实运行验收](docs/RUNTIME_SMOKE.md)、[并发与压力门槛](docs/PERFORMANCE.md) |
@@ -29,9 +29,9 @@
 - Gold / Merit / Starlight 三类游戏财富、事务账本、原版物资和自制装备托管市场、委托与可恢复邮箱。
 - 主城、服务 NPC、可选故事引导、伙伴、外观与只读 AI 建议；大量菜单、帮助和错误消息已有中英文资源。
 
-“源码存在”“功能默认启用”“测试通过”“真实多人环境可用”是不同状态。经济仿真已实现 15 场景的离线模型，结果仍需真实服数据校准；多服会话与 Outbox 尚未完成整个运行闭环。本轮已完成 24 个实际插件构建与 1,138 项插件测试，Story 的固定 Citizens 依赖下载受阻，完整 25 插件发行包仍被打包器拒绝。具体证据和剩余验收见[本轮交付](docs/audits/PLAYABLE_ENGLISH_EDITION_DELIVERY.md)及[英文路线图](docs/en/ROADMAP.md)。
+“源码存在”“功能默认启用”“测试通过”“真实多人环境可用”是不同状态。经济仿真已实现 15 场景的离线模型，结果仍需真实服数据校准；多服会话与 Outbox 的源实现、事务证据和实际背包/PDC 迁移是分别验收的边界。固定 Citizens 依赖已核验取得；当前集成树已构建全部 25 个插件，本地通过 1,419 项插件测试与 47 项迁移工具测试，另有 4 项必须连接真实 PostgreSQL 的条件测试。完整机制分支的 CI 已补跑 PostgreSQL 结算、会话、邮件与迁移，并通过真实 Paper 启动门禁。提交号、完整运行记录和剩余验收见[本轮机制审阅](docs/audits/MECHANISM_COMPLETION_REVIEW.md)及[英文路线图](docs/en/ROADMAP.md)。
 
-项目英文版包括运行时语言切换、支持物品的旧名称刷新、共享 NPC/地图标签、双语序章，以及可从公开源码构建的客户端资源包、15 个服务端模型与四槽 HUD 配置候选。构建命令见[英文版上手](docs/en/GETTING_STARTED.md)和[资源说明](resource-pack/README.md)。服务端模型/HUD 候选仍需固定第三方插件编译与客户端验收。
+英文版面向开发者，涵盖各插件职责、玩法闭环、API 与数据权威、线程约束、迁移、恢复、内容接线和验证。玩家语言选择属于独立的可选功能；开发版打包默认保留现有玩家语言设置。构建命令见[开发上手](docs/en/GETTING_STARTED.md)和[资源说明](resource-pack/README.md)。资源包、15 套模型和四槽 HUD 均有可复现构建与引用检查；实际客户端效果仍需验收。
 
 ```text
 plugins/        25 个独立 Gradle 插件模块

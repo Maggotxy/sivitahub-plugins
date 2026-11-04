@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package all 25 built plugins and the English presentation preset for staging.
+"""Package all 25 built plugins for staging with English developer instructions.
 
 Requires real Gradle JARs, a verified portable resource pack, PyYAML==6.0.3
 and Node.js (geometry-only model export; no Sharp or Pillow required).
@@ -38,6 +38,37 @@ portable = load_module("edition_pack", ROOT / "resource-pack/tools/build_portabl
 server_resources = load_module("edition_server_resources", ROOT / "resource-pack/tools/build_server_resources.py")
 story_package = load_module("edition_story_package", ROOT / "scripts/check-story-package.py")
 PROVENANCE_PATH = "META-INF/sivitahub-build.json"
+# This is a reviewed public-document inventory, not a recursive copy of docs/
+# or the checkout. Adding a guide requires an explicit distribution decision.
+ENGLISH_GUIDES = (
+    "ARCHITECTURE.md", "COMMUNITY_GOVERNANCE.md", "CONTRIBUTING.md",
+    "DEVELOPER_HANDBOOK.md", "FIELD_JOURNAL.md", "GAMEPLAY_SPECIFICATION.md",
+    "GAME_ECONOMY_CONSTITUTION.md", "GETTING_STARTED.md", "GLOSSARY.md",
+    "OPERATIONS.md", "PHASE_PLAN.md", "PLAYER_GUIDE.md", "PLUGIN_REFERENCE.md",
+    "README.md", "ROADMAP.md", "SESSION_AND_OUTBOX.md",
+)
+OPERATIONS_RUNBOOKS = (
+    "MAILBOX_CLAIM_MIGRATION.md", "MARKET_ORDER_MIGRATION.md", "MECHANISM_CONTROL.md",
+    "PROGRESSION_RECEIPT_MIGRATION.md", "RUNTIME_STARTUP_VERIFICATION.md",
+    "SESSION_OUTBOX_MIGRATION.md", "SUPPORT_CREDIT_MIGRATION.md", "UUID_IDENTITY_MIGRATION.md",
+)
+DEVELOPER_DOCUMENTS = (
+    "README.en.md", "README.md", "AGENTS.md", "INTERNAL_USE.md",
+    *(f"docs/en/{name}" for name in ENGLISH_GUIDES),
+    *(f"docs/operations/{name}" for name in OPERATIONS_RUNBOOKS),
+    # Canonical rules and public reference/recovery documents linked by the
+    # English guides. Source-code/test/tool links still require the checkout.
+    "docs/ARCHITECTURE.md", "docs/CODEX_LONG_TERM_EXECUTION_PLAN.md",
+    "docs/DATABASE_MIGRATION.md", "docs/GAME_ECONOMY_CONSTITUTION.md",
+    "docs/LONG_TERM_GAME_ECONOMY_PLAN.md", "docs/PERFORMANCE.md", "docs/ROADMAP.md",
+    "docs/audits/CURRENT_SOURCE_REVIEW.md", "docs/audits/FULL_PLUGIN_GAMEPLAY_REVIEW.md",
+    "docs/audits/LOCALIZATION_REVIEW.md", "docs/audits/MECHANISM_COMPLETION_REVIEW.md",
+    "docs/audits/PLAYABLE_ENGLISH_EDITION_DELIVERY.md", "docs/audits/PROGRESSION_SEMANTICS_AUDIT.md",
+    "docs/planning/long-term-game-economy-v1.yaml", "docs/templates/MECHANISM_RFC_TEMPLATE.md",
+    "examples/en_us/README.md", "libs/vendor/README.md",
+    "plugins/rpg-commerce/SUPPORT_CREDIT.md", "plugins/rpg-mobs/RECOVERY.md",
+    "resource-pack/README.md", "tools/db-migration/README.md", "tools/economy-sim/README.md",
+)
 
 
 class PackageError(ValueError):
@@ -46,6 +77,19 @@ class PackageError(ValueError):
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def developer_documentation(root: Path) -> dict[str, bytes]:
+    """Read only reviewed public documents, rejecting missing or redirected inputs."""
+    payloads = {}
+    for relative in DEVELOPER_DOCUMENTS:
+        source = root / relative
+        components = [source, *source.parents[:len(Path(relative).parts) - 1]]
+        if (any(path.is_symlink() for path in components) or not source.is_file()
+                or not source.resolve().is_relative_to(root.resolve())):
+            raise PackageError(f"Missing or unsafe developer documentation: {relative}")
+        payloads[relative] = source.read_bytes()
+    return payloads
 
 
 def properties(root: Path) -> dict[str, str]:
@@ -149,14 +193,33 @@ def validate_pack(root: Path, pack_path: Path) -> tuple[dict[str, bytes], dict]:
     return payloads, manifest
 
 
-def installation_text(required: list[str], optional: list[str]) -> str:
-    return f'''# SivitaHub English edition — staging bundle
+def installation_text(required: list[str], optional: list[str], english_player_preset: bool = False) -> str:
+    locale_note = ('The optional English player preset was explicitly selected.' if english_player_preset
+                   else 'Player-language settings retain their canonical source defaults.')
+    return f'''# SivitaHub developer edition — staging bundle
 
 This bundle contains all 25 custom plugin JARs, canonical configuration defaults
-with the reviewed English presentation overrides, the complete bilingual client
+with reviewed source defaults, the complete bilingual client
 resource pack, the native Minecraft 26.2 Quick Actions datapack, and reviewable
 BetterModel/BetterHud server resource candidates. The bilingual BetonQuest
 prologue conversation is included under plugins/BetonQuest/QuestPackages/.
+
+## Developer documentation
+
+Start with [the English documentation index](docs/en/README.md),
+[developer handbook](docs/en/DEVELOPER_HANDBOOK.md),
+[gameplay specification](docs/en/GAMEPLAY_SPECIFICATION.md) and
+[reference for all 25 plugins](docs/en/PLUGIN_REFERENCE.md).
+The bundle includes every reviewed English guide and the migration/recovery
+runbooks under docs/operations/, including reward recovery, market orders,
+Support Credit, mailbox claims, session/outbox and UUID migration.
+Canonical rules and their linked public reference documents retain their
+repository-relative paths and are covered by manifest.json hashes.
+
+Code, test and executable-tool links in these documents refer to the matching
+source checkout. Clone https://github.com/Maggotxy/sivitahub-plugins and use the
+reviewed source revision when developing; this staging bundle does not contain
+the complete source tree or replace migration/build tools.
 
 ## Prepare a fresh staging server
 
@@ -172,26 +235,46 @@ prologue conversation is included under plugins/BetonQuest/QuestPackages/.
    preserve its database, economy, world and feature settings.
    If using BetonQuest, review configuration-overlays/BetonQuest-README.md and
    keep the reserved story NPC binding aligned with the RpgStory configuration.
-4. Copy datapacks/sivita-navigation into the active world's datapacks/ directory.
+4. Before the first start, provide RPG_ITEM_SIGNING_KEY in the Paper process
+   environment: a Base64-encoded secret containing at least 32 decoded bytes.
+   RpgItems fails closed when this material is missing or invalid. For an existing
+   server, reuse its existing key; for genuinely new staging data, generate it
+   once and retain it privately across restarts and upgrades. A protected key.env
+   outside the release tree can hold it, but your service manager/launcher must
+   load that file into the process environment; the plugins do not auto-load it.
+   During rotation retain the old verification keys, newest first, in
+   RPG_ITEM_SIGNING_KEY_PREVIOUS, RPG_ITEM_SIGNING_KEY_PREVIOUS_2 and
+   RPG_ITEM_SIGNING_KEY_PREVIOUS_3. Never generate a fresh key at every startup
+   or put signing secrets in the release bundle. Follow the one-time setup and
+   rotation guidance in docs/en/OPERATIONS.md#equipment-signing-material.
+   Core defaults to file-backed H2 under plugins/RpgCore/data/rpg for local use.
+   For production PostgreSQL, review the source Core defaults and
+   docs/en/OPERATIONS.md#database-configuration, then supply RPG_DATABASE_URL,
+   RPG_DATABASE_USER and RPG_DATABASE_PASSWORD through the private environment.
+   Changing the JDBC URL does not migrate an existing database.
+5. Copy datapacks/sivita-navigation into the active world's datapacks/ directory.
    The installer convention is world/datapacks/; adapt it if your world is renamed.
-5. Review runtime-candidates/README.en.md before enabling BetterHud or BetterModel.
+6. Review runtime-candidates/README.en.md before enabling BetterHud or BetterModel.
    It contains all 15 source .bbmodel registrations, four-slot bilingual HUD inputs
    and a source/output SHA manifest. Compile them on the pinned external plugins
    in staging, then assemble a client pack from those matching outputs. The
    supplied portable pack is a baseline and is not automatically matched to a new
    HUD compilation; model indices, font codepoints and shaders must stay together.
-6. Host the reviewed client pack at an HTTPS URL reachable by your players.
+7. Host the reviewed client pack at an HTTPS URL reachable by your players.
    Set resource-pack, resource-pack-sha1 and resource-pack-id together in the stopped
    server's server.properties. The supplied baseline SHA-1 and pack UUID are in
    resourcepacks/{portable.PACK_NAME}.manifest.json; recompute the SHA-1 when you
    compile/merge a different runtime pack. No public download URL is assumed.
-7. Start Paper and check all 25 custom plugins enabled. Join with a 26.2 client;
-   select English in Minecraft and run /language en_us. Test /menu, /skills, /tasks,
+8. Start Paper and check all 25 custom plugins enabled. Join with a 26.2 client;
+   choose the client/player language you intend to test. Test /menu, /skills, /tasks,
    G-key Quick Actions, one combat skill, one forge operation and one dungeon entry.
 
 ## Presentation and deployment boundaries
 
-RpgCore defaults to en_us for new players. Persisted player choices remain in effect.
+{locale_note} Persisted player choices remain in effect.
+The English developer documentation does not require changing the player language.
+The optional configuration-overlays/ files can be reviewed separately; /language en_us
+remains available for player-localization testing.
 The G-key native dialog follows the client's language and has English fallback text.
 The resource pack includes all committed originalrpg, BetterHud and BetterModel
 client assets. Private BetterHud server layouts and BetterModel .bbmodel registry
@@ -210,7 +293,7 @@ server or human client acceptance test.
 
 The sibling ZIP has a .sha256 sidecar. Inside this directory, manifest.json lists
 SHA-256 and sizes for every payload file, all 25 plugin versions, declared external
-dependencies, and the English configuration overlay receipt. Preserve INTERNAL_USE.md;
+dependencies, and the optional English configuration overlay receipt. Preserve INTERNAL_USE.md;
 packaging does not add an open-source license or alter project rights.
 
 Each custom JAR contains META-INF/sivitahub-build.json. The packager independently
@@ -221,7 +304,7 @@ manifest's build_provenance records the common fingerprint for this edition.
 '''
 
 
-def package(root: Path, output: Path, pack_path: Path) -> Path:
+def package(root: Path, output: Path, pack_path: Path, *, english_player_preset: bool = False) -> Path:
     # Check the un-resolved final path to reject dangling symlinks as well.
     zip_output = Path(str(output) + ".zip")
     sha_output = Path(str(zip_output) + ".sha256")
@@ -239,7 +322,7 @@ def package(root: Path, output: Path, pack_path: Path) -> Path:
         raise PackageError("This edition packager targets Minecraft 26.2")
     plugins = source_plugins(root)
     provenance = source_provenance(root)
-    payloads: dict[str, bytes] = {}
+    payloads: dict[str, bytes] = developer_documentation(root)
     plugin_records = []
     problems = []
     for plugin in plugins:
@@ -285,8 +368,10 @@ def package(root: Path, output: Path, pack_path: Path) -> Path:
     with tempfile.TemporaryDirectory(prefix="sivita-english-configs-") as directory:
         generated = Path(directory) / "configs"
         overlay_receipt = presets.generate(root, generated)
-        for source in generated.glob("*/config.yml"):
-            payloads[f"plugins/{source.relative_to(generated).as_posix()}"] = source.read_bytes()
+        overlay_receipt["applied_to_plugin_configs"] = english_player_preset
+        if english_player_preset:
+            for source in generated.glob("*/config.yml"):
+                payloads[f"plugins/{source.relative_to(generated).as_posix()}"] = source.read_bytes()
     for source in sorted((root / "examples/en_us").glob("*.yml")):
         payloads[f"configuration-overlays/{source.name}"] = source.read_bytes()
     for source in sorted((root / "datapacks/sivita-navigation").rglob("*")):
@@ -294,17 +379,20 @@ def package(root: Path, output: Path, pack_path: Path) -> Path:
             raise PackageError(f"Datapack source must not be a symlink: {source}")
         if source.is_file():
             payloads[source.relative_to(root).as_posix()] = source.read_bytes()
-    payloads["INTERNAL_USE.md"] = (root / "INTERNAL_USE.md").read_bytes()
     payloads["configuration-overlays/manifest.json"] = (json.dumps(overlay_receipt, indent=2, ensure_ascii=False) + "\n").encode()
     provided = {plugin["name"] for plugin in plugins}
     required = sorted({dep for plugin in plugins for dep in plugin["metadata"].get("depend", [])} - provided)
     optional = sorted({dep for plugin in plugins for dep in plugin["metadata"].get("softdepend", [])} - provided - set(required))
-    payloads["INSTALL.en.md"] = installation_text(required, optional).encode()
+    payloads["INSTALL.en.md"] = installation_text(required, optional, english_player_preset).encode()
     if source_provenance(root) != provenance:
         raise PackageError("Plugin sources changed during packaging; finish the edits, rebuild all 25 plugins, and retry")
-    manifest = {"schema_version": 1, "edition": "en_us", "minecraft_version": minecraft, "java_version": 25,
+    manifest = {"schema_version": 1, "edition": "developer", "english_player_preset": english_player_preset, "minecraft_version": minecraft, "java_version": 25,
                 "project_version": version, "plugin_count": len(plugin_records), "plugins": plugin_records,
                 "build_provenance": provenance,
+                "documentation": {"entrypoint": "docs/en/README.md",
+                                  "english_guides": len(ENGLISH_GUIDES),
+                                  "operations_runbooks": len(OPERATIONS_RUNBOOKS),
+                                  "files": sorted(DEVELOPER_DOCUMENTS)},
                 "required_external_plugins": required, "optional_external_plugins": optional,
                 "resource_pack_sha256": pack_manifest["sha256"], "content": content,
                 "navigation": navigation, "story_package": story, "config_overlays": overlay_receipt,
@@ -341,7 +429,7 @@ def package(root: Path, output: Path, pack_path: Path) -> Path:
             for path in reversed(created):
                 shutil.rmtree(path) if path.is_dir() else path.unlink(missing_ok=True)
             raise
-    print(f"ENGLISH_EDITION=GREEN plugins=25 files={len(payloads)} sha256={digest(zip_data)}")
+    print(f"DEVELOPER_EDITION=GREEN plugins=25 files={len(payloads)} sha256={digest(zip_data)}")
     print(zip_output.absolute())
     return zip_output
 
@@ -351,11 +439,13 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True, help="NEW output directory; its sibling .zip must also be new")
     parser.add_argument("--resource-pack", type=Path, default=ROOT / "build/resource-pack" / portable.PACK_NAME,
                         help="verified portable ZIP with its adjacent .manifest.json")
+    parser.add_argument("--english-player-preset", action="store_true",
+                        help="explicitly apply the optional English player presentation overlays")
     args = parser.parse_args()
     try:
-        package(ROOT, args.output, args.resource_pack)
+        package(ROOT, args.output, args.resource_pack, english_player_preset=args.english_player_preset)
     except (OSError, ValueError, KeyError, zipfile.BadZipFile, subprocess.SubprocessError) as exc:
-        print(f"ENGLISH_EDITION=RED {exc}", file=sys.stderr)
+        print(f"DEVELOPER_EDITION=RED {exc}", file=sys.stderr)
         return 1
     return 0
 
