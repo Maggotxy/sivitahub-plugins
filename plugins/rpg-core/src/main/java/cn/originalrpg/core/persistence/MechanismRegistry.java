@@ -50,7 +50,9 @@ public final class MechanismRegistry {
     );
 
     private final DataSource dataSource;
-    private final Map<String, Boolean> cache = new ConcurrentHashMap<>();
+    // Replacing the whole snapshot also removes switches deleted by an operator.
+    // Mutating methods serialize their database/cache updates; readers never wait on JDBC.
+    private volatile Map<String, Boolean> cache = new ConcurrentHashMap<>();
     /** C-005 指标一腿：被 Kill Switch 拒绝的发币/发物次数。 */
     private final Map<String, LongAdder> deniedCounts = new ConcurrentHashMap<>();
     /** C-005 指标一腿：通过 Kill Switch 的发币/发物次数。 */
@@ -60,43 +62,57 @@ public final class MechanismRegistry {
         this.dataSource = dataSource;
     }
 
-    public void initialize() {
+    public synchronized void initialize() {
         try (Connection connection = dataSource.getConnection()) {
-            for (Map.Entry<String, Boolean> entry : DEFAULTS.entrySet()) {
-                try {
-                    try (PreparedStatement insert = connection.prepareStatement(
-                            "INSERT INTO rpg_mechanism_switches (mechanism_id, enabled, updated_by) VALUES (?, ?, 'system') ON CONFLICT DO NOTHING")) {
+            connection.setAutoCommit(false);
+            try {
+                String sql = isH2(connection) ? """
+                        MERGE INTO rpg_mechanism_switches AS target
+                        USING (VALUES (CAST(? AS VARCHAR(64)), CAST(? AS BOOLEAN))) AS source(mechanism_id, enabled)
+                        ON target.mechanism_id = source.mechanism_id
+                        WHEN NOT MATCHED THEN
+                            INSERT (mechanism_id, enabled, updated_by)
+                            VALUES (source.mechanism_id, source.enabled, 'system')
+                        """ : """
+                        INSERT INTO rpg_mechanism_switches (mechanism_id, enabled, updated_by)
+                        VALUES (?, ?, 'system') ON CONFLICT (mechanism_id) DO NOTHING
+                        """;
+                try (PreparedStatement insert = connection.prepareStatement(sql)) {
+                    for (Map.Entry<String, Boolean> entry : DEFAULTS.entrySet()) {
                         insert.setString(1, entry.getKey());
                         insert.setBoolean(2, entry.getValue());
                         insert.executeUpdate();
                     }
-                } catch (SQLException pgEx) {
-                    // H2 fallback: MERGE with KEY
-                    try (PreparedStatement merge = connection.prepareStatement(
-                            "MERGE INTO rpg_mechanism_switches (mechanism_id, enabled, updated_by) KEY(mechanism_id) VALUES (?, ?, 'system')")) {
-                        merge.setString(1, entry.getKey());
-                        merge.setBoolean(2, entry.getValue());
-                        merge.executeUpdate();
-                    }
                 }
+                Map<String, Boolean> snapshot = readSwitches(connection);
+                connection.commit();
+                cache = snapshot;
+            } catch (SQLException exception) {
+                rollback(connection, exception);
+                throw exception;
             }
-            connection.commit();
-            refresh();
         } catch (SQLException exception) {
             throw new IllegalStateException("Mechanism registry init failed", exception);
         }
     }
 
-    public void refresh() {
-        try (Connection connection = dataSource.getConnection();
-             PreparedStatement query = connection.prepareStatement("SELECT mechanism_id, enabled FROM rpg_mechanism_switches");
-             ResultSet result = query.executeQuery()) {
-            while (result.next()) {
-                cache.put(result.getString(1), result.getBoolean(2));
-            }
+    public synchronized void refresh() {
+        try (Connection connection = dataSource.getConnection()) {
+            cache = readSwitches(connection);
         } catch (SQLException exception) {
             throw new IllegalStateException("Mechanism registry refresh failed", exception);
         }
+    }
+
+    private static Map<String, Boolean> readSwitches(Connection connection) throws SQLException {
+        Map<String, Boolean> snapshot = new ConcurrentHashMap<>();
+        try (PreparedStatement query = connection.prepareStatement("SELECT mechanism_id, enabled FROM rpg_mechanism_switches");
+             ResultSet result = query.executeQuery()) {
+            while (result.next()) {
+                snapshot.put(result.getString(1), result.getBoolean(2));
+            }
+        }
+        return snapshot;
     }
 
     public boolean isEnabled(String mechanismId) {
@@ -143,37 +159,48 @@ public final class MechanismRegistry {
     public record MechanismMetric(boolean enabled, long allowed, long denied) {
     }
 
-    public void setEnabled(String mechanismId, boolean enabled, String actor) {
+    public synchronized void setEnabled(String mechanismId, boolean enabled, String actor) {
         try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
             try {
-                try (PreparedStatement update = connection.prepareStatement(
-                        "INSERT INTO rpg_mechanism_switches (mechanism_id, enabled, updated_by) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET enabled=EXCLUDED.enabled, updated_by=EXCLUDED.updated_by, updated_at=CURRENT_TIMESTAMP")) {
+                String sql = isH2(connection) ? """
+                        MERGE INTO rpg_mechanism_switches (mechanism_id, enabled, updated_by, updated_at)
+                        KEY(mechanism_id) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                        """ : """
+                        INSERT INTO rpg_mechanism_switches (mechanism_id, enabled, updated_by) VALUES (?, ?, ?)
+                        ON CONFLICT (mechanism_id) DO UPDATE SET enabled=EXCLUDED.enabled,
+                            updated_by=EXCLUDED.updated_by, updated_at=CURRENT_TIMESTAMP
+                        """;
+                try (PreparedStatement update = connection.prepareStatement(sql)) {
                     update.setString(1, mechanismId);
                     update.setBoolean(2, enabled);
                     update.setString(3, actor);
                     update.executeUpdate();
                 }
-            } catch (SQLException pgEx) {
-                try (PreparedStatement merge = connection.prepareStatement(
-                        "MERGE INTO rpg_mechanism_switches (mechanism_id, enabled, updated_by) KEY(mechanism_id) VALUES (?, ?, ?)")) {
-                    merge.setString(1, mechanismId);
-                    merge.setBoolean(2, enabled);
-                    merge.setString(3, actor);
-                    merge.executeUpdate();
-                    // H2 MERGE doesn't update updated_at automatically for existing, so follow with update
-                    try (PreparedStatement upd = connection.prepareStatement(
-                            "UPDATE rpg_mechanism_switches SET enabled=?, updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE mechanism_id=?")) {
-                        upd.setBoolean(1, enabled);
-                        upd.setString(2, actor);
-                        upd.setString(3, mechanismId);
-                        upd.executeUpdate();
-                    }
-                }
+                connection.commit();
+                cache.put(mechanismId, enabled);
+            } catch (SQLException exception) {
+                rollback(connection, exception);
+                throw exception;
             }
-            connection.commit();
-            cache.put(mechanismId, enabled);
         } catch (SQLException exception) {
             throw new IllegalStateException("Mechanism switch update failed", exception);
+        }
+    }
+
+    private static boolean isH2(Connection connection) throws SQLException {
+        return switch (connection.getMetaData().getDatabaseProductName()) {
+            case "H2" -> true;
+            case "PostgreSQL" -> false;
+            default -> throw new SQLException("Unsupported mechanism registry database");
+        };
+    }
+
+    private static void rollback(Connection connection, SQLException failure) {
+        try {
+            connection.rollback();
+        } catch (SQLException rollbackFailure) {
+            failure.addSuppressed(rollbackFailure);
         }
     }
 }

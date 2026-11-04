@@ -24,7 +24,6 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.command.TabCompleter;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -44,7 +43,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.util.Vector;
 
-import java.io.File;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -133,33 +131,12 @@ public final class RpgCosmeticsPlugin extends JavaPlugin
      * 不是唯一防线。
      */
     private void validateCommerceCatalog() {
-        File commerceConfig = new File(getDataFolder().getParentFile(), "rpg-commerce/config.yml");
-        if (!commerceConfig.isFile()) {
-            getLogger().warning("cosmetics: 找不到 rpg-commerce/config.yml，跳过外观定价对账（"
-                    + commerceConfig.getPath() + "）");
+        var commerce = getServer().getPluginManager().getPlugin("RpgCommerce");
+        if (commerce == null) {
+            getLogger().warning("RpgCommerce is not installed; cosmetic voucher catalog validation is unavailable.");
             return;
         }
-        YamlConfiguration catalog = YamlConfiguration.loadConfiguration(commerceConfig);
-        for (CosmeticCatalog entry : CosmeticCatalog.values()) {
-            String path = "products." + entry.productId();
-            if (!catalog.isConfigurationSection(path)) {
-                getLogger().severe("cosmetics: 外观商品 " + entry.productId()
-                        + " 不在 rpg-commerce 的商品目录里，凭证将无法解锁；请同步 rpg-commerce/config.yml");
-                continue;
-            }
-            String marker = catalog.getString(path + ".marker");
-            long points = catalog.getLong(path + ".points", -1L);
-            if (!entry.voucherMarker().equals(marker)) {
-                getLogger().severe("cosmetics: 外观商品 " + entry.productId() + " 的 marker 期望 "
-                        + entry.voucherMarker() + "，rpg-commerce 配置为 " + marker
-                        + "；解锁键不一致会导致购买后无法解锁");
-            }
-            if (points != entry.starlightCost()) {
-                getLogger().severe("cosmetics: 外观商品 " + entry.productId() + " 的星辉价格期望 "
-                        + entry.starlightCost() + "，rpg-commerce 配置为 " + points
-                        + "；两侧价格表已漂移");
-            }
-        }
+        CommerceCatalogAudit.inspect(commerce).forEach(getLogger()::severe);
     }
 
     @Override

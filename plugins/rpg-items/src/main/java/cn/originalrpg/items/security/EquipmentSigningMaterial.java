@@ -30,11 +30,11 @@ public final class EquipmentSigningMaterial {
     public static final String LEGACY_PREVIOUS_CONFIG_PATH = "security.previous-signing-keys";
     public static final int MINIMUM_KEY_BYTES = 32;
     public static final int MAXIMUM_PREVIOUS_KEYS = 3;
-    public static final String REMEDIATION = "把最新一把密钥注入 " + CURRENT_KEY_ENV
-            + "，把被替换下来的密钥按新到旧依次注入 " + PREVIOUS_KEY_ENV_PREFIX + "、"
-            + PREVIOUS_KEY_ENV_PREFIX + "_2、…，然后从 config.yml 删除 "
+    public static final String REMEDIATION = "Provide the current key in " + CURRENT_KEY_ENV
+            + "; provide previous keys from newest to oldest in " + PREVIOUS_KEY_ENV_PREFIX + ", "
+            + PREVIOUS_KEY_ENV_PREFIX + "_2, and _3. Then remove the legacy fields "
             + LEGACY_CONFIG_PATH + " / " + LEGACY_PREVIOUS_CONFIG_PATH
-            + "（本插件不会自动删除你的配置）。";
+            + " from config.yml. The plugin does not automatically remove your configuration.";
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -76,10 +76,10 @@ public final class EquipmentSigningMaterial {
             byte[] decoded = decode(name, value);
             if (MessageDigest.isEqual(current, decoded)) {
                 throw new IllegalStateException(name
-                        + " 与当前密钥相同；请不要把同一把密钥同时注入当前与退役槽位");
+                        + " duplicates the current key; current and previous key slots must be distinct");
             }
             if (previous.stream().anyMatch(existing -> MessageDigest.isEqual(existing, decoded))) {
-                throw new IllegalStateException(name + " 与另一把退役密钥重复");
+                throw new IllegalStateException(name + " duplicates another previous key");
             }
             previous.add(decoded);
         }
@@ -123,8 +123,8 @@ public final class EquipmentSigningMaterial {
      * @return 决策；{@code disabled() == true} 时调用方不得启用签名功能
      */
     public static FailClosedDecision failClosed(String cause) {
-        return new FailClosedDecision(true, "fail-closed: " + cause + "。装备签名能力已禁用；"
-                + "本插件不会生成密钥，也不会把它写进 config.yml。修复步骤：" + REMEDIATION);
+        return new FailClosedDecision(true, "fail-closed: " + cause + ". Equipment signing is disabled. "
+                + "The plugin does not generate keys or write them to config.yml. Recovery: " + REMEDIATION);
     }
 
     /** 仅供接线契约测试使用：永不落盘的随机密钥。 */
@@ -137,17 +137,18 @@ public final class EquipmentSigningMaterial {
     private static byte[] decode(String source, String encoded) {
         if (encoded == null || encoded.isBlank()) {
             throw new IllegalStateException(
-                    "缺少环境变量 " + source + "；装备签名密钥只能由外部注入（fail-closed，不落盘也不生成）");
+                    "Missing environment variable " + source + "; signing keys must be supplied externally "
+                            + "(fail-closed; no key is generated or written to disk)");
         }
         byte[] decoded;
         try {
             decoded = Base64.getDecoder().decode(encoded);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException(source + " 必须是 Base64 编码的 HMAC 密钥", exception);
+            throw new IllegalStateException(source + " must contain a Base64-encoded HMAC key", exception);
         }
         if (decoded.length < MINIMUM_KEY_BYTES) {
             throw new IllegalStateException(
-                    source + " 至少需要 " + MINIMUM_KEY_BYTES + " 字节（当前 " + decoded.length + " 字节）");
+                    source + " requires at least " + MINIMUM_KEY_BYTES + " bytes (received " + decoded.length + " bytes)");
         }
         return decoded;
     }
