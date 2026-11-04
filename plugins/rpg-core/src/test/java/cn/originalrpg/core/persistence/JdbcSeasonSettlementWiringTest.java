@@ -11,7 +11,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -19,7 +18,6 @@ import java.sql.Statement;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -53,6 +51,12 @@ final class JdbcSeasonSettlementWiringTest {
         dataSource = new HikariDataSource(config);
         executor = Executors.newVirtualThreadPerTaskExecutor();
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE rpg_mechanism_switches (
+                        mechanism_id VARCHAR(64) PRIMARY KEY, enabled BOOLEAN NOT NULL,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_by VARCHAR(64) NOT NULL)
+                    """);
             statement.execute("""
                     CREATE TABLE rpg_progression_wallets (
                         player_uuid VARCHAR(36) PRIMARY KEY, merit BIGINT NOT NULL DEFAULT 0,
@@ -146,14 +150,11 @@ final class JdbcSeasonSettlementWiringTest {
 
     @Test
     void unregisteredSeasonSettlementServiceIsDeniedByTheKillSwitch() throws Exception {
-        // 反射造出「没有任何注册动作」的换季服务，并让 Kill Switch 关掉换季机制：
+        // 通过持久化注册表关闭换季机制，再构造没有 Bukkit 注册动作的换季服务：
         // 断言迁移被 BLOCKED 且一行业务状态都不落库（fail closed，不是静默放行）。
         MechanismRegistry mechanisms = new MechanismRegistry(dataSource);
-        Field cache = MechanismRegistry.class.getDeclaredField("cache");
-        cache.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<String, Boolean> cacheValues = (Map<String, Boolean>) cache.get(mechanisms);
-        cacheValues.put(MechanismRegistry.SEASON_SETTLEMENT, false);
+        mechanisms.initialize();
+        mechanisms.setEnabled(MechanismRegistry.SEASON_SETTLEMENT, false, "test: season wiring freeze");
 
         JdbcSeasonSettlementService blocked = new JdbcSeasonSettlementService(dataSource, executor, mechanisms);
         var result = blocked.advance("launch-1", null, SeasonSettlementState.PREVIEWED, "console",

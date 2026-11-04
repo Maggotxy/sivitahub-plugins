@@ -9,13 +9,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,6 +39,12 @@ final class JdbcSeasonAttunementServiceTest {
         dataSource = new HikariDataSource(config);
         executor = Executors.newVirtualThreadPerTaskExecutor();
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE rpg_mechanism_switches (
+                        mechanism_id VARCHAR(64) PRIMARY KEY, enabled BOOLEAN NOT NULL,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_by VARCHAR(64) NOT NULL)
+                    """);
             statement.execute("""
                     CREATE TABLE rpg_equipment_states (
                         item_id VARCHAR(36) PRIMARY KEY, state VARCHAR(24) NOT NULL,
@@ -210,11 +214,8 @@ final class JdbcSeasonAttunementServiceTest {
 
     private JdbcSeasonAttunementService service(boolean enabled) throws Exception {
         MechanismRegistry mechanisms = new MechanismRegistry(dataSource);
-        Field cache = MechanismRegistry.class.getDeclaredField("cache");
-        cache.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<String, Boolean> values = (Map<String, Boolean>) cache.get(mechanisms);
-        values.put(MechanismRegistry.SEASON_SETTLEMENT, enabled);
+        mechanisms.initialize();
+        mechanisms.setEnabled(MechanismRegistry.SEASON_SETTLEMENT, enabled, "test: attunement service");
         return new JdbcSeasonAttunementService(dataSource, executor, mechanisms);
     }
 
