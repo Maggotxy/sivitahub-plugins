@@ -5,7 +5,7 @@ api-version: '${paperApi}'
 authors: [OriginalRpg]
 description: Packet-budgeted resonance auras, customizable elytra trails and shared cosmetic moments.
 depend: [RpgApi, RpgCore]
-softdepend: [RpgPerformance]
+softdepend: [RpgPerformance, RpgCommerce]
 commands:
   aura:
     aliases: [cosmetics, resonance]

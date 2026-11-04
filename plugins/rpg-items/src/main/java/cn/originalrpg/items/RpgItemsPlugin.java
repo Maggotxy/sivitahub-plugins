@@ -44,21 +44,21 @@ public final class RpgItemsPlugin extends JavaPlugin {
         // 避免「只进不出」的物品池在无人察觉时上线。
         java.util.List<String> exitPathFailures = EquipmentExitPathRules.exitPathFailures();
         if (!exitPathFailures.isEmpty()) {
-            getLogger().severe("C-008 自检失败：装备状态机没有可用的退出路径（分解/献祭/传承/调谐/销毁），"
-                    + "拒绝启用，以免出现只进不出的物品池。明细：" + exitPathFailures);
+            failEnable("C-008: equipment exit-path validation failed; refusing to enable an item pool "
+                    + "without a valid terminal disposal path: " + exitPathFailures);
             return;
         }
         warnAboutLegacyPlaintextKey();
         FailClosedDecision signingGate = signingKeyGate();
         if (signingGate.disabled()) {
-            getLogger().severe(signingGate.reason());
+            failEnable(signingGate.reason());
             return;
         }
         EquipmentSigningMaterial material = EquipmentSigningMaterial.fromEnvironment();
         if (material.rotationCount() > 1) {
-            getLogger().warning("装备签名密钥轮换中：接受 " + material.rotationCount()
-                    + " 把密钥（1 当前 + " + (material.rotationCount() - 1)
-                    + " 退役）；新装备只用当前密钥签名。");
+            getLogger().warning("Equipment signing-key rotation: accepting " + material.rotationCount()
+                    + " keys (1 current, " + (material.rotationCount() - 1)
+                    + " previous); new equipment uses only the current key.");
         }
         byte[] signingKey = material.current();
         EquipmentSecurity security = new EquipmentSecurity(signingKey, signingKeyRotationTail(material));
@@ -136,6 +136,11 @@ public final class RpgItemsPlugin extends JavaPlugin {
         getServer().getServicesManager().unregisterAll(this);
     }
 
+    private void failEnable(String reason) {
+        getLogger().severe(reason);
+        getServer().getPluginManager().disablePlugin(this);
+    }
+
     /** 校验集合里除当前密钥之外的退役密钥（新→旧）。 */
     private static List<byte[]> signingKeyRotationTail(EquipmentSigningMaterial material) {
         List<byte[]> keys = material.verification();
@@ -164,8 +169,8 @@ public final class RpgItemsPlugin extends JavaPlugin {
                 getConfig().getString(EquipmentSigningMaterial.LEGACY_CONFIG_PATH, ""),
                 getConfig().getStringList(EquipmentSigningMaterial.LEGACY_PREVIOUS_CONFIG_PATH));
         if (legacyPaths.isEmpty()) return;
-        getLogger().severe("检测到 config.yml 里残留明文装备签名密钥字段 " + legacyPaths
-                + "。明文密钥不再被读取，且会随配置文件一起被备份/分发。");
-        getLogger().severe("迁移步骤：" + EquipmentSigningMaterial.REMEDIATION);
+        getLogger().severe("Legacy plaintext equipment-signing keys remain in config.yml at " + legacyPaths
+                + ". They are no longer read, but configuration backups can still contain them.");
+        getLogger().severe("Migration: " + EquipmentSigningMaterial.REMEDIATION);
     }
 }
