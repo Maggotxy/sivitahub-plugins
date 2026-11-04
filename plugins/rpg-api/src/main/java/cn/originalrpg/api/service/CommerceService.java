@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.CommerceResult;
 import cn.originalrpg.api.model.CommercePurchaseResult;
 import cn.originalrpg.api.model.CommerceStatus;
@@ -49,6 +50,7 @@ public interface CommerceService {
             String operator
     );
 
+    @SessionActor(argument = 0)
     default CompletionStage<CommercePurchaseResult> purchaseWithCredits(
             UUID playerId,
             String productId,
@@ -60,6 +62,7 @@ public interface CommerceService {
                 "unlimited", 10_000);
     }
 
+    @SessionActor(argument = 0)
     CompletionStage<CommercePurchaseResult> purchaseWithCredits(
             UUID playerId,
             String productId,
@@ -75,6 +78,7 @@ public interface CommerceService {
      * Credits, period limits, source-proof receipt and the earned expiry are committed
      * in one transaction. The historical mixed paid/earned expiry is audit-only.
      */
+    @SessionActor(argument = 0)
     CompletionStage<CommercePurchaseResult> purchaseMembershipWithCredits(
             UUID playerId,
             String productId,
@@ -91,6 +95,7 @@ public interface CommerceService {
      * price. Gold, the period quota, the audit ledger, and mailbox delivery are
      * committed atomically across Paper shards.
      */
+    @SessionActor(argument = 0)
     CompletionStage<SupplyPurchaseResult> purchaseSupplyWithGold(
             UUID playerId,
             String productId,
@@ -102,6 +107,7 @@ public interface CommerceService {
             int maximumPurchases
     );
 
+    @SessionActor(argument = 0)
     @Deprecated(forRemoval = false)
     CompletionStage<RewardClaimResult> claimReward(
             UUID playerId,

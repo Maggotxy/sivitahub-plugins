@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.MerchantTransactionResult;
 import cn.originalrpg.api.model.MerchantUsage;
 
@@ -11,6 +12,7 @@ import java.util.concurrent.CompletionStage;
 public interface MerchantService {
     CompletionStage<Map<String, MerchantUsage>> usage(UUID playerId, String periodKey);
 
+    @SessionActor(argument = 0)
     CompletionStage<MerchantTransactionResult> purchase(
             UUID playerId,
             String offerId,
@@ -22,6 +24,7 @@ public interface MerchantService {
             String idempotencyKey
     );
 
+    @SessionActor(argument = 0)
     CompletionStage<MerchantTransactionResult> buyback(
             UUID playerId,
             String offerId,

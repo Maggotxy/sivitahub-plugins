@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.Archetype;
 import cn.originalrpg.api.model.ClassBranchResult;
 
@@ -11,6 +12,7 @@ import java.util.concurrent.CompletionStage;
 public interface ClassBranchService {
     CompletionStage<Map<Integer, String>> branches(UUID playerId);
 
+    @SessionActor(argument = 0)
     default CompletionStage<ClassBranchResult> choose(
             UUID playerId,
             Archetype requiredArchetype,
@@ -20,6 +22,7 @@ public interface ClassBranchService {
         return choose(playerId, requiredArchetype, stage, branchId, Set.of());
     }
 
+    @SessionActor(argument = 0)
     CompletionStage<ClassBranchResult> choose(
             UUID playerId,
             Archetype requiredArchetype,

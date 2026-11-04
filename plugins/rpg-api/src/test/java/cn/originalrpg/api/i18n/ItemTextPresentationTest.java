@@ -46,7 +46,7 @@ class ItemTextPresentationTest {
 
     @Test
     void receiptsEscrowAndSignedEquipmentRemainProtectedUntilTheirProducerClearsThem() {
-        for (String marker : List.of("rpgmarket:listing_id", "rpgmarket:delivery_id",
+        for (String marker : List.of("rpgmarket:listing_id", "rpgmarket:delivery_id", "rpgmarket:delivery_claim_token",
                 "rpgcore:equipment_operation", "rpgdungeons:ticket_entry_escrow", "rpgitems:signature")) {
             Meta state = new Meta();
             NamespacedKey key = NamespacedKey.fromString(marker);

@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.EnergyRecovery;
 import cn.originalrpg.api.model.DungeonTicketEscrow;
 
@@ -21,6 +22,7 @@ public interface DungeonEntryService {
         INVALID
     }
 
+    @SessionActor(argument = 1)
     CompletionStage<ReservationStatus> reserve(UUID reservationId, UUID playerId, int energyCost);
 
     /**

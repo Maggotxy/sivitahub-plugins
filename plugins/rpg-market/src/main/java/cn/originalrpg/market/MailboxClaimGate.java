@@ -7,10 +7,10 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * JVM-local single-flight gate for one player's durable-mailbox claim.
  *
- * <p>A Paper player can only be connected to one shard at a time. The database
- * remains the authority for the delivery itself; this gate closes the smaller
- * window in which repeated commands on that shard could render the same
- * PENDING row twice before the first asynchronous acknowledgement completes.</p>
+ * <p>This is a local command throttle, never a cross-node lease. The existing
+ * delivery row's claim/authorization/token protocol owns physical admission;
+ * the global player session separately fences the initiating actor. Neither
+ * mechanism transports or atomically loads a player's inventory between nodes.</p>
  */
 final class MailboxClaimGate {
     private final Map<UUID, UUID> inFlight = new ConcurrentHashMap<>();

@@ -97,12 +97,14 @@ public final class SchemaManifest {
             "rpg_community_approvals",
             "rpg_session_leases",
             "rpg_outbox",
+            "rpg_dungeon_completion_inbox",
             "rpg_equipment_states",
             "rpg_equipment_lifecycle_audit",
             "rpg_season_attunements",
             "rpg_field_journal_entries",
             "rpg_community_lifecycle_proposals",
             "rpg_community_lifecycle_audit",
+            "rpg_identity_migration_receipts",
             "rpg_community_storage_requests"
     );
 
@@ -172,6 +174,9 @@ public final class SchemaManifest {
         keys.put("rpg_community_storage_requests", List.of(
                 List.of("active_listing_id"), List.of("idempotency_key")));
         keys.put("rpg_outbox", List.of(List.of("idempotency_key")));
+        keys.put("rpg_market_deliveries", List.of(List.of("claim_token")));
+        keys.put("rpg_dungeon_completion_inbox", List.of(List.of("run_id", "player_uuid")));
+        keys.put("rpg_identity_migration_receipts", List.of(List.of("source_uuid"), List.of("target_uuid")));
         return Map.copyOf(keys);
     }
 
@@ -237,12 +242,14 @@ public final class SchemaManifest {
         // Phase 8：单实例多服前置。两张表与它们的运行索引同批落库（Database.java 建表语句尾部），
         // 迁移前必须登记，否则 H2 → PostgreSQL 会静默搬进一个丢掉热路径索引的库。
         indexes.put("rpg_session_leases", List.of(List.of("lease_expires_at")));
-        indexes.put("rpg_outbox", List.of(List.of("processed_at", "created_at")));
+        indexes.put("rpg_outbox", List.of(List.of("processed_at", "created_at"),
+                List.of("processed_at", "next_attempt_at", "claim_expires_at")));
         indexes.put("rpg_support_payment_orders", List.of(List.of("player_uuid", "accepted_at")));
         indexes.put("rpg_earned_membership_grants", List.of(List.of("player_uuid", "member_until")));
         indexes.put("rpg_community_lifecycle_proposals", List.of(List.of("community_id", "created_at")));
         indexes.put("rpg_community_lifecycle_audit", List.of(List.of("community_id", "recorded_at")));
         indexes.put("rpg_community_storage_requests", List.of(List.of("community_id", "state", "created_at")));
+        indexes.put("rpg_dungeon_completion_inbox", List.of(List.of("player_uuid", "notified_at", "created_at")));
         return Map.copyOf(indexes);
     }
 }

@@ -1278,14 +1278,20 @@
   "checks": [
    {
     "method": "trustedMailboxBoundaryClearsLegacyEquipmentEscrowLockBeforeDeliveryReceipt",
-    "required": [],
-    "forbidden": [],
+    "required": [
+     "deliveryProtocol.deliver(delivery, mailboxInventory(player))",
+     "player.getInventory().setItem(slot, prepared)",
+     "player.saveData()"
+    ],
+    "forbidden": [
+     "player.getInventory().addItem(item)"
+    ],
     "ordered": [
-     "private void deliverNext",
+     "private ItemStack prepareMailboxItem",
      "ItemStack.deserializeBytes",
      "EquipmentOperationMarker.clear(item)",
      "meta.getPersistentDataContainer().set(deliveryMarker",
-     "player.getInventory().addItem(item)"
+     "meta.getPersistentDataContainer().set(deliveryClaimMarker"
     ]
    },
    {

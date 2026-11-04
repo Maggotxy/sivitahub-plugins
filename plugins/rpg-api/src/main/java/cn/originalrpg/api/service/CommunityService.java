@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.CommunityContributionResult;
 import cn.originalrpg.api.model.CommunityLeaderboardEntry;
 import cn.originalrpg.api.model.CommunityOperationResult;
@@ -21,6 +22,7 @@ public interface CommunityService {
     CompletionStage<List<CommunityLeaderboardEntry>> leaderboard(
             String periodKey, BigDecimal periodGoal, int limit);
 
+    @SessionActor(argument = 0)
     CompletionStage<CommunityOperationResult> create(
             UUID owner,
             String name,
@@ -32,22 +34,28 @@ public interface CommunityService {
             String idempotencyKey
     );
 
+    @SessionActor(argument = 0)
     CompletionStage<CommunityOperationResult> invite(
             UUID inviter, UUID target, int maximumPendingInvites, int expiryHours,
             String periodKey, BigDecimal periodGoal);
 
+    @SessionActor(argument = 0)
     CompletionStage<CommunityOperationResult> accept(
             UUID playerId, String communityTag, String periodKey, BigDecimal periodGoal);
 
+    @SessionActor(argument = 0)
     CompletionStage<CommunityOperationResult> leave(
             UUID playerId, String periodKey, BigDecimal periodGoal);
 
+    @SessionActor(argument = 0)
     CompletionStage<CommunityOperationResult> kick(
             UUID actor, UUID target, String periodKey, BigDecimal periodGoal);
 
+    @SessionActor(argument = 0)
     CompletionStage<CommunityOperationResult> transfer(
             UUID owner, UUID target, String periodKey, BigDecimal periodGoal);
 
+    @SessionActor(argument = 0)
     CompletionStage<MentorBondResult> bindMentor(
             UUID playerId,
             String inviteCode,
@@ -68,6 +76,7 @@ public interface CommunityService {
             String periodKey
     );
 
+    @SessionActor(argument = 0)
     CompletionStage<CommunityContributionResult> contributeGold(
             UUID playerId,
             BigDecimal amount,
@@ -78,6 +87,7 @@ public interface CommunityService {
             String idempotencyKey
     );
 
+    @SessionActor(argument = 0)
     CompletionStage<CommunityProjectRewardResult> claimWeeklyProjectReward(
             UUID playerId,
             String periodKey,

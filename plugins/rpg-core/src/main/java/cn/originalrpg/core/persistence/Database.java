@@ -20,6 +20,7 @@ public final class Database implements AutoCloseable {
     private static final int MIGRATION_LOCK_NAMESPACE = 0x53495649; // "SIVI"
     private static final int MIGRATION_LOCK_RESOURCE = 0x52504731; // "RPG1"
     private final HikariDataSource dataSource;
+    private DataSource gameplayDataSource;
     private final HikariDataSource nodeLeaseDataSource;
     private final boolean localH2;
     private final boolean postgres;
@@ -30,6 +31,7 @@ public final class Database implements AutoCloseable {
             boolean localH2, boolean postgres, long migrationLockTimeoutMs
     ) {
         this.dataSource = dataSource;
+        this.gameplayDataSource = dataSource;
         this.nodeLeaseDataSource = nodeLeaseDataSource;
         this.localH2 = localH2;
         this.postgres = postgres;
@@ -94,7 +96,14 @@ public final class Database implements AutoCloseable {
     }
 
     public DataSource dataSource() {
-        return dataSource;
+        return gameplayDataSource;
+    }
+
+    /** Installs same-transaction actor fencing before any gameplay service is constructed. */
+    public void installSessionFencing() {
+        if (!(gameplayDataSource instanceof SessionFencedDataSource)) {
+            gameplayDataSource = new SessionFencedDataSource(dataSource);
+        }
     }
 
     /** A physically separate single-connection pool reserved for node fencing. */
@@ -367,12 +376,27 @@ public final class Database implements AutoCloseable {
                     state VARCHAR(16) NOT NULL,
                     quarantine_reason VARCHAR(64),
                     quarantined_at TIMESTAMP NULL,
+                    claim_token VARCHAR(36),
+                    claim_expires_at TIMESTAMP,
+                    claim_started_at TIMESTAMP,
+                    claim_node_id VARCHAR(64),
+                    claim_process_token VARCHAR(36),
+                    claim_session_token VARCHAR(36),
+                    claim_fence BIGINT,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     delivered_at TIMESTAMP NULL
                 )
                 """,
                 "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS quarantine_reason VARCHAR(64)",
                 "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS quarantined_at TIMESTAMP NULL",
+                "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS claim_token VARCHAR(36)",
+                "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS claim_expires_at TIMESTAMP",
+                "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS claim_started_at TIMESTAMP",
+                "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS claim_node_id VARCHAR(64)",
+                "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS claim_process_token VARCHAR(36)",
+                "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS claim_session_token VARCHAR(36)",
+                "ALTER TABLE rpg_market_deliveries ADD COLUMN IF NOT EXISTS claim_fence BIGINT",
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_rpg_market_delivery_claim ON rpg_market_deliveries (claim_token)",
                 // C-012: preserve old payloads and receipts, but never release paid materials.
                 """
                 UPDATE rpg_market_deliveries
@@ -1173,11 +1197,21 @@ public final class Database implements AutoCloseable {
                     player_uuid VARCHAR(36) PRIMARY KEY,
                     node_id VARCHAR(64) NOT NULL,
                     node_process_token VARCHAR(36) NULL,
+                    session_token VARCHAR(36) NULL,
+                    fence BIGINT NOT NULL DEFAULT 0,
+                    session_state VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+                    handoff_id VARCHAR(36) NULL,
+                    handoff_target VARCHAR(64) NULL,
                     lease_expires_at TIMESTAMP NOT NULL,
                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """,
                 "ALTER TABLE rpg_session_leases ADD COLUMN IF NOT EXISTS node_process_token VARCHAR(36)",
+                "ALTER TABLE rpg_session_leases ADD COLUMN IF NOT EXISTS session_token VARCHAR(36)",
+                "ALTER TABLE rpg_session_leases ADD COLUMN IF NOT EXISTS fence BIGINT NOT NULL DEFAULT 0",
+                "ALTER TABLE rpg_session_leases ADD COLUMN IF NOT EXISTS session_state VARCHAR(16) NOT NULL DEFAULT 'ACTIVE'",
+                "ALTER TABLE rpg_session_leases ADD COLUMN IF NOT EXISTS handoff_id VARCHAR(36)",
+                "ALTER TABLE rpg_session_leases ADD COLUMN IF NOT EXISTS handoff_target VARCHAR(64)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_session_leases_expiry"
                         + " ON rpg_session_leases (lease_expires_at)",
                 """
@@ -1189,6 +1223,9 @@ public final class Database implements AutoCloseable {
                     payload TEXT NOT NULL,
                     attempts INTEGER NOT NULL DEFAULT 0,
                     last_error VARCHAR(240) NULL,
+                    claim_token VARCHAR(36) NULL,
+                    claim_expires_at TIMESTAMP NULL,
+                    next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     processed_at TIMESTAMP NULL
                 )
@@ -1196,11 +1233,29 @@ public final class Database implements AutoCloseable {
                 "ALTER TABLE rpg_outbox ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(96)",
                 "ALTER TABLE rpg_outbox ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0",
                 "ALTER TABLE rpg_outbox ADD COLUMN IF NOT EXISTS last_error VARCHAR(240)",
+                "ALTER TABLE rpg_outbox ADD COLUMN IF NOT EXISTS claim_token VARCHAR(36)",
+                "ALTER TABLE rpg_outbox ADD COLUMN IF NOT EXISTS claim_expires_at TIMESTAMP",
+                "ALTER TABLE rpg_outbox ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
                 """
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_rpg_outbox_idempotency
                     ON rpg_outbox (idempotency_key)
                 """,
                 "CREATE INDEX IF NOT EXISTS idx_rpg_outbox_pending ON rpg_outbox (processed_at, created_at)",
+                "CREATE INDEX IF NOT EXISTS idx_rpg_outbox_eligible ON rpg_outbox (processed_at, next_attempt_at, claim_expires_at)",
+                """
+                CREATE TABLE IF NOT EXISTS rpg_dungeon_completion_inbox (
+                    event_id VARCHAR(36) PRIMARY KEY,
+                    run_id VARCHAR(36) NOT NULL,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    dungeon_id VARCHAR(64) NOT NULL,
+                    queued_deliveries INTEGER NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    notified_at TIMESTAMP NULL,
+                    UNIQUE (run_id, player_uuid)
+                )
+                """,
+                "CREATE INDEX IF NOT EXISTS idx_rpg_dungeon_inbox_player"
+                        + " ON rpg_dungeon_completion_inbox (player_uuid, notified_at, created_at)",
                 """
                 CREATE TABLE IF NOT EXISTS rpg_equipment_states (
                     item_id VARCHAR(36) PRIMARY KEY,
@@ -1288,6 +1343,24 @@ public final class Database implements AutoCloseable {
                 """,
                 "CREATE INDEX IF NOT EXISTS idx_rpg_community_lifecycle_audit_recent"
                         + " ON rpg_community_lifecycle_audit (community_id, recorded_at)",
+                // Offline identity migration audit only; no runtime UUID alias lookup.
+                """
+                CREATE TABLE IF NOT EXISTS rpg_identity_migration_receipts (
+                    operation_id VARCHAR(36) PRIMARY KEY,
+                    source_uuid VARCHAR(36) UNIQUE NOT NULL,
+                    target_uuid VARCHAR(36) UNIQUE NOT NULL,
+                    source_label VARCHAR(64) NOT NULL,
+                    target_label VARCHAR(64) NOT NULL,
+                    verified_by VARCHAR(128) NOT NULL,
+                    evidence_sha256 VARCHAR(64) NOT NULL,
+                    mapping_sha256 VARCHAR(64) NOT NULL,
+                    plan_sha256 VARCHAR(64) NOT NULL,
+                    before_sha256 VARCHAR(64) NOT NULL,
+                    after_sha256 VARCHAR(64) NOT NULL,
+                    changed_rows BIGINT NOT NULL,
+                    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """,
                 // Construction supplies share the one market escrow; this scope is never public trade.
                 "ALTER TABLE rpg_market_listings ADD COLUMN IF NOT EXISTS custody_community_id VARCHAR(36)",
                 "CREATE INDEX IF NOT EXISTS idx_rpg_market_community_custody"

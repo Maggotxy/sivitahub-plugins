@@ -32,81 +32,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 关闭时（默认）零写入 —— 单实例部署无影响。
  */
 class DungeonRewardOutboxWiringTest {
-    private HikariDataSource dataSource;
+    private NetworkDatabaseFixture fixture;
+    private javax.sql.DataSource dataSource;
     private ExecutorService executor;
     private JdbcProfileService profiles;
     private UUID playerId;
 
     @BeforeEach
     void setUp() throws Exception {
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:h2:mem:dungeon_outbox_" + UUID.randomUUID()
-                + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1");
-        config.setAutoCommit(false);
-        dataSource = new HikariDataSource(config);
-        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
-            statement.execute("""
-                    CREATE TABLE rpg_profiles (
-                        player_uuid VARCHAR(36) PRIMARY KEY, archetype VARCHAR(24) NOT NULL,
-                        ascension INTEGER NOT NULL, level INTEGER NOT NULL, experience BIGINT NOT NULL,
-                        energy INTEGER NOT NULL, unspent_attribute_points INTEGER NOT NULL,
-                        skill_points INTEGER NOT NULL, defense INTEGER NOT NULL, strength INTEGER NOT NULL,
-                        agility INTEGER NOT NULL, intelligence INTEGER NOT NULL, stamina INTEGER NOT NULL,
-                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_skill_point_grants (
-                        milestone_key VARCHAR(160) PRIMARY KEY,
-                        receipt VARCHAR(96) NOT NULL,
-                        player_uuid VARCHAR(36) NOT NULL,
-                        points INTEGER NOT NULL,
-                        ascension INTEGER NOT NULL,
-                        milestone_index INTEGER NOT NULL,
-                        to_local_level INTEGER NOT NULL,
-                        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_market_deliveries (
-                        id VARCHAR(36) PRIMARY KEY, player_uuid VARCHAR(36) NOT NULL,
-                        item_payload TEXT NOT NULL, source VARCHAR(128) NOT NULL, state VARCHAR(16) NOT NULL,
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, delivered_at TIMESTAMP NULL
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_dungeon_reward_receipts (
-                        run_id VARCHAR(36) NOT NULL, player_uuid VARCHAR(36) NOT NULL,
-                        dungeon_id VARCHAR(64) NOT NULL, experience_awarded BIGINT NOT NULL,
-                        queued_deliveries INTEGER NOT NULL, ticket_dropped BOOLEAN NOT NULL,
-                        ticket_failures INTEGER NOT NULL,
-                        settled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (run_id, player_uuid)
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_dungeon_ticket_pity (
-                        player_uuid VARCHAR(36) NOT NULL, pity_group VARCHAR(64) NOT NULL,
-                        failures INTEGER NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (player_uuid, pity_group)
-                    )
-                    """);
-            statement.execute("""
-                    CREATE TABLE rpg_outbox (
-                        event_id VARCHAR(36) PRIMARY KEY,
-                        aggregate_type VARCHAR(32) NOT NULL,
-                        aggregate_id VARCHAR(36) NOT NULL,
-                        idempotency_key VARCHAR(96) NULL,
-                        payload TEXT NOT NULL,
-                        attempts INTEGER NOT NULL DEFAULT 0,
-                        last_error VARCHAR(240) NULL,
-                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        processed_at TIMESTAMP NULL
-                    )
-                    """);
-            statement.execute("CREATE UNIQUE INDEX uq_rpg_outbox_idempotency ON rpg_outbox (idempotency_key)");
-            connection.commit();
-        }
+        fixture = new NetworkDatabaseFixture();
+        dataSource = fixture.dataSource;
         executor = Executors.newFixedThreadPool(4);
         profiles = new JdbcProfileService(dataSource, executor, 100, 2, 3);
         playerId = UUID.randomUUID();
@@ -114,9 +49,9 @@ class DungeonRewardOutboxWiringTest {
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws Exception {
         executor.shutdownNow();
-        dataSource.close();
+        fixture.close();
     }
 
     @Test
@@ -202,6 +137,55 @@ class DungeonRewardOutboxWiringTest {
         assertEquals(1, dispatcher.dispatchBatch(10).delivered());
         assertEquals(0, dispatcher.dispatchBatch(10).delivered(), "已投递事件不得再次投递");
         assertEquals(1, delivered.size());
+    }
+
+    @Test
+    void everyPartyMemberGetsADistinctEventAndTransactionalInboxWithoutRepeatingRewards() throws Exception {
+        JdbcDungeonRewardService rewards = new JdbcDungeonRewardService(
+                dataSource, executor, profiles, null, new JdbcOutboxRegistry());
+        UUID run = UUID.randomUUID();
+        UUID first = playerId;
+        DungeonRewardRequest firstRequest = request(run);
+        playerId = UUID.randomUUID();
+        profiles.chooseArchetype(playerId, Archetype.MAGE).toCompletableFuture().join();
+        DungeonRewardRequest secondRequest = request(run);
+        rewards.settle(firstRequest).toCompletableFuture().join();
+        rewards.settle(secondRequest).toCompletableFuture().join();
+        rewards.settle(firstRequest).toCompletableFuture().join();
+        rewards.settle(secondRequest).toCompletableFuture().join();
+
+        JdbcDungeonCompletionInbox inbox = new JdbcDungeonCompletionInbox(dataSource, executor);
+        OutboxDispatcher dispatcher = new OutboxDispatcher(dataSource, List.of(inbox));
+        assertEquals(2, dispatcher.dispatchBatch(10).delivered());
+        assertEquals(0, dispatcher.dispatchBatch(10).claimed());
+        assertEquals(2, count("rpg_outbox"));
+        assertEquals(2, count("rpg_dungeon_completion_inbox"));
+        assertEquals(2, count("rpg_dungeon_reward_receipts"));
+        assertEquals(2, count("rpg_market_deliveries"));
+        var firstNotice = inbox.unread(first, 16).toCompletableFuture().join().getFirst();
+        assertEquals(run, firstNotice.runId());
+        assertEquals(1, firstNotice.queuedDeliveries());
+        assertEquals(1, inbox.unread(playerId, 16).toCompletableFuture().join().size());
+        assertFalse(inbox.acknowledge(firstNotice.eventId(), playerId).toCompletableFuture().join(),
+                "Another recipient cannot acknowledge this player's notice");
+        assertTrue(inbox.acknowledge(firstNotice.eventId(), first).toCompletableFuture().join());
+        assertTrue(inbox.unread(first, 16).toCompletableFuture().join().isEmpty());
+        assertEquals(1, inbox.unread(playerId, 16).toCompletableFuture().join().size());
+    }
+
+    @Test
+    void inventedEventCannotMaterializeARewardOrNotification() throws Exception {
+        UUID run = UUID.randomUUID();
+        try (Connection connection = dataSource.getConnection()) {
+            new JdbcOutboxRegistry().publish(connection, "dungeon.completion", run.toString(),
+                    "invalid-event", new DungeonCompletionPayload(run, playerId, "ancient-ruins").json());
+            connection.commit();
+        }
+        JdbcDungeonCompletionInbox inbox = new JdbcDungeonCompletionInbox(dataSource, executor);
+        assertEquals(1, new OutboxDispatcher(dataSource, List.of(inbox)).dispatchBatch(10).retried());
+        assertEquals(0, count("rpg_dungeon_completion_inbox"));
+        assertEquals(0, count("rpg_dungeon_reward_receipts"));
+        assertEquals(0, count("rpg_market_deliveries"));
     }
 
     private DungeonRewardRequest request(UUID runId) {

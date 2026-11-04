@@ -47,6 +47,7 @@ class JdbcSessionLeaseReadSideTest {
                         player_uuid VARCHAR(36) PRIMARY KEY,
                         node_id VARCHAR(64) NOT NULL,
                         node_process_token VARCHAR(36) NULL,
+                        session_state VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
                         lease_expires_at TIMESTAMP NOT NULL,
                         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )

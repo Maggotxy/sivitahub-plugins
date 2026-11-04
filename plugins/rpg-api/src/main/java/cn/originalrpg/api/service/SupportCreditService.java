@@ -7,6 +7,7 @@ import cn.originalrpg.api.model.SupportCreditStatus;
 import cn.originalrpg.api.model.SupportPaymentResult;
 import cn.originalrpg.api.model.SupportProduct;
 import cn.originalrpg.api.model.SupportPurchaseResult;
+import cn.originalrpg.api.session.SessionActor;
 
 import java.util.List;
 import java.util.Set;
@@ -67,6 +68,7 @@ public interface SupportCreditService {
      * Expected price protects a stale confirmation; operation identity and ownership
      * both prevent duplicate charging after a lost response. No item payload is accepted.
      */
+    @SessionActor(argument = 0)
     default CompletionStage<SupportPurchaseResult> purchaseCosmetic(
             UUID playerId, SupportCosmetic cosmetic, long expectedPrice, UUID operationId) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("Support purchases are unavailable"));
@@ -78,6 +80,7 @@ public interface SupportCreditService {
 
     /** Legacy arbitrary spending cannot establish an entitlement and must fail closed, including COSMETIC targets. */
     @Deprecated(forRemoval = false)
+    @SessionActor(argument = 0)
     CompletionStage<SupportCreditResult> spend(
             UUID playerId, long amount, SupportCreditTarget target, String idempotencyKey, String reason);
 

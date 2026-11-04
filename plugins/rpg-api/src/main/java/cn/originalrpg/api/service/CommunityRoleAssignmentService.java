@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.CommunityApprovalOutcome;
 import cn.originalrpg.api.model.CommunityRole;
 
@@ -18,6 +19,7 @@ public interface CommunityRoleAssignmentService {
      * <p>调用者必须有 {@code ASSIGN_ROLE} 能力；提交后需要第二名治理角色批准才生效，
      * 生效时返回 {@link CommunityApprovalOutcome#effective()} 为 true 的结果。</p>
      */
+    @SessionActor(argument = 0)
     CompletionStage<CommunityApprovalOutcome> request(
             UUID actor, UUID target, CommunityRole role, String idempotencyKey);
 }

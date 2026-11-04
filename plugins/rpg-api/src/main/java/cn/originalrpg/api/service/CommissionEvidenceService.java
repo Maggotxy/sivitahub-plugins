@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.CommissionEvidenceClaimResult;
 import cn.originalrpg.api.model.CommissionEvidenceGrantResult;
 import cn.originalrpg.api.model.CommissionEvidenceSnapshot;
@@ -21,6 +22,7 @@ public interface CommissionEvidenceService {
             UUID playerId, LocalDate date, String source, int requested, int sourceDailyCap, int dailyCap
     );
 
+    @SessionActor(argument = 0)
     CompletionStage<CommissionEvidenceClaimResult> claim(
             UUID playerId, LocalDate date, UUID receiptId, String commissionId, int evidenceCost,
             int totalDailyLimit, int offerDailyLimit, int dailyCap

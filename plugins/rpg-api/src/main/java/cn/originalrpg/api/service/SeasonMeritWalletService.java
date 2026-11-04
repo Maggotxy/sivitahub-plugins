@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 
@@ -18,8 +19,10 @@ public interface SeasonMeritWalletService {
      * 把 {@code amount} 从永久层转入赛季层（幂等键去重）。
      * 转入只是把同一份功勋换个展示层，净供给恒为 0。
      */
+    @SessionActor(argument = 0)
     CompletionStage<Long> deposit(UUID playerId, long amount, String idempotencyKey, String reason);
 
     /** 把全部赛季层功勋转回永久层（幂等键去重）。 */
+    @SessionActor(argument = 0)
     CompletionStage<Long> withdraw(UUID playerId, String idempotencyKey, String reason);
 }

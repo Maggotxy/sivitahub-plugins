@@ -1,5 +1,6 @@
 package cn.originalrpg.api.service;
 
+import cn.originalrpg.api.session.SessionActor;
 import cn.originalrpg.api.model.SkillLearnResult;
 import cn.originalrpg.api.model.SkillMutationRequest;
 import cn.originalrpg.api.model.SkillMutationResult;
@@ -28,6 +29,7 @@ public interface SkillService {
      * Learns a skill against the authoritative point balance stored with the
      * player profile. Implementations must check and insert in one transaction.
      */
+    @SessionActor(argument = 0)
     CompletionStage<SkillLearnResult> learn(UUID playerId, String skillId, int pointCost);
 
     /**
@@ -40,6 +42,7 @@ public interface SkillService {
      * {@code maximumLevel} is the current progression-stage cap, not merely a
      * client-side display value.</p>
      */
+    @SessionActor(argument = 0)
     CompletionStage<SkillUpgradeResult> upgrade(
             UUID playerId,
             String skillId,
@@ -53,18 +56,21 @@ public interface SkillService {
      * earlier API. The caller-provided balance is intentionally ignored.
      */
     @Deprecated(forRemoval = false)
+    @SessionActor(argument = 0)
     default CompletionStage<SkillLearnResult> learn(
             UUID playerId, String skillId, int pointCost, int ignoredAvailablePoints
     ) {
         return learn(playerId, skillId, pointCost);
     }
 
+    @SessionActor(argument = 0)
     CompletionStage<Boolean> setVariant(UUID playerId, String skillId, String variant);
 
     /**
      * Restores a learned skill to its authored base effect. Implementations
      * must update only an existing skill and keep the operation idempotent.
      */
+    @SessionActor(argument = 0)
     CompletionStage<Boolean> clearVariant(UUID playerId, String skillId);
 
     /**
@@ -72,6 +78,7 @@ public interface SkillService {
      * restoration. Implementations must persist and replay the exact outcome
      * identified by {@link SkillMutationRequest#idempotencyKey()}.
      */
+    @SessionActor(argument = 0, member = "playerId")
     CompletionStage<SkillMutationResult> settleMutation(SkillMutationRequest request);
 
     /** Releases bounded online-session state. Persistent skill data is untouched. */

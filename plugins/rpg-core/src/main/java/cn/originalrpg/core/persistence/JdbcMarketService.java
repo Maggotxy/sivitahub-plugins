@@ -4,6 +4,8 @@ import cn.originalrpg.api.model.MarketDelivery;
 import cn.originalrpg.api.model.MarketListing;
 import cn.originalrpg.api.model.MarketOperationResult;
 import cn.originalrpg.api.model.MarketGoods;
+import cn.originalrpg.api.model.MarketDeliveryClaim;
+import cn.originalrpg.api.model.MarketDeliveryAuthorization;
 import cn.originalrpg.api.service.MarketService;
 
 import javax.sql.DataSource;
@@ -33,6 +35,7 @@ public final class JdbcMarketService implements MarketService {
     private final Executor executor;
     private final BigDecimal startingBalance;
     private final EquipmentStateLedger lifecycle = new EquipmentStateLedger();
+    private final MailboxDeliveryLedger mailbox;
     /** C-005 Kill Switch；为 null 表示未接入注册表。 */
     private final MechanismRegistry mechanisms;
 
@@ -43,10 +46,16 @@ public final class JdbcMarketService implements MarketService {
     public JdbcMarketService(
             DataSource dataSource, Executor executor, BigDecimal startingBalance, MechanismRegistry mechanisms
     ) {
+        this(dataSource, executor, startingBalance, mechanisms, java.time.Clock.systemUTC());
+    }
+
+    JdbcMarketService(DataSource dataSource, Executor executor, BigDecimal startingBalance,
+                      MechanismRegistry mechanisms, java.time.Clock clock) {
         this.dataSource = dataSource;
         this.executor = executor;
         this.startingBalance = money(startingBalance);
         this.mechanisms = mechanisms;
+        this.mailbox = new MailboxDeliveryLedger(clock);
     }
 
     /** C-005：托管市场上架是 C-009 的唯一流通入口，受 Kill Switch 熔断。 */
@@ -341,8 +350,10 @@ public final class JdbcMarketService implements MarketService {
             try (PreparedStatement query = connection.prepareStatement("""
                     SELECT id, player_uuid, item_payload, source, created_at
                     FROM rpg_market_deliveries
-                    WHERE player_uuid = ? AND state = 'PENDING' AND source NOT LIKE 'commerce-reward:%'
-                    ORDER BY created_at LIMIT ?
+                    WHERE player_uuid = ? AND state IN ('PENDING','CLAIMED','STAGING')
+                        AND quarantine_reason IS NULL AND source NOT LIKE 'commerce-reward:%'
+                    ORDER BY CASE state WHEN 'PENDING' THEN 0 WHEN 'CLAIMED' THEN 1 ELSE 2 END,
+                        created_at, id LIMIT ?
                     """)) {
                 query.setString(1, playerId.toString());
                 query.setInt(2, bounded);
@@ -363,13 +374,42 @@ public final class JdbcMarketService implements MarketService {
     }
 
     @Override
+    public CompletionStage<MarketDeliveryClaim> claimDelivery(UUID deliveryId, UUID playerId, UUID claimToken) {
+        if (deliveryId == null || playerId == null || claimToken == null) return CompletableFuture.failedFuture(new IllegalArgumentException("Mailbox claim identity is required"));
+        return async(connection -> mailbox.claim(connection, deliveryId, playerId, claimToken));
+    }
+
+    @Override
+    public CompletionStage<MarketDeliveryAuthorization> authorizeDelivery(UUID deliveryId, UUID playerId, UUID claimToken) {
+        if (deliveryId == null || playerId == null || claimToken == null) return CompletableFuture.completedFuture(MarketDeliveryAuthorization.REFUSED);
+        return async(connection -> mailbox.authorize(connection, deliveryId, playerId, claimToken));
+    }
+
+    @Override
+    public CompletionStage<Boolean> releaseDeliveryClaim(UUID deliveryId, UUID playerId, UUID claimToken) {
+        if (deliveryId == null || playerId == null || claimToken == null) return CompletableFuture.completedFuture(false);
+        return async(connection -> mailbox.release(connection, deliveryId, playerId, claimToken));
+    }
+
+    @Override
+    public CompletionStage<Boolean> acknowledgeDelivery(UUID deliveryId, UUID playerId, UUID claimToken) {
+        if (deliveryId == null || playerId == null || claimToken == null) return CompletableFuture.completedFuture(false);
+        return async(connection -> {
+            var acknowledgement = mailbox.acknowledge(connection, deliveryId, playerId, claimToken);
+            if (acknowledgement.changed()) completeDeliveryLifecycle(connection, acknowledgement.source(), playerId);
+            return acknowledgement.allowed();
+        });
+    }
+
+    @Override
     public CompletionStage<Boolean> markDelivered(UUID deliveryId, UUID playerId) {
         if (deliveryId == null || playerId == null) return CompletableFuture.completedFuture(false);
         return async(connection -> {
             String source;
             try (PreparedStatement query = connection.prepareStatement("""
                     SELECT source, state FROM rpg_market_deliveries
-                    WHERE id = ? AND player_uuid = ? AND source NOT LIKE 'commerce-reward:%' FOR UPDATE
+                    WHERE id = ? AND player_uuid = ? AND claim_token IS NULL
+                        AND quarantine_reason IS NULL AND source NOT LIKE 'commerce-reward:%' FOR UPDATE
                     """)) {
                 query.setString(1, deliveryId.toString());
                 query.setString(2, playerId.toString());
@@ -384,7 +424,7 @@ public final class JdbcMarketService implements MarketService {
             }
             try (PreparedStatement update = connection.prepareStatement("""
                     UPDATE rpg_market_deliveries SET state = 'DELIVERED', delivered_at = CURRENT_TIMESTAMP
-                    WHERE id = ? AND player_uuid = ? AND state = 'PENDING'
+                    WHERE id = ? AND player_uuid = ? AND state = 'PENDING' AND claim_token IS NULL
                     """)) {
                 update.setString(1, deliveryId.toString());
                 update.setString(2, playerId.toString());
@@ -398,17 +438,19 @@ public final class JdbcMarketService implements MarketService {
             // confirmation would leave the delivery PENDING for a re-claim.
             // A refusal (frozen or terminal row) therefore leaves the state
             // untouched for staff to see against the SOLD listing.
-            if (source != null && source.startsWith("market-purchase:")) {
-                Optional<UUID> listingId = parseUuid(source.substring("market-purchase:".length()));
-                if (listingId.isPresent()) {
-                    Optional<UUID> identity = itemIdentityOf(connection, listingId.get());
-                    if (identity.isPresent()) {
-                        lifecycle.collectPurchase(connection, identity.get(), playerId);
-                    }
-                }
-            }
+            completeDeliveryLifecycle(connection, source, playerId);
             return true;
         });
+    }
+
+    private void completeDeliveryLifecycle(Connection connection, String source, UUID playerId) throws SQLException {
+        if (source != null && source.startsWith("market-purchase:")) {
+            Optional<UUID> listingId = parseUuid(source.substring("market-purchase:".length()));
+            if (listingId.isPresent()) {
+                Optional<UUID> identity = itemIdentityOf(connection, listingId.get());
+                if (identity.isPresent()) lifecycle.collectPurchase(connection, identity.get(), playerId);
+            }
+        }
     }
 
     private static Optional<UUID> parseUuid(String value) {

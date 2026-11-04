@@ -14,8 +14,10 @@ public interface OutboxRegistry {
     /**
      * 在同一事务里登记一条待投递事件。
      *
-     * <p>{@code idempotencyKey} 全局唯一。同一键重复登记返回 false，调用方
-     * 不得据此失败（说明该事件已存在，投递仍由消费者保证）。</p>
+     * <p>{@code idempotencyKey} is globally unique. An identical replay returns
+     * false; changing its aggregate or payload fails the caller's transaction.
+     * The connection must already have auto-commit disabled. This method never
+     * commits or closes the connection.</p>
      *
      * @return true = 本次新登记；false = 幂等键已存在，未新增记录
      */
